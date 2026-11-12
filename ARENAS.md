@@ -1,18 +1,18 @@
 # Arenas
 
-Where a tyrant is fought. Every tenth level's land is nothing but an arena on an isle of its own, and every other land's keep holds a smaller one, with the land's tyrant inside. There are six kinds, each its own place and its own fight. Read this before changing an arena's layout, its pieces, what it does on its own, its gates or a keep's arena, and read `LORE.md` before changing what any of it looks like or is called.
+Where a tyrant is fought every tenth level: that level's land is nothing but an arena on an isle of its own, sealed, so that nobody leaves it until the tyrant's down. There are six kinds, each its own place and its own fight, and each is laid out a little differently every time. Every other land's tyrant waits in the open yard of its keep instead, where it can be led anywhere (A keep's tyrant, below). Read this before changing an arena's layout, its pieces, what it does on its own, its gates or a keep's yard, and read `LORE.md` before changing what any of it looks like or is called.
 
-Status: built 2026-11-10 to 11-11. **Nobody has played any of it.** It was judged from stills taken from the game's camera, and every rule below has a check in `Dino WorldLab check` and `Dino NetLab arenas`. The numbers are where to start.
+Status: built 2026-11-10 to 11-11. On 2026-11-12 the arena in every keep gave way to an open yard, and the arenas were made two to three times larger with their layouts drawn per seed. **Nobody has played any of it.** It was judged from stills taken from the game's camera, and every rule below has a check in `Dino WorldLab check` and `Dino NetLab arenas`. The numbers are where to start.
 
 ## The one idea
 
 **An arena is sealed.** Nothing that walks on its floor gets off it, and nothing off it gets on, until the tyrant's down. Two things do it together. A ring of solid footprints runs along the inside of its walls (`ArenaLayout.SealLine`, `SealArc`), and the floor is sunk at least four metres below everything round it. Walkable and passable ground is flooded out from where heroes arrive, so whatever's on the other side of the seal isn't ground anyone can stand on at all. Four metres matters: a node of the height grid on the edge of a sharp step takes a height between the two, and a smaller drop splits into two half-steps that can both be walked.
 
-Nothing else may cross a seal either. A page that carries someone lands them on their own side of every keep's arena (`GameServer.Carry`, `ServerSession.SameSide`), calling the roads is refused on a keep's arena's floor while its tyrant stands (`ServerSession.HeldInArena`), and only the arena's own gates take anyone across (`GameServer.Bring`). `WorldValidator.CheckSealed` holds it by flooding the world's own maps from where its fighters stand: everything passable stays within a body of its bounds, and everything walkable within the seal's thickness.
+A boss map's walkable ground is its floor and nothing else, so nothing that carries anyone can take them off it. `WorldValidator.CheckSealed` holds it by flooding the world's own maps from where its fighters stand: everything passable stays within a body of its bounds, and everything walkable within the seal's thickness.
 
 **The camera looks north from the south**, so tall things stand on an arena's north side, where they're seen face on, and its south side stays low. Nothing walkable stands behind the waygate or the way up, where a wall would hide whoever's there. East is the left of the screen, and bearings run clockwise from north.
 
-**What the game needs of an arena is its plan** (`ArenaPlan`, on `WorldSite.Arena`, headless): its kind, the bounds of its floor, the entries the brood comes in by and what moves in them, its set pieces, how far it reaches and where its floor is, and for a keep's arena its way down, where whoever comes down arrives, its way up and the radius of the wall round its rim. It's worked out with the world and never saved.
+**What the game needs of an arena is its plan** (`ArenaPlan`, on `WorldSite.Arena`, headless): its kind, the bounds of its floor, the entries the brood comes in by and what moves in them, its set pieces, how far it reaches, where its floor is and where whoever comes through the waygate arrives. It's worked out with the world and never saved. Only a boss map has one.
 
 **Every piece is grown from its id**, as plants are. An `ArenaSpec` id is `arena:<shape>:<seed in hex>:<numbers>`, in whole centimetres and degrees, with no dots or hash, and `ArenaForge` builds it, on worker threads at load (`WorldAssetLibrary.Grow`), and the game grows whatever moves the same way (`CharacterFactory`). Stone colours are multipliers on the Rock material (`ArenaStone`), black iron, oxblood and brass are the Reich's and nothing else's, and its mark is a tyrant's skull (`ReichMark`), which the harness on its dinosaurs carries too.
 
@@ -27,7 +27,7 @@ Nothing else may cross a seal either. A page that carries someone lands them on 
 | The Fossilized Onslaught (`onslaught`) | The Ossuary's quarry in basalt and ash: two benches cut down to the floor, and a charge of the Reich's war-beasts turned to stone where the ash caught it, with wagons, standards, scaffolds and a crane | The ash heaves where the dead claw up out of it, and throws whoever's on it | Its vents breathe fire along their cracks, and leave them smouldering | Overcast, ash falling |
 | The Cathedral of the Iron Apex (`cathedral`) | The Reich's own: a nave of dark granite piers sunk into the ground, arches of riveted iron across it, iron screens between the piers, an apse of oxblood and amber glass round the throne-cage, and the Iron Apex over it, a tyrant's skull in black iron | Pointed gates under the screens, their grilles rising | Its chandeliers give as the tyrant weakens and come down burning on whatever's under them, the tyrant too | Always night |
 
-A boss map's sky is held to its kind's (`WorldArchetype.Weather`, read by `WeatherField`), and a keep's arena has its land's, but a cathedral is night round it wherever it stands (`AmbienceSystem`). The names are the game's own, never a real place or event: The Sun-Temple and The Fossilized Onslaught were chosen over names that borrowed from real ones.
+A boss map's sky is held to its kind's (`WorldArchetype.Weather`, read by `WeatherField`), and a cathedral is night round it (`AmbienceSystem`). The names are the game's own, never a real place or event: The Sun-Temple and The Fossilized Onslaught were chosen over names that borrowed from real ones.
 
 ## A fight
 
@@ -41,21 +41,42 @@ A boss map's sky is held to its kind's (`WorldArchetype.Weather`, read by `Weath
 - **Vents** wake near whoever's on the floor, and breathe fire along their cracks, which smoulder after (`Shelf.Eruption`, `Smoulder`). The ash heaving where the dead come up throws whoever's on it (`Shelf.Heave`).
 - **Chandeliers** give, the one nearest anyone on the floor each time the entries open, swing as their chains give, fall the last of their time, crash on their tick (`Shelf.Crash`) and burn where they lie (`Shelf.Wreck`). They keep their candles lit as they hang, fall and lie (`PropLightSystem`, `AssetLightEntities`).
 
-## A keep's arena
+## Size and layout
 
-**Every land's keep holds an arena** with the land's tyrant in it (`ArenaBuilder.Keep`): one of the six kinds, each as likely, drawn from a fork of the keep's own, at a keep's size in the middle of its walls. It's walled round at its rim by a parapet with the seal along it (`ArenaLayout.KeepRim`), so that nobody walks from the keep onto its stands, where its gatehouses would hide them from the camera, and the land's people are made to watch from them as in any arena. The keep's camp and its garrison are round it, between its wall and the keep's (`PackStage.Reinforce` puts nobody inside its wall).
+**There's room on every floor to move.** A person found the first arenas far too small to get out of the way of a tyrant's blows, so every floor is now two to three times what it was, 2,200 to 4,200 m² inside the seal against 900 to 1,600, and its stands, galleries and set pieces are measured from it, so they grow with it. The isle every arena stands on is 512 m across, to hold one that reaches 62 m from its middle.
 
-- **The way down** is a small gatehouse in the rim wall on the south (`ArenaPlan.Door`, `InteractKind.ArenaDown`), which takes whoever uses it down to the floor.
-- **The way up** is a gatehouse where a boss map's waygate would stand, of the arena's own stone, its grille shut behind whoever came down (`ArenaPlan.Way`, `ArenaLayout.KeepGate`). Once the tyrant's down the grille rises and the way up is there in front of it (`InteractKind.ArenaUp`), which takes whoever uses it back up by the way down. It isn't there before.
-- **The tyrant and the keep's hoard are on the floor**, and the tyrant is only made once a hero's come down (`EncounterSystem.WakeFloor`), as nobody on the keep's ground could reach it.
-- **The mark points to the way down** from off the floor (`GameSession.GoalAt`), and to the way up once the land's free.
-- **A keep stands on ground** at least `SiteStage.KeepAboveSea` above the sea, as its arena is dug down from it and its floor has to stay clear of the sea: a keep on low ground stands on a mound the land is eased up to. Roads that end at a keep stop inside its gate (`SettlementStage.KeepRoadEnd`), and roads going elsewhere go round its middle (`RoadStage.KeepCore`).
+**No two are laid out alike.** Each one's size and layout are drawn from a fork of its own taken before anything is built (`ArenaLayout.Shape`), so that a larger floor moves nothing drawn after it:
 
-A world's walkable ground is flooded out from the landing and from each keep's arena's arrival (`FinalizeStage.FloodsFrom`), and nobody is moved across a seal when a spawn is repaired (`RepairSpawns`). `WorldValidator.CheckKeepArena` holds that the land walks to the way down and never onto the floor, that the floor holds the tyrant and nobody else hostile, and that the seal holds from where whoever comes down arrives. Its walking check carries whoever reaches the door down to the floor, as the game does.
+| Kind | Floor | What varies |
+|---|---|---|
+| The Pit | 28 to 36 m round | Four gates or six round the north; a ring of four to eight pillars on the sand, or none |
+| The Colosseum | An oval 1.3 to 1.6 times the old one | Four lifts or six; an open floor, a spine of pylons down the long axis, or a ring of them |
+| The Jurassic Cage | 28 to 35 m round | Four pens or six; six to eight nests; the Institute's feeding posts in a ring inside the bars, or none |
+| The Sun-Temple | 58 to 72 m by 42 to 50 | One portal in each side wall or two; a ring of the old temple's pillars round the inlay, or none |
+| The Fossilized Onslaught | 29 to 37 m round | Eight to ten of the charge turned to stone, heading south-west or south-east; five to seven places the dead come up and five to eight vents, wherever they fall round the floor |
+| The Cathedral | A nave 30 to 36 m wide and 52 to 63 long | Two gates a side or three; a row of free-standing piers down either side of the nave, or none |
+
+**Pillars are something to fight round** (`ArenaLayout.Pillars`, `PillarWidth`, `PillarHeight`): 1.9 m across and 3.4 tall, solid, so that one stops whatever's aimed through it and hides whoever's behind it from a blow (`Sight`), and low enough that the camera sees over it. They keep clear of the waygate, the tyrant, where the brood comes in and the set pieces. A floor without them is somewhere to run instead.
+
+**The crowd doesn't grow with its stands** (`ArenaLayout.Crowd`): each of the land's people is a body to draw and animate, and what reads is a full stand, so a larger arena fills a smaller share of its places, and holds 35 to 130.
+
+**What reaches across a floor reaches across the largest.** The Colosseum's bolt runs 90 m down its line (`Shelf.BallistaBolt`), and whoever the handlers let in sees 120 m (`ArenaSystem.ArrivalAggro`).
+
+**The Onslaught's charge is the dearest thing an arena grows.** Each statue is a sculpture of its own, and ten of them take about four seconds of one core as a land loads, which is why there are no more than that.
+
+## A keep's tyrant
+
+**A keep's tyrant waits in the open**, in the yard in the middle of its walls (`SettlementStage.BuildKeep`, `KeepYard`). A person found a sealed arena in every keep, gone down into by a gate, made every land's tyrant the same fight as every tenth level's, with nowhere to lead it. So the locked-in fight is the boss maps' alone, and a keep is somewhere to fight however a player likes:
+
+- **The yard is half the keep's radius**, about 30 m, kept clear of anything solid (a `PlacementLayer.Keepout` over it), with the tyrant in its middle as soon as anyone comes. `WorldValidator.CheckKeepYard` fails a keep whose ground within 20 m of its tyrant isn't 85% passable, and one with an arena, a second tyrant or anyone watching in it.
+- **Three of its four walls have an open gatehouse**, the road's and both sides, so that a fight can spill out onto the land and come back in by another. The back wall has the keep itself against it, with the hoard before its door.
+- **Its camp and garrison stand along the walls**, out of the yard (`PackStage.Reinforce` keeps the garrison out of it).
+- **A tyrant follows whoever leads it out**, as far as 120 m from where it waited (every tyrant's and the warlord's `LeashRadius` in `Bestiary`), and the keep's music holds while the fight's within 60 m of its walls (`MusicDirectorSystem.KeepLeaves`). `Dino NetLab arenas --kind keeps` leads one out of the gate and checks that it follows.
+- **Roads that end at a keep stop inside its gate** (`SettlementStage.KeepRoadEnd`), and roads going elsewhere go round its middle (`RoadStage.KeepCore`).
 
 ## Adding to it
 
-- **A new kind**: a value on the end of `ArenaKind`, a layout of its own under `World/Generation/Arenas/` built on `ArenaLayout`, an archetype in `ArenaCatalog` and its `All`, its entries of an `ArenaEntryKind` with whatever moves in them, and its keep's version: a `KeepGate` for the way up, `Tyrants`, and a `KeepRim` at its reach. Lines of its own in `Chronicle`'s arena lines. `Dino NetLab arenas` walks every kind and every kind of keep's arena by itself.
+- **A new kind**: a value on the end of `ArenaKind`, a layout of its own under `World/Generation/Arenas/` built on `ArenaLayout`, with its size and what varies drawn from `Shape` in its constructor, an archetype in `ArenaCatalog` and its `All`, its entries of an `ArenaEntryKind` with whatever moves in them, and `Tyrants`. Lines of its own in `Chronicle`'s arena lines. `Dino NetLab arenas` walks every kind by itself.
 - **A new piece**: a value on the end of `ArenaShape`, its numbers listed beside it, a builder and a case in `ArenaForge`. Nothing in it smaller than a pixel from the game's camera, and nothing that can be seen coplanar with anything else.
 - **Something an arena does**: a value of `ArenaPieceKind`, a book on the end of `Shelf` (not Triggered: it's the arena's own), its numbers in the `Rulebook`, what it does in `ArenaSystem.Hazards.cs`, and a check in `Dino NetLab arenas` that it's marked, lands on its tick on whoever's in it and not on whoever's stepped out.
 
@@ -63,29 +84,29 @@ A world's walkable ground is flooded out from the landing and from each keep's a
 
 ```
 dotnet "Dino WorldLab/bin/Release/net8.0/Dino WorldLab.dll" check --archetype cathedral --count 30 --level 10   # one kind of boss map, sealed
-dotnet "Dino WorldLab/bin/Release/net8.0/Dino WorldLab.dll" check --count 100                                  # lands, every keep's arena among them
-dotnet "Dino WorldLab/bin/Release/net8.0/Dino WorldLab.dll" arenas [--archetype id] [--seed N]                 # a boss map's plan, and what its pieces cost
-dotnet "Dino WorldLab/bin/Release/net8.0/Dino WorldLab.dll" arenas --land any --seed N                         # a land's keep's arena, its ways, and a map of where anyone can walk
-dotnet "Dino NetLab/bin/Release/net8.0/Dino NetLab.dll" arenas [--kind id | --kind keeps]                     # waves, what each does on its own, the seal, and keeps
+dotnet "Dino WorldLab/bin/Release/net8.0/Dino WorldLab.dll" check --count 100                                  # lands, every keep's yard among them
+dotnet "Dino WorldLab/bin/Release/net8.0/Dino WorldLab.dll" arenas [--archetype id] [--seed N]                 # a boss map's plan, its floor's area, and what its pieces cost
+dotnet "Dino WorldLab/bin/Release/net8.0/Dino WorldLab.dll" arenas --land any --seed N                         # a land's keep, its yard, and a map of where anyone can walk
+dotnet "Dino NetLab/bin/Release/net8.0/Dino NetLab.dll" arenas [--kind id | --kind keeps]                     # waves, what each does on its own, the seal, and keeps' tyrants led out
 ```
 
-`lands` runs the arena checks with the rest. In the game, a boss map is `--archetype cathedral --level 10`, and `--calm true` keeps everything hostile standing still, for looking at it. A keep's arena is any land's: `arenas --land any --seed N` says where its way down is, for `--seed N --at x,z`.
+`lands` runs the arena checks with the rest. In the game, a boss map is `--archetype cathedral --level 10`, and `--calm true` keeps everything hostile standing still, for looking at it. A keep is any land's: `arenas --land any --seed N` says where it and its tyrant are, for `--seed N --at x,z`. `arenas --seed N` for seeds 1 to 4 shows each kind's variations side by side.
 
 ## Where it stands
 
-**Nobody has played any of it, or watched it move.** Ask how a fight in each feels first: whether the set pieces read in a fight, whether bolts, sunfire and chandeliers are fair, whether clutches hatch too soon, and whether a keep's arena reads as somewhere to go down into.
+**Nobody has played any of it, or watched it move.** Ask how a fight in each feels first: whether there's room now, whether the pillars help or get in the way, whether the set pieces read in a fight, whether bolts, sunfire and chandeliers are fair, whether clutches hatch too soon, and whether leading a keep's tyrant round its yard and out of its gates feels free.
 
 Decided, and open to change:
 
 - **The Pit does nothing of its own.** It's the plain fight, so the others have something to be different from.
 - **What burns falls on the tyrant too**, for a share of its health, so luring it under a chandelier or into the sun is worth doing. Bolts and vents don't, as they're aimed at the hero.
-- **A keep's arena's way up only appears once the tyrant's down**, rather than standing there shut, which asked why it wouldn't open.
+- **A keep has no arena**, so that the sealed fight belongs to every tenth level. Its yard has three gates open, and a tyrant's leash is 120 m.
+- **The floors' sizes** were picked so that a tyrant's widest blows leave room to step out of them, and are where to start if a fight feels empty.
 - **Its set pieces have no sounds of their own** but the gate's: a chandelier giving and a hero going down or up use it.
 - **A chandelier's light casts no shadow.** Three of them nearest the hero took the cube maps lent to lights, each rendering the whole nave and its crowd, and the Cathedral stuttered: 95% of its frames went from 22 ms to 9 without them.
 
-Measured on the 7900 XTX at 3440×1369, standing on the floor: the Cathedral at 114 frames a second, the Colosseum at 123, and a keep's arena from its gate at 131. Nothing has been measured on a slower card.
+Measured on the 7900 XTX at 3440×1369, standing on the floor, before they grew: the Cathedral at 114 frames a second and the Colosseum at 123. The larger ones haven't been measured: a Colosseum now has up to 530,000 triangles of pieces and the Cathedral 280,000. Nothing has been measured on a slower card.
 
 Not built:
 
-- A hero on a keep's ground can still put an area down by the cursor onto its floor while a friend is down there fighting. Nothing walks or flies in.
-- The way down and up is a cut, not something seen happening.
+- Anything to fight round in a keep's yard: it's open ground on purpose, and its walls, tents and the keep itself are what stand in a fight's way.

@@ -12,7 +12,7 @@ namespace Dino_WorldLab
     ///   map     [--seed N] [--archetype id] [--out file.png] [--size pixels]   One world as a map.
     ///   sheet   [--seed N] [--count N] [--archetype id] [--out file.png]       A contact sheet of many worlds.
     ///   plan    [--seed N] [--archetype id] [--site kind] [--nth N] [--span m] [--out f] A surveyor's plan of one site, the Nth of its kind.
-    ///   check   [--seed N] [--count N] [--archetype id]                        Generates worlds and validates them. Exit code 1 on any problem.
+    ///   check   [--seed N] [--count N] [--archetype id] [--layout linear|open] Generates worlds and validates them. Exit code 1 on any problem.
     ///   packs   [--seed N] [--archetype id] [--level N] [--out file.png]       Who stands where: the mix, and a map of it, each folk in its colour.
     ///   relief  [--seed N] [--count N] [--archetype id]                        What the land is made of, and where the rock stands highest.
     ///   view    --at x,z [--seed N] [--archetype id] [--span m] [--angle d] [--yaw d] [--out f]  A drawing of a place, for shaping land with no game.
@@ -76,13 +76,14 @@ namespace Dino_WorldLab
         // Where things are in a world, for pointing the game at them (--at x,z): every site with the way it builds, and every object whose model id starts with --what.
         private static int Where(Options options)
         {
-            int seed = options.Int("seed", 1);
+            int seed = SeedFor(options);
             WorldData world = new WorldGenerator().Generate(new WorldRequest(seed, options.Text("archetype")));
             Describe(world, 0);
             foreach (WorldSite site in world.Sites)
             {
                 Console.WriteLine($"  {site.Kind,-14} {site.Name,-24} at {site.Position.X:0},{site.Position.Y:0}  {world.Plan.Biomes[site.Biome].Name}, built in {world.StyleOf(site)}");
             }
+            foreach (WorldPond pond in world.Ponds) Console.WriteLine($"  Pond           {pond.Area,5:0} m2, level {pond.Level:0.0} m          at {pond.Centre.X:0},{pond.Centre.Y:0}, {pond.HalfExtents.X * 2f:0} by {pond.HalfExtents.Y * 2f:0} m across");
             string? what = options.Text("what");
             Vector2? near = null;
             if (options.Text("near") is string spot)
@@ -109,7 +110,7 @@ namespace Dino_WorldLab
 
         private static int Map(Options options)
         {
-            int seed = options.Int("seed", 1);
+            int seed = SeedFor(options);
             var clock = Stopwatch.StartNew();
             WorldData world = new WorldGenerator().Generate(new WorldRequest(seed, options.Text("archetype")));
             clock.Stop();
@@ -245,6 +246,22 @@ namespace Dino_WorldLab
             return 0;
         }
 
+        // Whether a request's land is laid out as --layout asks: "linear" for one way through, "open" for open country, or anything at all.
+        private static bool LaidOut(Options options, in WorldRequest request) => options.Text("layout") switch
+        {
+            "linear" => WorldPlan.Create(request).Linear,
+            "open" => !WorldPlan.Create(request).Linear,
+            _ => true,
+        };
+
+        // The first seed from --seed on whose land is laid out as --layout asks.
+        private static int SeedFor(Options options)
+        {
+            int seed = options.Int("seed", 1);
+            while (!LaidOut(options, new WorldRequest(seed, options.Text("archetype")))) seed++;
+            return seed;
+        }
+
         private static int Check(Options options)
         {
             int firstSeed = options.Int("seed", 1);
@@ -255,11 +272,17 @@ namespace Dino_WorldLab
             float steepest = 0f;
             var clock = Stopwatch.StartNew();
 
-            for (int i = 0; i < count; i++)
+            for (int i = 0, skipped = 0; i < count; i++)
             {
-                int seed = firstSeed + i;
+                int seed = firstSeed + i + skipped;
                 string id = archetype ?? ArchetypeCatalog.All[i % ArchetypeCatalog.All.Count].Id;
                 var request = new WorldRequest(seed, id, options.Int("level", 1), options.Int("people", 0) / 100f, options.Int("packs", 0) / 100f);
+                if (!LaidOut(options, request))
+                {
+                    skipped++;
+                    i--;
+                    continue;
+                }
                 WorldData world;
                 try
                 {
@@ -348,6 +371,11 @@ namespace Dino_WorldLab
             string built = string.Join("/", settled.Select(world.StyleOf).Distinct().DefaultIfEmpty(world.Style));
             Console.WriteLine($"[{plan.Seed}] {plan.Name} ({plan.Archetype.Id}, {plan.Size:0} m, {seconds:0.00} s, {world.ReachableArea / 1e6f:0.00} km2, {roadKm:0.0} km road, built in {built}): {biomes}");
             Console.WriteLine($"      {sites}");
+            if (plan.Path is LandPath path)
+            {
+                Console.WriteLine($"      one way through: {path.Rooms.Count} clearings over {path.Length:0} m, from {path.First.Centre.X:0},{path.First.Centre.Y:0} to {path.Last.Centre.X:0},{path.Last.Centre.Y:0}");
+                Console.WriteLine("      " + string.Join("  ", path.Rooms.Select((room, i) => $"{room.Centre.X:0},{room.Centre.Y:0} r{room.Radius:0}{(world.Reachable.Sample(room.Centre) > 0.5f ? "" : " (closed)")}")));
+            }
             Console.WriteLine($"      {world.Objects.Count} objects, {world.Placement.Count} footprints, {world.Ponds.Count} ponds | " +
                 string.Join(" ", world.Timings.Select(t => $"{t.stage.Replace("Stage", "")}:{t.milliseconds:0}")));
         }

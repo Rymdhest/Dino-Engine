@@ -10,7 +10,7 @@ namespace Dino_Engine.World.Generation.Arenas
     /// benches of cut basalt, and on it stands the charge itself, war-beasts in harness turned to stone mid-stride, heading south-west where the ash caught them, with their wagons on their sides and
     /// their standards still up, all of it solid: what's in the way of a blow stops it. The cracks in the ash breathe fire, and the dead come up through it. In the north faces, where the camera sees them,
     /// are the bones of beasts far older than the Reich, half cut free, with the Ossuary's scaffolds against them and its crane on the rim, and its cold lamps all round. The waygate the Reich built its
-    /// road to stands on the ash by the south face. A keep's is the same, smaller, with fewer of the charge. Read ARENAS.md.
+    /// road to stands on the ash by the south face. How wide the quarry was cut, how much of the charge is on its floor and which way it was going are drawn for each one. Read ARENAS.md.
     /// </summary>
     internal sealed class OnslaughtArena : ArenaLayout
     {
@@ -22,18 +22,28 @@ namespace Dino_Engine.World.Generation.Arenas
         private const float WallThick = 1.6f;
         private const float BenchDepth = 2.6f;
 
-        // The way the charge was going when the ash caught it.
-        private static readonly Vector2 Charge = new Vector2(-0.7071f, -0.7071f);
+        // The way the charge was going when the ash caught it: south, towards the land, one way or the other.
+        private readonly Vector2 Charge;
 
         private readonly float _radius;
         private readonly int _statues;
+        private readonly int _risings;
+        private readonly int _vents;
 
-        public OnslaughtArena(SiteBuilder b, bool keep, Vector2 centre)
-            : base(b, ArenaKind.Onslaught, keep, centre, keep ? "keep onslaught" : "onslaught")
+        public OnslaughtArena(SiteBuilder b, Vector2 centre)
+            : base(b, ArenaKind.Onslaught, centre, "onslaught")
         {
-            _radius = keep ? 15.5f : 21f;
-            _statues = keep ? 3 : 7;
+            _radius = Shape.Range(29f, 37f);
+            // Each of the charge is a sculpture of its own, and the dearest thing an arena grows: more than this and the arena takes too long to build as a land loads.
+            _statues = Shape.Int(8, 10);
+            _risings = Shape.Int(5, 7);
+            _vents = Shape.Int(5, 8);
+            float heading = Shape.Range(200f, 240f) * (Shape.Chance(0.5f) ? 1f : -1f);
+            Charge = Toward(heading);
         }
+
+        private Vector2 TyrantAt => North * (_radius * 0.24f) + East * 2f;
+        private Vector2 RivalAt => -North * (_radius * 0.1f) - East * (_radius * 0.38f);
 
         private float RimGround => BenchOne + BenchTwo;
         private float BenchFace => _radius + WallThick + BenchDepth;
@@ -51,7 +61,7 @@ namespace Dino_Engine.World.Generation.Arenas
             Level(Footprint.Circle(C, Reach + 5f), RimGround, 9f);
             Raise(Footprint.Circle(C, BenchFace + 0.78f), BenchOne);
             Raise(Footprint.Circle(C, _radius + 0.8f), 0f);
-            Vector2 gate = Keep ? KeepGate(-North * (_radius - KeepGateDeep), North, Stone, ArenaGrille.Pit) : Waygate(-North * (_radius - 4.2f), North);
+            Vector2 gate = Waygate(-North * (_radius - 4.2f), North);
             // Nothing walks behind the waygate, where the face would hide anyone from the camera.
             Solid(Footprint.Box(C + gate - North * 1.2f, new Vector2(4.4f, 1.2f), 0f));
 
@@ -66,9 +76,8 @@ namespace Dino_Engine.World.Generation.Arenas
             Paint(GroundPaint.Yard, Footprint.Circle(C, Reach), 4f);
             Keepout(Footprint.Circle(C, Reach + 2f));
 
-            Tyrants(C + North * 5f + East * 2f, C - North * 2f - East * 8f);
-            if (Keep) KeepRim(Reach + 1f, RimGround, Stone);
-            else Plan.Arrival = C + gate + North * 2.5f;
+            Tyrants(C + TyrantAt, C + RivalAt);
+            Plan.Arrival = C + gate + North * 2.5f;
         }
 
         // The cut faces: the first bench and the second behind it, all the way round, in pieces of 40 degrees.
@@ -94,7 +103,7 @@ namespace Dino_Engine.World.Generation.Arenas
         // The Ossuary's dig in the north faces, where the camera sees it: bones of old beasts half cut free of both benches, scaffolds against them, cold lamps, and the crane on the rim.
         private void Dig()
         {
-            float[] bearings = Keep ? new[] { -25f, 30f } : new[] { -55f, -18f, 22f, 58f };
+            float[] bearings = { -55f, -18f, 22f, 58f };
             for (int i = 0; i < bearings.Length; i++)
             {
                 float bearing = bearings[i];
@@ -113,12 +122,9 @@ namespace Dino_Engine.World.Generation.Arenas
                 }
                 Lamp(2, outward * (radius + WallThick + 1.2f) + new Vector2(-outward.Y, outward.X) * 2.4f, YawFacing(-outward), upper ? RimGround : BenchOne);
             }
-            if (!Keep)
-            {
-                Vector2 crane = Toward(38f) * (BenchFace + WallThick + 3.4f);
-                Piece(new ArenaSpec(ArenaShape.Crane, NextSeed(), Cm(6.2f)), crane, YawFacing(-crane), RimGround);
-                Solid(Footprint.Circle(C + crane, 2.4f));
-            }
+            Vector2 crane = Toward(38f) * (BenchFace + WallThick + 3.4f);
+            Piece(new ArenaSpec(ArenaShape.Crane, NextSeed(), Cm(6.2f)), crane, YawFacing(-crane), RimGround);
+            Solid(Footprint.Circle(C + crane, 2.4f));
         }
 
         // The charge, turned to stone across the floor, every one of them heading the same way, and what went down with them: wagons on their sides and standards still up. All of it solid, kept
@@ -127,12 +133,13 @@ namespace Dino_Engine.World.Generation.Arenas
         {
             // Where the dead come up out of the ash, and where it breathes fire: these first, as the charge keeps clear of them.
             var risings = new List<Vector2>();
-            float[] risingBearings = Keep ? new[] { -60f, 60f, 150f } : new[] { -110f, -45f, 15f, 75f, 140f };
-            foreach (float bearing in risingBearings) risings.Add(Toward(bearing) * _radius * 0.62f);
+            // Round the floor but for the south, where the waygate is, evenly with a little give.
+            float risingFrom = Shape.Range(-125f, -100f), risingTo = Shape.Range(130f, 150f);
+            for (int i = 0; i < _risings; i++) risings.Add(Toward(risingFrom + (risingTo - risingFrom) * i / (_risings - 1) + Shape.Range(-6f, 6f)) * _radius * Shape.Range(0.58f, 0.7f));
             foreach (Vector2 at in risings) Plan.Entries.Add(new ArenaEntry(ArenaEntryKind.Rising, C + at, new Vector3(C.X + at.X, F, C.Y + at.Y), 0f, "", 0f));
             var vents = new List<Vector2>();
-            float[] ventBearings = Keep ? new[] { 0f, 120f, 240f } : new[] { -150f, -80f, -10f, 45f, 110f };
-            foreach (float bearing in ventBearings) vents.Add(Toward(bearing) * _radius * (Keep ? 0.42f : 0.36f));
+            float ventFrom = Shape.Range(0f, 360f);
+            for (int i = 0; i < _vents; i++) vents.Add(Toward(ventFrom + 360f * i / _vents + Shape.Range(-10f, 10f)) * _radius * Shape.Range(0.3f, 0.46f));
             foreach (Vector2 at in vents)
             {
                 float yaw = Random.Float() * MathF.Tau;
@@ -140,7 +147,7 @@ namespace Dino_Engine.World.Generation.Arenas
                 Plan.Pieces.Add(new ArenaPiece(ArenaPieceKind.Vent, new Vector3(C.X + at.X, F, C.Y + at.Y), yaw, ""));
             }
 
-            var keepClear = new List<(Vector2 At, float Radius)> { (gate, 6.5f), (North * 5f + East * 2f, 4.5f) };
+            var keepClear = new List<(Vector2 At, float Radius)> { (gate, 6.5f), (TyrantAt, 4.5f), (RivalAt, 3.5f) };
             foreach (Vector2 r in risings) keepClear.Add((r, 2.6f));
             foreach (Vector2 v in vents) keepClear.Add((v, 2.2f));
             bool Clear(Vector2 at, float radius) => keepClear.All(c => (at - c.At).Length > c.Radius + radius) && at.Length < _radius - radius - 2.2f;
@@ -159,7 +166,7 @@ namespace Dino_Engine.World.Generation.Arenas
                 keepClear.Add((at, size + 2.2f));
                 placed++;
             }
-            for (int i = 0, placed = 0; i < 120 && placed < (Keep ? 1 : 2); i++)
+            for (int i = 0, placed = 0; i < 160 && placed < 3; i++)
             {
                 Vector2 at = Toward(Random.Range(0f, 360f)) * MathF.Sqrt(Random.Float()) * (_radius - 5f);
                 if (!Clear(at, 3f)) continue;
@@ -169,7 +176,7 @@ namespace Dino_Engine.World.Generation.Arenas
                 keepClear.Add((at, 6f));
                 placed++;
             }
-            for (int i = 0, placed = 0; i < 40 && placed < (Keep ? 2 : 4); i++)
+            for (int i = 0, placed = 0; i < 60 && placed < 6; i++)
             {
                 Vector2 at = Toward(Random.Range(0f, 360f)) * MathF.Sqrt(Random.Float()) * (_radius - 3f);
                 if (!Clear(at, 1.2f)) continue;
@@ -180,18 +187,18 @@ namespace Dino_Engine.World.Generation.Arenas
             }
             var clear = new List<(Vector2, float)> { (C + gate, 8f) };
             foreach (Vector2 r in risings) clear.Add((C + r, 3f));
-            Remains(0, Keep ? 2 : 5, clear);
+            Remains(0, 7, clear);
         }
 
         // Cold lamps round the rim, and the Reich's old banners on its masts, which the Ossuary left up.
         private void Rim()
         {
             float ring = BenchFace + WallThick + 3.6f;
-            int count = Keep ? 8 : 12;
+            int count = 16;
             for (int k = 0; k < count; k++)
             {
                 float bearing = (k + 0.5f) * 360f / count;
-                if (Near(bearing, 38f, 12f) && !Keep) continue;
+                if (Near(bearing, 38f, 12f)) continue;
                 Vector2 at = Toward(bearing) * ring;
                 if (k % 3 == 1)
                 {
@@ -208,7 +215,7 @@ namespace Dino_Engine.World.Generation.Arenas
             foreach (float radius in new[] { _radius + WallThick + BenchDepth * 0.5f, BenchFace + WallThick + 1.8f })
             {
                 float step = 360f / (MathF.Tau * radius / 3.3f);
-                Watchers(radius, step, radius * 3f, bearing => Keep || !Near(bearing, 38f, 10f), share: 0.6f);
+                Watchers(radius, step, radius * 3f, bearing => !Near(bearing, 38f, 10f), share: Crowd(0.6f, radius, 25f));
             }
         }
     }

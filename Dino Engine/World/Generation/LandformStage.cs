@@ -8,13 +8,20 @@ namespace Dino_Engine.World.Generation
     /// Shapes the land. First a signed outline says what is land and what is water (positive is land), then the height
     /// follows from how far inland a point is: a beach or cliff at the shore rising into lowland, with hills and ridged
     /// mountains on top. Working from true distance to the shore, not from raw noise, keeps coasts walkable and gives
-    /// every world the same readable structure of shore, lowland and heights.
+    /// every world the same readable structure of shore, lowland and heights. A linear land (<see cref="WorldPlan.Path"/>) is the way through it and nothing else: an isle's is a strand of land
+    /// winding through the sea, and any other kind's a gorge between walls of mountain, which rise wherever the way doesn't run.
     /// </summary>
     public sealed class LandformStage : IWorldStage
     {
         private const float ShoreWidth = 46f;       // Metres of beach before the land starts to rise.
         private const float SeaFloorSlope = 0.07f;
         private const float MaxSeaDepth = 26f;
+        private const float WallRise = 45f;         // Metres outside a linear land's way over which its walls rise to their full height.
+        private const float LeastWall = 70f;        // The least a linear land's walls rise to, where its kind's rim is lower.
+        private const float StrandShore = 34f;      // Metres of land beyond a linear isle's way before the sea, rocky and steep, rising out of reach before it falls to the sea.
+        private const float StrandRidge = 30f;      // How high that ground would rise, if the sea didn't come first.
+        private const float StrandSeaFloor = 0.3f;
+        private const float GorgeMarshLift = 1.3f;
 
         private readonly record struct Blob(Vector2 Centre, float Radius);
 
@@ -30,7 +37,12 @@ namespace Dino_Engine.World.Generation
             var coastNoise = new WorldNoise(random.Fork("coast"));
             var reliefNoise = new WorldNoise(random.Fork("relief"));
             var mountainNoise = new WorldNoise(random.Fork("mountains"));
-            Func<float, float, float> outline = BuildOutline(plan, random.Fork("outline"), coastNoise);
+            // A linear land is the way through it: a strand where its kind has the sea round it, and a gorge otherwise, every lake of its kind left out, as one would cut the way.
+            LandPath? path = plan.Path;
+            bool strand = path != null && plan.Archetype.Landform is LandformKind.Island or LandformKind.Archipelago;
+            bool gorge = path != null && !strand;
+            Func<float, float, float> outline = path == null ? BuildOutline(plan, random.Fork("outline"), coastNoise)
+                : strand ? StrandOutline(size, path, coastNoise) : (x, z) => 1f;
 
             ScalarField shape = ScalarField.ForWorld(size, WorldData.CoarseCell);
             shape.Generate(outline);
@@ -41,7 +53,7 @@ namespace Dino_Engine.World.Generation
             ScalarField inland = ScalarField.DistanceTo(width, depth, WorldData.CoarseCell, i => land[i] <= 0f);
             ScalarField offshore = ScalarField.DistanceTo(width, depth, WorldData.CoarseCell, i => land[i] > 0f);
 
-            float rimHeight = plan.Archetype.RimHeight;
+            float rimHeight = gorge ? MathF.Max(plan.Archetype.RimHeight, LeastWall) : strand ? StrandRidge : plan.Archetype.RimHeight;
             float rimWidth = plan.Archetype.RimWidth;
             bool hasRim = rimHeight > 0f;
             bool marsh = plan.Archetype.Landform == LandformKind.Marsh;
@@ -59,26 +71,32 @@ namespace Dino_Engine.World.Generation
                     float worldX = x * WorldData.CoarseCell;
                     int i = z * width + x;
 
-                    // Open water closes off its side of the world by itself.
-                    float rim = hasRim && land[i] > 0f ? RimAt(worldX, worldZ, size, rimWidth, coastNoise) : 0f;
+                    // Open water closes off its side of the world by itself. A linear land's walls are its rim, wherever the way isn't, so they close off the edge of the world too: a gorge's are
+                    // mountains, and a strand's the rocky ground between the way and the sea.
+                    // A strand's walls hold over the shallows beside them too, or the sea along their foot would be a way round them.
+                    float wall = path != null ? WallAt(path, worldX, worldZ, coastNoise) : 0f;
+                    float rim = path != null ? wall : !hasRim || land[i] <= 0f ? 0f : RimAt(worldX, worldZ, size, rimWidth, coastNoise);
                     boundary.Data[i] = rim;
 
                     float height;
                     if (land[i] <= 0f)
                     {
-                        height = -0.15f - MathF.Min(offshore.Data[i] * SeaFloorSlope, MaxSeaDepth);
+                        // Off a strand the sea floor falls away fast, so that the channel between two legs of the way is out of anyone's depth.
+                        height = -0.15f - MathF.Min(offshore.Data[i] * (strand ? StrandSeaFloor : SeaFloorSlope), MaxSeaDepth);
                     }
                     else if (marsh)
                     {
-                        height = MarshHeight(worldX, worldZ, reliefNoise);
+                        // A marsh walled in fills to the brim wherever it dips, so a linear one's way stands a little higher, or a lake would cut it.
+                        height = MarshHeight(worldX, worldZ, reliefNoise) + (gorge ? GorgeMarshLift : 0f);
                     }
                     else
                     {
-                        height = LandHeight(plan, worldX, worldZ, inland.Data[i], reliefNoise, mountainNoise, coastNoise, mountainThreshold, out highland.Data[i]);
-                        if (plan.Terraces > 0f) height = Terrace(height, terraceStep, plan.Terraces);
+                        // The way through a gorge has no mountains or terraces of its own to cut it: its walls are where they are.
+                        height = LandHeight(plan, worldX, worldZ, inland.Data[i], reliefNoise, mountainNoise, coastNoise, mountainThreshold, gorge ? wall : 1f, out highland.Data[i]);
+                        if (plan.Terraces > 0f) height = Terrace(height, terraceStep, plan.Terraces * (gorge ? wall : 1f));
                     }
 
-                    if (hasRim) height += MathF.Pow(rim, 2.2f) * rimHeight;
+                    if (hasRim && land[i] > 0f) height += MathF.Pow(rim, 2.2f) * rimHeight;
                     elevation.Data[i] = height;
                 }
             });
@@ -98,7 +116,28 @@ namespace Dino_Engine.World.Generation
             return 1f - Smoothstep(0f, rimWidth * 1.5f, border + wander - rimWidth * 0.1f);
         }
 
-        private static float LandHeight(WorldPlan plan, float x, float z, float inland, WorldNoise relief, WorldNoise mountains, WorldNoise coast, float mountainThreshold, out float highland)
+        // 0 on a linear land's way, rising to 1 a little outside it, along a wandering line, so that its passes bend and its clearings aren't circles.
+        private static float WallAt(LandPath path, float x, float z, WorldNoise noise)
+        {
+            Vector2 warp = noise.Warp(x - 211f, z + 97f, 150f, 20f);
+            float outside = path.Outside(new Vector2(x, z) + warp) + noise.Fbm(x + 333f, z - 71f, 60f, 3) * 8f;
+            return Smoothstep(0f, WallRise, outside);
+        }
+
+        // A linear isle: land along its way and a beach beyond it, and the sea everywhere else, the legs of the way far enough apart that the channels between them are out of anyone's depth.
+        private static Func<float, float, float> StrandOutline(float size, LandPath path, WorldNoise noise)
+        {
+            float edgeMargin = 0.055f * size;
+            return (x, z) =>
+            {
+                Vector2 warp = noise.Warp(x - 211f, z + 97f, 150f, 20f);
+                float field = StrandShore - path.Outside(new Vector2(x, z) + warp) + noise.Fbm(x + 41f, z - 83f, 90f, 4) * 10f;
+                float border = MathF.Min(MathF.Min(x, size - x), MathF.Min(z, size - z));
+                return MathF.Min(field, border - edgeMargin);
+            };
+        }
+
+        private static float LandHeight(WorldPlan plan, float x, float z, float inland, WorldNoise relief, WorldNoise mountains, WorldNoise coast, float mountainThreshold, float walled, out float highland)
         {
             // Stretches of the coast rise straight up as cliffs; the rest are beaches.
             float cliffNoise = coast.Fbm01(x - 1300f, z + 700f, 300f, 3);
@@ -119,7 +158,7 @@ namespace Dino_Engine.World.Generation
             float mask = Smoothstep(mountainThreshold, mountainThreshold + 0.26f, massif) * Smoothstep(60f, 320f, inland);
             highland = massif * Smoothstep(60f, 320f, inland);
             float ridges = mountains.Ridged(x + warp.X, z + warp.Y, 430f, 6);
-            float mountain = plan.MountainHeight * mask * (0.32f + 0.68f * ridges);
+            float mountain = plan.MountainHeight * mask * (0.32f + 0.68f * ridges) * walled;
 
             return shore + lowland + hills + mountain;
         }

@@ -27,21 +27,26 @@ namespace Dino_Engine.World.Generation.Arenas
         protected readonly Vector2 C;
         protected readonly WorldRandom Random;
         public readonly ArenaPlan Plan;
-        protected readonly bool Keep;
         private uint _seed;
 
         /// <summary>Where people stand on the floor.</summary>
         protected float F;
 
-        protected ArenaLayout(SiteBuilder b, ArenaKind kind, bool keep, Vector2 centre, string fork)
+        protected ArenaLayout(SiteBuilder b, ArenaKind kind, Vector2 centre, string fork)
         {
             B = b;
             C = centre;
-            Keep = keep;
             Random = b.Random.Fork(fork);
-            _seed = (uint)(b.World.Plan.Seed * 2654435761L) ^ (uint)kind * 0x9E37u ^ (keep ? 0x5EA1u : 0u);
-            Plan = new ArenaPlan { Kind = kind, Keep = keep, Centre = centre };
+            Shape = b.Random.Fork(fork + " shape");
+            _seed = (uint)(b.World.Plan.Seed * 2654435761L) ^ (uint)kind * 0x9E37u;
+            Plan = new ArenaPlan { Kind = kind, Centre = centre };
         }
+
+        /// <summary>
+        /// What an arena's size and layout are drawn from, a fork of its own taken before anything is built, so that one seed's arena is larger or smaller, with more or fewer gates and something or
+        /// nothing to fight round on its floor, without moving anything else drawn after.
+        /// </summary>
+        protected readonly WorldRandom Shape;
 
         protected WorldData World => B.World;
 
@@ -206,83 +211,41 @@ namespace Dino_Engine.World.Generation.Arenas
             return gate - C;
         }
 
-        // ---------------------------------------------------------------- A keep's ways down and up
-
-        // A keep's gates: an opening a person goes through, low enough on the south side to hide nobody behind it from the camera, and the grille that shuts in it.
-        private const float KeepOpening = 3.4f, KeepCrown = 4f, KeepGateDepth = 2.6f, KeepGateWidth = 6.6f, KeepGateHeight = 5.6f, KeepGrilleRise = 3.6f;
-        private const float DoorOpening = 3.2f, DoorCrown = 3.8f, DoorDepth = 2.2f, DoorWidth = 6.4f, DoorHeight = 5.2f;
-        private const float RimTop = 1.15f, RimThick = 0.6f;
-
-        /// <summary>How far in front of the wall it stands against a keep's gate's face is, its body against the wall.</summary>
-        protected const float KeepGateDeep = KeepGateDepth + 0.05f;
-
-        /// <summary>
-        /// In a keep's arena, where a boss map's waygate would stand, the way whoever came down goes up again: a gatehouse of the arena's own stone with its front's middle at <paramref name="at"/>,
-        /// facing <paramref name="facing"/> across the floor, its grille shut behind whoever came down and raised once the tyrant's down (<see cref="ArenaPlan.Way"/>). Whoever comes down stands in front
-        /// of it and climbs out from there. It's solid behind its face, and its passage's ground is at the floor's height. Returns where it stands, from the middle.
-        /// </summary>
-        protected Vector2 KeepGate(Vector2 at, Vector2 facing, ArenaStoneKind stone, ArenaGrille grille, float lift = 0f)
-        {
-            Vector2 outward = -facing;
-            float yaw = YawFacing(facing);
-            Piece(new ArenaSpec(ArenaShape.Gatehouse, NextSeed(), (int)stone, Cm(KeepOpening), Cm(KeepCrown), Cm(KeepGateDepth), Cm(KeepGateWidth), Cm(KeepGateHeight)), at, yaw, lift);
-            foreach (Vector3 torch in ArenaGates.TorchSpots(KeepOpening, KeepGateWidth))
-            {
-                Vector2 right = new Vector2(outward.Y, -outward.X);
-                Lamp(1, at + right * -torch.X - outward * torch.Z, yaw, lift + torch.Y);
-            }
-            float depth = KeepGateDepth + ArenaGates.Proud + 0.3f;
-            Solid(Footprint.Box(C + at + outward * (depth * 0.5f - ArenaGates.Proud), new Vector2(KeepGateWidth * 0.5f, depth * 0.5f), yaw));
-            Raise(Footprint.Box(C + at + outward * (KeepGateDepth * 0.5f), new Vector2(KeepOpening * 0.5f + 0.4f, KeepGateDepth * 0.5f), yaw), lift);
-
-            string model = new ArenaSpec(ArenaShape.Portcullis, NextSeed(), (int)grille, Cm(KeepOpening + 0.24f), Cm(KeepCrown + 0.15f)).Id;
-            Vector2 door = at + outward * (ArenaGates.GrilleBack - ArenaGates.Proud);
-            Plan.Arrival = C + at + facing * 2.6f;
-            Plan.Exit = C + at + facing * 1.5f;
-            Plan.Way = new ArenaEntry(ArenaEntryKind.Portcullis, Plan.Arrival, new Vector3(C.X + door.X, F + lift, C.Y + door.Y), yaw, model, KeepGrilleRise);
-            return at;
-        }
-
-        /// <summary>
-        /// A keep's arena is walled round at its rim, on the land <paramref name="rise"/> above its floor, so that nobody walks onto its stands from the keep: a parapet <paramref name="radius"/> from the
-        /// middle with the seal along it, and in it on the south, which the camera looks from, the Reich's gate the hero goes down by (<see cref="ArenaPlan.Door"/>), which nobody walks through.
-        /// </summary>
-        protected void KeepRim(float radius, float rise, ArenaStoneKind stone)
-        {
-            Plan.Rim = radius;
-            float gapHalf = MathHelper.RadiansToDegrees(MathF.Asin(MathF.Min((DoorWidth * 0.5f - 0.15f) / radius, 0.9f)));
-            float sweep = 360f - gapHalf * 2f;
-            int arcs = Math.Max(1, (int)MathF.Ceiling(sweep / 45f));
-            for (int i = 0; i < arcs; i++)
-            {
-                float from = 180f + gapHalf + sweep * i / arcs;
-                ArcWall(ArenaWallForm.Parapet, stone, Vector2.Zero, radius, from % 360f, sweep / arcs, RimTop, RimThick, -1f, 1f, ArenaTrim.None, rise);
-            }
-            // The seal goes all the way round, through the gate too, from just outside the parapet's face inward, as its body is inside its face and nobody walks on the stands.
-            SealArc(radius + 0.2f - LeastSeal, 0f, 360f, LeastSeal);
-
-            Vector2 at = -North * radius;
-            float yaw = YawFacing(-North);
-            Piece(new ArenaSpec(ArenaShape.Gatehouse, NextSeed(), (int)stone, Cm(DoorOpening), Cm(DoorCrown), Cm(DoorDepth), Cm(DoorWidth), Cm(DoorHeight)), at, yaw, rise);
-            Piece(new ArenaSpec(ArenaShape.Portcullis, NextSeed(), (int)ArenaGrille.Pit, Cm(DoorOpening + 0.24f), Cm(DoorCrown + 0.15f)), at + North * (ArenaGates.GrilleBack - ArenaGates.Proud), yaw, rise);
-            foreach (Vector3 torch in ArenaGates.TorchSpots(DoorOpening, DoorWidth))
-            {
-                Vector2 right = new Vector2(North.Y, -North.X);
-                Lamp(1, at + right * -torch.X + North * -torch.Z, yaw, rise + torch.Y);
-            }
-            Solid(Footprint.Box(C + at + North * (DoorDepth * 0.5f), new Vector2(DoorWidth * 0.5f, DoorDepth * 0.5f + ArenaGates.Proud), yaw));
-            Plan.Door = C + at - North * 2.2f;
-            Plan.DoorYaw = yaw;
-            // Nothing the keep's camp puts down stands in front of it.
-            Keepout(Footprint.Circle(Plan.Door, 5f));
-        }
-
-        /// <summary>The tyrant's place on the floor, and beside it a second's, for orders that ask for two, in a boss map, or in a keep the keep's hoard, which nobody reaches but past the tyrant.</summary>
+        /// <summary>The tyrant's place on the floor, and beside it a second's, for orders that ask for two.</summary>
         protected void Tyrants(Vector2 boss, Vector2 beside)
         {
             B.Spawn(SpawnRole.Boss, boss);
-            B.Spawn(Keep ? SpawnRole.Chest : SpawnRole.Rival, beside);
+            B.Spawn(SpawnRole.Rival, beside);
         }
+
+        // Free-standing pillars on a floor: as tall as two people, so that each stops whatever's aimed through it and hides whoever's behind it from a blow (Sight), and low enough that the camera
+        // still sees over one, but not so wide that someone behind it is lost.
+        protected const float PillarWidth = 1.9f;
+        protected const float PillarHeight = 3.4f;
+
+        /// <summary>
+        /// Pillars to fight round, <paramref name="count"/> of them evenly round a ring about the middle, starting at a bearing, each left out where it would stand within <paramref name="clear"/> (the
+        /// waygate, the tyrant, where the brood comes in, the set pieces), so that a floor with them is somewhere to break a line of sight and a floor without is somewhere to run.
+        /// </summary>
+        protected int Pillars(ArenaStoneKind stone, int count, float ring, float from, IReadOnlyList<(Vector2 At, float Radius)> clear)
+        {
+            int placed = 0;
+            for (int i = 0; i < count; i++)
+            {
+                Vector2 at = Toward(from + i * 360f / count) * ring;
+                if (!Plan.Contains(C + at) || clear.Any(c => (C + at - c.At).Length < c.Radius + PillarWidth)) continue;
+                Pylon(stone, at, PillarWidth, PillarHeight, 0, YawFacing(-at), 0f);
+                placed++;
+            }
+            return placed;
+        }
+
+        /// <summary>
+        /// The share of a stand's places that are filled, so that a larger arena is no more crowded than its size needs: the land's people are each a body to draw and animate, and what reads at a
+        /// glance is a full stand, not how many are in it. <paramref name="usual"/> is the share at <paramref name="usualRound"/> metres across, and it thins in proportion past that, so that a stand
+        /// holds about as many however large it's grown.
+        /// </summary>
+        protected static float Crowd(float usual, float round, float usualRound) => usual * MathF.Min(1f, usualRound / MathF.Max(round, 1f));
 
         // ---------------------------------------------------------------- What's on the floor
 

@@ -449,7 +449,7 @@ namespace Dino_Defenders.Client
             float canopy = world.Canopy.Sample(at.X, at.Y);
 
             // Sand the water has been over is packed down and sounds nothing like the dry sand further up.
-            if (ground == Ground.Sand && world.Height.Sample(at) - world.WaterLevelAt(at) < WetSandHeight) return Ground.WetSand;
+            if (ground == Ground.Sand && world.ShoreHeightAt(at) < WetSandHeight) return Ground.WetSand;
 
             // A dead leaf layer lies under a canopy, whatever the ground's own surface is, and where little grows the foot finds what the grass would have been on.
             if (ground == Ground.Dirt && canopy > 0.55f) return Ground.Leaves;

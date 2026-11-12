@@ -55,7 +55,8 @@ namespace Dino_Engine.World.Generation
             ConnectTier(world, connected, waiting, RoadClass.Track, random);
             ConnectTier(world, connected, waiting, RoadClass.Footpath, random);
 
-            AddLoops(world, connected);
+            // A linear land is one way through, so its roads are too.
+            if (!world.Plan.Linear) AddLoops(world, connected);
 
             foreach (WorldSite site in world.Sites)
             {

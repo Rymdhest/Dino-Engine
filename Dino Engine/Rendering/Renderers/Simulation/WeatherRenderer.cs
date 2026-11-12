@@ -156,7 +156,7 @@ namespace Dino_Engine.Rendering.Renderers.Simulation
             _mapB = CreateMap();
 
             _skyMap = CreateTarget(SkyMapResolution, SkyMapLevels, SizedInternalFormat.Rgba16f, TextureWrapMode.ClampToEdge, out _skyFramebuffer);
-            _ripples = CreateTarget(RippleResolution, RippleLevels, SizedInternalFormat.Rg16f, TextureWrapMode.Repeat, out _rippleFramebuffer);
+            _ripples = CreateTarget(RippleResolution, RippleLevels, SizedInternalFormat.Rgba16f, TextureWrapMode.Repeat, out _rippleFramebuffer);
             _cloudShadow = CreateTarget(CloudShadowResolution, 1, SizedInternalFormat.R16f, TextureWrapMode.ClampToEdge, out _cloudShadowFramebuffer);
             Clear(_cloudShadowFramebuffer, 1f);
             Clear(_rippleFramebuffer, 0f);

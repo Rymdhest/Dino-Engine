@@ -15,7 +15,7 @@ namespace Dino_Engine.World.Generation
     {
         private const float WaysideSpacing = 130f;
         private const float AltarForecourt = 4.7f;      // A road that ends at an altar stops this far short of it, which clears the road's own width and leaves room to stand.
-        internal const float KeepRoadEnd = 0.66f;        // Of a keep's radius, where a road that ends there stops: inside its gatehouse, short of the arena in the middle of it and the camp round that.
+        internal const float KeepRoadEnd = 0.66f;        // Of a keep's radius, where a road that ends there stops: inside its gatehouse, short of the yard in the middle of it.
         private const float EssentialReach = 1.5f;      // Share of a site's radius something it can't do without may stray to find ground: a neighbour's field can cover all of a small site.
 
         public string Description => "Raising the villages";
@@ -962,13 +962,16 @@ namespace Dino_Engine.World.Generation
                 Vector2 along = (to - from).Normalized();
                 Vector2 start = from + along * clear;
                 Vector2 end = to - along * clear;
-                if (i == 3)
+                if (i != 1)
                 {
-                    // The wall facing the road carries the gatehouse.
+                    // Every wall but the back one carries a gatehouse, open, so that a fight in the yard can spill out onto the land and back in by another.
                     Vector2 middle = (start + end) * 0.5f;
+                    Vector2 outward = (middle - b.Centre).Normalized();
                     b.Wall(FenceUse.Curtain, start, middle - along * 7f, b.Centre, WallIntoTower, WallIntoGatehouse);
                     b.Wall(FenceUse.Curtain, middle + along * 7f, end, b.Centre, WallIntoGatehouse, WallIntoTower);
-                    b.Place(StructureCatalog.Gatehouse, middle, YawFacing(toRoad), padding: -1f, maxSlope: 0.6f);
+                    b.Place(StructureCatalog.Gatehouse, middle, YawFacing(outward), padding: -1f, maxSlope: 0.6f);
+                    // Nothing the camp puts down stands in a gate's way.
+                    b.World.Placement.Add(Footprint.Box(middle - outward * 7f, new Vector2(7f, 7f), YawFacing(outward)), PlacementLayer.Keepout);
                 }
                 else
                 {
@@ -976,16 +979,29 @@ namespace Dino_Engine.World.Generation
                 }
             }
 
-            // The keep's heart is the arena its tyrant is kept in (ARENAS.md), its tyrant and its hoard on the floor, and the keep's people camp round it inside the walls.
-            ArenaPlan arena = ArenaBuilder.Keep(b, b.Centre);
-            float camp = MathF.Max((arena.Rim + 3.5f + half - 3f) * 0.5f, arena.Rim + 3.5f);
-            float campWidth = MathF.Max(half - 3f - (arena.Rim + 3.5f), 1f) * 0.5f;
-            b.Scatter(StructureCatalog.Tent, b.Centre + side * camp, MathF.Min(campWidth, 8f));
-            b.Scatter(StructureCatalog.Tent, b.Centre - side * camp, MathF.Min(campWidth, 8f));
+            // The keep stands against the back wall, its door on the yard, with its hoard before it.
+            float keepDepth = StructureCatalog.Keep.HalfExtents.Y;
+            Vector2 keep = b.Centre - toRoad * (half - keepDepth - 3.5f);
+            b.Place(StructureCatalog.Keep, keep, YawFacing(toRoad), padding: 0.5f, maxSlope: 0.6f);
+            b.Spawn(SpawnRole.Chest, keep + toRoad * (keepDepth + 3f) + side * 7f);
+
+            // The yard is the tyrant's: open ground with nothing standing in it, so that whoever fights it has room to lead it round, and nobody of the keep's garrison is in it.
+            float yard = KeepYard(site);
+            Vector2 heart = b.Centre + toRoad * (half * 0.08f);
+            b.World.Placement.Add(Footprint.Circle(heart, yard), PlacementLayer.Keepout);
+            b.Paint(GroundPaint.Yard, Footprint.Circle(heart, yard * 0.85f), 6f);
+            b.Spawn(SpawnRole.Boss, heart);
+
+            // The keep's people camp along its walls, out of the yard.
+            float camp = (yard + half) * 0.5f;
+            b.Scatter(StructureCatalog.Tent, b.Centre + side * camp - toRoad * (half * 0.45f), 6f);
+            b.Scatter(StructureCatalog.Tent, b.Centre - side * camp - toRoad * (half * 0.45f), 6f);
+            b.Scatter(StructureCatalog.Tent, b.Centre + side * camp + toRoad * (half * 0.5f), 5f);
+            b.Scatter(StructureCatalog.Tent, b.Centre - side * camp + toRoad * (half * 0.5f), 5f);
             for (int i = 0; i < 6; i++)
             {
                 float angle = b.Random.Float() * MathF.Tau;
-                b.Scatter(StructureCatalog.Crates, b.Centre + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * camp, MathF.Min(campWidth, 5f));
+                b.Scatter(StructureCatalog.Crates, b.Centre + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * (half - 6f), 4f);
             }
 
             b.SpawnAround(SpawnRole.Guard, b.Centre + toRoad * (half - 5f), 6f, 3);
@@ -993,9 +1009,14 @@ namespace Dino_Engine.World.Generation
             for (int i = 0; i < raiders; i++)
             {
                 float angle = (i + b.Random.Range(-0.3f, 0.3f)) * MathF.Tau / raiders;
-                b.Spawn(SpawnRole.Raider, b.Centre + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * (camp + b.Random.Range(-campWidth, campWidth) * 0.6f));
+                b.Spawn(SpawnRole.Raider, b.Centre + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * (camp + b.Random.Range(-3f, 3f)));
             }
         }
+
+        private const float KeepYardShare = 0.5f;           // Of a keep's radius, the open yard in its middle where its tyrant waits.
+
+        /// <summary>The radius of the open yard in a keep's middle, where its tyrant waits and nothing stands, which nobody of its garrison camps in.</summary>
+        public static float KeepYard(WorldSite site) => site.Radius * KeepYardShare;
 
         // Things along the road that promise something further on, spaced to be met every half minute or so at a run.
         private static void PlaceWayside(WorldData world, WorldRandom random)

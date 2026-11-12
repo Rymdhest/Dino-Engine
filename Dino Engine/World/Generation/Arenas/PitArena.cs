@@ -8,8 +8,8 @@ namespace Dino_Engine.World.Generation.Arenas
     /// <summary>
     /// The Pit: the Reich's oldest kind of arena, a round pit dug into a hill. Its floor is sand, sunk nine metres below the land, and a sheer podium of sandstone stands round it with the Reich's iron along
     /// the top, broken on the north by four gatehouses that tower over it, their grilles shut on the dark, and on the south by the bay the land's waygate stands in, which the pit was dug round. Above the
-    /// podium three tiers of stone stands climb to a rim of pylons with braziers, the land's people packed onto them, and the Reich's banners hang down the podium's north face and fly from the rim. A keep's
-    /// pit is the same, smaller, with one tier and two gates. Read ARENAS.md.
+    /// podium three tiers of stone stands climb to a rim of pylons with braziers, the land's people packed onto them, and the Reich's banners hang down the podium's north face and fly from the rim. How
+    /// wide it was dug, how many gates it has and whether pillars stand on its sand to fight round are drawn for each one. Read ARENAS.md.
     /// </summary>
     internal sealed class PitArena : ArenaLayout
     {
@@ -42,13 +42,18 @@ namespace Dino_Engine.World.Generation.Arenas
         private readonly float _radius;                  // Of the floor, to the podium's face.
         private readonly int _tiers;
         private readonly float[] _gates;                 // Bearings of the gates, round the north half, where the camera sees them face on.
+        private readonly int _pillars;                   // Standing on the sand in a ring, or none.
+        private readonly float _pillarRing;
 
-        public PitArena(SiteBuilder b, bool keep, Vector2 centre)
-            : base(b, ArenaKind.Pit, keep, centre, keep ? "keep pit" : "pit")
+        public PitArena(SiteBuilder b, Vector2 centre)
+            : base(b, ArenaKind.Pit, centre, "pit")
         {
-            _radius = keep ? 15f : 18f;
-            _tiers = keep ? 1 : 3;
-            _gates = keep ? new[] { -55f, 55f } : new[] { -100f, -40f, 40f, 100f };
+            _radius = Shape.Range(28f, 36f);
+            _tiers = 3;
+            int gates = Shape.Chance(0.5f) ? 4 : 6;
+            _gates = Enumerable.Range(0, gates).Select(i => -105f + 210f * i / (gates - 1)).ToArray();
+            _pillars = Shape.Chance(0.6f) ? Shape.Int(4, 8) : 0;
+            _pillarRing = _radius * Shape.Range(0.42f, 0.62f);
         }
 
         private float TierGround(int tier) => PodiumTop - Parapet + (tier - 1) * TierRise;   // Tier 1 is the first above the podium.
@@ -67,6 +72,9 @@ namespace Dino_Engine.World.Generation.Arenas
         // Where a gatehouse's own middle stands from the arena's, so that the corners of its front stand in front of the podium's curve.
         private float GateAt => MathF.Sqrt(_radius * _radius - GateWidth * GateWidth * 0.25f) - 0.2f + ArenaGates.Proud;
 
+        private Vector2 TyrantAt => C + North * (_radius * 0.3f);
+        private Vector2 RivalAt => C - North * (_radius * 0.15f) + East * (_radius * 0.38f);
+
         public override void Build()
         {
             float ground = AverageGround(Reach + 12f);
@@ -77,7 +85,7 @@ namespace Dino_Engine.World.Generation.Arenas
             // The hill it's dug into, levelled to the rim, and the waygate before anything else can take its ground.
             Level(Footprint.Circle(C, Reach + 6f), RimGround, 10f);
             Vector2 bayBack = -North * (BayMouth + BayDepth);
-            Vector2 gate = Keep ? KeepGate(bayBack + North * KeepGateDeep, North, Stone, ArenaGrille.Pit) : Waygate(-North * (BayMouth + BayDepth - 2.4f), North);
+            Vector2 gate = Waygate(-North * (BayMouth + BayDepth - 2.4f), North);
 
             Ground();
             Podium();
@@ -95,12 +103,14 @@ namespace Dino_Engine.World.Generation.Arenas
             Paint(GroundPaint.Plaza, Footprint.Circle(C, Reach + 1f), 2.5f);
             var clear = new List<(Vector2, float)> { (C - North * (BayMouth + BayDepth * 0.5f), 8f) };
             foreach (ArenaEntry entry in Plan.Entries) clear.Add((entry.Out, 4.5f));
-            Remains(Keep ? 3 : 5, Keep ? 2 : 4, clear);
+            clear.Add((TyrantAt, 4f));
+            clear.Add((RivalAt, 4f));
+            Pillars(Stone, _pillars, _pillarRing, Shape.Range(0f, 360f), clear);
+            Remains(7, 6, clear);
             Keepout(Footprint.Circle(C, Reach + 2f));
 
-            Tyrants(C + North * 4.5f, C - North * 3f + East * 7f);
-            if (Keep) KeepRim(Reach + 1f, RimGround, Stone);
-            else Plan.Arrival = C + gate + North * 2.5f;
+            Tyrants(TyrantAt, RivalAt);
+            Plan.Arrival = C + gate + North * 2.5f;
         }
 
         // The floor, sunk into everything round it, and the tiers stepping up from the podium to the rim: outermost first, as each cuts into the one before.
@@ -268,7 +278,7 @@ namespace Dino_Engine.World.Generation.Arenas
                 float step = 360f / (MathF.Tau * radius / 3.4f);
                 float gateClear = MathHelper.RadiansToDegrees(MathF.Atan2(GateWidth * 0.5f + 1.2f, radius));
                 bool Clear(float bearing) => !Near(bearing, 180f, 26f) && (tier > 1 || !_gates.Any(g => Near(bearing, (g + 360f) % 360f, gateClear)));
-                Watchers(radius, step, tier * step / 3f, Clear, share: 0.64f);
+                Watchers(radius, step, tier * step / 3f, Clear, share: Crowd(0.64f, radius, 24f));
             }
         }
     }

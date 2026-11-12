@@ -526,6 +526,12 @@ namespace Dino_Defenders.UI
             _search.SelectAll();
         }
 
+        /// <summary>
+        /// Whether what the hero has on is on the screen. Nothing is put on without it, as a pack shows beside an open book and the beta vendor too, and wearing something
+        /// there changed what's worn with nothing to show what came off.
+        /// </summary>
+        private bool SeesWorn => Visible && _stage.Visible;
+
         /// <summary>Whether things can be carried about at the moment, which they can whenever there's a pack on the screen.</summary>
         public bool Active => Visible || GameUi.Current.Book.Visible;
 
@@ -873,6 +879,9 @@ namespace Dino_Defenders.UI
                     break;
                 case Shelf.Bar:
                     FromBar(spot);
+                    break;
+                case Shelf.Pack when item.IsWorn && !SeesWorn:
+                    Refuse($"Open the hero panel ({Bindings.Label(GameAction.Hero)}) to wear that");
                     break;
                 case Shelf.Pack:
                     Wear(spot.Index, item.Slot == ItemSlot.Finger && Shift ? WornSlot.Finger2 : null);

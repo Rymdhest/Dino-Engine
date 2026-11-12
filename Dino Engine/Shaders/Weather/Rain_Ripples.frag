@@ -2,10 +2,11 @@
 
 // The rings rain makes on anything that holds water, as a tile of slopes, drawn fresh each frame and read by puddles, wet ground and every water surface alike. Each cell of a few
 // grids holds one drop, which lands somewhere new each time round, sends a ring out and dies away (after the rings of Lagarde, "Water drop 2b"). The harder it rains the more of the
-// cells are live. Everything wraps at the tile's edge, so it tiles.
+// cells are live. Everything wraps at the tile's edge, so it tiles. The square of the slope goes alongside it, so that each smaller level of the tile knows how much the slopes it averaged
+// away differed (LEAN mapping, as the water's own ripples have it): that's how rough rings smaller than a pixel make a surface (Weather/Wetness.glsl's rainRingsAt).
 
 in vec2 textureCoords;
-layout (location = 0) out vec2 out_Slope;
+layout (location = 0) out vec4 out_Slope;  // xy the slope, zw its square
 
 uniform float rippleClock;
 uniform float intensity;
@@ -69,5 +70,5 @@ vec2 grid(vec2 uv, int cells, float rate, uint salt)
 void main(void)
 {
     vec2 slope = grid(textureCoords, 9, 1.1, 0x1234u) + grid(fract(textureCoords + 0.37), 14, 1.45, 0x9876u) * 0.8;
-    out_Slope = slope;
+    out_Slope = vec4(slope, slope * slope);
 }

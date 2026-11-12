@@ -6,7 +6,7 @@
 // only carry a film. Past that water stands: first in the cracks of whatever's rough, then in the ground's hollows as puddles, flat and mirror-smooth, and rain rings run across all of it.
 // Written before lighting, so that sun, sky, lamps and reflections all see the same wet surface. Needs Globals.glsl, Weather/Weather.glsl, Weather/SurfaceMap.glsl and Weather/RainShadow.glsl.
 
-uniform sampler2D rainRipples;      // Rain rings (Rain_Ripples.frag): slopes on the xz plane.
+uniform sampler2D rainRipples;      // Rain rings (Rain_Ripples.frag): slopes on the xz plane, and their squares.
 uniform sampler2D dripSurface;      // What drips do to the ground (Drip_Surface.frag): xy slopes on the xz plane, z how wet they keep it.
 
 const float BEAD_COLUMNS = 7.0;     // Paths for water to run down, to a metre of wall.
@@ -14,9 +14,25 @@ const float BEAD_SPACING = 1.3;     // Metres between one bead on a path and the
 const float BEAD_SHARE = 0.4;       // How many of those paths have water on them.
 const float BEAD_RUNOFF = 0.6;      // How strongly they show where only what runs down from above reaches.
 
-vec2 rainRingsAt(vec2 xz)
+// Read at the size a pixel covers there, as rings smaller than a pixel only average to a level surface. Read finer, each pixel caught one random slope of rings that move every frame, and a
+// mirror-smooth puddle sent its reflection somewhere new each frame: far puddles, at the top of the screen, flashed as anyone walked. The level is worked out from the distance rather than taken
+// from derivatives, as this is called where control flow isn't uniform, and by the longer side of a pixel's footprint on the ground, as a shimmer is worse than a little blur.
+//
+// What's averaged away comes back as roughness: z is how much the slopes under a pixel differ, as a mean square. A lamp's highlight on water that smooth is a point, and rings about a pixel
+// across swept it from one pixel to the next as the camera moved, so wet stone under the lanterns glittered and flashed whenever anyone walked. The spread is taken over twice the pixel, as
+// a highlight only holds still once its lobe is wider than the step between one frame's pixel and the next's.
+vec3 rainRingsAt(vec2 xz, vec3 worldPosition, vec3 geometryNormal)
 {
-    return textureLod(rainRipples, xz * wetLook.w, 0.0).xy;
+    vec3 toEye = viewPosWorld - worldPosition;
+    float away = length(toEye);
+    float facing = max(abs(dot(geometryNormal, toEye)) / max(away, 1e-4), 0.25);
+    float metresPerPixel = away * 2.0 / (projectionMatrix[1][1] * resolution.y) / facing;
+    float texelsPerPixel = metresPerPixel * wetLook.w * float(textureSize(rainRipples, 0).x);
+    float level = max(log2(max(texelsPerPixel, 1e-4)), 0.0);
+    vec2 slope = textureLod(rainRipples, xz * wetLook.w, level).xy;
+    vec4 wide = textureLod(rainRipples, xz * wetLook.w, level + 1.0);
+    float spread = max(wide.z - wide.x * wide.x, 0.0) + max(wide.w - wide.y * wide.y, 0.0);
+    return vec3(slope, spread);
 }
 
 vec3 dripSurfaceAt(vec2 xz)
@@ -104,7 +120,14 @@ void weatherWetten(vec3 worldPosition, vec3 geometryNormal, float porosity, floa
     float carrying = max(standing, film * upward * 0.6);
     float ringing = carrying * here.w;
     vec2 slope = (dripped.xy * carrying) * rippleLook.x;
-    if (ringing > 0.01) slope += rainRingsAt(worldPosition.xz) * (rippleLook.x * ringing);
+    float ringSpread = 0.0;
+    if (ringing > 0.01)
+    {
+        float strength = rippleLook.x * ringing;
+        vec3 rings = rainRingsAt(worldPosition.xz, worldPosition, geometryNormal);
+        slope += rings.xy * strength;
+        ringSpread = rings.z * strength * strength;
+    }
     normal = normalize(normal + vec3(-slope.x, 0.0, -slope.y));
 
     // Beads, on what's too steep for water to stay on: they catch the sky where the wall around them can't. Some come down from what's above even on a wall the rain can't reach, or which walls have
@@ -121,6 +144,9 @@ void weatherWetten(vec3 worldPosition, vec3 geometryNormal, float porosity, floa
     }
 
     roughness = 1.0 - wetSmoothness;
+    // The rings too small to see make the water as rough as they are, which keeps a lamp's highlight in it from glittering.
+    float alpha = roughness * roughness;
+    roughness = sqrt(sqrt(alpha * alpha + ringSpread));
 
     // Snow settles on what faces up, and in what's low before what stands proud.
     float settled = here.z * reach * smoothstep(0.1, 0.65, geometryNormal.y);

@@ -296,7 +296,7 @@ namespace Dino_WorldLab
             int keeps = world.Sites.Count(s => s.Kind == SiteKind.Keep);
             if (keeps == 0) Problem("no keep");
             if (keeps > 0 && !world.Sites.Any(s => s.Kind == SiteKind.Keep && s.Spawns.Any(p => p.Role == SpawnRole.Boss))) Problem("no warlord in the keep");
-            foreach (WorldSite keep in world.Sites.Where(s => s.Kind == SiteKind.Keep)) CheckKeepArena(world, keep);
+            foreach (WorldSite keep in world.Sites.Where(s => s.Kind == SiteKind.Keep)) CheckKeepYard(world, keep);
 
             for (int i = 0; i < world.Sites.Count; i++)
             {
@@ -335,52 +335,87 @@ namespace Dino_WorldLab
                 }
                 foreach (SiteSpawn spawn in site.Spawns)
                 {
-                    // Whoever watches from a keep's arena stands where nobody else can go, and is meant to.
-                    if (spawn.Role == SpawnRole.Spectator) continue;
+                    if (spawn.Role == SpawnRole.Spectator) Problem($"{site.Name} has someone watching in it, which only a boss map's arena has");
                     if (!world.Passable.IsSet(spawn.Position)) Problem($"{spawn.Role} of {site.Name} can't be reached at {spawn.Position}");
                 }
             }
         }
 
+        // How far round a keep's tyrant has to be open ground, and how much of it.
+        private const float YardReach = 20f;
+        private const float YardOpen = 0.85f;
+
         /// <summary>
-        /// The arena a land's keep holds (ARENAS.md): its tyrant on its floor and nobody else hostile there, a gate to go up by, its arrival somewhere to stand on its floor, and its way down on the land
-        /// where anyone can walk to it from the landing; and its seal holding both ways, so that nothing on its floor walks off it and nothing on the land walks onto it.
+        /// The open yard a land's keep holds its tyrant in (ARENAS.md): one tyrant, standing where the land walks to it, and the ground round it open, so that whoever fights it has room to lead it
+        /// round, with no arena, seal or second tyrant in the keep.
         /// </summary>
-        private void CheckKeepArena(WorldData world, WorldSite keep)
+        private void CheckKeepYard(WorldData world, WorldSite keep)
         {
-            if (keep.Arena is not ArenaPlan plan)
+            if (keep.Arena != null) Problem($"{keep.Name} has an arena in it, which only a boss map has");
+            SiteSpawn[] tyrants = keep.Spawns.Where(s => s.Role == SpawnRole.Boss).ToArray();
+            if (tyrants.Length != 1)
             {
-                Problem($"{keep.Name} has no arena");
+                Problem($"{keep.Name} has {tyrants.Length} tyrants");
                 return;
             }
-            if (!plan.Keep) Problem($"{keep.Name}'s arena is planned as a boss map's");
-            if (plan.Way is not ArenaEntry way || string.IsNullOrEmpty(way.Model)) Problem($"{keep.Name}'s arena has no gate to go up by");
-            int tyrants = keep.Spawns.Count(s => s.Role == SpawnRole.Boss);
-            if (tyrants != 1 || keep.Spawns.Any(s => s.Role == SpawnRole.Boss && !plan.Contains(s.Position))) Problem($"{keep.Name} has {tyrants} tyrants, not one on its arena's floor");
-            if (keep.Spawns.Any(s => s.Role == SpawnRole.Rival)) Problem($"{keep.Name}'s arena has a place for a second tyrant");
-            SiteSpawn? stray = keep.Spawns.Where(s => s.Role.IsHostile() && s.Role != SpawnRole.Boss && plan.Contains(s.Position, 1.5f)).Cast<SiteSpawn?>().FirstOrDefault();
-            if (stray is SiteSpawn hostile) Problem($"{keep.Name}'s arena has a {hostile.Role} on or by its floor at {hostile.Position}, who isn't its tyrant");
-            if (!plan.Contains(plan.Arrival) || !world.Passable.IsSet(plan.Arrival)) Problem($"{keep.Name}'s arena has nowhere to stand where it's come down to, at {plan.Arrival}");
-            if (!plan.Contains(plan.Exit, 1f)) Problem($"{keep.Name}'s way up at {plan.Exit} isn't on its floor");
+            if (keep.Spawns.Any(s => s.Role == SpawnRole.Rival)) Problem($"{keep.Name} has a place for a second tyrant");
+            int open = 0, total = 0;
+            for (float x = -YardReach; x <= YardReach; x += 1f)
+            {
+                for (float z = -YardReach; z <= YardReach; z += 1f)
+                {
+                    if (x * x + z * z > YardReach * YardReach) continue;
+                    total++;
+                    if (world.Passable.IsSet(tyrants[0].Position + new Vector2(x, z))) open++;
+                }
+            }
+            if (open < total * YardOpen) Problem($"{keep.Name}'s yard is only {100f * open / total:0}% open within {YardReach:0} m of its tyrant");
+        }
 
-            // The land as anyone walks it from the landing: it reaches the way down, and nowhere on the floor.
-            var land = new HashSet<(int, int)>();
-            int onto = 0;
-            Vector2 first = default;
-            foreach (Vector2 cell in Flood(world.Passable, world.Sites[0].Landing))
+        // A linear land is one way through (LANDS.md): its keep is at the end of the way, and getting there from the landing takes the whole of it, as a gap in a wall or a channel waded
+        // across would let a hero cut from one leg to the next and the land would be open country again.
+        private const float LeastWayWalked = 0.62f;     // Of the way's length, from the middle of its first clearing to its last, the walk from the landing to the keep has to take.
+        private const float WalkStep = 2f;
+
+        private void CheckOneWay(WorldData world)
+        {
+            if (world.Plan.Path is not LandPath path) return;
+            WorldSite? keep = world.Sites.FirstOrDefault(s => s.Kind == SiteKind.Keep);
+            if (keep == null) return;
+            if ((keep.Position - path.Last.Centre).Length > path.Last.Radius) Problem($"the keep stands {(keep.Position - path.Last.Centre).Length:0} m from the end of the way, outside its last clearing");
+
+            // How far a character walks, two metres at a step, from the landing to the keep.
+            int size = (int)(world.Size / WalkStep);
+            float[] walked = new float[size * size];
+            Array.Fill(walked, float.PositiveInfinity);
+            var frontier = new PriorityQueue<int, float>();
+            int Cell(Vector2 at) => Math.Clamp((int)(at.Y / WalkStep), 0, size - 1) * size + Math.Clamp((int)(at.X / WalkStep), 0, size - 1);
+            int start = Cell(world.Sites[0].Landing), goal = Cell(keep.Position);
+            walked[start] = 0f;
+            frontier.Enqueue(start, 0f);
+            while (frontier.TryDequeue(out int here, out float so))
             {
-                land.Add(((int)MathF.Round(cell.X), (int)MathF.Round(cell.Y)));
-                if (!plan.Contains(cell)) continue;
-                if (onto++ == 0) first = cell;
+                if (so > walked[here]) continue;
+                if (here == goal) break;
+                int x = here % size, z = here / size;
+                for (int dz = -1; dz <= 1; dz++)
+                {
+                    for (int dx = -1; dx <= 1; dx++)
+                    {
+                        int nx = x + dx, nz = z + dz;
+                        if ((dx == 0 && dz == 0) || nx < 0 || nz < 0 || nx >= size || nz >= size) continue;
+                        if (!world.Passable.IsSet(new Vector2(nx + 0.5f, nz + 0.5f) * WalkStep)) continue;
+                        float next = so + WalkStep * (dx != 0 && dz != 0 ? 1.4142f : 1f);
+                        int there = nz * size + nx;
+                        if (next >= walked[there]) continue;
+                        walked[there] = next;
+                        frontier.Enqueue(there, next);
+                    }
+                }
             }
-            if (onto > 0) Problem($"{keep.Name}'s arena can be walked onto from the land: {onto} m2 of its floor, the first at {first}");
-            bool door = false;
-            for (int dx = -2; dx <= 2 && !door; dx++)
-            {
-                for (int dz = -2; dz <= 2 && !door; dz++) door = land.Contains(((int)MathF.Round(plan.Door.X) + dx, (int)MathF.Round(plan.Door.Y) + dz));
-            }
-            if (!door) Problem($"{keep.Name}'s way down at {plan.Door} can't be walked to from the landing");
-            CheckSealed(world, plan, plan.Arrival, $"{keep.Name}'s arena");
+            float way = path.Length;
+            if (float.IsPositiveInfinity(walked[goal])) Problem("the keep can't be walked to from the landing along the way");
+            else if (walked[goal] < way * LeastWayWalked) Problem($"the keep is a walk of {walked[goal]:0} m from the landing, on a way {way:0} m long: something cuts across it");
         }
 
         // The places a land can ask to be freed: there have to be at least the most it ever asks for (LandTerms.MostPlaces). And waygates, the landing's among them: a land is small enough now
@@ -418,7 +453,6 @@ namespace Dino_WorldLab
                 return;
             }
             if (plan.Kind != world.Plan.Archetype.ArenaKind) Problem($"the arena is a {plan.Kind}, in a world of {world.Plan.Archetype.ArenaKind}");
-            if (plan.Keep) Problem("a boss map's arena is planned as a keep's");
             int Count(SpawnRole role) => arena.Spawns.Count(s => s.Role == role);
             if (Count(SpawnRole.Boss) != 1) Problem($"the arena has {Count(SpawnRole.Boss)} tyrants");
             if (Count(SpawnRole.Rival) != 1) Problem($"the arena has {Count(SpawnRole.Rival)} places for a second tyrant");
@@ -851,6 +885,7 @@ namespace Dino_WorldLab
         {
             if (world.Plan.Archetype.Enclosed) return;
             CheckLandPlaces(world);
+            CheckOneWay(world);
             if (world.Plan.Request.Emptied) return;
             if (world.Haunts.Count == 0)
             {
@@ -1007,26 +1042,6 @@ namespace Dino_WorldLab
                 if (x < size - 1) Visit(i + 1);
                 if (z > 0) Visit(i - size);
                 if (z < size - 1) Visit(i + size);
-            }
-            // A keep's arena is sealed from the land, and reached by its way down: whoever can walk to the door is carried to its floor.
-            foreach (WorldSite site in world.Sites)
-            {
-                if (site.Arena is not { Keep: true } arena || !AnyReachedNear(reached, size, arena.Door, Cell, 3f)) continue;
-                int floor = NearestOpen(blocked, size, arena.Arrival, Cell, 6);
-                if (floor < 0 || reached[floor]) continue;
-                reached[floor] = true;
-                stack.Push(floor);
-                while (stack.Count > 0)
-                {
-                    int i = stack.Pop();
-                    count++;
-                    int x = i % size;
-                    int z = i / size;
-                    if (x > 0) Visit(i - 1);
-                    if (x < size - 1) Visit(i + 1);
-                    if (z > 0) Visit(i - size);
-                    if (z < size - 1) Visit(i + size);
-                }
             }
             WalkableCellCount = count;
 

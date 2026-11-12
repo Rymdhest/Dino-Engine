@@ -212,7 +212,7 @@ namespace Dino_NetLab
             ChoosingLevels(report, worlds);
             Arenas(report, worlds);
             ArenaKinds(report, worlds);
-            KeepArenas(report, worlds);
+            OpenKeeps(report, worlds);
             Travelling(report, worlds);
             TheStash(report, worlds);
             UniqueOrders(report, worlds);

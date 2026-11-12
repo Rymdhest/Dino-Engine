@@ -202,7 +202,10 @@ vec3 waterRipples(vec2 xz, vec2 xzDx, vec2 xzDy, float windSpeed, out float mean
 vec2 waterRainSlope(vec2 xz)
 {
     if (weatherKind.w < 0.5) return vec2(0.0);
-    return textureLod(rainRipples, xz * wetLook.w, 0.0).xy * (rippleLook.x * weatherSurfaceAt(xz).w * 1.4);
+    // At the size a pixel covers here, as Weather/Wetness.glsl's rainRingsAt reads them, or rings smaller than a pixel glitter as the view moves.
+    float away = distance(viewPosWorld.xz, xz) + abs(viewPosWorld.y);
+    float texelsPerPixel = away * 2.0 / (projectionMatrix[1][1] * resolution.y) * wetLook.w * float(textureSize(rainRipples, 0).x);
+    return textureLod(rainRipples, xz * wetLook.w, max(log2(max(texelsPerPixel, 1e-4)), 0.0)).xy * (rippleLook.x * weatherSurfaceAt(xz).w * 1.4);
 }
 
 // Slope of the ripples things moving through the water have left (WaterRenderer's ripple simulation), and of the rain's.

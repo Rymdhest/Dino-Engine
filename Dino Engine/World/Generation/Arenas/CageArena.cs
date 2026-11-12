@@ -10,7 +10,7 @@ namespace Dino_Engine.World.Generation.Arenas
     /// black iron bars leaded into it that lean in overhead so that nothing climbs out, riveted posts with brass caps at even steps. The brood's pens open onto it through iron doors round its north half,
     /// and the Institute's eggs lie in nests in the straw: left alone, they hatch. Troughs along its edge and gibbets with what's being fed hung from them. Outside, the land's people stand round the bars,
     /// and on the north the Institute's gallery stands over the ground where the blood-doctors watch, its lamps and its jars of amber glowing. The waygate the cage was built round stands inside it, by
-    /// its south bars. A keep's cage is the same, smaller, with two pens and three nests. Read ARENAS.md.
+    /// its south bars. How wide it is, how many pens open onto it and how many nests lie in it are drawn for each one, and in some the Institute's feeding posts stand in a ring inside the bars. Read ARENAS.md.
     /// </summary>
     internal sealed class CageArena : ArenaLayout
     {
@@ -34,20 +34,28 @@ namespace Dino_Engine.World.Generation.Arenas
         private readonly float _radius;
         private readonly float[] _pens;
         private readonly int _nests;
+        private readonly int _pillars;
+        private readonly float _pillarRing;
 
-        public CageArena(SiteBuilder b, bool keep, Vector2 centre)
-            : base(b, ArenaKind.Cage, keep, centre, keep ? "keep cage" : "cage")
+        public CageArena(SiteBuilder b, Vector2 centre)
+            : base(b, ArenaKind.Cage, centre, "cage")
         {
-            _radius = keep ? 15f : 19f;
-            _pens = keep ? new[] { -50f, 50f } : new[] { -100f, -40f, 40f, 100f };
-            _nests = keep ? 3 : 5;
+            _radius = Shape.Range(28f, 35f);
+            int pens = Shape.Chance(0.5f) ? 4 : 6;
+            _pens = Enumerable.Range(0, pens).Select(i => -105f + 210f * i / (pens - 1)).ToArray();
+            _nests = Shape.Int(6, 8);
+            _pillars = Shape.Chance(0.45f) ? Shape.Int(5, 7) : 0;
+            _pillarRing = _radius * Shape.Range(0.78f, 0.86f);
         }
+
+        private Vector2 TyrantAt => C + North * (_radius * 0.25f);
+        private Vector2 RivalAt => C - North * (_radius * 0.1f) + East * (_radius * 0.36f);
 
         private float BarRing => _radius + FootingThick * 0.5f;
         private float PenHalfAngle => MathHelper.RadiansToDegrees(MathF.Asin((PenWidth * 0.5f + 1.3f) / _radius));
 
         /// <summary>How far from the middle the whole of it reaches.</summary>
-        public float Reach => _radius + (Keep ? 9f : 13f);
+        public float Reach => _radius + 13f;
 
         public override void Build()
         {
@@ -59,14 +67,14 @@ namespace Dino_Engine.World.Generation.Arenas
             // The land round the cage, level with the top of its pen, and the pen sunk into it, its edge inside the footing.
             Level(Footprint.Circle(C, Reach + 4f), Sunk, 8f);
             Raise(Footprint.Circle(C, _radius + FootingThick * 0.5f), 0f);
-            Vector2 gate = Keep ? KeepGate(-North * (_radius - KeepGateDeep), North, Stone, ArenaGrille.Pen) : Waygate(-North * (_radius - 4.2f), North);
+            Vector2 gate = Waygate(-North * (_radius - 4.2f), North);
 
             Footing();
             Bars();
             Pens();
             Seal();
             Floor(gate);
-            if (!Keep) Gallery();
+            Gallery();
             Round();
             People();
 
@@ -74,9 +82,8 @@ namespace Dino_Engine.World.Generation.Arenas
             Paint(GroundPaint.Yard, Footprint.Circle(C, _radius + 7f), 3f);
             Keepout(Footprint.Circle(C, Reach + 2f));
 
-            Tyrants(C + North * 4.5f, C - North * 2f + East * 7f);
-            if (Keep) KeepRim(Reach + 1f, Sunk, Stone);
-            else Plan.Arrival = C + gate + North * 2.5f;
+            Tyrants(TyrantAt, RivalAt);
+            Plan.Arrival = C + gate + North * 2.5f;
         }
 
         // The footing all round, in pieces of 30 degrees, broken where a pen's gate stands in it.
@@ -163,7 +170,7 @@ namespace Dino_Engine.World.Generation.Arenas
         // remains of what's been fed already, all kept clear of the waygate and of where the pens let out. Nothing behind the waygate, where the footing would hide anyone.
         private void Floor(Vector2 gate)
         {
-            var clear = new List<(Vector2, float)> { (C + gate, 7f), (C + North * 4.5f, 5f) };
+            var clear = new List<(Vector2, float)> { (C + gate, 7f), (TyrantAt, 5f), (RivalAt, 4f) };
             foreach (ArenaEntry entry in Plan.Entries) clear.Add((entry.Out, 4.5f));
             bool Clear(Vector2 at, float radius) => clear.All(c => (C + at - c.Item1).Length > c.Item2 + radius);
 
@@ -180,13 +187,13 @@ namespace Dino_Engine.World.Generation.Arenas
                 placed++;
             }
 
-            for (int i = 0; i < (Keep ? 4 : 7); i++)
+            for (int i = 0; i < 10; i++)
             {
                 Vector2 at = Toward(Random.Range(0f, 360f)) * MathF.Sqrt(Random.Float()) * (_radius - 3f);
                 if (!Clear(at, 1.5f)) continue;
                 Piece(new ArenaSpec(ArenaShape.Remains, NextSeed(), 2, (int)MathF.Round(Random.Range(0.7f, 1.2f) * 100f)), at, Random.Float() * MathF.Tau, 0f);
             }
-            int troughs = Keep ? 2 : 3;
+            int troughs = 4;
             for (int i = 0, placed = 0; i < troughs * 8 && placed < troughs; i++)
             {
                 float bearing = Random.Range(0f, 360f);
@@ -197,7 +204,7 @@ namespace Dino_Engine.World.Generation.Arenas
                 clear.Add((C + at, 2.4f));
                 placed++;
             }
-            int gibbets = Keep ? 1 : 2;
+            int gibbets = 3;
             for (int i = 0, placed = 0; i < gibbets * 24 && placed < gibbets; i++)
             {
                 float bearing = Random.Range(0f, 360f);
@@ -208,7 +215,9 @@ namespace Dino_Engine.World.Generation.Arenas
                 clear.Add((C + at, 3f));
                 placed++;
             }
-            Remains(Keep ? 2 : 3, Keep ? 1 : 3, clear);
+            // The Institute's feeding posts, in a ring inside the bars where it tethers what it feeds the tyrant: something to put between it and whoever it's after.
+            Pillars(Stone, _pillars, _pillarRing, Shape.Range(0f, 360f), clear);
+            Remains(4, 4, clear);
             // Nothing walks behind the waygate.
             Solid(Footprint.Box(C + gate - North * 1.2f, new Vector2(4.4f, 1.2f), 0f));
         }
@@ -222,12 +231,12 @@ namespace Dino_Engine.World.Generation.Arenas
         // Round the cage outside: amber lamps on poles, braziers, and the Reich's banners on masts.
         private void Round()
         {
-            float ring = _radius + (Keep ? 4.5f : 8.6f);
-            int count = Keep ? 8 : 14;
+            float ring = _radius + 8.6f;
+            int count = 18;
             for (int k = 0; k < count; k++)
             {
                 float bearing = (k + 0.5f) * 360f / count;
-                if (!Keep && Near(bearing, 0f, 55f)) continue;
+                if (Near(bearing, 0f, 55f)) continue;
                 Vector2 at = Toward(bearing) * ring;
                 if (k % 2 == 0) Brazier(at, 0, 1f, Sunk);
                 else
@@ -241,10 +250,10 @@ namespace Dino_Engine.World.Generation.Arenas
         // The land's people, made to stand round the bars, though not under the gallery.
         private void People()
         {
-            foreach (float radius in Keep ? new[] { _radius + 3.2f, _radius + 6f } : new[] { _radius + 3.4f, _radius + 6.4f, _radius + 9.6f })
+            foreach (float radius in new[] { _radius + 3.4f, _radius + 6.4f, _radius + 9.6f })
             {
                 float step = 360f / (MathF.Tau * radius / 3.3f);
-                Watchers(radius, step, radius, bearing => (Keep || !Near(bearing, 0f, 52f)) && !_pens.Any(p => Near(bearing, (p + 360f) % 360f, PenHalfAngle + 3f)) && !Near(bearing, 180f, 8f), share: 0.7f);
+                Watchers(radius, step, radius, bearing => !Near(bearing, 0f, 52f) && !_pens.Any(p => Near(bearing, (p + 360f) % 360f, PenHalfAngle + 3f)) && !Near(bearing, 180f, 8f), share: Crowd(0.7f, radius, 25f));
             }
         }
     }

@@ -7,6 +7,7 @@ using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.Modelling.Procedural.Architecture.Arena;
 using Dino_Engine.World;
 using Dino_Engine.World.Content;
+using Dino_Engine.World.Generation;
 using OpenTK.Mathematics;
 
 namespace Dino_NetLab
@@ -21,75 +22,40 @@ namespace Dino_NetLab
             string? only = options.Text("kind");
             if (only == null) Arenas(report, worlds);
             if (only != "keeps") ArenaKinds(report, worlds, only);
-            if (only == null || only == "keeps") KeepArenas(report, worlds);
+            if (only == null || only == "keeps") OpenKeeps(report, worlds);
             return report.Finish();
         }
 
-        // The arena in a land's keep (ARENAS.md), one of each kind: its tyrant isn't there until someone goes down by the gate in the wall round it, and is once they do; down there nothing takes them
-        // out, not calling the roads, a page that carries them or walking at its walls, and nobody's carried in from the keep's ground either; the way up stays shut while the tyrant lives, and
-        // once it's down the grille in its gate rises and it takes them back up to the keep.
-        private static void KeepArenas(Report report, WorldCache worlds)
+        // The tyrant in a land's keep waits in the open yard in its middle (ARENAS.md): there as soon as anyone comes, with no arena, seal or way down, and it can be led out of the keep's gates
+        // onto the land and kited there, as a person found a sealed arena in every keep made each tyrant the same fight as every tenth level's.
+        private static void OpenKeeps(Report report, WorldCache worlds)
         {
-            report.Section("Arenas in keeps");
-            var found = new Dictionary<ArenaKind, int>();
-            for (int seed = 1; seed <= 60 && found.Count < Enum.GetValues<ArenaKind>().Length; seed++)
-            {
-                WorldData world = worlds.Get(new WorldRequest(seed, null, 1)).Result;
-                if (world.Sites.FirstOrDefault(s => s.Kind == SiteKind.Keep)?.Arena is ArenaPlan plan && !found.ContainsKey(plan.Kind)) found[plan.Kind] = seed;
-            }
-            report.Check("Every kind of arena is a keep's somewhere", found.Count == Enum.GetValues<ArenaKind>().Length, string.Join(", ", found.Select(f => $"{f.Key} in {f.Value}")));
-
-            foreach ((ArenaKind kind, int seed) in found.OrderBy(f => f.Key))
+            report.Section("Open keeps");
+            for (int seed = 1; seed <= 3; seed++)
             {
                 using var scene = new Scene(worlds, new WorldRequest(seed, null, 1), hero: Sturdy(1));
                 SiteState keep = scene.Session.Sites.First(s => s.Site.Kind == SiteKind.Keep);
-                ArenaPlan plan = keep.Site.Arena!;
-                string name = $"A keep's {kind}";
-                GameServer server = scene.Lab.Server;
-
-                scene.Go(plan.Door);
+                WorldSite site = keep.Site;
+                string name = $"Seed {seed}'s keep";
+                report.Check($"{name} holds no arena", site.Arena == null);
+                Vector2 heart = site.Spawns.First(s => s.Role == SpawnRole.Boss).Position;
+                Vector2 out_ = site.RoadDirection;
+                scene.Go(heart + out_ * 10f);
                 scene.Lab.Run(1.5);
-                report.Check($"{name}: its tyrant isn't there while nobody's come down", keep.Active && !scene.Members(keep).Any(a => a.Tyrant), keep.Active ? "awake" : "asleep");
-
-                // Carried at the floor from the keep's ground, nobody lands on it.
-                scene.Session.Carry(scene.Hero, plan.Centre);
-                scene.Lab.Run(0.4);
-                report.Check($"{name}: nobody's carried onto its floor from the keep", !plan.Contains(scene.Truth.Sim.Position, 1.5f), $"at {(scene.Truth.Sim.Position - plan.Centre).Length:0.0} m from the middle");
-
-                scene.Go(plan.Door);
-                scene.Player.PressUse = true;
-                scene.Lab.Run(2);
-                bool down = plan.Contains(scene.Truth.Sim.Position, 1.5f);
-                report.Check($"{name}: the gate in its wall takes whoever uses it down onto its floor", down, $"{(scene.Truth.Sim.Position - plan.Arrival).Length:0.0} m from where they're meant to arrive");
-                if (!down) continue;
-                scene.Lab.Run(1);
                 Actor? tyrant = scene.Members(keep).FirstOrDefault(a => a.Tyrant);
-                report.Check($"{name}: and its tyrant's there once someone is", tyrant != null && plan.Contains(tyrant.Position, 2f));
+                report.Check($"{name}: its tyrant is in the yard as soon as anyone comes", tyrant != null && (tyrant.Position - heart).Length < SettlementStage.KeepYard(site), tyrant == null ? "nobody" : $"{(tyrant.Position - heart).Length:0.0} m from where it waits");
                 if (tyrant == null) continue;
-                Hold(scene, tyrant);
 
-                Vector2 arrived = scene.Truth.Sim.Position;
-                scene.Player.Client.CallRoads();
-                scene.Lab.Run(Rulebook.CallRoads + 1.5f);
-                report.Check($"{name}: calling the roads down there opens nothing", scene.Truth.RoadsOpenAt == null && scene.Truth.CallingSince == null && plan.Contains(scene.Truth.Sim.Position, 1.5f));
-
-                // The way up isn't there to use while the tyrant stands: nothing in reach of where it would be.
-                scene.Go(plan.Exit);
-                scene.Player.PressUse = true;
-                scene.Lab.Run(1.5);
-                report.Check($"{name}: the way up stays shut while the tyrant lives", plan.Contains(scene.Truth.Sim.Position, 1.5f) && scene.Find(InteractKind.ArenaUp) == null);
-
-                Sealed(report, scene, plan, name);
-
-                scene.Session.Combat.Harm(scene.Hero, tyrant, 1e12f, DamageType.Magic);
+                // Led out by the gate the road comes in at, a few metres at a time, it follows onto the land beyond the walls.
+                float wall = site.Radius * 0.86f;
+                for (float along = 16f; along <= site.Radius + 22f; along += 5f)
+                {
+                    scene.Go(site.Position + out_ * along);
+                    scene.Lab.Run(0.6);
+                }
                 scene.Lab.Run(3);
-                Vector2? up = scene.Find(InteractKind.ArenaUp);
-                bool risen = plan.Way is ArenaEntry way && PiecesOf(server.Ecs, ArenaShape.Portcullis).Any(p => (p.at.Xz - way.Door.Xz).Length < 0.1f && p.at.Y > way.Door.Y + way.Lift * 0.9f);
-                report.Check($"{name}: once the tyrant's down the grille in its gate rises, and the way up is there", tyrant.Dead && up != null && risen, $"{(tyrant.Dead ? "down" : "standing")}, {(up != null ? "a way up" : "no way up")}, {(risen ? "risen" : "not risen")}");
-                scene.Go(plan.Exit);
-                scene.Player.PressUse = true;
-                scene.Lab.Run(2);
-                report.Check($"{name}: and takes whoever uses it back up to the keep", !plan.Contains(scene.Truth.Sim.Position, 1.5f) && (scene.Truth.Sim.Position - plan.Door).Length < 6f, $"{(scene.Truth.Sim.Position - plan.Door).Length:0.0} m from the gate");
+                float away = (tyrant.Position - site.Position).Length;
+                report.Check($"{name}: its tyrant follows whoever leads it out of the gate, onto the land", !tyrant.Dead && away > wall + 3f, $"{away:0.0} m from the keep's middle, its walls at {wall:0.0}");
             }
         }
 
@@ -176,7 +142,15 @@ namespace Dino_NetLab
         private static float Through(Actor actor, DamageType type) => (1f - MathF.Max(actor.Sheet.Resistance[(int)type], Hits.LeastResistance) / 100f) * actor.Sheet.Taken[(int)type] * (1f + actor.TakenIncrease);
 
         // Whether what something took was a share of the tyrant's health, as what's added is a range either side of what it says, and fire goes through as the tyrant takes it.
-        private static bool AShare(float took, float share, Actor tyrant) => took >= share * Through(tyrant, DamageType.Fire) * (1f - Rulebook.AddedSpread) * 0.99f && took <= share * Through(tyrant, DamageType.Fire) * (1f + Rulebook.AddedSpread) * 1.01f;
+        private static bool AShare(float took, float share, Actor tyrant) => took >= share * FireThrough(tyrant) * (1f - Rulebook.AddedSpread) * 0.99f && took <= share * FireThrough(tyrant) * (1f + Rulebook.AddedSpread) * 1.01f;
+
+        // What of a fire blow a tyrant really loses: what gets through, less what heals it instead if it wears something that says so, as a tyrant's gear is whatever it rolled.
+        private static float FireThrough(Actor tyrant)
+        {
+            float through = Through(tyrant, DamageType.Fire);
+            if (!tyrant.Sheet.Has(Rule.FireHeals)) return through;
+            return through * (1f - Rulebook.FireHealShare - Rulebook.FireHealShare * tyrant.Sheet.RecoveryScale);
+        }
 
         // All that stands between someone and falling: a tyrant can wear a Barrier, which takes a blow before its Health does.
         private static float Standing(Actor actor) => actor.Vitals.Health + actor.Vitals.Barrier;

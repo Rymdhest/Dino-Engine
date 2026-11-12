@@ -408,6 +408,8 @@ namespace Dino_Defenders.UI
                 Add(new Spacer(height: 4f));
                 Add(Sized(Ui.Paragraph(plan.Name, 17f, Ui.Parchment), inner));
                 Add(Sized(Ui.Line($"{plan.Archetype.Name}  ·  {Lands.WeatherOf(plan)}", 12.5f, offer.Arena ? ArenaInk : Ui.Faded), inner));
+                // Whether it's one way through or open country, which the map above shows and this says.
+                if (!offer.Arena) Add(Sized(Ui.Line(Lands.LayoutOf(plan), 12.5f, Ui.Faded), inner));
                 Add(Sized(Ui.Line($"{herald.Beast}, {Chronicle.KindName(herald.BossKind)}", 13.5f, Ui.Gold), inner));
                 string asks = offer.Arena ? "Bring down its tyrant" : $"Free {offer.Terms.Places} places, then its tyrant";
                 if (orders.Has(OrdersCatalog.TwinPens)) asks = offer.Arena ? "Bring down both tyrants" : $"Free {offer.Terms.Places} places, then both tyrants";

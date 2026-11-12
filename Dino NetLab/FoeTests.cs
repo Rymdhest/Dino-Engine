@@ -100,9 +100,7 @@ namespace Dino_NetLab
                 ECSWorld world = arena.Lab.Server.Ecs;
                 WorldData land = arena.Session.World;
                 SiteState keep = arena.Session.Sites.First(site => site.Site.Kind == SiteKind.Keep);
-                ArenaPlan? floor = keep.Site.Arena;
-                // Down to its arena's floor, where its tyrant is only made once someone's there.
-                arena.Player.Client.TravelTo(floor?.Arrival ?? keep.Site.Position + keep.Site.RoadDirection * keep.Site.Radius * 1.3f);
+                arena.Player.Client.TravelTo(keep.Site.Position + keep.Site.RoadDirection * keep.Site.Radius * 1.3f);
                 arena.Run(2.0);
 
                 Entity boss = keep.Live.FirstOrDefault(entity => world.TryGetEntityLocation(entity, out _, out _) && world.GetEntityView(entity).Has<EnemyComponent>() && world.GetEntityView(entity).Get<EnemyComponent>().Rarity == Rarity.Unique);
@@ -111,7 +109,6 @@ namespace Dino_NetLab
                     report.Note($"Seed {request.Seed}: no boss in the keep");
                     continue;
                 }
-                bool OnFloor(Vector2 at) => floor == null || floor.Contains(at, -1f);
                 Actor tyrant = world.GetEntityView(boss).Get<ActorComponent>().Actor;
                 Vector2 home = world.GetEntityView(boss).Get<EnemyBrainComponent>().Home;
 
@@ -121,9 +118,9 @@ namespace Dino_NetLab
                     float angle = direction * MathF.Tau / 8f;
                     Vector2 way = new Vector2(MathF.Cos(angle), MathF.Sin(angle));
                     float far = 28f;
-                    while (far > 6f && (!OnFloor(home + way * far) || !land.Passable.IsSet(home + way * far))) far -= 1f;
+                    while (far > 6f && !land.Passable.IsSet(home + way * far)) far -= 1f;
                     Vector2 spot = home + way * far;
-                    if (!OnFloor(spot) || !land.Passable.IsSet(spot) || new WorldPathfinder(exact: true).Find(land, home, spot) is not { Count: > 0 } path || (path[^1] - spot).Length > 2f) continue;
+                    if (!land.Passable.IsSet(spot) || new WorldPathfinder(exact: true).Find(land, home, spot) is not { Count: > 0 } path || (path[^1] - spot).Length > 2f) continue;
 
                     // Back home, with the hero already there.
                     Put(world, boss, tyrant, home);
@@ -150,9 +147,9 @@ namespace Dino_NetLab
                 Vector2 seenLast = default, trueLast = tyrant.Position;
                 for (int hop = 0; hop < 16; hop++)
                 {
-                    float spread = floor == null ? 30f : 15f;
+                    float spread = 30f;
                     Vector2 spot = home + new Vector2(hops.Range(-spread, spread), hops.Range(-spread, spread));
-                    if (!land.Passable.IsSet(spot) || !OnFloor(spot)) continue;
+                    if (!land.Passable.IsSet(spot)) continue;
                     // Somewhere it could get to, as wide as it is: an arena's floor has corners between a nest or a pew and its wall that a person fits and a tyrant doesn't, and
                     // a hero there isn't one it's being held up from reaching.
                     if (new WorldPathfinder(exact: true).Find(land, tyrant.Position, spot, WorldPathfinder.Wider(tyrant.Radius)) is not { Count: > 0 } reachable || (reachable[^1] - spot).Length > 2f) continue;

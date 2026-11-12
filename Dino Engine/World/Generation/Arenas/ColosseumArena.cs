@@ -9,8 +9,8 @@ namespace Dino_Engine.World.Generation.Arenas
     /// The Colosseum: the Reich's great amphitheatre, built to hold a whole land. Its floor is an oval of sand laid out on four centres, as amphitheatres always were, ringed by a podium of pale limestone
     /// with the Reich's iron along it; great gates at either end of its long axis, and lifts under the floor whose hatches drop open when the rest of the brood is brought up. Four tiers of seats climb
     /// from the podium, packed with the land's people, and round the top of the north side, where the camera looks, an arcade of two storeys stands against the sky with the Reich's banners in its attic.
-    /// The commander's box stands over the podium on the north, under an oxblood canopy, and its bolt-throwers cover the floor. The waygate it was built round stands in a bay in the south podium. A
-    /// keep's colosseum is the same, smaller, with two tiers, no arcade and no box. Read ARENAS.md.
+    /// The commander's box stands over the podium on the north, under an oxblood canopy, and its bolt-throwers cover the floor. The waygate it was built round stands in a bay in the south podium. How
+    /// large its oval is, how many lifts are under it, and whether its floor is open, has a spine of pylons down its long axis or a ring of them are drawn for each one. Read ARENAS.md.
     /// </summary>
     internal sealed class ColosseumArena : ArenaLayout
     {
@@ -42,17 +42,25 @@ namespace Dino_Engine.World.Generation.Arenas
 
         private readonly Oval _oval;
         private readonly int _tiers;
-        private readonly bool _grand;                    // The arcade and the commander's box, which only a boss map's has.
+        private readonly bool _grand;                    // The arcade and the commander's box.
         private readonly Vector2[] _hatches;
+        private readonly int _floor;                     // What stands on the floor to fight round: nothing, a spine of pylons down the long axis, or a ring of them.
 
-        public ColosseumArena(SiteBuilder b, bool keep, Vector2 centre)
-            : base(b, ArenaKind.Colosseum, keep, centre, keep ? "keep colosseum" : "colosseum")
+        public ColosseumArena(SiteBuilder b, Vector2 centre)
+            : base(b, ArenaKind.Colosseum, centre, "colosseum")
         {
-            _oval = keep ? new Oval(19f, 14f, 10f) : new Oval(27f, 19f, 14f);
-            _tiers = keep ? 2 : 4;
-            _grand = !keep;
-            _hatches = keep ? new[] { new Vector2(7f, 4f), new Vector2(-7f, 4f) } : new[] { new Vector2(10f, 7f), new Vector2(-10f, 7f), new Vector2(10.5f, -6.5f), new Vector2(-10.5f, -6.5f) };
+            float scale = Shape.Range(1.3f, 1.6f);
+            _oval = new Oval(27f * scale, 19f * scale, 14f * scale);
+            _tiers = 4;
+            _grand = true;
+            var hatches = new List<Vector2> { new(10f * scale, 7f * scale), new(-10f * scale, 7f * scale), new(10.5f * scale, -6.5f * scale), new(-10.5f * scale, -6.5f * scale) };
+            if (Shape.Chance(0.5f)) hatches.AddRange(new[] { new Vector2(_oval.A * 0.6f, 0f), new Vector2(-_oval.A * 0.6f, 0f) });
+            _hatches = hatches.ToArray();
+            _floor = Shape.Int(3);
         }
+
+        private Vector2 TyrantAt => C + North * (_oval.B * 0.3f);
+        private Vector2 RivalAt => C - North * (_oval.B * 0.12f) + East * (_oval.A * 0.3f);
 
         private float TierGround(int tier) => PodiumTop - Parapet + (tier - 1) * TierRise;
         private float RimGround => TierGround(_tiers + 1);
@@ -76,7 +84,7 @@ namespace Dino_Engine.World.Generation.Arenas
             Plan.Reach = Reach;
 
             Level(Footprint.Circle(C, Reach + 6f), RimGround, 10f);
-            Vector2 gate = Keep ? KeepGate(-North * (BayMouth + BayDepth - KeepGateDeep), North, Stone, ArenaGrille.Pit) : Waygate(-North * (BayMouth + BayDepth - 2.4f), North);
+            Vector2 gate = Waygate(-North * (BayMouth + BayDepth - 2.4f), North);
 
             Ground();
             Podium();
@@ -100,12 +108,32 @@ namespace Dino_Engine.World.Generation.Arenas
             Paint(GroundPaint.Plaza, Footprint.Circle(C, Reach + 1f), 2.5f);
             var clear = new List<(Vector2, float)> { (C - North * (BayMouth + BayDepth * 0.5f), 8f) };
             foreach (ArenaEntry entry in Plan.Entries) clear.Add((entry.Out, entry.Kind == ArenaEntryKind.Hatch ? 3.6f : 5f));
-            Remains(Keep ? 3 : 6, Keep ? 2 : 5, clear);
+            clear.Add((TyrantAt, 4f));
+            clear.Add((RivalAt, 4f));
+            Floor(clear);
+            Remains(8, 6, clear);
             Keepout(Footprint.Circle(C, Reach + 2f));
 
-            Tyrants(C + North * 4f, C - North * 2f + East * 8f);
-            if (Keep) KeepRim(Reach + 1f, RimGround, Stone);
-            else Plan.Arrival = C + gate + North * 2.5f;
+            Tyrants(TyrantAt, RivalAt);
+            Plan.Arrival = C + gate + North * 2.5f;
+        }
+
+        // What stands on the sand to fight round, if anything: a spine of pylons down the long axis, as a circus has, broken into lengths that can be run between, or a ring of them about the middle.
+        private void Floor(List<(Vector2, float)> clear)
+        {
+            if (_floor == 1)
+            {
+                int count = Shape.Int(3, 5);
+                float reach = _oval.A * 0.5f;
+                for (int i = 0; i < count; i++)
+                {
+                    Vector2 at = East * (-reach + 2f * reach * i / (count - 1));
+                    if (clear.Any(c => (C + at - c.Item1).Length < c.Item2 + PillarWidth)) continue;
+                    Pylon(Stone, at, PillarWidth, PillarHeight, 0, 0f, 0f);
+                    clear.Add((C + at, PillarWidth + 1f));
+                }
+            }
+            else if (_floor == 2) Pillars(Stone, Shape.Int(6, 8), _oval.B * Shape.Range(0.5f, 0.62f), Shape.Range(0f, 360f), clear);
         }
 
         // ---------------------------------------------------------------- Ground
@@ -368,7 +396,7 @@ namespace Dino_Engine.World.Generation.Arenas
                     if (point.Y < 0f && MathF.Abs(point.X) < BayWidth * 0.5f + 2.5f && tier <= 2) continue;
                     if (tier == 1 && MathF.Abs(point.Y) < GateWidth * 0.5f + 1.2f && MathF.Abs(point.X) > _oval.A - 2f) continue;
                     if (_grand && tier <= 2 && point.Y > 0f && MathF.Abs(point.X) < TribuneWidth * 0.5f + 1.2f) continue;
-                    if (!Random.Chance(0.56f)) continue;
+                    if (!Random.Chance(Crowd(0.56f, _oval.A + _oval.B, 46f))) continue;
                     B.Spawn(SpawnRole.Spectator, C + point + new Vector2(Random.Range(-0.4f, 0.4f), Random.Range(-0.3f, 0.3f)));
                 }
             }

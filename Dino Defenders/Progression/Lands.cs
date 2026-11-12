@@ -355,6 +355,9 @@ namespace Dino_Defenders.Progression
             return share < SmallLand ? "A small land" : share < MiddlingLand ? "A middling land" : "A wide land";
         }
 
+        /// <summary>How a land is laid out, in a few words: one way through it from the landing to the keep, or open country to wander (LANDS.md).</summary>
+        public static string LayoutOf(WorldPlan plan) => plan.Linear ? "One way through" : "Open country";
+
         /// <summary>What a land's weather is like, in a few words, from its biomes: it's worked out from them as the land is walked, so this is what it tends to.</summary>
         public static string WeatherOf(WorldPlan plan)
         {

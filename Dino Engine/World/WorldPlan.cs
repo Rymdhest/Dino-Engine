@@ -67,6 +67,18 @@ namespace Dino_Engine.World
         /// <summary>The light and weather the world is seen in.</summary>
         public WorldMood Mood { get; private init; } = null!;
 
+        /// <summary>
+        /// The one way through a linear land, if this is one: a chain of clearings from the landing to the keep, walled by mountains or the sea, rather than open country to wander (LANDS.md). Drawn
+        /// on forks of its own, so that nothing else about a world moves with it.
+        /// </summary>
+        public LandPath? Path { get; private init; }
+
+        /// <summary>Whether the land is one way through, from its landing to its keep.</summary>
+        public bool Linear => Path != null;
+
+        /// <summary>The share of lands that are one way through rather than open country.</summary>
+        public const float LinearShare = 0.4f;
+
         public int Seed => Request.Seed;
         public int Level => Request.Level;
         /// <summary>Which of <see cref="PlaceNames"/>' languages the world speaks. Its people build in the style that goes with it.</summary>
@@ -92,13 +104,17 @@ namespace Dino_Engine.World
             }
             for (int i = 0; i < shares.Length; i++) shares[i] /= total;
 
+            // A whole number of 8 m climate cells, so the coarser maps end exactly on the world's edge.
+            float size = MathF.Round(SizeOf(archetype, random.Range(archetype.Size), root.Fork("extent"), request.Larger) / 8f) * 8f;
+            bool linear = !archetype.Enclosed && root.Fork("layout").Chance(LinearShare);
+
             return new WorldPlan
             {
                 Request = request,
                 Archetype = archetype,
                 Name = PlaceNames.WorldName(archetype, request.Seed, random.Fork("name")),
-                // A whole number of 8 m climate cells, so the coarser maps end exactly on the world's edge.
-                Size = MathF.Round(SizeOf(archetype, random.Range(archetype.Size), root.Fork("extent"), request.Larger) / 8f) * 8f,
+                Size = size,
+                Path = linear ? LandPath.Draw(size, root.Fork("path")) : null,
                 BaseHeight = random.Range(archetype.BaseHeight),
                 HillHeight = random.Range(archetype.HillHeight),
                 MountainHeight = random.Range(archetype.MountainHeight),

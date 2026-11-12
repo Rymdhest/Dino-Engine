@@ -47,7 +47,12 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
         private const int MaxDirectionalLights = 4;
         private const int MaxCascadeSlots = 5;
         private const int MaxPointLights = 16;
-        private const int MaxPointShadows = 3;
+        // As many as PointLightShadowSystem can have lent at once, its budget and the spares fading out, or which of them the fog shadows changes with the order they're in, and a lamp the fog
+        // gave no map shines through walls until it gets one.
+        private const int MaxPointShadows = 6;
+        // Metres over which a light fades out of the fog before it loses its place to the next nearest, as a light simply dropped once the slots were full had a lamp's glow blink in the mist
+        // whenever the camera moved, at the top of the screen where the lights farthest away take turns.
+        private const float LightFadeBand = 8f;
         private const int MaxSpotLights = 16;
         private const int MaxSpotShadows = 4;
         private const int CascadeUnitStart = 3;
@@ -67,6 +72,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
         private static readonly string[] SpotDirectionCutoffNames = UniformNames("spotDirectionCutoff", MaxSpotLights);
         private static readonly string[] SpotSoftnessNames = UniformNames("spotSoftness", MaxSpotLights);
         private static readonly string[] SpotShadowMatrixNames = UniformNames("spotShadowMatrices", MaxSpotShadows);
+        private static readonly string[] PointShadowStrengthNames = UniformNames("pointShadowStrength", MaxPointShadows);
 
         private readonly ShaderProgram _noiseShader = new ShaderProgram("Simple.vert", "VolumetricFog_Noise.frag");
         private readonly ShaderProgram _marchShader = new ShaderProgram("Simple.vert", "VolumetricFog_March.frag");
@@ -425,9 +431,10 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
                     _lightCandidates.Add((distance, i));
                 }
             }
-            _lightCandidates.Sort((a, b) => a.distance.CompareTo(b.distance));
+            _lightCandidates.Sort(Nearer);
 
             int pointCount = Math.Min(_lightCandidates.Count, MaxPointLights);
+            float pointCut = CutOf(MaxPointLights);
             int pointShadows = 0;
             for (int i = 0; i < pointCount; i++)
             {
@@ -438,9 +445,12 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
                     shadowIndex = pointShadows++;
                     GL.ActiveTexture(TextureUnit.Texture0 + PointShadowUnitStart + shadowIndex);
                     GL.BindTexture(TextureTarget.TextureCubeMap, light.shadow.Value.shadowFrameBuffer.getDepthAttachment());
+                    // As much of its shadow as the surfaces are given, so that it fades into the fog with them.
+                    _marchShader.loadUniformFloat(PointShadowStrengthNames[shadowIndex], Math.Clamp(light.shadowStrength, 0f, 1f));
                 }
+                float fade = Fade(_lightCandidates[i].distance, pointCut);
                 _marchShader.loadUniformVector4f(PointPositionRadiusNames[i], new Vector4(light.positionWorld, light.radius));
-                _marchShader.loadUniformVector4f(PointColourShadowNames[i], new Vector4(light.colour * scattering, shadowIndex));
+                _marchShader.loadUniformVector4f(PointColourShadowNames[i], new Vector4(light.colour * (scattering * fade), shadowIndex));
             }
             _marchShader.loadUniformInt("pointLightCount", pointCount);
 
@@ -455,9 +465,10 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
                     _lightCandidates.Add((distance, i));
                 }
             }
-            _lightCandidates.Sort((a, b) => a.distance.CompareTo(b.distance));
+            _lightCandidates.Sort(Nearer);
 
             int spotCount = Math.Min(_lightCandidates.Count, MaxSpotLights);
+            float spotCut = CutOf(MaxSpotLights);
             int spotShadows = 0;
             for (int i = 0; i < spotCount; i++)
             {
@@ -473,12 +484,25 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
                 }
                 Vector3 direction = SpotLightRenderer.WorldDirection(light).Normalized();
                 _marchShader.loadUniformVector4f(SpotPositionRadiusNames[i], new Vector4(light.positionWorld, light.radius));
-                _marchShader.loadUniformVector4f(SpotColourShadowNames[i], new Vector4(light.colour * scattering, shadowIndex));
+                _marchShader.loadUniformVector4f(SpotColourShadowNames[i], new Vector4(light.colour * (scattering * Fade(_lightCandidates[i].distance, spotCut)), shadowIndex));
                 _marchShader.loadUniformVector4f(SpotDirectionCutoffNames[i], new Vector4(direction, light.cutoffCosine));
                 _marchShader.loadUniformFloat(SpotSoftnessNames[i], light.softness);
             }
             _marchShader.loadUniformInt("spotLightCount", spotCount);
         }
+
+        // Nearest first, and lights at the same distance always in the same order, as an unstable sort had them trade places from one frame to the next.
+        private static int Nearer((float distance, int index) a, (float distance, int index) b)
+        {
+            int byDistance = a.distance.CompareTo(b.distance);
+            return byDistance != 0 ? byDistance : a.index.CompareTo(b.index);
+        }
+
+        // How far off the nearest light that didn't get a place is, or nowhere if every light did.
+        private float CutOf(int places) => _lightCandidates.Count > places ? _lightCandidates[places].distance : float.PositiveInfinity;
+
+        // A light is all there the farther it is inside the cut, and nothing at it, so that one taking another's place does so without a step.
+        private static float Fade(float distance, float cut) => float.IsPositiveInfinity(cut) ? 1f : Math.Clamp((cut - distance) / LightFadeBand, 0f, 1f);
 
         /// <summary>
         /// Whether a light with this sphere of influence can light visible fog. Candidates are ranked by how far the

@@ -114,7 +114,7 @@ namespace Dino_Engine.World.Generation
 
         private static bool GroundFits(WorldData world, Vector2 point, float maxSlope)
         {
-            if (world.Height.Sample(point) - world.WaterLevelAt(point) < MinAboveWater) return false;
+            if (world.ShoreHeightAt(point) < MinAboveWater) return false;
             return world.Height.SlopeAt(point) <= maxSlope;
         }
 

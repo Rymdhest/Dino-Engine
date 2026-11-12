@@ -19,8 +19,7 @@ namespace Dino_Defenders.Client
     {
         private const float Interval = 0.2f;
         private const float KeepEnters = 6f;            // Metres past a keep's wall that count as inside it,
-        private const float KeepLeaves = 22f;           // and how far out the hero has to go before it no longer does, so walking along the wall doesn't flick the music back and forth.
-        private const float FloorReach = 1.5f;          // As the server counts a keep's arena's floor, a little past its bounds.
+        private const float KeepLeaves = 60f;           // and how far out the hero has to go before it no longer does, so walking along the wall doesn't flick the music back and forth, and a tyrant led out of its gates keeps its music.
         private const float LandIntensity = 0.5f;
         private const float HavenDay = 0.62f;
         private const float HavenNight = 0.3f;
@@ -103,7 +102,7 @@ namespace Dino_Defenders.Client
             };
             foreach (WorldSite site in world.Sites)
             {
-                if (site.Arena is { Keep: false } arena) place.ArenaKind = arena.Kind;
+                if (site.Arena is ArenaPlan arena) place.ArenaKind = arena.Kind;
             }
             return place;
         }
@@ -163,7 +162,7 @@ namespace Dino_Defenders.Client
 
         private static float Hurt(GameSession session) => 1f - Math.Clamp(session.Health / MathF.Max(session.Sheet.MaxHealth, 1f), 0f, 1f);
 
-        // The keep the hero is in, if they're in one: inside its walls, or down on its arena's floor.
+        // The keep the hero is in, if they're in one: inside its walls, or not far out of them.
         private SiteState? Keep(GameSession session)
         {
             Vector2 at = session.PlayerPosition;
@@ -174,8 +173,7 @@ namespace Dino_Defenders.Client
                 if (state.Wild || state.Site.Kind != SiteKind.Keep) continue;
                 found ??= state;
                 float distance = (state.Site.Position - at).Length - state.Site.Radius;
-                bool floor = state.Site.Arena is { Keep: true } plan && plan.Contains(at, FloorReach);
-                if (floor || distance < (_inKeep ? KeepLeaves : KeepEnters))
+                if (distance < (_inKeep ? KeepLeaves : KeepEnters))
                 {
                     found = state;
                     inside = true;
@@ -201,7 +199,7 @@ namespace Dino_Defenders.Client
                     var enemy = entity.Get<EnemyComponent>();
                     if (enemy.Rarity != Rarity.Unique || enemy.Friendly) continue;
                     Vector2 position = entity.Get<PositionComponent>().value.Xz;
-                    if (keep != null && (keep.Site.Position - position).Length > keep.Site.Radius + KeepLeaves && !(keep.Site.Arena is { Keep: true } plan && plan.Contains(position, FloorReach))) continue;
+                    if (keep != null && (keep.Site.Position - position).Length > keep.Site.Radius + KeepLeaves) continue;
 
                     if (enemy.State == EnemyState.Dead)
                     {

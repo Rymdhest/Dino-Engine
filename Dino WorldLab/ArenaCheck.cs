@@ -18,7 +18,7 @@ namespace Dino_WorldLab
         private const int MostPieceTriangles = 160_000;
         private const int MostLights = 40;
         private const long MostBuildMs = 6000;              // A whole arena's, on one thread; it's built on every core as the world loads.
-        private const float FarthestReach = 60f;            // Metres from its own origin that a piece's model may reach.
+        private const float FarthestReach = 90f;            // Metres from its own origin that a piece's model may reach: a wall round a large oval is drawn about a centre well past its middle.
 
         public static int Run(int seed, string? only)
         {
@@ -40,50 +40,36 @@ namespace Dino_WorldLab
             return problems == 0 ? 0 : 1;
         }
 
-        /// <summary>A land's keep and the arena in it (<c>--land id</c>, or <c>any</c> for the seed's own): its plan, its ways down and up, and where everyone of the keep stands from the arena's middle, and its pieces' cost.</summary>
+        /// <summary>A land's keep and the open yard its tyrant waits in (<c>--land id</c>, or <c>any</c> for the seed's own): where everyone of the keep stands, and a map of where anyone can walk.</summary>
         public static int Keep(int seed, string archetype)
         {
             // "any" leaves the archetype to the seed, as check does, which grows a different world from naming it.
             WorldData world = new WorldGenerator().Generate(new WorldRequest(seed, archetype == "any" ? null : archetype));
             WorldSite? keep = world.Sites.FirstOrDefault(s => s.Kind == SiteKind.Keep);
-            if (keep?.Arena is not ArenaPlan plan)
+            if (keep == null)
             {
-                Console.WriteLine("PROBLEM: no keep with an arena");
+                Console.WriteLine("PROBLEM: no keep");
                 return 1;
             }
-            Console.WriteLine($"{keep.Name}, seed {seed} ({archetype}): radius {keep.Radius:0}, a {plan.Kind} about {plan.Centre.X:0},{plan.Centre.Y:0}, floor {plan.Floor:0.0} m, {plan.Area:0} m2 inside the seal, reaching {plan.Reach:0} m, walled at {plan.Rim:0} m");
-            Console.WriteLine($"    the way down at {plan.Door.X:0.0},{plan.Door.Y:0.0} ({(plan.Door - plan.Centre).Length:0.0} m out, {(world.Passable.IsSet(plan.Door) ? "passable" : "NOT PASSABLE")}), arriving at {plan.Arrival.X:0.0},{plan.Arrival.Y:0.0} ({(world.Passable.IsSet(plan.Arrival) ? "passable" : "NOT PASSABLE")}), the way up at {plan.Exit.X:0.0},{plan.Exit.Y:0.0}");
-            // What the ground says about the way down, and what solid is nearest it.
-            Vector2 door = plan.Door;
-            Console.WriteLine($"    at the way down: walkable {world.Walkable.IsSet(door)}, slope {world.Height.SlopeAt(door):0.00}, water {world.WaterDepthAt(door):0.00} m, rock {world.Rock.Sample(door):0.00}, boundary {world.Boundary.Sample(door):0.00}, height {world.Height.Sample(door) - plan.Floor:0.0} m above the floor");
-            float nearest = float.MaxValue;
-            string what = "nothing";
-            world.Placement.ForEach((footprint, layer, solid) =>
-            {
-                if (!solid) return;
-                float away = (footprint.Centre - door).Length - footprint.BoundingRadius;
-                if (away < nearest) { nearest = away; what = $"{layer} at {footprint.Centre.X:0.0},{footprint.Centre.Y:0.0}"; }
-            });
-            Console.WriteLine($"    the nearest solid is {what}, {nearest:0.0} m off at most");
-            // The keep, two metres to a character, north up: # walkable and passable, + walkable only, . neither, D the way down, A the arrival, o the arena's middle.
+            Vector2 tyrant = keep.Spawns.FirstOrDefault(s => s.Role == SpawnRole.Boss).Position;
+            Console.WriteLine($"{keep.Name}, seed {seed} ({archetype}): radius {keep.Radius:0} about {keep.Position.X:0},{keep.Position.Y:0}, its yard {SettlementStage.KeepYard(keep):0} m across from its middle, the tyrant at {tyrant.X:0.0},{tyrant.Y:0.0}");
+            // The keep, two metres to a character, north up: # walkable and passable, + walkable only, . neither, T the tyrant.
             for (float z = keep.Radius + 6f; z >= -keep.Radius - 6f; z -= 2f)
             {
                 var row = new System.Text.StringBuilder("    ");
                 for (float x = -keep.Radius - 6f; x <= keep.Radius + 6f; x += 2f)
                 {
                     Vector2 at = keep.Position + new Vector2(x, z);
-                    char c = (at - plan.Door).Length < 1.2f ? 'D' : (at - plan.Arrival).Length < 1.2f ? 'A' : (at - plan.Centre).Length < 1.2f ? 'o'
-                        : world.Passable.IsSet(at) ? '#' : world.Walkable.IsSet(at) ? '+' : '.';
+                    char c = (at - tyrant).Length < 1.2f ? 'T' : world.Passable.IsSet(at) ? '#' : world.Walkable.IsSet(at) ? '+' : '.';
                     row.Append(c);
                 }
                 Console.WriteLine(row.ToString());
             }
-            foreach (SiteSpawn spawn in keep.Spawns.Where(s => s.Role != SpawnRole.Spectator))
+            foreach (SiteSpawn spawn in keep.Spawns)
             {
-                Console.WriteLine($"    {spawn.Role,-10} {(spawn.Position - plan.Centre).Length,5:0.0} m from the middle, {(plan.Contains(spawn.Position) ? "on the floor" : "off it")}, {(world.Passable.IsSet(spawn.Position) ? "passable" : "NOT PASSABLE")}");
+                Console.WriteLine($"    {spawn.Role,-10} {(spawn.Position - keep.Position).Length,5:0.0} m from the middle, {(world.Passable.IsSet(spawn.Position) ? "passable" : "NOT PASSABLE")}");
             }
-            Console.WriteLine($"    {keep.Spawns.Count(s => s.Role == SpawnRole.Spectator)} watching");
-            return Pieces(world.Objects.AssetIds.Where(ArenaSpec.IsArena).Concat(plan.Entries.Select(e => e.Model).Concat(plan.Pieces.Select(p => p.Model))).Append(plan.Way?.Model ?? "").Where(m => !string.IsNullOrEmpty(m)).Distinct().ToList());
+            return 0;
         }
 
         private static int Pieces(List<string> ids)

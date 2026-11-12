@@ -133,8 +133,8 @@ namespace Dino_Engine.World.Generation
                 {
                     Vector2 spot = site.Position + SiteBuilder.Direction(random.Float() * MathF.Tau) * (reach * MathF.Sqrt(random.Float()));
                     if (!CanStand(spot)) continue;
-                    // A keep's garrison camps round the arena its tyrant is kept in, and nobody of it is on the arena's floor or behind its wall (ARENAS.md).
-                    if (site.Arena is { Keep: true } arena && (spot - arena.Centre).Length < arena.Rim + 1.5f) continue;
+                    // A keep's garrison camps round the yard its tyrant waits in, and leaves the yard to it.
+                    if (site.Kind == SiteKind.Keep && (spot - site.Position).Length < SettlementStage.KeepYard(site) + 1.5f) continue;
                     site.Spawns.Add(new SiteSpawn(role, spot));
                     placed++;
                 }

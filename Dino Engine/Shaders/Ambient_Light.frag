@@ -27,6 +27,14 @@ uniform float emissionScale;
 uniform vec3 sunDirectionViewSpace;
 uniform vec3 sunColour;
 
+// How wide the sun's highlight is, as alpha squared added to a surface's lobe (lightSurfaceSpread). Its disc is about half a degree, but a highlight that narrow on
+// water as smooth as a puddle is a point, and rain rings a pixel across broke it into white fragments that jumped about whenever the camera moved: so it never
+// reflects narrower than this, a glint that slides rather than glitters.
+const float SUN_SPREAD = 0.0064;
+// And how far clouds spread it on top of that, when they let none of it through as a disc. A sun behind cloud lights the whole sky; it doesn't stand in a puddle
+// as a white hole, as it did in the Haven's rain, a dimmed sun still being a point.
+const float CLOUD_SPREAD = 0.35;
+
 // Global illumination (GI.md): what GlobalIlluminationRenderer gathered, at half the resolution each way, a layer for each colour's
 // irradiance A + B.n and a fourth with each texel's depth and how sure it is. 0 for giMix leaves the flat sky and ground.
 uniform sampler2DArray giGathered;
@@ -133,8 +141,9 @@ void main(void)
     if (sunColour != vec3(0.0))
     {
         // The relief's own shadow is the sun's alone: it was cast along the sun's way, and no other light's.
-        vec3 radiance = sunColour * clamp(calcShadow(g.position), 0.0, 1.0) * g.materials.a * weatherSunVisibility((invViewMatrix * vec4(g.position, 1.0)).xz);
-        colour += lightSurface(s, sunDirectionViewSpace, radiance);
+        float through = weatherSunVisibility((invViewMatrix * vec4(g.position, 1.0)).xz);
+        vec3 radiance = sunColour * clamp(calcShadow(g.position), 0.0, 1.0) * g.materials.a * through;
+        colour += lightSurfaceSpread(s, sunDirectionViewSpace, radiance, SUN_SPREAD + CLOUD_SPREAD * (1.0 - clamp(through, 0.0, 1.0)));
     }
     out_Colour = vec4(colour, 1.0);
 }

@@ -92,13 +92,16 @@ struct Surface
     float translucency;     // How much light gets through, what it loses on the way already taken off (transmittance in gBufferUtil.glsl): 0 for anything solid.
 };
 
-// The light a surface sends to the camera from one light. L points towards the light; radiance is what arrives there.
-vec3 lightSurface(Surface s, vec3 L, vec3 radiance)
+// The light a surface sends to the camera from one light, whose highlight is spread as if the light were `spread` wide: that much is added to the lobe's
+// alpha squared, so the light given back stays the same and only goes further round. A point light has none. L points towards the light; radiance is
+// what arrives there.
+vec3 lightSurfaceSpread(Surface s, vec3 L, vec3 radiance, float spread)
 {
     vec3 N = s.normal;
     vec3 V = s.view;
     vec3 H = normalize(V + L);
-    float roughness = max(s.roughness, MIN_ROUGHNESS);
+    float lobe = max(s.roughness, MIN_ROUGHNESS);
+    float roughness = sqrt(sqrt(lobe * lobe * lobe * lobe + spread));
     float NdotL = max(dot(N, L), 0.0);
 
     vec3 F0 = surfaceF0(s.albedo, s.metallic, s.roughness);
@@ -115,4 +118,9 @@ vec3 lightSurface(Surface s, vec3 L, vec3 radiance)
     vec3 transmitted = tint * (s.translucency * pow(backLit, 1.9) * TRANSMISSION_GAIN / LIGHT_PI);
 
     return (reflected + transmitted) * radiance;
+}
+
+vec3 lightSurface(Surface s, vec3 L, vec3 radiance)
+{
+    return lightSurfaceSpread(s, L, radiance, 0.0);
 }

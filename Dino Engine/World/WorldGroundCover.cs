@@ -70,7 +70,7 @@ namespace Dino_Engine.World
             if (world.Paved && world.Paving.Sample(point) > 0.15f) return;
 
             float height = world.Height.Sample(point);
-            float above = height - world.WaterLevelAt(point);
+            float above = world.ShoreHeightAt(point);
             if (above < 0.12f) return;
 
             float slope = world.Height.SlopeAt(point);

@@ -757,6 +757,46 @@ namespace Dino_NetLab
                 report.Check($"Nor more than {Rulebook.MostMinions} minions of a kind", arena.Session.Minions.Count(m => !m.Dead) <= Rulebook.MostMinions, $"{arena.Session.Minions.Count(m => !m.Dead)}");
             }
 
+            foreach (string kin in new[] { "bones", "turret" })
+            {
+                using var arena = new Arena(worlds, request, Hero());
+                BookProfile raise = Read(arena, Area("circle").With(new Outcome { Deed = "raise", Kin = kin }));
+                int each = raise.First.MinionCount;
+                for (int i = 0; i < 4; i++)
+                {
+                    Cast(arena, raise, East, 4f);
+                    arena.Run(0.6);
+                }
+                int standing = arena.Session.Minions.Count(m => !m.Dead);
+                arena.Run(DyingSystem.FallTime + DyingSystem.LieTime + DyingSystem.FadeTime + 0.5);
+                int drawn = Count<EnemyComponent>(arena);
+                report.Check($"Raising {kin} again and again keeps only as many as a Page raises, the oldest going", standing == each && drawn == each, $"{standing} standing, {drawn} in the world once the fallen are cleared, of {each}");
+            }
+
+            // A page that turns from every hit raises a batch for each, all in one tick, and each replaces the last: those replaced were never in the world, and once fought on at no health.
+            foreach (string kin in new[] { "bones", "turret" })
+            {
+                using var arena = new Arena(worlds, request, Hero());
+                for (int i = 0; i < 5; i++) arena.Dummy(East * 7f + North * (i - 2f) * 1.5f);
+                BookProfile volley = Read(arena, Flight("five-at-once").With(Deal()), Area().With(new Outcome { Deed = "raise", Kin = kin }));
+                int each = volley.Pages[1].MinionCount;
+                Cast(arena, volley, East, 7f);
+                arena.Run(2.0);
+                int listed = arena.Session.Minions.Count;
+                int friendly = 0, fighting = 0;
+                foreach (Archetype archetype in arena.Lab.Server.Ecs.QueryArchetypes(new BitMask(typeof(EnemyComponent), typeof(ActorComponent)), BitMask.Empty))
+                {
+                    for (int i = 0; i < archetype.EntityCount; i++)
+                    {
+                        EntityView view = new EntityView(archetype, i);
+                        if (!view.Get<EnemyComponent>().Friendly) continue;
+                        if (view.Get<EnemyComponent>().State != EnemyState.Dead) friendly++;
+                        if (view.Get<ActorComponent>().Actor.Dead && view.Get<EnemyComponent>().State != EnemyState.Dead) fighting++;
+                    }
+                }
+                report.Check($"A volley that raises {kin} from every hit leaves only as many as a Page raises", listed == each && friendly == each && fighting == 0, $"{listed} listed, {friendly} up in the world, {fighting} dead but fighting, of {each}");
+            }
+
             using (var arena = new Arena(worlds, request, Hero()))
             {
                 BookPlan bones = Scribe.Read(new Book { Pages = { Flight().With(new Outcome { Deed = "raise", Kin = "bones" }).Cast() } }, "Crowd");

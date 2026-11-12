@@ -141,7 +141,7 @@ namespace Dino_Engine.World
             rock = MathF.Max(rock, bare * Smoothstep(0.26f, 0.5f, slope + breakup * 0.2f));
             float scree = world.Scree.Sample(x, z) * (1f - Smoothstep(0.75f, 1.25f, slope));
 
-            float above = height - world.WaterLevelAt(position);
+            float above = height - world.Height.Sample(position) + world.ShoreHeightAt(position);
             float shore = 1f - Smoothstep(0.3f, 1.8f, above + breakup * 0.45f + drift * 0.4f);
 
             // Trodden ground has no clean edge: it frays out into the grass around it.
@@ -317,7 +317,7 @@ namespace Dino_Engine.World
             if (_world.Paved) trodden = MathF.Max(trodden, _world.Paving.Sample(x, z));
             if (_world.Mudded) trodden = MathF.Max(trodden, _world.Mud.Sample(x, z));
             float drinks = (_world.Sanded ? _world.Sand.Sample(x, z) : 0f) + (_world.Ashen ? _world.Ash.Sample(x, z) : 0f);
-            float shore = 1f - Smoothstep(0.3f, 1.8f, height - _world.WaterLevelAt(position));
+            float shore = 1f - Smoothstep(0.3f, 1.8f, height - _world.Height.Sample(position) + _world.ShoreHeightAt(position));
             return Hollow(position, height, slope, trodden, shore) * (1f - _world.Garden.Sample(x, z)) * (1f - Saturate(drinks));
         }
 

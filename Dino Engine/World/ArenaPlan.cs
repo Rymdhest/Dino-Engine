@@ -3,7 +3,7 @@ using OpenTK.Mathematics;
 namespace Dino_Engine.World
 {
     /// <summary>
-    /// Every kind of arena there is. A boss map every tenth level is one of them on an isle of its own, and every land's keep holds a smaller one, sealed, where its tyrant waits. Read ARENAS.md.
+    /// Every kind of arena there is. A boss map every tenth level is one of them on an isle of its own, sealed round its floor, where its tyrant waits. Read ARENAS.md.
     /// </summary>
     public enum ArenaKind
     {
@@ -48,15 +48,12 @@ namespace Dino_Engine.World
     public readonly record struct ArenaPiece(ArenaPieceKind Kind, Vector3 At, float Yaw, string Model);
 
     /// <summary>
-    /// What the game needs to know of an arena that a list of spawns can't say: its kind, the floor it's sealed round, the ways the brood comes in, the set pieces that take part, and for a keep's arena the
-    /// way down into it and up out of it. Worked out with the world and never saved, as the same request grows the same arena. Headless. Read ARENAS.md.
+    /// What the game needs to know of an arena that a list of spawns can't say: its kind, the floor it's sealed round, the ways the brood comes in and the set pieces that take part. Worked out with the
+    /// world and never saved, as the same request grows the same arena. Headless. Read ARENAS.md.
     /// </summary>
     public sealed class ArenaPlan
     {
         public ArenaKind Kind;
-
-        /// <summary>A keep's arena, in a land, rather than the whole of a boss map.</summary>
-        public bool Keep;
 
         /// <summary>The middle of its floor.</summary>
         public Vector2 Centre;
@@ -66,7 +63,7 @@ namespace Dino_Engine.World
 
         /// <summary>
         /// The inside face of the seal round the floor, in order round it: nothing that can walk is ever outside it, and nothing outside it can walk in (WorldValidator holds both). It's the floor, and
-        /// whatever bay of it holds the waygate or the way up.
+        /// whatever bay of it holds the waygate.
         /// </summary>
         public readonly List<Vector2> Bounds = new();
 
@@ -76,21 +73,8 @@ namespace Dino_Engine.World
         /// <summary>How far from the middle anything of it stands, its stands, galleries and outer walls: who's further off isn't at the fight.</summary>
         public float Reach;
 
-        /// <summary>A keep's arena: where its way down stands, outside, on the keep's own ground, and which way it faces.</summary>
-        public Vector2 Door;
-        public float DoorYaw;
-
-        /// <summary>A keep's arena: where someone who goes down arrives on its floor.</summary>
+        /// <summary>Where whoever comes through the waygate arrives on its floor.</summary>
         public Vector2 Arrival;
-
-        /// <summary>A keep's arena: where its way up stands, inside, which only lets anyone out once its tyrant is down.</summary>
-        public Vector2 Exit;
-
-        /// <summary>A keep's arena: the gate of its way up, which shuts behind whoever comes down and opens once its tyrant is down, as an entry's moving part is (its <see cref="ArenaEntry.Out"/> is the arrival).</summary>
-        public ArenaEntry? Way;
-
-        /// <summary>A keep's arena: the radius of the wall round its rim, inside which nobody walks but on its floor.</summary>
-        public float Rim;
 
         /// <summary>Whether a point is inside the seal, or within <paramref name="grow"/> metres of it.</summary>
         public bool Contains(Vector2 point, float grow = 0f)

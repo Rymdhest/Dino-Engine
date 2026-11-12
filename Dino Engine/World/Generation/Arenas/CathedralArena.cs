@@ -11,7 +11,7 @@ namespace Dino_Engine.World.Generation.Arenas
     /// riveted black iron spring from the piers across the nave, which is open to the night, and from their crowns hang iron wheels of candles, which come down. To the north, where the camera looks, the
     /// apse rises with tall windows of oxblood and amber glass round the throne-cage where the tyrant is anointed, and over it the Iron Apex, the first tyrant's skull in black iron with amber in its eye.
     /// Gates under the screens let the brood in. The south end stays low, so that the camera sees the whole nave, and the waygate the Reich built its cathedral at stands there. It's always night here.
-    /// A keep's is the same, shorter, with two arches and a lesser apse. Read ARENAS.md.
+    /// How wide and long its nave is, how many gates open under its screens, and whether a row of free-standing piers runs down either side of the nave are drawn for each one. Read ARENAS.md.
     /// </summary>
     internal sealed class CathedralArena : ArenaLayout
     {
@@ -21,9 +21,7 @@ namespace Dino_Engine.World.Generation.Arenas
         private const float Sunk = 4.6f;
         private const float WallTop = 5.4f;
         private const float WallThick = 1.8f;
-        private const float PierAt = 9.5f;              // From the nave's middle line, where the piers stand, half in the walls.
         private const float PierHeight = 14f;
-        private const float ArchRise = 7f;
         private const float AisleWidth = 6.4f;
 
         private const float GateWidth = 3.6f;
@@ -37,22 +35,31 @@ namespace Dino_Engine.World.Generation.Arenas
         private readonly float[] _piers;
         private readonly float[] _arches;
         private readonly float[] _gates;
+        private readonly bool _aisled;                   // Whether a row of free-standing piers runs down either side of the nave.
 
-        public CathedralArena(SiteBuilder b, bool keep, Vector2 centre)
-            : base(b, ArenaKind.Cathedral, keep, centre, keep ? "keep cathedral" : "cathedral")
+        public CathedralArena(SiteBuilder b, Vector2 centre)
+            : base(b, ArenaKind.Cathedral, centre, "cathedral")
         {
-            _half = 10f;
-            _south = keep ? -15f : -22f;
-            _apse = keep ? 10f : 16f;
-            _apseRadius = 10f;
+            _half = Shape.Range(15f, 18f);
+            _south = -Shape.Range(30f, 36f);
+            _apse = Shape.Range(22f, 27f);
+            _apseRadius = _half;
             float step = 5.6f;
             var piers = new List<float>();
             for (float z = _south + 2.8f; z < _apse; z += step) piers.Add(z);
             _piers = piers.ToArray();
             _arches = _piers.Where((_, i) => i % 2 == 0).ToArray();
-            // A gate stands in the wall where a pier would, an odd one, so that no arch loses its footing and the gate has the whole bay either side.
-            _gates = keep ? new[] { _piers[1] } : new[] { _piers[3], _piers[5] };
+            // A gate stands in the wall where a pier would, an odd one, so that no arch loses its footing and the gate has the whole bay either side: two or three of them, spread down the nave.
+            int[] odd = Enumerable.Range(0, _piers.Length).Where(i => i % 2 == 1 && i >= 3 && i < _piers.Length - 1).ToArray();
+            int gates = Math.Min(Shape.Chance(0.5f) ? 2 : 3, odd.Length);
+            _gates = Enumerable.Range(0, gates).Select(k => _piers[odd[gates == 1 ? odd.Length / 2 : (int)MathF.Round(k * (odd.Length - 1) / (float)(gates - 1))]]).Distinct().ToArray();
+            _aisled = Shape.Chance(0.5f);
         }
+
+        private float PierAt => _half - 0.5f;               // From the nave's middle line, where the piers stand, half in the walls.
+        private float ArchRise => PierAt * 0.72f;
+        private Vector2 TyrantAt => C + North * (_apse - 4f);
+        private Vector2 RivalAt => C + North * (_apse - 12f) + East * (_half * 0.45f);
 
         /// <summary>How far from the middle the whole of it reaches.</summary>
         public float Reach => MathF.Max(MathF.Sqrt((_half + AisleWidth + 2f) * (_half + AisleWidth + 2f) + _south * _south), _apse + _apseRadius + 6f);
@@ -67,7 +74,7 @@ namespace Dino_Engine.World.Generation.Arenas
             Level(Footprint.Circle(C, Reach + 6f), Sunk, 9f);
             Raise(Footprint.Box(C + North * ((_south + _apse) * 0.5f), new Vector2(_half + 0.9f, (_apse - _south) * 0.5f + 0.9f), 0f), 0f);
             Raise(Footprint.Circle(C + North * _apse, _apseRadius + 0.8f), 0f);
-            Vector2 gate = Keep ? KeepGate(North * (_south + KeepGateDeep), North, Stone, ArenaGrille.Screen) : Waygate(North * (_south + 4.2f), North);
+            Vector2 gate = Waygate(North * (_south + 4.2f), North);
             Solid(Footprint.Box(C + gate - North * 1.2f, new Vector2(4.4f, 1.2f), 0f));
 
             Walls();
@@ -80,9 +87,8 @@ namespace Dino_Engine.World.Generation.Arenas
             People();
 
             Keepout(Footprint.Circle(C, Reach + 2f));
-            Tyrants(C + North * (_apse - 4f), C + North * (_apse - 10f) + East * 5f);
-            if (Keep) KeepRim(Reach + 1f, Sunk, Stone);
-            else Plan.Arrival = C + gate + North * 2.5f;
+            Tyrants(TyrantAt, RivalAt);
+            Plan.Arrival = C + gate + North * 2.5f;
         }
 
         // The nave's walls: east and west from the south end to the apse, broken by the gates, and the low wall across the south end.
@@ -161,7 +167,7 @@ namespace Dino_Engine.World.Generation.Arenas
                 float crown = PierHeight + 0.25f + ArchRise - CathedralPieces.RingBelow;
                 float hook = PierHeight - 3f;
                 Piece(new ArenaSpec(ArenaShape.Chain, NextSeed(), Cm(crown - hook)), North * z, 0f, crown);
-                string chandelier = new ArenaSpec(ArenaShape.Chandelier, NextSeed(), Cm(Keep ? 2.2f : 2.7f)).Id;
+                string chandelier = new ArenaSpec(ArenaShape.Chandelier, NextSeed(), Cm(2.7f)).Id;
                 Plan.Pieces.Add(new ArenaPiece(ArenaPieceKind.Chandelier, new Vector3(C.X, F + hook, C.Y + z), 0f, chandelier));
             }
         }
@@ -170,7 +176,7 @@ namespace Dino_Engine.World.Generation.Arenas
         private void Apse()
         {
             Vector2 centre = North * _apse;
-            float height = Keep ? 13f : 17f;
+            float height = 17f + (_half - 10f) * 0.5f;
             int windows = 6;
             Piece(new ArenaSpec(ArenaShape.Apse, NextSeed(), (int)Stone, Cm(_apseRadius), -90, 180, Cm(height), windows), centre, 0f, 0f);
             foreach ((float bearing, float y) in CathedralPieces.ApseWindows(-90f, 180f, height, windows))
@@ -180,7 +186,7 @@ namespace Dino_Engine.World.Generation.Arenas
             }
             Piece(new ArenaSpec(ArenaShape.Throne, NextSeed(), (int)Stone, Cm(7f)), centre + North * 2f, YawFacing(-North), 0f);
             Solid(Footprint.Box(C + centre + North * 2f, new Vector2(3.5f, 2.7f), 0f), 6f);
-            Piece(new ArenaSpec(ArenaShape.IronSkull, NextSeed(), Cm(Keep ? 5f : 7f)), centre + North * (_apseRadius - 0.1f), YawFacing(-North), height * 0.62f);
+            Piece(new ArenaSpec(ArenaShape.IronSkull, NextSeed(), Cm(7f)), centre + North * (_apseRadius - 0.1f), YawFacing(-North), height * 0.62f);
         }
 
         // The aisles beyond the screens, on the land's own level: the outer walls, pews facing the nave, candle stands between them, and the land's people and the faithful standing in them.
@@ -220,7 +226,25 @@ namespace Dino_Engine.World.Generation.Arenas
             var clear = new List<(Vector2, float)> { (C + gate, 8f), (C + North * (_apse + 2f), 5f) };
             foreach (ArenaEntry entry in Plan.Entries) clear.Add((entry.Out, 4f));
             foreach (float z in _piers) foreach (float side in new[] { -1f, 1f }) clear.Add((C + new Vector2(side * PierAt, z), 2.2f));
-            Remains(Keep ? 2 : 4, Keep ? 1 : 3, clear);
+            clear.Add((TyrantAt, 4f));
+            clear.Add((RivalAt, 4f));
+            if (_aisled)
+            {
+                // The nave in three, by a row of piers standing free down either side of it under every arch but the southmost, which the waygate is under: what to put between a tyrant and
+                // whoever it's after, with the middle left clear for the chandeliers to fall into.
+                foreach (float z in _arches.Skip(1))
+                {
+                    foreach (float side in new[] { -1f, 1f })
+                    {
+                        Vector2 at = new Vector2(side * _half * 0.46f, z);
+                        if (clear.Any(c => (C + at - c.Item1).Length < c.Item2 + 1.2f)) continue;
+                        Piece(new ArenaSpec(ArenaShape.GothicPier, NextSeed(), (int)Stone, Cm(PierHeight * 0.72f)), at, 0f, 0f);
+                        Solid(Footprint.Circle(C + at, 1.15f));
+                        clear.Add((C + at, 2.2f));
+                    }
+                }
+            }
+            Remains(6, 4, clear);
         }
 
         // The faithful in the aisles, between and behind the pews, looking down on the nave, and along the south end.
@@ -233,10 +257,10 @@ namespace Dino_Engine.World.Generation.Arenas
                     for (float z = _south + 1f; z < _apse - 1f; z += 2.4f)
                     {
                         // Not inside a pew: the two rows nearest the nave stand between them, and the last behind them.
-                        bool inPews = x < _half + WallThick + 4f && Enumerable.Range(0, 8).Any(k => MathF.Abs(z - (_south + 2f + k * 9f)) < 2.9f);
+                        bool inPews = x < _half + WallThick + 4f && Enumerable.Range(0, 12).Any(k => MathF.Abs(z - (_south + 2f + k * 9f)) < 2.9f);
                         // Nor in a gate's passage, which runs back under the aisle at the nave's level.
                         bool inGate = x < _half + GateDepth + 1.2f && _gates.Any(g => MathF.Abs(z - g) < GateWidth * 0.5f + 1.6f);
-                        if (inPews || inGate || !Random.Chance(0.6f)) continue;
+                        if (inPews || inGate || !Random.Chance(Crowd(0.6f, _apse - _south, 38f))) continue;
                         B.Spawn(SpawnRole.Spectator, C + new Vector2(side * x + Random.Range(-0.3f, 0.3f), z + Random.Range(-0.4f, 0.4f)));
                     }
                 }

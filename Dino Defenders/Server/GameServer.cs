@@ -748,23 +748,10 @@ namespace Dino_Defenders.Server
                 new InteractableComponent { Kind = InteractKind.Portal, SiteIndex = 0, SpawnIndex = session.World.Sites[0].Spawns.FindIndex(s => s.Role == SpawnRole.Waygate), Radius = 6.5f, Prompt = $"Step through to {name}" });
         }
 
-        /// <summary>
-        /// Puts a hero as near somewhere as there's ground to stand on, for a page that says so, but never across a keep's arena's seal: whoever's on its floor stays on it, and nobody off it is carried
-        /// onto it (ARENAS.md).
-        /// </summary>
+        /// <summary>Puts a hero as near somewhere as there's ground to stand on, for a page that says so.</summary>
         public void Carry(ServerPlayer player, Vector2 to)
         {
-            WorldData world = Session!.World;
-            Vector2 from = player.Sim.Position;
-            if (TryFindGround(world, to, ground => ServerSession.SameSide(world, from, ground), out Vector2 ground)) Teleport(player, ground);
-        }
-
-        /// <summary>Takes a hero down into a keep's arena or up out of it, by its gates: to ground as near where they're going as there is, on that side of its seal.</summary>
-        public void Bring(ServerPlayer player, Vector2 to)
-        {
-            WorldData world = Session!.World;
-            if (TryFindGround(world, to, ground => ServerSession.SameSide(world, to, ground), out Vector2 ground)) Teleport(player, ground);
-            Broadcast(new SoundEvent { Position = HeroPosition(player), Cue = SoundCue.ArenaGate }, player.Sim.Position);
+            if (TryFindGround(Session!.World, to, out Vector2 ground)) Teleport(player, ground);
         }
 
         private void Teleport(ServerPlayer player, Vector2 to)
@@ -1164,12 +1151,6 @@ namespace Dino_Defenders.Server
 
                 case HeroAction.CallRoads:
                     if (Session!.IsHaven || player.Out || player.Sim.Health <= 0f || player.Sim.BusyFor > 0f || player.CallingSince != null) break;
-                    // A keep's arena holds whoever's gone down into it until its tyrant's down.
-                    if (Session.HeldInArena(player.Sim.Position))
-                    {
-                        Note(player, "The arena holds you until its tyrant falls.");
-                        break;
-                    }
                     player.CallingSince = Session.Time;
                     player.CallingFrom = player.Sim.Position;
                     player.CallingHealth = player.Sim.Health;

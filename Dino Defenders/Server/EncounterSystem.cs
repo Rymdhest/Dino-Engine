@@ -35,9 +35,6 @@ namespace Dino_Defenders.Server
         private readonly GameServer _server;
         private double _nextCheck;
 
-        // Keeps whose arena's people are waiting for a hero to come down to them.
-        private readonly List<SiteState> _floorsWaiting = new();
-
         public EncounterSystem(GameServer server)
             : base(new BitMask(typeof(HealthComponent)))
         {
@@ -65,47 +62,12 @@ namespace Dino_Defenders.Server
                 }
                 else if (state.Active && distance > SleepDistance) Sleep(world, state);
             }
-
-            for (int i = _floorsWaiting.Count - 1; i >= 0; i--)
-            {
-                SiteState state = _floorsWaiting[i];
-                if (state.Active && !HeroOnFloor(session, state)) continue;
-                _floorsWaiting.RemoveAt(i);
-                if (state.Active) WakeFloor(world, session, state, session.Sites.IndexOf(state));
-            }
-        }
-
-        // Whoever's kept on a keep's arena's floor is only met down there (ARENAS.md): nobody on the keep's ground can reach them, so they wait for a hero to come down.
-        private static bool OnSealedFloor(SiteState state, Vector2 at) => state.Site.Arena is { Keep: true } plan && plan.Contains(at, ServerSession.FloorReach);
-
-        private static bool HeroOnFloor(ServerSession session, SiteState state)
-        {
-            if (state.Site.Arena is not { Keep: true } plan) return false;
-            foreach (ServerPlayer hero in session.Heroes)
-            {
-                if (!hero.Actor.Dead && plan.Contains(hero.Sim.Position, ServerSession.FloorReach)) return true;
-            }
-            return false;
-        }
-
-        // A keep's arena's people, once a hero's come down to them, each drawn as they would have been when the keep woke.
-        private void WakeFloor(ECSWorld world, ServerSession session, SiteState state, int siteIndex)
-        {
-            var random = new WorldRandom(session.World.Plan.Seed).Fork("people").Fork(siteIndex);
-            var musters = new Dictionary<SpawnRole, PackOrders>();
-            for (int i = 0; i < state.Site.Spawns.Count; i++)
-            {
-                SiteSpawn spawn = state.Site.Spawns[i];
-                if (!spawn.Role.IsHostile() || spawn.Role == SpawnRole.Rival || state.Dead.Contains(i) || state.Cleared || !OnSealedFloor(state, spawn.Position)) continue;
-                SpawnEnemy(world, session, state, siteIndex, i, spawn, Orders(session, state, spawn, random, musters), random.Fork(i));
-            }
         }
 
         protected override void UpdateEntity(EntityView entity, ECSWorld world, float deltaTime) { }
 
         private void Sleep(ECSWorld world, SiteState state)
         {
-            _floorsWaiting.Remove(state);
             foreach (Entity entity in state.Live) world.DestroyEntity(entity);
             state.Live.Clear();
             state.Active = false;
@@ -132,11 +94,6 @@ namespace Dino_Defenders.Server
                     case SpawnRole.Cultist:
                         // A place set free stays free, whoever a newer build would have put there.
                         if (state.Dead.Contains(i) || state.Cleared) break;
-                        if (OnSealedFloor(state, spawn.Position) && !HeroOnFloor(session, state))
-                        {
-                            if (!_floorsWaiting.Contains(state)) _floorsWaiting.Add(state);
-                            break;
-                        }
                         SpawnEnemy(world, session, state, siteIndex, i, spawn, Orders(session, state, spawn, random, musters), spawnRandom);
                         break;
                     case SpawnRole.Villager:
@@ -868,20 +825,6 @@ namespace Dino_Defenders.Server
                     break;
                 case InteractKind.Portal:
                     _server.StepThrough();
-                    break;
-                case InteractKind.ArenaDown:
-                    // Down into the arena the keep's tyrant is kept in, by the gate in the wall round it (ARENAS.md).
-                    if (state.Site.Arena is ArenaPlan below) _server.Bring(hero, below.Arrival);
-                    break;
-                case InteractKind.ArenaUp:
-                    // And up out of it, which only opens once the tyrant's down.
-                    if (state.Site.Arena is not ArenaPlan above) break;
-                    if (!session.TyrantDown(state))
-                    {
-                        _server.Note(hero, "The way up stays shut while the tyrant lives.");
-                        break;
-                    }
-                    _server.Bring(hero, above.Door);
                     break;
                 default:
                     _server.OpenPanel(hero, interactable.Kind, interactable.SiteIndex);

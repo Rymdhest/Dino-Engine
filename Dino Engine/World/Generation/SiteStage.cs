@@ -69,7 +69,13 @@ namespace Dino_Engine.World.Generation
                 WorldRandom kindRandom = random.Fork(definition.Label);
                 int count = TargetCount(world.Plan.Archetype, definition, landSquareKilometres, kindRandom);
                 int placed = 0;
-                for (int i = 0; i < count; i++)
+                // A linear land's keep takes the last clearing on its way before anything else can, so that nothing stands beyond it to come back for.
+                if (definition.Kind == SiteKind.Keep && world.Plan.Path is LandPath path && TryPickNear(world, definition, candidates, path.Last.Centre, out Candidate end))
+                {
+                    AddSite(world, definition, end, kindRandom);
+                    placed++;
+                }
+                for (int i = placed; i < count; i++)
                 {
                     if (!TryPick(world, definition, candidates, kindRandom, out Candidate pick)) break;
                     AddSite(world, definition, pick, kindRandom);
@@ -95,6 +101,9 @@ namespace Dino_Engine.World.Generation
 
         /// <summary>The fewest places a land can ask to be freed, which is the most it ever asks for (the game's <c>LandTerms.MostPlaces</c>), and the fewest waygates to travel between.</summary>
         public const int LeastHeld = 5;
+
+        /// <summary>How far along a linear land's way, as a share of the whole walk, its keep is at the least.</summary>
+        private const float LinearKeepRemoteness = 0.86f;
         public const int LeastWaygates = 2;
 
         private static readonly SiteDefinition[] HeldToFill = { SiteCatalog.Shrine, SiteCatalog.Ruins, SiteCatalog.BanditCamp, SiteCatalog.Watchtower };
@@ -261,9 +270,30 @@ namespace Dino_Engine.World.Generation
             return best;
         }
 
-        // The landing sits at the edge of the land: a shore if there is one, or else the foot of the mountains.
+        // The landing sits at the edge of the land: a shore if there is one, or else the foot of the mountains. On a linear land it's at the start of the way, as near the middle of its first
+        // clearing as there's ground for it.
         private static Candidate PickLanding(WorldData world, List<Candidate> candidates, WorldRandom random)
         {
+            if (world.Plan.Path is LandPath path)
+            {
+                // As fussy as anywhere else first, then less, before it would go anywhere but the first clearing, as a landing anywhere else turns the way round.
+                foreach (float looser in new[] { 0f, 0.2f, 0.45f, float.MaxValue })
+                {
+                    Candidate first = candidates[0];
+                    float nearest = float.MaxValue;
+                    foreach (Candidate candidate in candidates)
+                    {
+                        if (candidate.Slope > SiteCatalog.Landing.MaxSlope + looser || candidate.Inland < SiteCatalog.Landing.MinInland * 0.5f) continue;
+                        float away = (candidate.Position - path.First.Centre).Length;
+                        if (away >= nearest) continue;
+                        nearest = away;
+                        first = candidate;
+                    }
+                    if (nearest <= path.First.Radius || (looser == float.MaxValue && nearest < float.MaxValue)) return first;
+                }
+                return candidates.MinBy(candidate => (candidate.Position - path.First.Centre).Length);
+            }
+
             Vector2 centre = new Vector2(world.Size * 0.5f);
             float bestScore = float.NegativeInfinity;
             Candidate best = candidates[0];
@@ -364,6 +394,21 @@ namespace Dino_Engine.World.Generation
             return bestInterest > 0f;
         }
 
+        // The candidate nearest a point that a kind of site could stand on.
+        private static bool TryPickNear(WorldData world, SiteDefinition definition, List<Candidate> candidates, Vector2 near, out Candidate pick)
+        {
+            pick = default;
+            float nearest = float.MaxValue;
+            foreach (Candidate candidate in candidates)
+            {
+                float away = (candidate.Position - near).Length;
+                if (away >= nearest || !MeetsLimits(world, definition, candidate, definition.Radius.Max)) continue;
+                nearest = away;
+                pick = candidate;
+            }
+            return nearest < float.MaxValue;
+        }
+
         // A stride that shares no factor with the count visits every candidate exactly once.
         private static int StrideFor(int total, WorldRandom random)
         {
@@ -383,6 +428,8 @@ namespace Dino_Engine.World.Generation
             if (candidate.Slope > definition.MaxSlope) return false;
             if (candidate.Inland < definition.MinInland || candidate.Inland > definition.MaxInland) return false;
             if (candidate.Remoteness < definition.Remoteness.Min || candidate.Remoteness > definition.Remoteness.Max) return false;
+            // A linear land's keep is at the end of its way, so that nothing is left behind it to come back for.
+            if (definition.Kind == SiteKind.Keep && world.Plan.Linear && candidate.Remoteness < LinearKeepRemoteness) return false;
 
             foreach (WorldSite site in world.Sites)
             {
@@ -412,10 +459,6 @@ namespace Dino_Engine.World.Generation
             return MathF.Max(interest + 1.5f, 0.01f);
         }
 
-        // A keep's arena is dug down from the ground its walls stand on, the deepest of them nearly eight metres, and its floor has to stay three clear of the sea: a keep on low ground stands on a
-        // mound raised that far, which the land is eased up to, or the arena would stand out of a plateau the camp round it couldn't walk off (ARENAS.md).
-        private const float KeepAboveSea = 13f;
-
         private static void AddSite(WorldData world, SiteDefinition definition, Candidate candidate, WorldRandom random)
         {
             int id = world.Sites.Count;
@@ -425,7 +468,7 @@ namespace Dino_Engine.World.Generation
                 Definition = definition,
                 Position = candidate.Position,
                 Radius = random.Range(definition.Radius),
-                Height = MathF.Max(candidate.Height, WorldPlan.SeaLevel + (definition.Kind == SiteKind.Keep ? KeepAboveSea : 1f)),
+                Height = MathF.Max(candidate.Height, WorldPlan.SeaLevel + 1f),
                 Remoteness = world.Remoteness?.Sample(candidate.Position) ?? 0f,
                 Biome = world.DominantBiome(candidate.Position),
                 Name = NameFor(world, definition, random.Fork("name")),

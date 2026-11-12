@@ -119,6 +119,10 @@ namespace Dino_Engine.World
         public readonly List<WorldPond> Ponds = new();
         /// <summary>Surface level of the pond at each CoarseCell node, or <see cref="NoPond"/>.</summary>
         public ScalarField PondLevel = null!;
+        /// <summary>The level of the nearest pond, at CoarseCell, out past its rectangle as far as its shore can reach, or <see cref="NoPond"/>: read through <see cref="ShoreHeightAt"/>.</summary>
+        public ScalarField ShoreLevel = null!;
+        /// <summary>How much a shore reads a pond's level rather than the sea's, 1 near its water and 0 well away from it, at CoarseCell.</summary>
+        public ScalarField PondShore = null!;
         /// <summary>How thickly trees stand, 0..1, at CoarseCell.</summary>
         public ScalarField Canopy = null!;
         public WorldObjects Objects = null!;
@@ -148,6 +152,23 @@ namespace Dino_Engine.World
             return MathF.Max(WorldPlan.SeaLevel, pond);
         }
 
+        /// <summary>
+        /// How far a point stands above the water's edge, as a shore, wet sand or a tree's roots would have it: above the sea, or near a pond's water above the pond, fading from one to the other
+        /// over a few metres. Not <see cref="WaterLevelAt"/>, which holds a pond's level over the whole rectangle round it, and laid every shore in one with a straight edge.
+        /// </summary>
+        public float ShoreHeightAt(Vector2 position)
+        {
+            float height = Height.Sample(position);
+            // Under water is under water: nothing in a pond's rectangle but the pond lies below its level, however little of it the coarse grid caught.
+            float under = height - WaterLevelAt(position);
+            if (under < 0f || PondShore == null) return under;
+            float near = PondShore.Sample(position);
+            if (near <= 0f) return height - WorldPlan.SeaLevel;
+            Vector2i node = ShoreLevel.NearestNode(position);
+            float pond = MathF.Max(ShoreLevel[node.X, node.Y], WorldPlan.SeaLevel);
+            return height - (WorldPlan.SeaLevel + (pond - WorldPlan.SeaLevel) * near);
+        }
+
         /// <summary>Metres of water over the ground at a point, 0 where it is dry.</summary>
         public float WaterDepthAt(Vector2 position)
         {
@@ -175,7 +196,7 @@ namespace Dino_Engine.World
             if (Yard.Sample(x, z) > 0.5f) return SurfaceMaterial.Dirt;
             if (Farmland.Sample(x, z) > 0.5f) return SurfaceMaterial.Farmland;
 
-            if (Height.Sample(position) - WaterLevelAt(position) < 1f) return biome.Shore;
+            if (ShoreHeightAt(position) < 1f) return biome.Shore;
             if (Height.SlopeAt(position) > 0.8f) return biome.Slope;
             return Canopy.Sample(x, z) > 0.5f ? biome.Understory : biome.Ground;
         }

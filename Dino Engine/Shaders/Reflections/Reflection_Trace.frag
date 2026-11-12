@@ -135,10 +135,10 @@ void main(void)
     out_Ray = vec4(0.0);
     out_Confidence = 0.0;
 
-    // Each of the pixels this one stands for gets a turn, so the whole picture is covered in a few frames.
-    int turn = frameIndex & 3;
+    // The same pixel Reflection_Resolve.frag and Reflection_Temporal.frag read the surface of. It once took each of the four in turn while they read only the first, so a ray shot from one surface was
+    // used for another, and where those differed, at the edge of a puddle and over all of a small far one, the reflection flipped between what's there and the sky every other frame.
     ivec2 cell = ivec2(gl_FragCoord.xy);
-    ivec2 pixel = min(cell * 2 + ivec2(turn & 1, (turn >> 1) ^ (turn & 1)), ivec2(resolution) - 1);
+    ivec2 pixel = min(cell * 2, ivec2(resolution) - 1);
 
     float depth = texelFetch(depthPyramid, pixel, 0).r;
     if (depth >= 1.0) return;

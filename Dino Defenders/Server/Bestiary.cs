@@ -207,7 +207,7 @@ namespace Dino_Defenders.Server
 
         public static readonly EnemyKind Warlord = new EnemyKind
         {
-            Id = "warlord", Name = "Warlord", Books = new[] { Shelf.Whirl, Shelf.Maul, Shelf.Strike }, AggroRadius = 26f, LeashRadius = 70f,
+            Id = "warlord", Name = "Warlord", Books = new[] { Shelf.Whirl, Shelf.Maul, Shelf.Strike }, AggroRadius = 26f, LeashRadius = 120f,
             Mods = new[] { More(Stat.Armour, 100f), Inc(Stat.AilmentTaken, -50f) }, Look = "warlord",
         };
 
@@ -279,21 +279,21 @@ namespace Dino_Defenders.Server
         /// <summary>A commander's war-beast, and what holds a land for the Reich. Tyrants are only ever met as what a land's freedom depends on.</summary>
         public static readonly EnemyKind Tyrant = new EnemyKind
         {
-            Id = "tyrant", Name = "Tyrant", Books = new[] { Shelf.Roar, Shelf.TailSweep, Shelf.Stomp, Shelf.CrushingJaws }, MoveSpeed = 6.6f, Health = 1.35f, Damage = 1.15f, AggroRadius = 30f, LeashRadius = 75f,
+            Id = "tyrant", Name = "Tyrant", Books = new[] { Shelf.Roar, Shelf.TailSweep, Shelf.Stomp, Shelf.CrushingJaws }, MoveSpeed = 6.6f, Health = 1.35f, Damage = 1.15f, AggroRadius = 30f, LeashRadius = 120f,
             Mods = Hide.Append(More(Stat.Armour, 80f)).Append(Inc(Stat.AilmentTaken, -50f)).ToArray(), Look = "dino:tyrant.reich.", Scale = 0.9f, Bulk = 1.7f,
         };
 
         /// <summary>A tyrant the Ossuary raised straight out of the rock it lay in, with nothing on its bones but the light that moves them.</summary>
         public static readonly EnemyKind BoneTyrant = new EnemyKind
         {
-            Id = "bone-tyrant", Name = "Bone Tyrant", Books = new[] { Shelf.Roar, Shelf.TailSweep, Shelf.Stomp, Shelf.CrushingJaws }, MoveSpeed = 6.2f, Health = 1.25f, Damage = 1.2f, AggroRadius = 30f, LeashRadius = 75f,
+            Id = "bone-tyrant", Name = "Bone Tyrant", Books = new[] { Shelf.Roar, Shelf.TailSweep, Shelf.Stomp, Shelf.CrushingJaws }, MoveSpeed = 6.2f, Health = 1.25f, Damage = 1.2f, AggroRadius = 30f, LeashRadius = 120f,
             Mods = Undead.Append(More(Stat.Armour, 60f)).Append(Inc(Stat.AilmentTaken, -50f)).ToArray(), Look = "dino:tyrant.bones.", Scale = 0.9f, Bulk = 1.5f,
         };
 
         /// <summary>A tyrant that hatched dying, and wasn't let die.</summary>
         public static readonly EnemyKind RottingTyrant = new EnemyKind
         {
-            Id = "rotting-tyrant", Name = "Rotting Tyrant", Books = new[] { Shelf.Roar, Shelf.TailSweep, Shelf.Stomp, Shelf.CrushingJaws }, MoveSpeed = 5.8f, Health = 1.5f, Damage = 1.1f, AggroRadius = 30f, LeashRadius = 75f,
+            Id = "rotting-tyrant", Name = "Rotting Tyrant", Books = new[] { Shelf.Roar, Shelf.TailSweep, Shelf.Stomp, Shelf.CrushingJaws }, MoveSpeed = 5.8f, Health = 1.5f, Damage = 1.1f, AggroRadius = 30f, LeashRadius = 120f,
             Mods = Rot.Append(More(Stat.Armour, 40f)).Append(Inc(Stat.AilmentTaken, -50f)).ToArray(), Look = "dino:tyrant.rot.", Scale = 0.9f, Bulk = 1.7f,
         };
 

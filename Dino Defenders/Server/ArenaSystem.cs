@@ -22,24 +22,17 @@ namespace Dino_Defenders.Server
     {
         private const float RiseTime = 1.4f;            // Seconds a grille takes going up, and coming down.
         private const float SwingTime = 1.1f;           // And a leaf, opening or shutting.
-        private const float ArrivalAggro = 70f;         // Metres: whoever is let in sees the whole floor.
+        private const float ArrivalAggro = 120f;        // Metres: whoever is let in sees the whole floor, from one end of the largest to the other.
         private const float ArrivalSpread = 2.2f;       // Metres between those let through one entry, side by side.
         private const float LeaderShare = 0.3f;         // Of those let in, how many are of the kinds that lead a pack.
-        private const float DoorReach = 3.6f;           // Metres from where a keep's arena's way down is used to anyone who can use it, standing before its gate.
-        private const float ExitReach = 3.2f;
 
         private readonly GameServer _server;
         private readonly List<Gate> _gates = new();
         private ServerSession? _for;
         private ArenaPlan? _plan;
         private WorldSite? _site;
-        private SiteState? _state;
         private bool _searched;
         private int _waves;
-
-        // A keep's arena's way up: the grille shut in its gate, which rises once the tyrant's down, and when it did.
-        private Entity _way;
-        private double? _wayOpened;
 
         // Seconds the arena has run, which stand still while the world does, as a mark's times are moved on while it's stopped and anything here has to keep in step with them.
         private double _clock;
@@ -79,18 +72,14 @@ namespace Dino_Defenders.Server
                 _gates.Clear();
                 _plan = null;
                 _site = null;
-                _state = null;
                 _searched = false;
                 _waves = 0;
                 _clock = 0;
-                _way = default;
-                _wayOpened = null;
                 ForgetHazards();
             }
             if (session == null || session.Paused) return;
             if (_plan == null && (_searched || !PutUp(world, session))) return;
             _clock += deltaTime;
-            if (_plan!.Keep) KeepWays(world, session);
 
             // What's begun goes on first, so that anything started this tick waits its whole time from the next, as its mark does.
             foreach (Gate gate in _gates) Move(world, session, gate);
@@ -123,7 +112,6 @@ namespace Dino_Defenders.Server
             if (site?.Arena is not ArenaPlan plan) return false;
             _plan = plan;
             _site = site;
-            _state = session.Sites.FirstOrDefault(s => s.Site == site);
             foreach (ArenaEntry entry in plan.Entries)
             {
                 Vector2 outward = entry.Out - plan.Centre;
@@ -145,35 +133,7 @@ namespace Dino_Defenders.Server
                 _gates.Add(gate);
             }
             PutUpPieces(world, session, plan);
-            if (plan.Keep)
-            {
-                // The way down, before its gate in the wall round the arena, and the grille shut in the gate of the way up, behind whoever comes down.
-                Marker(world, session, plan.Door, InteractKind.ArenaDown, "Go down into the arena", DoorReach);
-                if (plan.Way is ArenaEntry way) _way = Moving(world, "Way up", way.Model, way.Door, Quaternion.FromAxisAngle(Vector3.UnitY, way.Yaw));
-            }
             return true;
-        }
-
-        private Entity Marker(ECSWorld world, ServerSession session, Vector2 at, InteractKind kind, string prompt, float radius)
-        {
-            int index = _state == null ? 0 : session.Sites.IndexOf(_state);
-            return world.CreateEntity(prompt,
-                new NetIdentityComponent(_server.Ghosts.NextId(), importance: 0.5f),
-                new PositionComponent(new Vector3(at.X, session.World.Height.Sample(at), at.Y)),
-                new InteractableComponent { Kind = kind, SiteIndex = index, SpawnIndex = -1, Radius = radius, Prompt = prompt });
-        }
-
-        // Once a keep's tyrant is down the grille in the gate of its arena's way up rises, and the way up can be used.
-        private void KeepWays(ECSWorld world, ServerSession session)
-        {
-            if (_state == null || _plan?.Way is not ArenaEntry way) return;
-            if (_wayOpened == null && session.TyrantDown(_state))
-            {
-                _wayOpened = _clock;
-                Marker(world, session, _plan.Exit, InteractKind.ArenaUp, "Climb out of the arena", ExitReach);
-                _server.Broadcast(new SoundEvent { Position = way.Door, Cue = SoundCue.ArenaGate }, way.Door.Xz);
-            }
-            if (_wayOpened is double opened) Shift(world, _way, way.Door + Vector3.UnitY * way.Lift * SmoothStep(Math.Clamp((float)(_clock - opened) / RiseTime, 0f, 1f)));
         }
 
         private Entity Moving(ECSWorld world, string name, string model, Vector3 at, Quaternion rotation)

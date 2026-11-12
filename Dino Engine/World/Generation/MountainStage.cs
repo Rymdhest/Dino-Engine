@@ -58,6 +58,8 @@ namespace Dino_Engine.World.Generation
                 if (elevation.Sample(x, z) <= WorldPlan.SeaLevel) return 0f;
                 float wall = Smoothstep(0.2f, 0.25f, boundary.Sample(x, z) + noise.Fbm(x + 90f, z - 40f, 210f, 5, 0.6f) * 0.2f);
                 float inner = Smoothstep(threshold, threshold + 0.012f, score.Sample(x, z));
+                // A linear land's way is cut by nothing: its mountains are its walls, and stand nowhere else.
+                if (plan.Linear) inner *= Smoothstep(0.3f, 0.6f, boundary.Sample(x, z));
                 return MathF.Max(wall, inner);
             });
             return massif;

@@ -28,6 +28,7 @@ layout (location = 1) out float out_Distance;
 const int MAX_DIRECTIONAL_LIGHTS = 4;
 const int MAX_CASCADE_SLOTS = 5;
 const int MAX_POINT_LIGHTS = 16;
+const int MAX_POINT_SHADOWS = 6;
 const int MAX_SPOT_LIGHTS = 16;
 
 uniform sampler2D gDepth;
@@ -51,7 +52,8 @@ uniform sampler2DShadow cascadeShadowMaps[5];
 uniform int pointLightCount;
 uniform vec4 pointPositionRadius[16];
 uniform vec4 pointColourShadow[16];
-uniform samplerCubeShadow pointShadowMaps[3];
+uniform samplerCubeShadow pointShadowMaps[6];
+uniform float pointShadowStrength[6];   // How much of each map's shadow the surfaces are given, as a light gaining or giving one up fades it.
 uniform float pointShadowNear;
 uniform float pointShadowFar;
 
@@ -467,7 +469,7 @@ void main(void)
             float attenuation = lightFalloff(distanceToLight, pointPositionRadius[l].w);
             if (attenuation <= 0.0) continue;
             int shadowIndex = int(floor(pointColourShadow[l].w + 0.5));
-            float visibility = shadowIndex >= 0 ? pointShadow(shadowIndex, -toLightVector) : 1.0;
+            float visibility = shadowIndex >= 0 ? mix(1.0, pointShadow(shadowIndex, -toLightVector), pointShadowStrength[shadowIndex]) : 1.0;
             if (visibility <= 0.0) continue;
 
             vec3 toLight = toLightVector / max(distanceToLight, 1e-5);

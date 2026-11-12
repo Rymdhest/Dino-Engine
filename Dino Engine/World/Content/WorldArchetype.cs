@@ -319,7 +319,7 @@ namespace Dino_Engine.World.Content
             Name = name,
             Titles = titles,
             Landform = LandformKind.Island,
-            Size = new FloatRange(384f, 384f),
+            Size = new FloatRange(512f, 512f),
             BaseHeight = new FloatRange(13f, 14f),
             HillHeight = new FloatRange(3f, 4f),
             MountainHeight = new FloatRange(10f, 12f),

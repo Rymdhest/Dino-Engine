@@ -10,7 +10,7 @@ namespace Dino_Engine.World.Generation.Arenas
     /// sand blown into its corners, and walled in golden stone; behind its north wall a platform climbs in three tiers, where the Reich's commanders stand, to the land's own great disc of gold in its frame,
     /// with fires either side. Colonnades run along the east and west of the rim, the Reich's oxblood banners hung between their columns where the land's own once were, and the land's people stand in them
     /// to watch. Bronze doors in the east and west walls let the brood in, and on the rim stand the brass mirrors the Reich's priests turn on the floor below. The waygate the temple was built round stands
-    /// in a bay in the south wall. A keep's temple is the same, smaller: no colonnades, one tier and a lesser disc. Read ARENAS.md.
+    /// in a bay in the south wall. How large its court is, whether each side wall has one portal or two, and whether pillars stand in a ring round the inlay are drawn for each one. Read ARENAS.md.
     /// </summary>
     internal sealed class SunTempleArena : ArenaLayout
     {
@@ -34,15 +34,24 @@ namespace Dino_Engine.World.Generation.Arenas
         private readonly float _hx, _hz;                  // Half the court's length east and west, and its depth north and south.
         private readonly int _tiers;
         private readonly float _disc;
+        private readonly float[] _portals;               // How far north of the middle each portal in the east and west walls stands.
+        private readonly int _pillars;
+        private readonly float _pillarRing;
 
-        public SunTempleArena(SiteBuilder b, bool keep, Vector2 centre)
-            : base(b, ArenaKind.SunTemple, keep, centre, keep ? "keep temple" : "sun temple")
+        public SunTempleArena(SiteBuilder b, Vector2 centre)
+            : base(b, ArenaKind.SunTemple, centre, "sun temple")
         {
-            _hx = keep ? 16f : 22f;
-            _hz = keep ? 12.5f : 16f;
-            _tiers = keep ? 1 : 3;
-            _disc = keep ? 2.8f : 4.2f;
+            _hx = Shape.Range(29f, 36f);
+            _hz = Shape.Range(21f, 25f);
+            _tiers = 3;
+            _disc = 4.8f;
+            _portals = Shape.Chance(0.5f) ? new[] { 0f } : new[] { -_hz * 0.45f, _hz * 0.45f };
+            _pillars = Shape.Chance(0.55f) ? Shape.Int(6, 8) : 0;
+            _pillarRing = _hz * Shape.Range(0.5f, 0.66f);
         }
+
+        private Vector2 TyrantAt => C + North * (_hz * 0.3f);
+        private Vector2 RivalAt => C - North * (_hz * 0.15f) + East * (_hx * 0.36f);
 
         private float RimGround => WallTop - Parapet;
         private float TierTop(int tier) => WallTop + (tier - 1) * TierRise;       // A tier's front's top: the first is the court's north wall.
@@ -63,14 +72,14 @@ namespace Dino_Engine.World.Generation.Arenas
             Plan.Reach = Reach;
 
             Level(Footprint.Circle(C, Reach + 6f), RimGround, 9f);
-            Vector2 gate = Keep ? KeepGate(new Vector2(0f, -(_hz + BayDepth - KeepGateDeep)), North, Stone, ArenaGrille.Pit) : Waygate(new Vector2(0f, -(_hz + BayDepth - 2.4f)), North);
+            Vector2 gate = Waygate(new Vector2(0f, -(_hz + BayDepth - 2.4f)), North);
 
             Ground();
             Walls();
             Portals();
             Bay();
             Platform();
-            if (!Keep) Colonnades();
+            Colonnades();
             Mirrors();
             Rim();
             Seal();
@@ -78,9 +87,8 @@ namespace Dino_Engine.World.Generation.Arenas
             People();
 
             Keepout(Footprint.Circle(C, Reach + 2f));
-            Tyrants(C + North * 4f, C - North * 3f + East * 8f);
-            if (Keep) KeepRim(Reach + 1f, RimGround, Stone);
-            else Plan.Arrival = C + gate + North * 2.5f;
+            Tyrants(TyrantAt, RivalAt);
+            Plan.Arrival = C + gate + North * 2.5f;
         }
 
         // The court sunk into the rim, its edge inside the walls; the bay; the platform's terraces stepping up behind the north wall; and each portal's passage at the court's level.
@@ -107,8 +115,13 @@ namespace Dino_Engine.World.Generation.Arenas
             foreach (float side in new[] { -1f, 1f })
             {
                 Vector2 face = -East * side;
-                RunWall(ArenaWallForm.Podium, Stone, new Vector2(side * _hx, -_hz - WallThick), new Vector2(side * _hx, -portalHalf), face, WallTop, WallThick, RimGround, ArenaTrim.Pilasters | ArenaTrim.Banners);
-                RunWall(ArenaWallForm.Podium, Stone, new Vector2(side * _hx, portalHalf), new Vector2(side * _hx, _hz + WallThick), face, WallTop, WallThick, RimGround, ArenaTrim.Pilasters | ArenaTrim.Banners);
+                float from = -_hz - WallThick;
+                foreach (float z in _portals)
+                {
+                    RunWall(ArenaWallForm.Podium, Stone, new Vector2(side * _hx, from), new Vector2(side * _hx, z - portalHalf), face, WallTop, WallThick, RimGround, ArenaTrim.Pilasters | ArenaTrim.Banners);
+                    from = z + portalHalf;
+                }
+                RunWall(ArenaWallForm.Podium, Stone, new Vector2(side * _hx, from), new Vector2(side * _hx, _hz + WallThick), face, WallTop, WallThick, RimGround, ArenaTrim.Pilasters | ArenaTrim.Banners);
             }
         }
 
@@ -116,10 +129,11 @@ namespace Dino_Engine.World.Generation.Arenas
         private void Portals()
         {
             string leaf = new ArenaSpec(ArenaShape.DoorLeaf, NextSeed(), Cm(PortalWidth * 0.5f), Cm(PortalHeight)).Id;
+            foreach (float z in _portals)
             foreach (float side in new[] { -1f, 1f })
             {
                 Vector2 outward = East * side;
-                Vector2 at = outward * (_hx - 0.25f);
+                Vector2 at = outward * (_hx - 0.25f) + North * z;
                 float yaw = YawFacing(-outward);
                 Piece(new ArenaSpec(ArenaShape.Portal, NextSeed(), (int)Stone, Cm(PortalWidth), Cm(PortalHeight), Cm(PortalDepth)), at, yaw, 0f);
                 float half = PortalWidth * 0.5f + 1.4f;
@@ -172,14 +186,11 @@ namespace Dino_Engine.World.Generation.Arenas
             // The disc on the top tier, facing the court, with the Reich's banners hung either side of it on their own masts.
             float discAt = TierFront(_tiers) + TierDepth * 0.9f;
             Piece(new ArenaSpec(ArenaShape.SunDisc, NextSeed(), (int)Stone, Cm(_disc)), North * discAt, YawFacing(-North), TierGround(_tiers));
-            if (!Keep)
+            float apart = _disc + 0.9f + 1.6f + 3f;
+            foreach (float side in new[] { -1f, 1f })
             {
-                float apart = _disc + 0.9f + 1.6f + 3f;
-                foreach (float side in new[] { -1f, 1f })
-                {
-                    Vector2 mast = North * (discAt - 0.6f) + East * side * apart;
-                    Piece(new ArenaSpec(ArenaShape.Banner, NextSeed(), Cm(14f), Cm(8f), Cm(2.6f), 0), mast, YawFacing(-North), TierGround(_tiers));
-                }
+                Vector2 mast = North * (discAt - 0.6f) + East * side * apart;
+                Piece(new ArenaSpec(ArenaShape.Banner, NextSeed(), Cm(14f), Cm(8f), Cm(2.6f), 0), mast, YawFacing(-North), TierGround(_tiers));
             }
         }
 
@@ -201,16 +212,12 @@ namespace Dino_Engine.World.Generation.Arenas
         // The mirrors: at the court's corners and on the south rim, each on its pedestal, aimed into the court, which the game turns and looses (ArenaSystem).
         private void Mirrors()
         {
-            string mirror = new ArenaSpec(ArenaShape.Mirror, NextSeed(), Cm(Keep ? 1.6f : 2f)).Id;
+            string mirror = new ArenaSpec(ArenaShape.Mirror, NextSeed(), Cm(2f)).Id;
             var spots = new List<Vector2>();
             foreach (float sx in new[] { -1f, 1f })
             {
-                foreach (float sz in new[] { -1f, 1f })
-                {
-                    if (Keep && sz > 0f) continue;
-                    spots.Add(new Vector2(sx * (_hx + WallThick + 2.2f), sz * (_hz + WallThick + 2.2f)));
-                }
-                if (!Keep) spots.Add(new Vector2(sx * _hx * 0.55f, -(_hz + WallThick + 2.4f)));
+                foreach (float sz in new[] { -1f, 1f }) spots.Add(new Vector2(sx * (_hx + WallThick + 2.2f), sz * (_hz + WallThick + 2.2f)));
+                spots.Add(new Vector2(sx * _hx * 0.55f, -(_hz + WallThick + 2.4f)));
             }
             foreach (Vector2 at in spots)
             {
@@ -250,8 +257,8 @@ namespace Dino_Engine.World.Generation.Arenas
         {
             Paint(GroundPaint.Paving, Footprint.Box(C, new Vector2(_hx + 0.6f, _hz + 0.6f), 0f), 0.8f);
             Paint(GroundPaint.Paving, Footprint.Box(C - North * (_hz + BayDepth * 0.5f), new Vector2(BayWidth * 0.5f, BayDepth * 0.5f + 0.6f), 0f), 0.6f);
-            Piece(new ArenaSpec(ArenaShape.Inlay, NextSeed(), (int)Stone, Cm(Keep ? 6f : 8.5f)), Vector2.Zero, 0f, 0f);
-            for (int i = 0; i < (Keep ? 5 : 9); i++)
+            Piece(new ArenaSpec(ArenaShape.Inlay, NextSeed(), (int)Stone, Cm(8.5f * _hz / 16f)), Vector2.Zero, 0f, 0f);
+            for (int i = 0; i < 14; i++)
             {
                 // Drifts against the walls, deepest in the corners, where the wind leaves what it carries.
                 float t = Random.Float();
@@ -266,37 +273,38 @@ namespace Dino_Engine.World.Generation.Arenas
             }
             foreach (Vector2 corner in new[] { new Vector2(-_hx, -_hz), new Vector2(_hx, -_hz), new Vector2(-_hx, _hz), new Vector2(_hx, _hz) }) Paint(GroundPaint.Sand, Footprint.Circle(C + corner * 0.94f, 5.5f), 3f);
             Paint(GroundPaint.Plaza, Footprint.Circle(C, Reach + 1f), 2.5f);
-            var clear = new List<(Vector2, float)> { (C + gate, 8f), (C, 9f) };
+            var clear = new List<(Vector2, float)> { (C + gate, 8f), (TyrantAt, 4f), (RivalAt, 4f) };
             foreach (ArenaEntry entry in Plan.Entries) clear.Add((entry.Out, 5f));
-            Remains(Keep ? 2 : 4, Keep ? 1 : 3, clear);
+            // Pillars of the land's old temple, standing round the inlay as they did when the sun was worshipped here.
+            Pillars(Stone, _pillars, _pillarRing, Shape.Range(0f, 360f), clear);
+            clear.Add((C, 9f));
+            Remains(6, 5, clear);
         }
 
         // The land's people, in the colonnades and along the south rim, and the Reich's assembly on the platform's tiers.
         private void People()
         {
-            if (!Keep)
+            float crowd = Crowd(1f, _hx + _hz, 38f);
+            // Two rows of them down each colonnade's walk, between its columns.
+            foreach (float side in new[] { -1f, 1f })
             {
-                // Two rows of them down each colonnade's walk, between its columns.
-                foreach (float side in new[] { -1f, 1f })
+                foreach (float back in new[] { 1.1f, 2.4f })
                 {
-                    foreach (float back in new[] { 1.1f, 2.4f })
+                    for (float z = -_hz + 2.2f + back * 0.5f; z < _hz - 2.2f; z += 2.6f)
                     {
-                        for (float z = -_hz + 2.2f + back * 0.5f; z < _hz - 2.2f; z += 2.6f)
-                        {
-                            if (!Random.Chance(0.7f)) continue;
-                            B.Spawn(SpawnRole.Spectator, C + new Vector2(side * (_hx + WallThick + 2.4f + back), z + Random.Range(-0.4f, 0.4f)));
-                        }
+                        if (!Random.Chance(0.7f * crowd)) continue;
+                        B.Spawn(SpawnRole.Spectator, C + new Vector2(side * (_hx + WallThick + 2.4f + back), z + Random.Range(-0.4f, 0.4f)));
                     }
                 }
-                for (int tier = 2; tier <= _tiers; tier++)
+            }
+            for (int tier = 2; tier <= _tiers; tier++)
+            {
+                float half = TierHalf(tier) - 2f;
+                for (float x = -half; x <= half; x += 2.8f)
                 {
-                    float half = TierHalf(tier) - 2f;
-                    for (float x = -half; x <= half; x += 2.8f)
-                    {
-                        if (MathF.Abs(x) < _disc + 3f && tier == _tiers) continue;
-                        if (!Random.Chance(0.65f)) continue;
-                        B.Spawn(SpawnRole.Spectator, C + new Vector2(x + Random.Range(-0.4f, 0.4f), TierFront(tier) + WallThick + 1.6f));
-                    }
+                    if (MathF.Abs(x) < _disc + 3f && tier == _tiers) continue;
+                    if (!Random.Chance(0.65f * crowd)) continue;
+                    B.Spawn(SpawnRole.Spectator, C + new Vector2(x + Random.Range(-0.4f, 0.4f), TierFront(tier) + WallThick + 1.6f));
                 }
             }
             foreach (float south in new[] { _hz + WallThick + 4.6f, _hz + WallThick + 7.2f })
@@ -305,14 +313,14 @@ namespace Dino_Engine.World.Generation.Arenas
                 if (MathF.Abs(x) < BayWidth * 0.5f + BayPylon + 1f) continue;
                 // Not on a mirror's pedestal or a brazier.
                 if (MathF.Abs(MathF.Abs(x) - _hx * 0.55f) < 2.2f || MathF.Abs(MathF.Abs(x) - _hx * 0.82f) < 1.8f) continue;
-                if (!Random.Chance(0.72f)) continue;
+                if (!Random.Chance(0.72f * crowd)) continue;
                 B.Spawn(SpawnRole.Spectator, C + new Vector2(x + Random.Range(-0.5f, 0.5f), -south + Random.Range(-0.6f, 0.6f)));
             }
             float north = TierFront(1) + WallThick + 1.4f;
             for (float x = -_hx + 2f; x <= _hx - 2f; x += 2.8f)
             {
-                if (!Keep && MathF.Abs(x) < TierHalf(2) + 0.8f) continue;
-                if (!Random.Chance(0.7f)) continue;
+                if (MathF.Abs(x) < TierHalf(2) + 0.8f) continue;
+                if (!Random.Chance(0.7f * crowd)) continue;
                 B.Spawn(SpawnRole.Spectator, C + new Vector2(x + Random.Range(-0.4f, 0.4f), north));
             }
         }
