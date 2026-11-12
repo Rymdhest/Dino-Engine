@@ -60,6 +60,7 @@ namespace Dino_Defenders
     ///   --gardengap N   How many metres apart they stand: a few trees 16 apart make an arboretum, for judging how they look from the game's own camera.
     ///   --bring a,b     Puts some of those creatures from Fauna near the hero, for looking at: rabbit, sparrow, crab.shore.
     ///   --nolife true   Nothing's alive and no leaves fall, for measuring what that costs.
+    ///   --skin false    Bare rock without its skin of blocks (RockSkin), for measuring what that costs.
     ///   --startle N     Frightens everything within sight of the hero after N frames, for watching it go in a --film.
     ///   --lifelog file  Writes down what's alive, where it is and what it's up to, once a second.
     ///   --meshseed N    Seeds what otherwise grows differently in every run, so that two builds can be compared picture by picture.
@@ -175,6 +176,7 @@ namespace Dino_Defenders
         public Vector2 FxAt = new Vector2(0f, 4f);  // Metres from the hero the first of them stands, across and away from the camera.
         public string? Bring;
         public bool NoLife;
+        public bool Skin = true;
         public string? LifeLog;
         public int StartleAfterFrames = -1;
         public float GardenGap = 1.6f;
@@ -297,6 +299,7 @@ namespace Dino_Defenders
                         break;
                     case "bring": options.Bring = value; break;
                     case "nolife": options.NoLife = bool.Parse(value); break;
+                    case "skin": options.Skin = bool.Parse(value); break;
                     case "lifelog": options.LifeLog = value; break;
                     case "startle": options.StartleAfterFrames = int.Parse(value); break;
                     case "gardengap": options.GardenGap = float.Parse(value, System.Globalization.CultureInfo.InvariantCulture); break;

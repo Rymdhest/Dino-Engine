@@ -16,6 +16,7 @@ namespace Dino_WorldLab
     ///   packs   [--seed N] [--archetype id] [--level N] [--out file.png]       Who stands where: the mix, and a map of it, each folk in its colour.
     ///   relief  [--seed N] [--count N] [--archetype id]                        What the land is made of, and where the rock stands highest.
     ///   view    --at x,z [--seed N] [--archetype id] [--span m] [--angle d] [--yaw d] [--out f]  A drawing of a place, for shaping land with no game.
+    ///   skin    [--seed N] [--count N] [--archetype id] [--at x,z] [--radius m]  Grows the skin of the rock and says what it costs and whether its tiles meet.
     ///   wind                                                                   Puts the wind through what a game does to it. Exit code 1 on any problem.
     ///   halls                                                                  Builds every hall's models and says what they cost. Exit code 1 if one costs too much.
     ///   square                                                                 Builds every piece of the Haven's square and says what it costs. Exit code 1 on any problem.
@@ -47,7 +48,21 @@ namespace Dino_WorldLab
                     return View(options);
                 case "probe":
                     string[] probe = (options.Text("at") ?? "1000,1000").Split(',');
-                    return ReliefCheck.Probe(options.Int("seed", 1), options.Text("archetype"), new Vector2(float.Parse(probe[0], System.Globalization.CultureInfo.InvariantCulture), float.Parse(probe[1], System.Globalization.CultureInfo.InvariantCulture)));
+                    return ReliefCheck.Probe(options.Int("seed", 1), options.Text("archetype"), new Vector2(float.Parse(probe[0], System.Globalization.CultureInfo.InvariantCulture), float.Parse(probe[1], System.Globalization.CultureInfo.InvariantCulture)), options.Int("larger", 0));
+                case "skin":
+                    Vector2? around = null;
+                    if (options.Text("at") is string spot)
+                    {
+                        string[] xz = spot.Split(',');
+                        around = new Vector2(float.Parse(xz[0], System.Globalization.CultureInfo.InvariantCulture), float.Parse(xz[1], System.Globalization.CultureInfo.InvariantCulture));
+                    }
+                    if (options.Text("from") is string a && options.Text("to") is string b)
+                    {
+                        float[] fa = a.Split(',').Select(v => float.Parse(v, System.Globalization.CultureInfo.InvariantCulture)).ToArray();
+                        float[] fb = b.Split(',').Select(v => float.Parse(v, System.Globalization.CultureInfo.InvariantCulture)).ToArray();
+                        return SkinCheck.Probe(options.Int("seed", 1), options.Text("archetype"), new Vector3(fa[0], fa[1], fa[2]), new Vector3(fb[0], fb[1], fb[2]), options.Int("steps", 40));
+                    }
+                    return SkinCheck.Run(options.Int("seed", 1), options.Int("count", 1), options.Text("archetype"), around, options.Int("radius", 80));
                 case "wind":
                     return WindCheck.Run();
                 case "halls":

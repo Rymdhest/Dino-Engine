@@ -780,7 +780,8 @@ namespace Dino_Defenders.Progression
         }
 
         /// <summary>
-        /// Brings something from a save up to the rules, whatever it was made under. A line stays if its slot can have it and its side has room, in the order it's written. What's left
+        /// Brings something from a save up to the rules, whatever it was made under. A line stays if its slot can have it and its side has room, in the order it's written. The same affix can be on
+        /// something twice, as fusing two things at the bench keeps both one's lines (Crafting), though nothing rolls it. What's left
         /// to fill is drawn from the item's own seed, so a hero's rare is still a rare and the same one each time. Anything already within the rules isn't touched, and a unique answers to nothing.
         /// </summary>
         public static void Fix(Item item)
@@ -834,7 +835,7 @@ namespace Dino_Defenders.Progression
             int prefixes = 0, suffixes = 0;
             foreach (ItemLine line in item.Lines)
             {
-                if (AffixCatalog.Find(line.Affix) is not Affix affix || !affix.Fits(item.Slot, item.Kind) || kept.Any(other => other.Affix == line.Affix)) continue;
+                if (AffixCatalog.Find(line.Affix) is not Affix affix || !affix.Fits(item.Slot, item.Kind)) continue;
                 if ((affix.Prefix ? prefixes : suffixes) >= each) continue;
                 if (affix.Prefix) prefixes++;
                 else suffixes++;
@@ -1101,6 +1102,19 @@ namespace Dino_Defenders.Progression
             int tier = top;
             while (tier > 0 && random.Chance(0.4f * (1f - quality))) tier--;
             return tier;
+        }
+
+        /// <summary>
+        /// What something would be called by what's rolled on it, as it was found: gear by its base and the first of each side, a book or a page by what it is, and a sentence by what it says. A name
+        /// someone gave it is different from this, which is how what changes its lines knows to leave that alone.
+        /// </summary>
+        public static string RolledName(Item item)
+        {
+            if (item.Unique != null || item.IsOrders) return item.Name;
+            if (item.IsSentence) return item.Sentence is Sentence saying ? FolioAffixes.Name(item, SentenceName(saying), suffix: false, plain: false) : item.Name;
+            if (item.IsBook || item.IsPage) return FolioAffixes.Name(item, FolioWhat(item));
+            string baseName = BaseOf(item);
+            return baseName.Length > 0 ? Name(baseName, item.Lines) : item.Name;
         }
 
         // What it's called comes from the first of each kind, by the tier its roll reached.

@@ -86,7 +86,13 @@ namespace Dino_Engine.World.Content
                         RockForm.Slab => (2.3f, 1.7f, new FloatRange(0.6f, 1.3f), 3),
                         RockForm.Outcrop => (4.6f, 3.6f, new FloatRange(0.7f, 1.5f), 4),
                         RockForm.Crag => (7f, 0f, new FloatRange(0.6f, 1.5f), 4),
-                        _ => (4f, 0f, new FloatRange(0.55f, 1.25f), 3),
+                        RockForm.Spire => (4f, 0f, new FloatRange(0.55f, 1.25f), 3),
+                        RockForm.Hoodoo => (2.2f, 1.2f, new FloatRange(0.6f, 1.5f), 5),
+                        RockForm.Tor => (3.6f, 2.6f, new FloatRange(0.6f, 1.4f), 5),
+                        RockForm.Columns => (4.2f, 3.4f, new FloatRange(0.6f, 1.3f), 4),
+                        RockForm.Fin => (6f, 0f, new FloatRange(0.6f, 1.3f), 4),
+                        RockForm.Arch => (9f, 0f, new FloatRange(0.8f, 1.25f), 3),
+                        _ => (8f, 0f, new FloatRange(0.7f, 1.35f), 4),
                     };
                     WorldAssetKind assetKind = form is RockForm.Pebble or RockForm.Chip ? WorldAssetKind.GroundCover : WorldAssetKind.Rock;
                     var asset = new WorldAsset($"rock.{kind}-{form}".ToLowerInvariant(), assetKind, footprint, solid, scale, RockImposter, false, variants);

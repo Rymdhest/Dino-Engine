@@ -30,13 +30,21 @@ namespace Dino_SoundLab
         };
 
         /// <summary>
-        /// The place music is asked for: --land N for the Nth of the lands the checks use, --place haven, --place arena --arena Cathedral, or a land described by hand with --seed,
+        /// The place music is asked for: --land N for the Nth of the lands the checks use, --place haven, --place title [--seed N] for the menu's overture, --place arena --arena Cathedral, or a land described by hand with --seed,
         /// --dark, --cold and --open.
         /// </summary>
         public static MusicPlace PlaceFrom(Options options)
         {
             string? place = options.Text("place");
             if (place == "haven") return MusicPlace.Home;
+
+            // The menu's overture is the Haven's score: --seed N writes another, to choose between, though the Haven's waltz goes with it.
+            if (place == "title")
+            {
+                MusicPlace home = MusicPlace.Home;
+                home.Seed = (ulong)options.Int("seed", (int)MusicPlace.HavenSeed);
+                return home;
+            }
             if (place == "arena")
             {
                 var kind = Enum.TryParse(options.Text("arena"), true, out ArenaKind parsed) ? parsed : ArenaKind.Pit;
@@ -57,7 +65,7 @@ namespace Dino_SoundLab
             float intensity = options.Float("intensity", 0.5f);
             string path = options.Text("out") ?? "music.wav";
             var engine = new MusicEngine(place);
-            var mood = Enum.TryParse(options.Text("mood"), true, out MusicMood parsed) ? parsed : engine.Score.Main;
+            var mood = Enum.TryParse(options.Text("mood"), true, out MusicMood parsed) ? parsed : options.Text("place") == "title" ? MusicMood.Title : engine.Score.Main;
             bool story = options.Text("story") == "true";
             bool sweep = options.Text("sweep") == "true";
 

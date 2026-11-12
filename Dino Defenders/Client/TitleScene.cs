@@ -3,6 +3,8 @@ using Dino_Engine.Animation;
 using Dino_Engine.Core;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
+using Dino_Engine.Modelling;
+using Dino_Engine.Modelling.Model;
 using Dino_Engine.Physics;
 using Dino_Engine.Sound;
 using Dino_Engine.World;
@@ -14,17 +16,23 @@ namespace Dino_Defenders.Client
     public readonly record struct TitleSpot(Vector2 At, Vector2 Facing);
 
     /// <summary>
-    /// The place behind the main menu: a real spot in a real world, with nobody in it but the hero who's chosen. It's a world like any other, drawn by everything that draws one, so nothing here needs a server: the
+    /// The place behind the main menu: a real spot in a real world, with nobody in it but the hero who's chosen. The world is the <see cref="Vista"/>, composed once and for all and settled by a
+    /// person, so don't change what it looks like unless they ask (MENU.md). Its far hills and mountain are past where the terrain's chunks end, and stand there as <see cref="FarLand"/>. It's a world like any other, drawn by everything that draws one, so nothing here needs a server: the
     /// hero is one body, standing at their ease in what they have on, and the camera is close enough to see them. Everything in the game that has a session to read simply finds there isn't one.
     /// </summary>
     public sealed class TitleScene
     {
-        /// <summary>The land it's all in. Changing either of these is changing what everyone first sees.</summary>
+        /// <summary>The land it's all in, which is laid out rather than drawn: the seed only gives its noise. Changing either of these is changing what everyone first sees.</summary>
         public const int Seed = 7;
-        public const string? Archetype = null;
+        public const string? Archetype = "vista";
 
-        /// <summary>How far the terrain goes, as the view here is nearly level and the game's camera never is.</summary>
-        public const int ChunkRadius = 20;
+        /// <summary>
+        /// How far the terrain goes, as the view here is nearly level and the game's camera never is, and how far ahead of the camera the middle of its square is, as nothing behind the camera is
+        /// seen: together they reach over the lake and the meadow beyond it, where the giants are. Past it is the far land. A square of more than 22 needs more layers than the terrain has
+        /// (<see cref="TerrainQuadTreeSingleton.MostRadius"/>), and a radius of 26 round the camera once drew the next land entered in squares.
+        /// </summary>
+        public const int ChunkRadius = 22;
+        public const float ChunkAhead = 96f;
 
         private const float Distance = 11.5f;           // Metres from the hero.
         private const float Height = 4.4f;              // Of the camera, above the hero's feet.
@@ -60,6 +68,10 @@ namespace Dino_Defenders.Client
         /// <summary>Where the hero stands, and which way the camera looks at them.</summary>
         public TitleSpot Spot => _spot;
 
+        // The far land's tiles, grown on other threads the first time the picture is shown and kept for as long as the game runs, as it's always the same picture.
+        private static (WorldData World, Task<List<FarLand.Piece>> Pieces, List<glModel>? Models)? _far;
+        private bool _farShown;
+
         private Entity _body;
         private List<WornLook> _worn = new();
         private float _time;
@@ -83,6 +95,52 @@ namespace Dino_Defenders.Client
             _ecs.Camera = _ecs.GameCamera;
             _ecs.ApplyDeferredCommands();
             Aim();
+
+            EntityView terrainView = _ecs.GetEntityView(_ecs.GetSingleton<TerrainQuadTreeSingleton>());
+            TerrainQuadTreeSingleton terrain = terrainView.Get<TerrainQuadTreeSingleton>();
+            terrain.Ahead = Ahead;
+            terrainView.Set(terrain);
+            GrowFarLand();
+        }
+
+        private Vector2 Ahead => -_spot.Facing * ChunkAhead;
+
+        // Everything outside the square of chunks ahead of the camera, which never moves to another chunk, as the camera only drifts by a hand's breadth.
+        private void GrowFarLand()
+        {
+            if (!_world.Plan.Archetype.Vista || _far is { } far && far.World == _world) return;
+            Vector3 camera = CameraOf(_world, _spot);
+            float chunk = WorldScene.ChunkSize;
+            Vector2 middle = camera.Xz + Ahead;
+            var cell = new Vector2(MathF.Floor(middle.X / chunk), MathF.Floor(middle.Y / chunk));
+            Vector2 holeMin = (cell - new Vector2(ChunkRadius)) * chunk;
+            Vector2 holeMax = (cell + new Vector2(ChunkRadius + 1)) * chunk;
+            WorldData world = _world;
+            _far = (world, Task.Run(() => FarLand.Build(world, holeMin, holeMax, camera.Xz)), null);
+        }
+
+        private void ShowFarLand()
+        {
+            if (_farShown || _far is not { } far || far.World != _world || !far.Pieces.IsCompleted) return;
+            _farShown = true;
+            if (far.Pieces.IsFaulted)
+            {
+                Console.WriteLine($"The far land behind the menu failed: {far.Pieces.Exception}");
+                return;
+            }
+            List<glModel> models = far.Models ?? far.Pieces.Result.Select(piece => glLoader.loadToVAO(piece.Mesh)).ToList();
+            _far = (far.World, far.Pieces, models);
+            foreach (glModel model in models)
+            {
+                _ecs.CreateEntity("Far Land",
+                    new PositionComponent(Vector3.Zero),
+                    new RotationComponent(Quaternion.Identity),
+                    new ScaleComponent(Vector3.One),
+                    new ModelComponent(model),
+                    new ModelRenderTag(),
+                    new LocalToWorldMatrixComponent { value = Matrix4.Identity });
+            }
+            _ecs.ApplyDeferredCommands();
         }
 
         /// <summary>
@@ -92,6 +150,9 @@ namespace Dino_Defenders.Client
         /// </summary>
         public static TitleSpot FindSpot(WorldData world)
         {
+            // The picture behind the menu says where the hero stands.
+            if (world.Plan.Archetype.Vista) return new TitleSpot(Vista.Hero, Vista.Facing);
+
             var random = new WorldRandom(world.Plan.Seed).Fork("title");
             Vector3 towardsSun = -world.Plan.Mood.SunDirection;
             TitleSpot best = new TitleSpot(world.Sites[0].Position, Vector2.UnitY);
@@ -176,6 +237,16 @@ namespace Dino_Defenders.Client
             Vector2 right = new Vector2(-look.Y, look.X);
             Vector2 from = camera.Xz;
 
+            // Inside the picture's edges, and no nearer than they'd fill it.
+            Func<Vector2, bool> allowed = at =>
+            {
+                Vector2 off = at - from;
+                float distance = off.Length;
+                return distance > HerdKeepsOff && Vector2.Dot(off / MathF.Max(distance, 1e-3f), look) > MathF.Cos(HerdInView);
+            };
+            // The picture behind the menu has a meadow for them across the lake.
+            if (world.Plan.Archetype.Vista) return (Vista.Herd, Vista.HerdReach, allowed);
+
             float bestScore = float.NegativeInfinity;
             Vector2 best = default;
             for (float distance = HerdNearest; distance <= HerdFurthest; distance += 6f)
@@ -208,14 +279,6 @@ namespace Dino_Defenders.Client
                 }
             }
             if (float.IsNegativeInfinity(bestScore)) return null;
-
-            // Inside the picture's edges, and no nearer than they'd fill it.
-            Func<Vector2, bool> allowed = at =>
-            {
-                Vector2 off = at - from;
-                float distance = off.Length;
-                return distance > HerdKeepsOff && Vector2.Dot(off / MathF.Max(distance, 1e-3f), look) > MathF.Cos(HerdInView);
-            };
             return (best, HerdReach, allowed);
         }
 
@@ -318,6 +381,7 @@ namespace Dino_Defenders.Client
             _time += deltaTime;
             Aim();
             Listen();
+            ShowFarLand();
 
             // What a game focuses on is its own business, and it's left there when it ends.
             Engine.RenderEngine.context.focusPoint = Vector4.Zero;

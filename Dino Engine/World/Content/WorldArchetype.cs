@@ -11,6 +11,7 @@ namespace Dino_Engine.World.Content
         Highlands,      // Ridges and high ground, ringed by higher mountains.
         Marsh,          // Barely above the water table: pools everywhere.
         Badlands,       // Dry terraced mesas cut by flat valleys.
+        Vista,          // The picture behind the main menu, laid out by Vista rather than drawn.
     }
 
     /// <summary>
@@ -42,6 +43,7 @@ namespace Dino_Engine.World.Content
         public FloatRange Erosion = new FloatRange(0.7f, 1.1f);
 
         public RockKind? Bedrock;       // What the land stands on, if that's what this kind of world is known for. Otherwise it goes by the biomes.
+        public MountainForm? Mountains; // What shape its mountains take, if this kind of world is known for one, whatever biomes stand on them. Otherwise it goes by the biomes.
 
         public float RimHeight = 0f;    // Mountains closing off the edge of the world, where the sea doesn't.
         public float RimWidth = 170f;
@@ -73,8 +75,14 @@ namespace Dino_Engine.World.Content
         /// <summary>Whether it's a boss map, nothing but one arena.</summary>
         public bool Arena => ArenaKind.HasValue;
 
-        /// <summary>A world of one place and nothing else, which is either of the two above.</summary>
-        public bool Enclosed => Peaceful || Arena;
+        /// <summary>
+        /// A world that's only ever looked at: the picture behind the main menu, composed by <see cref="World.Vista"/> rather than drawn, with nobody in it and nothing built. Its one place is
+        /// where the hero stands (<see cref="SiteKind.Overlook"/>). Never drawn from a seed, as it isn't in <see cref="ArchetypeCatalog.All"/>. Read MENU.md.
+        /// </summary>
+        public bool Vista;
+
+        /// <summary>A world of one place and nothing else, which is any of the three above.</summary>
+        public bool Enclosed => Peaceful || Arena || Vista;
 
         /// <summary>The light it's always seen in, by name, and where the sun stands, in place of what's drawn from the seed. Only for a place that has to look one way.</summary>
         public string? Light;
@@ -226,6 +234,7 @@ namespace Dino_Engine.World.Content
             Titles = new[] { "The {0} Badlands", "The {0} Mesas", "The Red Reach of {0}" },
             Landform = LandformKind.Badlands,
             Bedrock = RockKind.Sandstone,
+            Mountains = MountainForm.Canyons,
             Size = new FloatRange(1792f, 2304f),
             UsualSize = new FloatRange(880f, 1030f),
             BaseHeight = new FloatRange(10f, 16f),
@@ -248,6 +257,7 @@ namespace Dino_Engine.World.Content
             Titles = new[] { "The Ashes of {0}", "{0} Cinder", "The Burning Isle of {0}" },
             Landform = LandformKind.Island,
             Bedrock = RockKind.Basalt,
+            Mountains = MountainForm.Columns,
             Size = new FloatRange(1536f, 2048f),
             UsualSize = new FloatRange(850f, 980f),
             MountainCoverage = new FloatRange(0.3f, 0.4f),
@@ -286,6 +296,32 @@ namespace Dino_Engine.World.Content
             DayAndNight = true,
         };
 
+        /// <summary>
+        /// The picture behind the main menu (<see cref="World.Vista"/>): long grass running down to a lake, the giants grazing across it, woods, hills and a mountain far off, in a clear morning's
+        /// light from behind the camera's left. Settled by a person: don't change it unless they ask.
+        /// </summary>
+        public static readonly WorldArchetype Vista = new WorldArchetype
+        {
+            Id = "vista",
+            Name = "Vista",
+            Titles = new[] { "The Vista" },
+            Landform = LandformKind.Vista,
+            Size = new FloatRange(World.Vista.Size, World.Vista.Size),
+            MountainCoverage = new FloatRange(0.08f, 0.08f),
+            Cliffs = new FloatRange(0f, 0f),
+            Erosion = new FloatRange(0.8f, 0.8f),
+            StillWater = true,
+            Biomes = new[] { BiomeCatalog.Wildwood },
+            BiomeCount = new IntRange(1, 1),
+            Settlements = 0f,
+            Wilds = 0f,
+            Dangers = 0f,
+            Vista = true,
+            Light = "Clear morning",
+            SunAzimuth = 5.75f,
+            SunHeight = 0.5f,
+        };
+
         public static readonly IReadOnlyList<WorldArchetype> All = new[]
         {
             Isle, Archipelago, Peninsula, Vale, Lakeland, Highlands, Frostmark, Mire, Badlands, AshenIsle,
@@ -298,6 +334,7 @@ namespace Dino_Engine.World.Content
                 if (archetype.Id == id) return archetype;
             }
             if (id == Haven.Id) return Haven;
+            if (id == Vista.Id) return Vista;
             foreach (WorldArchetype arena in ArenaCatalog.All)
             {
                 if (arena.Id == id) return arena;

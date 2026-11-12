@@ -267,7 +267,7 @@ namespace Dino_Defenders.Progression
             int prefixes = 0, suffixes = 0;
             foreach (ItemLine line in item.Lines)
             {
-                if (Find(line.Affix) is not FolioAffix affix || !affix.Fits(item) || kept.Any(other => other.Affix == line.Affix)) continue;
+                if (Find(line.Affix) is not FolioAffix affix || !affix.Fits(item)) continue;
                 if ((affix.Prefix ? prefixes : suffixes) >= each) continue;
                 if (affix.Prefix) prefixes++;
                 else suffixes++;
@@ -284,7 +284,7 @@ namespace Dino_Defenders.Progression
         }
 
         /// <summary>
-        /// Brings a book or a page from a save up to the rules. A line stays if it can be on this and its side has room, and what's left to fill is drawn from the item's own seed, so it comes out the same each
+        /// Brings a book or a page from a save up to the rules. A line stays if it can be on this and its side has room, even an affix it has already, which fusing at the bench can give it, and what's left to fill is drawn from the item's own seed, so it comes out the same each
         /// time. Anything from before books and pages rolled lines keeps the places it had, as a line that gives them, and is Magic at least if it had room for more than one. Then it has exactly as many places as
         /// its lines say, and what was in a place that's gone goes too, which only something no rules made can have.
         /// </summary>
@@ -306,7 +306,7 @@ namespace Dino_Defenders.Progression
             item.Lines ??= new List<ItemLine>();
             foreach (ItemLine line in item.Lines)
             {
-                if (Find(line.Affix) is not FolioAffix affix || !affix.Fits(item) || kept.Any(other => other.Affix == line.Affix)) continue;
+                if (Find(line.Affix) is not FolioAffix affix || !affix.Fits(item)) continue;
                 if ((affix.Prefix ? prefixes : suffixes) >= each) continue;
                 if (affix.Prefix) prefixes++;
                 else suffixes++;

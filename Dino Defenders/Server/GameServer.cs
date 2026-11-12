@@ -1122,6 +1122,22 @@ namespace Dino_Defenders.Server
                     if (BetaVendor.GivesIn(Session!.IsHaven)) BetaVendor.Take(hero, offerTab, offerRoll, offerLevel, offer, offerInto);
                     break;
 
+                case HeroAction.Fuse:
+                    player.Heard(reader.ReadVarInt());
+                    int fuseFirst = reader.ReadVarInt();
+                    int fuseSecond = reader.ReadVarInt();
+                    if (!Session!.IsHaven) break;
+                    if (Crafting.WhyNot(hero, fuseFirst, fuseSecond) is string fuseRefused)
+                    {
+                        Note(player, $"{fuseRefused}.");
+                        break;
+                    }
+                    int fuseCost = Crafting.FuseCost(hero.Inventory[fuseFirst]!);
+                    Crafting.Fuse(hero, fuseFirst, fuseSecond);
+                    player.SummaryChanged = true;
+                    Console.WriteLine($"{player.Name} fused two things into {hero.Inventory[fuseFirst]!.Name} for {fuseCost} gold.");
+                    break;
+
                 case HeroAction.BuyFlasks:
                     while (hero.Flasks < HeroState.MaxFlasks && hero.Gold >= FlaskPrice)
                     {

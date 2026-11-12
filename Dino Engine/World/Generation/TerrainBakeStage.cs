@@ -24,6 +24,9 @@ namespace Dino_Engine.World.Generation
             world.Scree = ByteField.ForWorld(size, WorldData.DetailCell);
             world.Proud = ByteField.ForWorld(size, WorldData.DetailCell);
             var sculpt = new RockSculpt(world, world.Random.Fork("sculpt"));
+            // The land's own rock: low knolls where it's rocky, and its bedrock a little proud of the soil where it shows (GroundRock).
+            var ground = new GroundRock(world, world.Random.Fork("ground rock"));
+            world.GroundRock = ground;
 
             height.Generate((x, z) =>
             {
@@ -32,7 +35,7 @@ namespace Dino_Engine.World.Generation
                 float land = Smoothstep(0.3f, 3.5f, h);
                 float rolls = detail.Fbm(x, z, 34f, 3) * 0.6f;
                 float bumps = detail.Fbm(x + 53f, z - 91f, 7.5f, 3) * 0.13f;
-                return sculpt.Apply((int)(x / WorldData.DetailCell), (int)(z / WorldData.DetailCell), x, z, h + (rolls + bumps) * land);
+                return sculpt.Apply((int)(x / WorldData.DetailCell), (int)(z / WorldData.DetailCell), x, z, h + (rolls + bumps + ground.Relief(x, z)) * land);
             });
 
             sculpt.Break(height);
@@ -56,6 +59,16 @@ namespace Dino_Engine.World.Generation
             sculpt.KeepHeroInSight(height);
             LevelHalls(world, height);
             sculpt.MeasureRelief(height);
+            world.RockNear = RockNearOf(world);
+        }
+
+        // Metres from every point of the coarse map to the nearest bare rock, as far as matters for what's come down off it.
+        private static ScalarField RockNearOf(WorldData world)
+        {
+            ScalarField near = ScalarField.ForWorld(world.Size, WorldData.CoarseCell);
+            int width = near.Width;
+            ByteField rock = world.Rock;
+            return ScalarField.DistanceTo(width, near.Depth, WorldData.CoarseCell, i => rock.Sample(near.WorldPosition(i % width, i / width)) > 0.6f);
         }
 
         // Every hall's ground exactly at its floor, wherever its walls stand, last of all: people stand on this ground and its floor is laid just over it (HALLS.md), and a

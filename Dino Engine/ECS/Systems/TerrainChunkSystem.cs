@@ -41,6 +41,9 @@ namespace Dino_Engine.ECS.Systems
         private readonly HashSet<Vector2i> _createdThisFrame = new();
         private readonly Dictionary<Vector2i, List<Entity>> _carveTargets = new();
 
+        /// <summary>Whether bare rock is clad in its skin of blocks (<see cref="Modelling.Procedural.Rock.RockSkin"/>). Off only to measure what it costs.</summary>
+        public static bool Skins = true;
+
         public TerrainChunkSystem()
             : base(new BitMask(typeof(TerrainChunkComponent), typeof(ScaleComponent), typeof(LocalToWorldMatrixComponent)))
         {
@@ -53,7 +56,8 @@ namespace Dino_Engine.ECS.Systems
             TerrainGenerator generator = world.GetComponent<TerrainGeneratorSingleton>(world.GetSingleton<TerrainGeneratorSingleton>()).Generator;
             var stream = world.GetComponent<WorldStreamSingleton>(world.GetSingleton<WorldStreamSingleton>());
 
-            Vector3 cameraPos = world.GetComponent<LocalToWorldMatrixComponent>(world.Camera).value.ExtractTranslation();
+            // The middle of the square, which is where the camera is, unless what it sees is all ahead of it (TerrainQuadTreeSingleton.Ahead).
+            Vector3 cameraPos = world.GetComponent<LocalToWorldMatrixComponent>(world.Camera).value.ExtractTranslation() + new Vector3(terrainComp.Ahead.X, 0f, terrainComp.Ahead.Y);
             float chunkSize = terrainComp.ChunkSize;
             int radius = terrainComp.Radius;
             var chunks = terrainComp.Chunks;
@@ -94,6 +98,15 @@ namespace Dino_Engine.ECS.Systems
             _spawnedObjects.Clear();
             float sectorReach = (radius + 1) * chunkSize + SectorMargin;
             StreamSectors(cameraPos.Xz, sectorReach, stream, world, grid);
+            // The rock's skin, as far out as the ground goes. It's an object like any other, so the grass under it is carved as it comes.
+            if (Skins) stream.Skins.Update(cameraPos.Xz, (radius + 1) * chunkSize,
+                model => SpawnModel(model, Vector3.Zero, Quaternion.Identity, Vector3.One, world, grid),
+                handle =>
+                {
+                    Entity entity = (Entity)handle;
+                    grid.Remove(entity);
+                    world.DestroyEntity(entity);
+                });
 
             for (int i = 0; i < _toDestroy.Count; i++)
                 DespawnEntities(_toDestroy[i], stream.ChunkPlants, world, grid);

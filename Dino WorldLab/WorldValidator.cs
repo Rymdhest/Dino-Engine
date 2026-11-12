@@ -1,4 +1,5 @@
 using Dino_Engine.Modelling.Procedural.Fence;
+using Dino_Engine.Modelling.Procedural.Rock;
 using Dino_Engine.World;
 using Dino_Engine.World.Generation;
 using Dino_Engine.World.Content;
@@ -281,6 +282,15 @@ namespace Dino_WorldLab
             if (world.Plan.Archetype.Arena)
             {
                 CheckArena(world);
+                return;
+            }
+            // The picture behind the menu is only looked at: all it has is where the hero stands, with the water ahead of them (MENU.md).
+            if (world.Plan.Archetype.Vista)
+            {
+                if (world.Sites.Count != 1 || world.Sites[0].Kind != SiteKind.Overlook) Problem("the vista's one place is not the overlook");
+                if (world.Height.Sample(Vista.Hero) < WorldPlan.SeaLevel + 4f) Problem("the vista's hero stands too low to see over the lake");
+                if (world.WaterDepthAt(Vista.Lake) < 1f) Problem("the vista has no lake");
+                if (world.Canopy.Sample(Vista.Hero) > 0.05f) Problem("the vista's hero stands among trees");
                 return;
             }
             if (world.Sites.Count == 0 || world.Sites[0].Kind != SiteKind.Landing)
@@ -848,6 +858,40 @@ namespace Dino_WorldLab
                 }
             }
             if (hidden > 0) Problem($"the ground hides a hero from the camera in {hidden} places, the first at {first}");
+
+            // Nor by stone set on the rock: whatever formation stands on a mountain stays under the line from the camera to anyone on the land beyond it. A boulder is walked round
+            // like anything else on the land, wherever it lies.
+            int hiddenByStone = 0;
+            Vector2 firstStone = default;
+            string firstKind = "";
+            foreach (WorldObject item in world.Objects.All())
+            {
+                string id = world.Objects.AssetIds[item.Asset];
+                if (!NatureCatalog.TryGetRock(NatureCatalog.SpeciesOf(id, out _), out _, out RockForm form) || !NatureCatalog.TryGet(id, out WorldAsset stone)) continue;
+                if (form is RockForm.Pebble or RockForm.Chip or RockForm.Boulder or RockForm.Block or RockForm.Slab) continue;
+                Vector2 at = item.Position.Xz;
+                if (world.Rock.Sample(at) < 0.5f) continue;
+                float scale = MathF.Max(item.Scale.X, MathF.Max(item.Scale.Y, item.Scale.Z));
+                float top = item.Position.Y + RockForge.TopOf(form) * scale;
+                float reach = stone.Footprint * scale;
+                float north = at.Y + reach;
+                bool hides = false;
+                for (float z = at.Y - reach; z <= north + CameraReach && !hides; z += 2f)
+                {
+                    for (float x = at.X - reach; x <= at.X + reach && !hides; x += 2f)
+                    {
+                        Vector2 spot = new Vector2(x, z);
+                        if (!world.InBounds(spot) || !world.Walkable.IsSet(spot) || !world.Passable.IsSet(spot)) continue;
+                        hides = top > world.Height.Sample(spot) + HeroWaist + CameraRise * MathF.Max(z - north, 0f);
+                    }
+                }
+                if (hides && hiddenByStone++ == 0)
+                {
+                    firstStone = at;
+                    firstKind = $"{form} at a scale of {scale:0.00}, its top {top - world.Height.Sample(at):0.0} m over the ground";
+                }
+            }
+            if (hiddenByStone > 0) Problem($"stone on the rock hides a hero from the camera in {hiddenByStone} places, the first a {firstKind} at {firstStone}");
 
             // Whatever a world's mountains are, it has some, and they stand up.
             int land = 0;

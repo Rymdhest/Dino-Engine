@@ -83,7 +83,7 @@ namespace Dino_Engine.World
             return near + (far - near) * tz;
         }
 
-        /// <summary>Catmull-Rom: unlike <see cref="Sample(float, float)"/> its slope is continuous, so upsampled terrain has no facets.</summary>
+        /// <summary>Catmull-Rom, held to the range of the points it runs between: unlike <see cref="Sample(float, float)"/> its slope is continuous wherever the ground is smooth, so upsampled terrain has no facets, and it never overshoots a cliff.</summary>
         public float SampleCubic(float worldX, float worldZ)
         {
             float fx = worldX * _inverseCell;
@@ -100,9 +100,12 @@ namespace Dino_Engine.World
             return CatmullRom(r0, r1, r2, r3, tz);
         }
 
+        // Catmull-Rom, held between the two points it runs between. Unbounded it overshoots a step, and a cliff a metre wide on the grid was drawn with a lip along its top
+        // and a trench along its foot, metres deep on a sheer wall, which nothing else about the ground knew of. On smooth ground it's never out of that range anyway.
         private static float CatmullRom(float p0, float p1, float p2, float p3, float t)
         {
-            return p1 + 0.5f * t * (p2 - p0 + t * (2f * p0 - 5f * p1 + 4f * p2 - p3 + t * (3f * (p1 - p2) + p3 - p0)));
+            float value = p1 + 0.5f * t * (p2 - p0 + t * (2f * p0 - 5f * p1 + 4f * p2 - p3 + t * (3f * (p1 - p2) + p3 - p0)));
+            return Math.Clamp(value, MathF.Min(p1, p2), MathF.Max(p1, p2));
         }
 
         /// <summary>Slope (rise over run) at a node, from central differences.</summary>

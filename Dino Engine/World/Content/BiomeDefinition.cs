@@ -87,6 +87,9 @@ namespace Dino_Engine.World.Content
         /// <summary>What the land here stands on, and so what a world of this biome is likely to be made of.</summary>
         public RockKind Bedrock = RockKind.Granite;
 
+        /// <summary>What shape its mountains take (RockSculpt): the world's rock says how they break, and this what they break into. Read TERRAIN.md.</summary>
+        public MountainForm Mountains = MountainForm.Ledged;
+
         /// <summary>
         /// How people who settle here build, where the land decides that rather than the world's people (<see cref="WorldData.StyleOf"/>): logs where the forest is tall
         /// and the winters long, mud where it hardly rains, posts over wet ground, clay tiles in the sun's country. Null leaves it to the people.
@@ -151,6 +154,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition Meadow = new BiomeDefinition
         {
             Id = "meadow",
+            Mountains = MountainForm.Ledged,
             Life = Fauna.Temperate,
             Bedrock = RockKind.Limestone,
             Name = "Meadowland",
@@ -183,6 +187,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition GoldenSteppe = new BiomeDefinition
         {
             Id = "steppe",
+            Mountains = MountainForm.Ledged,
             Life = Fauna.Grassland,
             Bedrock = RockKind.Limestone,
             Name = "Golden Steppe",
@@ -219,6 +224,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition PineForest = new BiomeDefinition
         {
             Id = "pine",
+            Mountains = MountainForm.Domes,
             Builds = BuildingStyle.Log,
             Life = Fauna.Conifer,
             Name = "Pinewood",
@@ -256,6 +262,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition BirchWood = new BiomeDefinition
         {
             Id = "birch",
+            Mountains = MountainForm.Domes,
             Life = Fauna.Temperate,
             Bedrock = RockKind.Granite,
             Name = "Birchwood",
@@ -289,6 +296,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition CrimsonWood = new BiomeDefinition
         {
             Id = "crimson",
+            Mountains = MountainForm.Canyons,
             Life = Fauna.Temperate,
             Bedrock = RockKind.Sandstone,
             Name = "Crimson Wood",
@@ -325,6 +333,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition BlossomGrove = new BiomeDefinition
         {
             Id = "blossom",
+            Mountains = MountainForm.Towers,
             Life = Fauna.Blossom,
             Bedrock = RockKind.Limestone,
             Name = "Blossom Grove",
@@ -362,6 +371,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition BambooThicket = new BiomeDefinition
         {
             Id = "bamboo",
+            Mountains = MountainForm.Towers,
             Life = Fauna.Blossom,
             Bedrock = RockKind.Limestone,
             Name = "Bamboo Thicket",
@@ -395,6 +405,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition Marsh = new BiomeDefinition
         {
             Id = "marsh",
+            Mountains = MountainForm.Ledged,
             Builds = BuildingStyle.Stilt,
             Life = Fauna.Mire,
             Bedrock = RockKind.Limestone,
@@ -439,6 +450,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition Highland = new BiomeDefinition
         {
             Id = "highland",
+            Mountains = MountainForm.Ledged,
             Life = Fauna.Upland,
             Bedrock = RockKind.Schist,
             Name = "High Moor",
@@ -478,6 +490,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition Snowfield = new BiomeDefinition
         {
             Id = "snow",
+            Mountains = MountainForm.Jagged,
             Builds = BuildingStyle.Log,
             Life = Fauna.Frozen,
             Name = "Snowfield",
@@ -510,6 +523,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition Dunes = new BiomeDefinition
         {
             Id = "dunes",
+            Mountains = MountainForm.Canyons,
             Builds = BuildingStyle.Adobe,
             Landmark = StructureCatalog.Fossil,
             LandmarksPerKm2 = 1.4f,
@@ -548,6 +562,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition Badlands = new BiomeDefinition
         {
             Id = "badlands",
+            Mountains = MountainForm.Canyons,
             Builds = BuildingStyle.Adobe,
             Landmark = StructureCatalog.Fossil,
             LandmarksPerKm2 = 2.2f,
@@ -584,6 +599,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition Ashland = new BiomeDefinition
         {
             Id = "ash",
+            Mountains = MountainForm.Columns,
             Landmark = StructureCatalog.Fossil,
             LandmarksPerKm2 = 1f,
             Life = Fauna.Burnt,
@@ -617,6 +633,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition RedwoodGrove = new BiomeDefinition
         {
             Id = "redwood",
+            Mountains = MountainForm.Canyons,
             Life = Fauna.Conifer,
             Name = "Redwood Grove",
             MapColour = new Vector3(0.4f, 0.22f, 0.16f),
@@ -656,6 +673,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition DarkWood = new BiomeDefinition
         {
             Id = "darkwood",
+            Mountains = MountainForm.Blades,
             Builds = BuildingStyle.Log,
             Life = Fauna.Haunted,
             Bedrock = RockKind.Schist,
@@ -696,6 +714,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition Jungle = new BiomeDefinition
         {
             Id = "jungle",
+            Mountains = MountainForm.Towers,
             Builds = BuildingStyle.Stilt,
             Life = Fauna.Tropics,
             Bedrock = RockKind.Limestone,
@@ -737,6 +756,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition Savanna = new BiomeDefinition
         {
             Id = "savanna",
+            Mountains = MountainForm.Ledged,
             Builds = BuildingStyle.Adobe,
             Landmark = StructureCatalog.TermiteMound,
             LandmarksPerKm2 = 9f,
@@ -778,6 +798,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition GoldenWood = new BiomeDefinition
         {
             Id = "ginkgo",
+            Mountains = MountainForm.Ledged,
             Life = Fauna.Temperate,
             Bedrock = RockKind.Limestone,
             Name = "Gold Wood",
@@ -816,6 +837,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition CedarWood = new BiomeDefinition
         {
             Id = "cedar",
+            Mountains = MountainForm.Jagged,
             Life = Fauna.Conifer,
             Name = "Old Cedars",
             MapColour = new Vector3(0.16f, 0.26f, 0.2f),
@@ -855,6 +877,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition Fernland = new BiomeDefinition
         {
             Id = "fernland",
+            Mountains = MountainForm.Columns,
             Builds = BuildingStyle.Stilt,
             Life = Fauna.Fernland,
             Bedrock = RockKind.Basalt,
@@ -901,6 +924,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition ElderPines = new BiomeDefinition
         {
             Id = "araucaria",
+            Mountains = MountainForm.Domes,
             Life = Fauna.Fernland,
             Bedrock = RockKind.Granite,
             Name = "Elder Pines",
@@ -944,6 +968,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition Mistwood = new BiomeDefinition
         {
             Id = "cloudforest",
+            Mountains = MountainForm.Towers,
             Builds = BuildingStyle.Stilt,
             Life = Fauna.CloudForest,
             Bedrock = RockKind.Granite,
@@ -989,6 +1014,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition Tidewood = new BiomeDefinition
         {
             Id = "mangrove",
+            Mountains = MountainForm.Towers,
             Builds = BuildingStyle.Stilt,
             Life = Fauna.Mangroves,
             Bedrock = RockKind.Limestone,
@@ -1039,6 +1065,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition Wildwood = new BiomeDefinition
         {
             Id = "wildwood",
+            Mountains = MountainForm.Ledged,
             Life = Fauna.Wildwood,
             Bedrock = RockKind.Limestone,
             Name = "Wildwood",
@@ -1082,6 +1109,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition WaterMeadows = new BiomeDefinition
         {
             Id = "watermeadow",
+            Mountains = MountainForm.Ledged,
             Life = Fauna.Riverside,
             Bedrock = RockKind.Limestone,
             Name = "Water Meadows",
@@ -1130,6 +1158,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition Larchwood = new BiomeDefinition
         {
             Id = "larch",
+            Mountains = MountainForm.Jagged,
             Builds = BuildingStyle.Log,
             Life = Fauna.Taiga,
             Bedrock = RockKind.Granite,
@@ -1177,6 +1206,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition HighPastures = new BiomeDefinition
         {
             Id = "alpine",
+            Mountains = MountainForm.Jagged,
             Builds = BuildingStyle.Log,
             Life = Fauna.Alpine,
             Bedrock = RockKind.Limestone,
@@ -1224,6 +1254,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition Bogland = new BiomeDefinition
         {
             Id = "bogland",
+            Mountains = MountainForm.Domes,
             Builds = BuildingStyle.Log,
             Life = Fauna.Bog,
             Bedrock = RockKind.Granite,
@@ -1273,6 +1304,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition CypressHills = new BiomeDefinition
         {
             Id = "maquis",
+            Mountains = MountainForm.Ledged,
             Builds = BuildingStyle.Tiled,
             Life = Fauna.Maquis,
             Bedrock = RockKind.Limestone,
@@ -1318,6 +1350,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition WindwardCoast = new BiomeDefinition
         {
             Id = "seacliff",
+            Mountains = MountainForm.Domes,
             Life = Fauna.Windward,
             Bedrock = RockKind.Granite,
             Name = "Windward Coast",
@@ -1363,6 +1396,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition FlowerDowns = new BiomeDefinition
         {
             Id = "bloomfield",
+            Mountains = MountainForm.Ledged,
             Builds = BuildingStyle.Tiled,
             Life = Fauna.Bloomfield,
             Bedrock = RockKind.Limestone,
@@ -1406,6 +1440,7 @@ namespace Dino_Engine.World.Content
         public static readonly BiomeDefinition RedScrub = new BiomeDefinition
         {
             Id = "redbush",
+            Mountains = MountainForm.Canyons,
             Builds = BuildingStyle.Adobe,
             Landmark = StructureCatalog.TermiteMound,
             LandmarksPerKm2 = 28f,

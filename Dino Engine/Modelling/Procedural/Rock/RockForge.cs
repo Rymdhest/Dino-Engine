@@ -16,7 +16,13 @@ namespace Dino_Engine.Modelling.Procedural.Rock
         Slab,       // A flat sheet of it, tipped over and half buried.
         Outcrop,    // Bedrock breaking through, 5 m and more, as jointed as a cliff.
         Crag,       // A piece of the mountain, 15 m tall.
-        Spire,      // A tower left standing when everything around it went.
+        Spire,      // A tower left standing when everything around it went, fluted by the rain.
+        Hoodoo,     // A column of soft rock under a cap of hard, bulging where its beds are hard and necked where they're soft.
+        Tor,        // Rounded blocks piled on each other where the rock round them weathered away.
+        Columns,    // A stand of basalt columns, hexagons of every height.
+        Fin,        // A thin wall of rock left between two joints, its top ragged.
+        Arch,       // A fin worn through near its foot, the sky seen through it.
+        Bluff,      // A stretch of cliff: beds stacked in ledges, soft ones worn back under the hard.
     }
 
     /// <summary>The material stones are made of. Headless, so that the forge can run with no GPU: <see cref="Textures.TextureGenerator"/> fills it in.</summary>
@@ -35,6 +41,7 @@ namespace Dino_Engine.Modelling.Procedural.Rock
     {
         private const float CreaseCosine = 0.72f;   // Faces further apart than this have a hard edge between them: about 44 degrees.
         private const float SmallestPiece = 0.03f;  // Of the whole, for a loose piece to be worth keeping.
+        private const float SmallestColumn = 0.003f;    // A stand of columns is dozens of pieces that don't touch, every one of them worth keeping.
 
         /// <param name="Size">Metres across, about.</param>
         /// <param name="Grid">Cells across the longest side of what's meshed.</param>
@@ -56,7 +63,13 @@ namespace Dino_Engine.Modelling.Procedural.Rock
             RockForm.Slab => new Shape(4f, 64, 640, 0.018f),
             RockForm.Outcrop => new Shape(9f, 72, 2000, 0.016f),
             RockForm.Crag => new Shape(22f, 88, 3400, 0.012f),
-            _ => new Shape(22f, 80, 2400, 0.012f),
+            RockForm.Spire => new Shape(22f, 88, 2600, 0.01f),
+            RockForm.Hoodoo => new Shape(10f, 72, 1500, 0.01f),
+            RockForm.Tor => new Shape(7f, 60, 1500, 0.018f),
+            RockForm.Columns => new Shape(9f, 72, 2600, 0.004f),
+            RockForm.Fin => new Shape(13f, 80, 1800, 0.01f),
+            RockForm.Arch => new Shape(19f, 92, 3000, 0.009f),
+            _ => new Shape(17f, 92, 3400, 0.01f),
         };
 
         /// <summary>The most triangles a form is allowed.</summary>
@@ -73,7 +86,7 @@ namespace Dino_Engine.Modelling.Procedural.Rock
             var triangles = new List<int>();
             March(field, shape, points, triangles);
             AddRelief(kind, shape, genes, points, triangles);
-            SweepUp(points, triangles);
+            SweepUp(points, triangles, form == RockForm.Columns ? SmallestColumn : SmallestPiece);
             Decimator.Reduce(points, triangles, shape.Budget);
             return Dress(field, shape, points, triangles);
         }
@@ -110,16 +123,327 @@ namespace Dino_Engine.Modelling.Procedural.Rock
                     Mass(field, genes, size, new Vector3(0.34f, 0.62f, 0.34f), genes.Count("masses", 3, 5));
                     Joint(field, kind, genes, shape);
                     break;
+                case RockForm.Spire:
+                    Fluted(field, genes.Part("tower"), kind, shape);
+                    // It's thin: joints that went as deep as a crag's would meet in the middle and leave it in pieces, so its beds only notch it.
+                    Notches(field, genes, shape, 3, 6);
+                    break;
+                case RockForm.Hoodoo:
+                    Hoodoo(field, genes, shape);
+                    break;
+                case RockForm.Tor:
+                    Tor(field, genes, shape);
+                    break;
+                case RockForm.Columns:
+                    Columns(field, genes, shape);
+                    break;
+                case RockForm.Fin:
+                    Fin(field, genes, kind, shape, false);
+                    break;
+                case RockForm.Arch:
+                    Fin(field, genes, kind, shape, true);
+                    break;
                 default:
-                    Mass(field, genes.Part("tower"), size, new Vector3(0.21f, 0.8f, 0.21f), genes.Count("masses", 1, 3));
-                    Joint(field, kind, genes, shape);
-                    // It's thin: joints that went as deep as a crag's would meet in the middle, and it'd fall down.
-                    field.Joints!.Depth *= 0.42f;
-                    field.Joints.Retreat *= 0.5f;
-                    field.Joints.BedRecess *= 0.6f;
+                    Bluff(field, genes, kind, shape);
                     break;
             }
             return field;
+        }
+
+        // A tower, tapering as it climbs, its sides cut by many shallow flutes where rain has run down it for ages, and its top a dome or a flat cap by its rock.
+        private static void Fluted(RockField field, Genes genes, RockKind kind, in Shape shape)
+        {
+            WorldRandom random = genes.Stream("flutes");
+            float size = shape.Size;
+            float tall = size * genes.Range("tall", 0.62f, 0.8f);
+            float half = size * genes.Range("wide", 0.12f, 0.17f);
+            var body = new RockBody { Rounding = MathF.Max(size * 0.012f, shape.Narrowest * 0.5f) };
+            int flutes = genes.Count("flutes", 11, 15);
+            for (int i = 0; i < flutes; i++)
+            {
+                float turn = (i + random.Range(-0.2f, 0.2f)) * MathF.Tau / flutes;
+                float taper = random.Range(0.07f, 0.13f);
+                Vector3 n = Vector3.Normalize(new Vector3(MathF.Cos(turn), taper, MathF.Sin(turn)));
+                float stretch = 1f + 0.25f * MathF.Cos(turn * 2f + random.Float());
+                body.Fractures.Add(new Fracture(n, half * stretch * (i % 2 == 0 ? 1f : random.Range(0.88f, 0.95f))));
+            }
+            // A dome of limestone or granite, a flat cap of sandstone or basalt, a ragged point of schist.
+            float dome = kind is RockKind.Limestone or RockKind.Granite ? 0.42f : kind == RockKind.Schist ? 0.75f : 0.08f;
+            for (int i = 0; i < 6; i++)
+            {
+                float turn = i * MathF.Tau / 6f + random.Float();
+                Vector3 n = Vector3.Normalize(new Vector3(MathF.Cos(turn) * dome, 1f, MathF.Sin(turn) * dome));
+                body.Fractures.Add(new Fracture(n, tall * n.Y * random.Range(0.96f, 1.02f)));
+            }
+            body.Fractures.Add(new Fracture(-Vector3.UnitY, size * 0.4f));
+            field.Bodies.Add(body);
+        }
+
+        // Beds of soft rock stacked under a cap of hard: each bed a short column of its own width, bulging where it's hard and necked where it's soft, and the cap overhanging
+        // the neck under it, flat and broken at its edges.
+        private static void Hoodoo(RockField field, Genes genes, in Shape shape)
+        {
+            WorldRandom random = genes.Stream("beds");
+            float size = shape.Size;
+            float tall = size * genes.Range("tall", 0.6f, 0.78f);
+            float radius = size * genes.Range("girth", 0.085f, 0.12f);
+            int beds = genes.Count("beds", 5, 8);
+            float foot = -size * 0.35f;
+            float neck = tall - size * 0.1f;
+            field.Blend = MathF.Max(radius * 0.32f, shape.Narrowest);
+            float bedHeight = (neck - foot) / beds;
+            for (int i = 0; i < beds; i++)
+            {
+                float t = (i + 0.5f) / beds;
+                bool hard = random.Chance(0.5f);
+                // Wide at its foot, where the talus props it, narrowest under the cap.
+                float r = radius * (1f + 0.55f * (1f - t) * (1f - t)) * (hard ? random.Range(1.05f, 1.2f) : random.Range(0.78f, 0.9f)) * (1f - 0.18f * Smoothstep(0.7f, 1f, t));
+                var bed = new RockBody { Rounding = r * 0.35f };
+                for (int side = 0; side < 8; side++)
+                {
+                    float turn = (side + random.Range(-0.25f, 0.25f)) * MathF.Tau / 8f;
+                    bed.Fractures.Add(new Fracture(new Vector3(MathF.Cos(turn), 0f, MathF.Sin(turn)), r * random.Range(0.9f, 1.08f)));
+                }
+                float bottom = foot + i * bedHeight;
+                bed.Fractures.Add(new Fracture(Vector3.UnitY, bottom + bedHeight * 1.15f));
+                bed.Fractures.Add(new Fracture(-Vector3.UnitY, -(bottom - bedHeight * 0.15f)));
+                field.Bodies.Add(bed);
+            }
+            // The cap: hard, wide, a little tilted, its edge broken into a few straight faces.
+            var cap = new RockBody { Rounding = MathF.Max(size * 0.01f, shape.Narrowest * 0.5f) };
+            float capRadius = radius * genes.Range("cap", 1.45f, 1.9f);
+            int faces = genes.Count("cap faces", 6, 9);
+            for (int side = 0; side < faces; side++)
+            {
+                float turn = (side + random.Range(-0.3f, 0.3f)) * MathF.Tau / faces;
+                cap.Fractures.Add(new Fracture(Vector3.Normalize(new Vector3(MathF.Cos(turn), random.Range(-0.15f, 0.2f), MathF.Sin(turn))), capRadius * random.Range(0.85f, 1.05f)));
+            }
+            float thick = size * genes.Range("cap thick", 0.06f, 0.1f);
+            cap.Fractures.Add(new Fracture(Tilted(Vector3.UnitY, 0.12f, random), neck + thick));
+            cap.Fractures.Add(new Fracture(-Vector3.UnitY, -(neck - thick * 0.2f)));
+            field.Bodies.Add(cap);
+        }
+
+        // Rounded blocks piled up: a big one at the foot and smaller ones on it, each sitting a little off the one under it, turned its own way.
+        private static void Tor(RockField field, Genes genes, in Shape shape)
+        {
+            WorldRandom random = genes.Stream("pile");
+            float size = shape.Size;
+            int blocks = genes.Count("blocks", 3, 5);
+            field.Blend = MathF.Max(size * 0.02f, shape.Narrowest);
+            Vector3 at = new Vector3(0f, -size * 0.12f, 0f);
+            float scale = 1f;
+            for (int i = 0; i < blocks; i++)
+            {
+                Vector3 half = size * scale * new Vector3(random.Range(0.32f, 0.44f), random.Range(0.14f, 0.2f), random.Range(0.28f, 0.4f));
+                var block = new RockBody { Rounding = MathF.Max(half.Y * random.Range(0.55f, 0.85f), shape.Narrowest) };
+                float yaw = random.Float() * MathF.Tau;
+                Vector3 x = new Vector3(MathF.Cos(yaw), 0f, MathF.Sin(yaw));
+                Vector3 z = new Vector3(-x.Z, 0f, x.X);
+                Vector3 y = Tilted(Vector3.UnitY, 0.12f, random);
+                AddFaces(block, x, Vector3.Dot(at, x), half.X, random);
+                AddFaces(block, z, Vector3.Dot(at, z), half.Z, random);
+                AddFaces(block, y, Vector3.Dot(at, y), half.Y, random);
+                field.Bodies.Add(block);
+                // The next sits on this one, off its middle, and smaller.
+                float drift = random.Range(0.05f, 0.18f) * size * scale;
+                float turn = random.Float() * MathF.Tau;
+                at += new Vector3(MathF.Cos(turn) * drift, half.Y * random.Range(1.55f, 1.85f), MathF.Sin(turn) * drift);
+                scale *= random.Range(0.62f, 0.82f);
+            }
+            // And one or two lying against the foot of the pile, as some always come down.
+            int fallen = genes.Count("fallen", 0, 2);
+            for (int i = 0; i < fallen; i++)
+            {
+                float turn = random.Float() * MathF.Tau;
+                Vector3 centre = new Vector3(MathF.Cos(turn), 0f, MathF.Sin(turn)) * size * random.Range(0.36f, 0.48f) + new Vector3(0f, -size * 0.16f, 0f);
+                Vector3 half = size * new Vector3(random.Range(0.12f, 0.18f), random.Range(0.08f, 0.12f), random.Range(0.1f, 0.16f));
+                var block = new RockBody { Rounding = MathF.Max(half.Y * 0.7f, shape.Narrowest) };
+                AddFaces(block, Vector3.UnitX, centre.X, half.X, random);
+                AddFaces(block, Vector3.UnitZ, centre.Z, half.Z, random);
+                AddFaces(block, Vector3.UnitY, centre.Y, half.Y, random);
+                field.Bodies.Add(block);
+            }
+        }
+
+        // Both faces of a block across one direction, either side of a middle, each a little off true: a plane n.p = d with n near +direction, and its opposite.
+        private static void AddFaces(RockBody body, Vector3 direction, float middle, float half, WorldRandom random)
+        {
+            Vector3 front = Tilted(direction, 0.08f, random);
+            Vector3 back = Tilted(-direction, 0.08f, random);
+            body.Fractures.Add(new Fracture(front, middle * Vector3.Dot(direction, front) + half * random.Range(0.92f, 1.05f)));
+            body.Fractures.Add(new Fracture(back, -middle * Vector3.Dot(direction, -back) + half * random.Range(0.92f, 1.05f)));
+        }
+
+        // Columns of every height in a stand, tallest at its middle, and the odd joint across them all where the lava cooled in stages.
+        private static void Columns(RockField field, Genes genes, in Shape shape)
+        {
+            WorldRandom random = genes.Stream("columns");
+            float size = shape.Size;
+            field.Columns = new ColumnSet
+            {
+                Width = size * genes.Range("width", 0.11f, 0.15f),
+                Gap = shape.Narrowest * 1.15f,
+                Reach = size * genes.Range("reach", 0.38f, 0.46f),
+                Low = size * genes.Range("low", -0.12f, 0.05f),
+                High = size * genes.Range("high", 0.42f, 0.62f),
+                Bottom = -size * 0.4f,
+                Tilt = genes.Range("tilt", 0.04f, 0.14f),
+                Seed = (uint)random.NextULong(),
+            };
+            int joints = genes.Count("cross joints", 1, 3);
+            for (int i = 0; i < joints; i++)
+            {
+                field.Cracks.Add(new Crack(Tilted(Vector3.UnitY, 0.05f, random), random.Range(-0.05f, 0.4f) * size, shape.Narrowest * 0.6f, size * 0.08f));
+            }
+        }
+
+        // A wall of rock left between two joints, thin and long, leaning as its beds do, its top ragged where blocks have come off it. Worn through near its foot, it's an arch.
+        private static void Fin(RockField field, Genes genes, RockKind kind, in Shape shape, bool arch)
+        {
+            WorldRandom random = genes.Stream("fin");
+            float size = shape.Size;
+            Frame(kind, random, out Vector3 along, out Vector3 up, out Vector3 across);
+            // A fin stands along its joints: its long way runs along z, and it leans as its beds do.
+            Vector3 face = along;
+            Vector3 length = across;
+            float thick = size * (arch ? genes.Range("thick", 0.1f, 0.14f) : genes.Range("thick", 0.055f, 0.08f));
+            float reach = size * (arch ? genes.Range("long", 0.42f, 0.48f) : genes.Range("long", 0.36f, 0.46f));
+            float tall = size * (arch ? genes.Range("tall", 0.42f, 0.52f) : genes.Range("tall", 0.42f, 0.58f));
+            var body = new RockBody { Rounding = MathF.Max(size * 0.012f, shape.Narrowest * 0.5f) };
+            body.Fractures.Add(new Fracture(Tilted(face, 0.04f, random), thick));
+            body.Fractures.Add(new Fracture(Tilted(-face, 0.04f, random), thick));
+            body.Fractures.Add(new Fracture(Vector3.Normalize(length + up * random.Range(0.1f, 0.6f)), reach));
+            body.Fractures.Add(new Fracture(Vector3.Normalize(-length + up * random.Range(0.1f, 0.6f)), reach));
+            int tops = genes.Count("tops", 3, 5);
+            for (int i = 0; i < tops; i++)
+            {
+                float t = (i + 0.5f) / tops * 2f - 1f;
+                Vector3 n = Vector3.Normalize(up + length * random.Range(-0.7f, 0.7f));
+                Vector3 onTop = length * (t * reach) + up * (tall * random.Range(0.82f, 1f));
+                body.Fractures.Add(new Fracture(n, Vector3.Dot(onTop, n)));
+            }
+            body.Fractures.Add(new Fracture(-Vector3.UnitY, size * 0.4f));
+            field.Bodies.Add(body);
+
+            if (arch)
+            {
+                // The opening is wide and low, its top well under the fin's, so the span over it is thick enough to stand. It goes right through, so it's long across the fin.
+                float wide = reach * genes.Range("span", 0.48f, 0.62f);
+                float high = tall * genes.Range("opening", 0.38f, 0.5f);
+                Vector3 centre = length * (reach * random.Range(-0.12f, 0.12f)) + up * (high * 0.35f);
+                Vector3 radii = new Vector3(MathF.Abs(face.X) * thick * 3f + MathF.Abs(length.X) * wide, high, MathF.Abs(face.Z) * thick * 3f + MathF.Abs(length.Z) * wide);
+                field.Hollows.Add((centre, Vector3.ComponentMax(radii, new Vector3(shape.Narrowest * 2f))));
+            }
+
+            field.Joints = new JointLattice
+            {
+                Along = length,
+                Across = face,
+                Up = up,
+                Seed = (uint)random.NextULong(),
+                // An arch is one great slab of rock, worn smooth round its opening: jointed as finely as a fin, it would read as built.
+                Spacing = arch ? new Vector3(size * genes.Range("joints", 0.24f, 0.34f), size, size * genes.Range("beds", 0.14f, 0.2f))
+                               : new Vector3(size * genes.Range("joints", 0.14f, 0.22f), size, size * genes.Range("beds", 0.09f, 0.15f)),
+                Depth = thick * 0.6f,
+                Gap = shape.Narrowest * 0.5f,
+                Rounding = MathF.Max(size * 0.006f, shape.Narrowest * 0.4f),
+                Retreat = thick * (arch ? 0.12f : 0.25f),
+                BedRecess = thick * (arch ? 0.16f : 0.3f),
+            };
+        }
+
+        /// <summary>
+        /// The most a form stands above where it's set down, in metres at a scale of one, from the ranges it's designed in. What's set down on rock is held to keep under the line
+        /// from the camera to anyone beyond it by this (RockStage), and the world's check measures it the same way.
+        /// </summary>
+        public static float TopOf(RockForm form) => form switch
+        {
+            RockForm.Pebble => 0.25f,
+            RockForm.Chip => 0.3f,
+            RockForm.Boulder => 1.3f,
+            RockForm.Block => 1.6f,
+            RockForm.Slab => 0.75f,
+            RockForm.Outcrop => 4f,
+            RockForm.Crag => 14f,
+            RockForm.Spire => 17.8f,
+            RockForm.Hoodoo => 8.4f,
+            RockForm.Tor => 7.8f,
+            RockForm.Columns => 6f,
+            RockForm.Fin => 7.8f,
+            RockForm.Arch => 10.2f,
+            _ => 7.4f,
+        };
+
+        // A stretch of cliff with its back in the hill: beds stacked in ledges, the soft ones worn back under the hard so that every hard one overhangs a little, cut by joints
+        // into blocks that stand out and back, its top worn round. Its face looks along +z.
+        private static void Bluff(RockField field, Genes genes, RockKind kind, in Shape shape)
+        {
+            WorldRandom random = genes.Stream("bluff");
+            float size = shape.Size;
+            float wide = size * genes.Range("wide", 0.42f, 0.49f);
+            float tall = size * genes.Range("tall", 0.28f, 0.4f);
+            float deep = size * genes.Range("deep", 0.18f, 0.24f);
+            var body = new RockBody { Rounding = MathF.Max(size * 0.02f, shape.Narrowest * 0.5f) };
+            body.Fractures.Add(new Fracture(Vector3.Normalize(new Vector3(random.Range(-0.08f, 0.08f), random.Range(0.02f, 0.18f), 1f)), deep));
+            body.Fractures.Add(new Fracture(-Vector3.UnitZ, deep * 1.4f));
+            for (int i = 0; i < 2; i++)
+            {
+                float side = i == 0 ? 1f : -1f;
+                body.Fractures.Add(new Fracture(Vector3.Normalize(new Vector3(side, random.Range(0.05f, 0.3f), random.Range(0.1f, 0.5f))), wide));
+            }
+            int tops = genes.Count("tops", 2, 4);
+            for (int i = 0; i < tops; i++)
+            {
+                Vector3 n = Vector3.Normalize(new Vector3(random.Range(-0.35f, 0.35f), 1f, random.Range(0.1f, 0.6f)));
+                Vector3 onTop = new Vector3(random.Range(-0.6f, 0.6f) * wide, tall * random.Range(0.85f, 1f), 0f);
+                body.Fractures.Add(new Fracture(n, Vector3.Dot(onTop, n)));
+            }
+            body.Fractures.Add(new Fracture(-Vector3.UnitY, size * 0.38f));
+            field.Bodies.Add(body);
+
+            Frame(kind, random, out _, out Vector3 up, out _);
+            float joints = size * 0.2f;
+            var lattice = new JointLattice
+            {
+                Along = Vector3.UnitX,
+                Across = Vector3.UnitZ,
+                Up = up,
+                Seed = (uint)random.NextULong(),
+                Depth = deep * 0.7f,
+                Gap = shape.Narrowest * 0.5f,
+            };
+            switch (kind)
+            {
+                case RockKind.Granite:
+                    lattice.Spacing = new Vector3(joints * 1.3f, joints * 2f, joints * 1.1f);
+                    lattice.Rounding = joints * 0.22f;
+                    lattice.Retreat = joints * 0.3f;
+                    lattice.BedRecess = joints * 0.12f;
+                    break;
+                case RockKind.Schist:
+                    // Its beds are the thinnest of any, but even the thinnest of them, at four tenths of a spacing, has to be wider than the grid's diagonal (Shape.Narrowest).
+                    lattice.Spacing = new Vector3(joints * 0.9f, joints * 2f, joints * 0.55f);
+                    lattice.Rounding = joints * 0.02f;
+                    lattice.Gap *= 1.4f;
+                    lattice.Retreat = joints * 0.32f;
+                    lattice.BedRecess = joints * 0.22f;
+                    break;
+                case RockKind.Basalt:
+                    lattice.Spacing = new Vector3(joints * 0.45f, joints * 0.45f, joints * 1.6f);
+                    lattice.Rounding = joints * 0.03f;
+                    lattice.Retreat = joints * 0.55f;
+                    break;
+                default:
+                    // Beds in ledges, the soft ones worn well back: every hard bed overhangs the one under it.
+                    lattice.Spacing = new Vector3(joints * genes.Range("joint spacing", 1.1f, 1.7f), joints * 2f, joints * genes.Range("bed spacing", 0.38f, 0.6f));
+                    lattice.Rounding = joints * (kind == RockKind.Sandstone ? 0.09f : 0.05f);
+                    lattice.Retreat = joints * 0.24f;
+                    lattice.BedRecess = joints * genes.Range("recess", 0.4f, 0.6f);
+                    break;
+            }
+            lattice.Rounding = MathF.Max(lattice.Rounding, shape.Narrowest * 0.4f);
+            field.Joints = lattice;
         }
 
         private static float RoundingOf(RockKind kind) => kind switch
@@ -268,6 +592,18 @@ namespace Dino_Engine.Modelling.Procedural.Rock
             field.Joints = lattice;
         }
 
+        // The partings of a thin tower's beds: shallow, near level, and all the way round.
+        private static void Notches(RockField field, Genes genes, in Shape shape, int least, int most)
+        {
+            WorldRandom random = genes.Stream("notches");
+            int count = genes.Count("notch count", least, most);
+            float size = shape.Size;
+            for (int i = 0; i < count; i++)
+            {
+                field.Cracks.Add(new Crack(Tilted(Vector3.UnitY, 0.06f, random), random.Range(-0.1f, 0.62f) * size, shape.Narrowest * random.Range(0.6f, 0.9f), size * random.Range(0.012f, 0.025f)));
+            }
+        }
+
         private static void Crack(RockField field, Genes genes, in Shape shape, int least, int most)
         {
             WorldRandom random = genes.Stream("cracks");
@@ -370,7 +706,7 @@ namespace Dino_Engine.Modelling.Procedural.Rock
         }
 
         // Joints can cut a corner clean off. Nothing holds up a flake like that, and every one of them is triangles a budget can't reach.
-        private static void SweepUp(List<Vector3> points, List<int> triangles)
+        private static void SweepUp(List<Vector3> points, List<int> triangles, float smallest)
         {
             int[] root = new int[points.Count];
             for (int i = 0; i < root.Length; i++) root[i] = i;
@@ -397,7 +733,7 @@ namespace Dino_Engine.Modelling.Procedural.Rock
                 faces[piece] = faces.GetValueOrDefault(piece) + 1;
             }
 
-            int least = (int)(triangles.Count / 3 * SmallestPiece);
+            int least = (int)(triangles.Count / 3 * smallest);
             var kept = new List<int>(triangles.Count);
             for (int i = 0; i < triangles.Count; i += 3)
             {
@@ -411,7 +747,14 @@ namespace Dino_Engine.Modelling.Procedural.Rock
         }
 
         // Splits vertices where faces meet at a hard edge, and colours them by how much sky they can see, which is what a crack looks like from any distance.
-        private static FloraMesh Dress(RockField field, in Shape shape, List<Vector3> points, List<int> triangles)
+        private static FloraMesh Dress(RockField field, in Shape shape, List<Vector3> points, List<int> triangles) =>
+            Dress(field.Distance, shape.Size * 0.09f, points, triangles, null, null);
+
+        /// <summary>
+        /// Normals split at hard edges and a colour from how much sky each point sees, for any surface of a signed distance. A <paramref name="pinned"/> point takes its normal from the
+        /// field, as it's shared with another mesh that can't know this one's faces, and <paramref name="tint"/> says how light the rock is where a point is.
+        /// </summary>
+        internal static FloraMesh Dress(Func<Vector3, float> distance, float reach, List<Vector3> points, List<int> triangles, bool[]? pinned, Func<Vector3, Vector3, float>? tint)
         {
             int faces = triangles.Count / 3;
             var faceNormals = new Vector3[faces];
@@ -430,7 +773,6 @@ namespace Dino_Engine.Modelling.Procedural.Rock
             var made = new Dictionary<(int point, Vector3 normal), int>();
             float[] sky = new float[points.Count];
             Array.Fill(sky, -1f);
-            float reach = shape.Size * 0.09f;
 
             Span<int> corners = stackalloc int[3];
             for (int f = 0; f < faces; f++)
@@ -448,8 +790,9 @@ namespace Dino_Engine.Modelling.Procedural.Rock
                         if (Vector3.Dot(theirs.Normalized(), own) >= CreaseCosine) sum += theirs;
                     }
                     Vector3 normal = sum.LengthSquared > 1e-14f ? sum.Normalized() : own;
+                    if (pinned != null && pinned[point]) normal = Gradient(distance, points[point], reach * 0.25f, normal);
 
-                    if (sky[point] < 0f) sky[point] = SkyAt(field, points[point], normal, reach);
+                    if (sky[point] < 0f) sky[point] = SkyAt(distance, points[point], normal, reach) * (tint == null ? 1f : tint(points[point], normal));
                     Vector3 key = new Vector3(MathF.Round(normal.X * 64f), MathF.Round(normal.Y * 64f), MathF.Round(normal.Z * 64f));
                     if (!made.TryGetValue((point, key), out int index))
                     {
@@ -474,17 +817,27 @@ namespace Dino_Engine.Modelling.Procedural.Rock
         }
 
         // How open a point is: the field says how far the nearest rock is, so steps out along the normal that find it nearer than they've come have run into something.
-        private static float SkyAt(RockField field, Vector3 p, Vector3 normal, float reach)
+        private static float SkyAt(Func<Vector3, float> distance, Vector3 p, Vector3 normal, float reach)
         {
             float closed = 0f;
             float weight = 0.5f;
             for (int i = 1; i <= 4; i++)
             {
                 float out_ = reach * i * 0.25f;
-                closed += weight * Saturate((out_ - field.Distance(p + normal * out_)) / out_);
+                closed += weight * Saturate((out_ - distance(p + normal * out_)) / out_);
                 weight *= 0.62f;
             }
             return Lerp(0.34f, 1f, Saturate(1f - closed * 1.05f));
+        }
+
+        // Which way a field rises at a point, or the guess if it's flat there.
+        private static Vector3 Gradient(Func<Vector3, float> distance, Vector3 p, float step, Vector3 guess)
+        {
+            Vector3 g = new Vector3(
+                distance(p + Vector3.UnitX * step) - distance(p - Vector3.UnitX * step),
+                distance(p + Vector3.UnitY * step) - distance(p - Vector3.UnitY * step),
+                distance(p + Vector3.UnitZ * step) - distance(p - Vector3.UnitZ * step));
+            return g.LengthSquared > 1e-12f ? g.Normalized() : guess;
         }
 
         private static Vector3 Direction(WorldRandom random)

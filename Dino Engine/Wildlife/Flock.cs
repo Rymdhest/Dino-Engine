@@ -555,8 +555,9 @@ namespace Dino_Engine.Wildlife
             float dip = _kind.Bounds ? _fold * 2.8f : 0f;
             Position += (_velocity - Vector3.UnitY * dip) * deltaTime;
 
-            // However steep the land, it goes over it and never through it. A bird can't outclimb a cliff, so it slows, as a real one would.
-            float under = Sim.Land.RoughGround(Position.Xz) + ClearOfGround;
+            // However steep the land, it goes over it and never through it. A bird can't outclimb a cliff, so it slows, as a real one would. It's the ground as it's drawn that
+            // it keeps over, as on a sheer face that and a straight line between the height map's points can be a metre apart.
+            float under = MathF.Max(Sim.Land.RoughGround(Position.Xz), Sim.Land.Ground(Position.Xz)) + ClearOfGround;
             if (Position.Y < under)
             {
                 Position.Y = under;

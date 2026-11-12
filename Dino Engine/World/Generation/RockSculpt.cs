@@ -1,3 +1,4 @@
+using Dino_Engine.World.Content;
 using OpenTK.Mathematics;
 using static Dino_Engine.World.WorldMath;
 
@@ -5,8 +6,9 @@ namespace Dino_Engine.World.Generation
 {
     /// <summary>
     /// Turns the shape of the mountains into rock, a metre at a time, and only where nobody goes: everything here is measured out from the land a character can reach, so
-    /// that land stays exactly as it was, and what looks like the edge of the world really is a wall. In order: a wall where the rock begins, with the scree that's fallen from it,
-    /// gullies down every slope, hard beds standing out of soft ones, and then the whole of it broken along the world's joints.
+    /// that land stays exactly as it was, and what looks like the edge of the world really is a wall. In order: a wall where the rock begins, with the scree that's fallen from it;
+    /// the form the biomes there give their mountains (<see cref="MountainForm"/>: towers, tops cut flat at a bed, crests drawn up into teeth, domes, blades); ravines cut along the
+    /// ways water leaves the mountains (<see cref="Drainage"/>); gullies down every slope; hard beds standing out of soft ones; and then the whole of it broken along the world's joints.
     /// Every point is worked out alone, so this runs in parallel and in any order. Safe from many threads.
     /// </summary>
     public sealed class RockSculpt
@@ -17,6 +19,7 @@ namespace Dino_Engine.World.Generation
         private const float Margin = 2f;            // Metres left between the last reachable ground and where rock can begin.
         private const float SightMargin = 0.3f;
         private const byte StandableRock = 128;     // The most rock there can be under someone, as FinalizeStage has it.
+        private const float SummitReach = 56f;      // Metres around a point that its mountain's top is looked for in.
 
         private readonly WorldData _world;
         private readonly Geology _rock;
@@ -25,11 +28,18 @@ namespace Dino_Engine.World.Generation
         private readonly ScalarField _steep;
         private readonly ScalarField _crests;
         private readonly ScalarField _reach;
+        private readonly ScalarField _foot;
+        private readonly ScalarField _summit;
         private readonly WorldNoise _noise;
         private readonly uint _seed;
+        private readonly uint _towerSalt;
         private readonly ErosionFilter.Style _style;
         private readonly Vector2 _along;
         private readonly Vector2 _across;
+        private readonly Vector2 _dipWay;
+        private readonly float _towerSpacing;
+        private readonly float _towerCrown;
+        private readonly float _bladeSpacing;
 
         public RockSculpt(WorldData world, WorldRandom random)
         {
@@ -54,12 +64,31 @@ namespace Dino_Engine.World.Generation
             _seed = (uint)random.Fork("gullies").NextULong();
             _along = new Vector2(MathF.Cos(_rock.Strike), MathF.Sin(_rock.Strike));
             _across = new Vector2(-_along.Y, _along.X);
+            _dipWay = _rock.Dip.LengthSquared > 1e-6f ? _rock.Dip.Normalized() : _across;
+
+            // What each form makes of this world's rock: towers of granite are broad sugarloaves and of sandstone thin flat-topped pillars, and so on.
+            WorldRandom forms = random.Fork("forms");
+            (float spacing, float crown) = _rock.Kind switch
+            {
+                RockKind.Granite => (36f, 0.5f),
+                RockKind.Limestone => (26f, 0.32f),
+                RockKind.Sandstone => (19f, 0.06f),
+                RockKind.Schist => (22f, 0.2f),
+                _ => (18f, 0.04f),
+            };
+            _towerSpacing = spacing * forms.Range(0.85f, 1.15f);
+            _towerCrown = crown;
+            _towerSalt = (uint)forms.NextULong();
+            _bladeSpacing = forms.Range(17f, 28f);
 
             float[] reachable = world.Reachable.Data;
             ScalarField reach = ScalarField.DistanceTo(world.Reachable.Width, world.Reachable.Depth, WorldData.CoarseCell, i => reachable[i] > 0.5f);
             // The map's cells would show as steps along the foot of a wall. Blurring eats into the land by a little, which Margin allows for.
             reach.Blur(1, 2);
             _reach = reach;
+
+            _foot = FootOf(world);
+            _summit = SummitOf(world.Elevation, SummitReach);
 
             _style = new ErosionFilter.Style
             {
@@ -83,6 +112,76 @@ namespace Dino_Engine.World.Generation
                 Lacunarity = 2f,
                 Gain = 0.5f,
             };
+        }
+
+        // The height of the land at the foot of each mountain: every cell of rock takes the height of the nearest land outside it, which is what a mountain's forms stand up from.
+        private static ScalarField FootOf(WorldData world)
+        {
+            ScalarField elevation = world.Elevation;
+            float[] massif = world.Massif.Data;
+            int width = elevation.Width;
+            int depth = elevation.Depth;
+            var foot = ScalarField.ForWorld(world.Size, WorldData.CoarseCell);
+            float[] data = foot.Data;
+            bool[] known = new bool[data.Length];
+            var queue = new Queue<int>();
+            for (int i = 0; i < data.Length; i++)
+            {
+                if (massif[i] >= 0.5f) continue;
+                data[i] = MathF.Max(elevation.Data[i], WorldPlan.SeaLevel);
+                known[i] = true;
+                queue.Enqueue(i);
+            }
+            while (queue.Count > 0)
+            {
+                int i = queue.Dequeue();
+                int x = i % width;
+                int z = i / width;
+                if (x > 0) Spread(i - 1);
+                if (x < width - 1) Spread(i + 1);
+                if (z > 0) Spread(i - width);
+                if (z < depth - 1) Spread(i + width);
+
+                void Spread(int next)
+                {
+                    if (known[next]) return;
+                    known[next] = true;
+                    data[next] = data[i];
+                    queue.Enqueue(next);
+                }
+            }
+            foot.Blur(2, 2);
+            return foot;
+        }
+
+        // The highest the land comes within a reach of each point: the top of the mountain it's part of, as near as matters.
+        private static ScalarField SummitOf(ScalarField elevation, float reach)
+        {
+            int width = elevation.Width;
+            int depth = elevation.Depth;
+            int r = Math.Max((int)MathF.Round(reach / elevation.CellSize), 1);
+            float[] across = new float[elevation.Data.Length];
+            Parallel.For(0, depth, z =>
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    float most = float.MinValue;
+                    for (int dx = Math.Max(x - r, 0); dx <= Math.Min(x + r, width - 1); dx++) most = MathF.Max(most, elevation.Data[z * width + dx]);
+                    across[z * width + x] = most;
+                }
+            });
+            var summit = elevation.Copy();
+            Parallel.For(0, width, x =>
+            {
+                for (int z = 0; z < depth; z++)
+                {
+                    float most = float.MinValue;
+                    for (int dz = Math.Max(z - r, 0); dz <= Math.Min(z + r, depth - 1); dz++) most = MathF.Max(most, across[dz * width + x]);
+                    summit.Data[z * width + x] = most;
+                }
+            });
+            summit.Blur(2, 2);
+            return summit;
         }
 
         /// <summary>What a point of the height map becomes. <paramref name="height"/> is what it was, and what comes back if it's ground anybody uses.</summary>
@@ -113,33 +212,165 @@ namespace Dino_Engine.World.Generation
 
             h += Wall(x, z, inside, out float skirt) * standing;
 
+            // What the biomes here make of their mountains. A form only reshapes a mountain, never a sea cliff, and comes in quickly from the wall's foot.
+            FormBlend form = MountainForms.At(_world, x, z);
+            FormStyle style = form.Style;
+            float foot = _foot.Sample(wx, wz);
+            float relief = MathF.Max(_summit.Sample(wx, wz) - foot, 0f);
+            float shaping = rock * standing;
+            h = Towers(x, z, h, foot, relief, form.Towers * shaping * Smoothstep(1f, 7f, inside), out float apron);
+            h = Domes(x, z, h, foot, relief, form.Domes * shaping);
+            h = Blades(x, z, h, relief, form.Blades * shaping * Smoothstep(2f, 12f, inside));
+            h = Crests(x, z, h, relief, style.Crests * shaping);
+            h = Cap(x, z, h, foot, relief, style.CapLevel, style.Cap * shaping * Smoothstep(3f, 14f, inside));
+            h = Ravines(wx, wz, h, style, shaping);
+
             // Rock isn't the same all the way across: here it's broken up, there it's one great slab.
             float character = Smoothstep(0.3f, 0.7f, _noise.Fbm01(x - 450f, z + 260f, 58f, 3));
-            h = Gullies(wx, wz, h, rock * (0.35f + 0.65f * character), out float crease);
-            h = Bedding(x, z, wx, wz, h, rock * (0.45f + 0.55f * (1f - character)));
+            h = Gullies(wx, wz, h, rock * (0.35f + 0.65f * character) * style.Gullies, out float crease);
+            h = Bedding(x, z, wx, wz, h, rock * (0.45f + 0.55f * (1f - character)) * style.Bedding);
 
-            float scree = MathF.Max(crease, skirt);
+            float scree = MathF.Max(MathF.Max(crease, skirt), apron);
             if (scree > 0f) _world.Scree.Raise(nodeX, nodeZ, scree * standing);
             return h;
+        }
+
+        // Towers standing out of the mountain's foot with clefts between them, one to a cell of a jittered grid. Each has a ragged outline, walls near sheer and a crown that's
+        // domed or flat by the rock, and is as tall as its mountain, give or take; the clefts go down nearly to the land, and what's fallen off a tower lies in an apron round its foot.
+        private float Towers(float x, float z, float h, float foot, float relief, float weight, out float scree)
+        {
+            scree = 0f;
+            if (weight <= 0.001f) return h;
+            float gx = x / _towerSpacing;
+            float gz = z / _towerSpacing;
+            int cx = (int)MathF.Floor(gx);
+            int cz = (int)MathF.Floor(gz);
+            float nearest = float.MaxValue;
+            uint tower = 0;
+            for (int j = -1; j <= 1; j++)
+            {
+                for (int i = -1; i <= 1; i++)
+                {
+                    uint hash = Hash(cx + i, cz + j, _towerSalt);
+                    float px = cx + i + 0.15f + 0.7f * ((hash & 0xFFFF) / 65535f);
+                    float pz = cz + j + 0.15f + 0.7f * ((hash >> 16) / 65535f);
+                    float d = (px - gx) * (px - gx) + (pz - gz) * (pz - gz);
+                    if (d >= nearest) continue;
+                    nearest = d;
+                    tower = Mix(hash ^ 0x9E3779B9u);
+                }
+            }
+            float distance = MathF.Sqrt(nearest) * _towerSpacing;
+            float radius = _towerSpacing * (0.32f + 0.12f * ((tower & 0xFF) / 255f));
+            float ragged = (_noise.Fbm01(x * 1.3f + 91f, z * 1.3f - 17f, 7f, 2) - 0.5f) * 0.22f;
+            float t = distance / radius + ragged;
+            float body = 1f - Smoothstep(0.8f, 1.02f, t);
+            float tall = MathF.Max(relief, 14f) * (0.7f + 0.55f * (((tower >> 8) & 0xFF) / 255f)) + 6f;
+            float top = foot + tall * (1f - _towerCrown * t * t);
+            float floor = foot + MathF.Max(h - foot, 0f) * 0.18f;
+            float apron = Smoothstep(1.6f, 1f, t);
+            float cleft = Lerp(floor, floor + (top - floor) * 0.24f, apron * apron);
+            // What lies in the apron is broken rock, not bedrock.
+            scree = apron * (1f - body) * weight;
+            return Lerp(h, Lerp(cleft, top, body), weight);
+        }
+
+        // A slope swollen into a dome, and the sheets that peel off one in rings, each a step down from the one inside it.
+        private float Domes(float x, float z, float h, float foot, float relief, float weight)
+        {
+            if (weight <= 0.001f) return h;
+            float above = MathF.Max(h - foot, 0f);
+            float share = Saturate(above / MathF.Max(relief, 1f));
+            float bulge = 0.4f * above * (1f - share);
+            float ring = (above + bulge) / 3.2f + (_noise.Fbm01(x - 77f, z + 41f, 23f, 2) - 0.5f) * 0.8f;
+            float f = ring - MathF.Floor(ring);
+            float sheet = Smoothstep(0.72f, 0.96f, f) - f;
+            return h + (bulge + sheet) * weight;
+        }
+
+        // Beds stood on end wear into ribs across the way they dip: a sheer front where the beds are cut across, a gentle back that's the top of a bed, and thin fins standing
+        // along the strike on top of them.
+        private float Blades(float x, float z, float h, float relief, float weight)
+        {
+            if (weight <= 0.001f) return h;
+            float s = (x * _dipWay.X + z * _dipWay.Y) / _bladeSpacing + (_noise.Fbm01(x * 0.5f, z * 0.5f, 40f, 2) - 0.5f) * 0.8f;
+            float f = s - MathF.Floor(s);
+            float rib = f < 0.22f ? f / 0.22f : (1f - f) / 0.78f;
+            float amplitude = Math.Clamp(relief * 0.22f, 3f, 11f);
+            float fins = s * 3.1f;
+            float fin = MathF.Pow(1f - MathF.Abs(2f * (fins - MathF.Floor(fins)) - 1f), 6f);
+            return h + ((rib - 0.5f) * amplitude + fin * 1.4f) * weight;
+        }
+
+        // A crest drawn up into an edge, and broken along it into teeth.
+        private float Crests(float x, float z, float h, float relief, float weight)
+        {
+            if (weight <= 0.001f) return h;
+            float crest = _crests.Sample(x, z);
+            float ridge = Smoothstep(0.25f, 1f, crest);
+            float raise = ridge * ridge * MathF.Min(relief, 60f) * 0.2f;
+            float teeth = Smoothstep(0.45f, 1f, crest) * (_noise.Ridged(x + 37f, z - 11f, 13f, 3) - 0.45f) * 7f;
+            return h + (raise + teeth) * weight;
+        }
+
+        // Whatever stood above a level is cut away to it, nearly flat, and the level is always the foot of a bed, so a top ends at a parting, as a mesa's caprock does.
+        private float Cap(float x, float z, float h, float foot, float relief, float share, float weight)
+        {
+            if (weight <= 0.001f || relief < 6f) return h;
+            float level = foot + relief * share;
+            _rock.BedAt(_rock.LayerAt(x, level, z), out float since, out _, out _);
+            float cap = level - since;
+            if (h <= cap) return h;
+            return Lerp(h, cap + (h - cap) * 0.12f, weight);
+        }
+
+        // A ravine cut along a way water leaves the mountains: as deep and wide as the water through it, its walls sheer or sloping by the form, and its floor never below
+        // where the water leaves the rock, so it always falls towards its mouth. Only the big channels cut deep: a mountain cut as deep by every runnel is all spikes.
+        private float Ravines(float x, float z, float h, in FormStyle style, float weight)
+        {
+            if (weight <= 0.001f || style.RavineDepth <= 0.1f) return h;
+            float within = style.RavineWidth * 0.5f + style.RavineWall + 1f;
+            if (!_world.Drainage.Nearest(new Vector2(x, z), within, out Drainage.Reach reach, out float distance, out float along)) return h;
+            float size = Drainage.Size(Lerp(reach.Area, reach.AreaTo, along));
+            float deep = size * size * MathF.Sqrt(size);
+            float half = style.RavineWidth * (0.3f + 0.7f * size) * 0.5f;
+            float wall = style.RavineWall * (0.6f + 0.4f * size);
+            float profile = 1f - Smoothstep(half, half + wall, distance);
+            if (profile <= 0f || deep < 0.01f) return h;
+            float depth = style.RavineDepth * deep;
+            float channel = Lerp(reach.Height, reach.HeightTo, along);
+            float floor = MathF.Max(channel - depth, Lerp(reach.Floor, reach.FloorTo, along));
+            return Lerp(h, MathF.Min(h, floor), profile * weight);
         }
 
         /// <summary>
         /// Breaks the sculpted rock along its joints, once every point of it is known. Nothing about rock is smooth at this scale: a slope is made of flat faces that meet at
         /// edges, and those faces lie along a few planes, over and over. So a slope is cut into cells, each is replaced by the plane through it, and that plane is pulled round
-        /// towards the nearest of the world's joints. Then the small cells break up the large ones.
+        /// towards the nearest of the world's joints. Then the small cells break up the large ones. How hard depends on the form: a dome hardly breaks, a blade breaks everywhere.
         /// </summary>
         public void Break(ScalarField height)
         {
-            float[] source = new float[height.Data.Length];
-            Array.Copy(height.Data, source, source.Length);
-            Facets(source, height, _rock.BlockSize.X, 0x51ED2701u, 1.5f * _rock.Blockiness, 4.5f, 0.8f);
-            Array.Copy(height.Data, source, source.Length);
-            Facets(source, height, _rock.BlockSize.Y, 0x7F4A7C15u, 0.6f * _rock.Blockiness, 1.8f, 0.62f);
-
-            // Whatever a face is, it isn't polished.
             byte[] rock = _world.Rock.Data;
             int width = height.Width;
             float cell = height.CellSize;
+            float[] facets = new float[height.Data.Length];
+            Parallel.For(0, height.Depth, z =>
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    int i = z * width + x;
+                    if (rock[i] == 0) continue;
+                    facets[i] = MathF.Min(MountainForms.At(_world, x * cell, z * cell).Style.Facets, 1.25f);
+                }
+            });
+
+            float[] source = new float[height.Data.Length];
+            Array.Copy(height.Data, source, source.Length);
+            Facets(source, height, facets, _rock.BlockSize.X, 0x51ED2701u, 1.5f * _rock.Blockiness, 4.5f, 0.8f);
+            Array.Copy(height.Data, source, source.Length);
+            Facets(source, height, facets, _rock.BlockSize.Y, 0x7F4A7C15u, 0.6f * _rock.Blockiness, 1.8f, 0.62f);
+
+            // Whatever a face is, it isn't polished.
             Parallel.For(0, height.Depth, z =>
             {
                 for (int x = 0; x < width; x++)
@@ -151,7 +382,7 @@ namespace Dino_Engine.World.Generation
             });
         }
 
-        private void Facets(float[] source, ScalarField height, float size, uint salt, float lift, float reach, float share)
+        private void Facets(float[] source, ScalarField height, float[] strength, float size, uint salt, float lift, float reach, float share)
         {
             byte[] rock = _world.Rock.Data;
             int width = height.Width;
@@ -176,7 +407,7 @@ namespace Dino_Engine.World.Generation
                     float faced = Lerp(near, far, meet) - (1f - Smoothstep(0f, crack, edge)) * lift * 0.5f;
                     // A plane runs away from a slope that curves. The shape of the mountain was worked out with some care, and it stays.
                     faced = Math.Clamp(faced, source[i] - reach, source[i] + reach);
-                    height.Data[i] = Lerp(source[i], faced, share * rock[i] / 255f);
+                    height.Data[i] = Lerp(source[i], faced, MathF.Min(share * strength[i], 1f) * rock[i] / 255f);
                 }
             });
         }

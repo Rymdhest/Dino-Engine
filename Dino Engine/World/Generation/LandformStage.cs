@@ -33,6 +33,11 @@ namespace Dino_Engine.World.Generation
             WorldPlan plan = world.Plan;
             WorldRandom random = world.Random.Fork("landform");
             float size = plan.Size;
+            if (plan.Archetype.Landform == LandformKind.Vista)
+            {
+                RunVista(world);
+                return;
+            }
 
             var coastNoise = new WorldNoise(random.Fork("coast"));
             var reliefNoise = new WorldNoise(random.Fork("relief"));
@@ -106,6 +111,30 @@ namespace Dino_Engine.World.Generation
             world.Highland = highland;
             // Refined by the erosion stage once the shape is final.
             world.Inland = inland;
+        }
+
+        // The picture behind the menu is laid out rather than drawn: its heights, its water and where it closes off are all Vista's. Its rock is raised by the mountain stage, as anyone's is.
+        private static void RunVista(WorldData world)
+        {
+            var vista = new Vista(world.Random.Fork("vista"));
+            float size = world.Plan.Size;
+            ScalarField shape = ScalarField.ForWorld(size, WorldData.CoarseCell);
+            shape.Generate(vista.Outline);
+            float[] land = shape.Data;
+            int width = shape.Width;
+            int depth = shape.Depth;
+
+            ScalarField boundary = ScalarField.ForWorld(size, WorldData.CoarseCell);
+            ScalarField highland = ScalarField.ForWorld(size, WorldData.CoarseCell);
+            ScalarField elevation = ScalarField.ForWorld(size, WorldData.CoarseCell);
+            boundary.Generate(vista.Rock);
+            highland.Generate(vista.Rock);
+            elevation.Generate(vista.Height);
+
+            world.Elevation = elevation;
+            world.Boundary = boundary;
+            world.Highland = highland;
+            world.Inland = ScalarField.DistanceTo(width, depth, WorldData.CoarseCell, i => land[i] <= 0f);
         }
 
         // 0 inside the world, rising to 1 at its edge, along a wandering line.

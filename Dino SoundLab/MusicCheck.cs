@@ -47,6 +47,7 @@ namespace Dino_SoundLab
             Part("Sound", CheckSound);
             Part("Balance", CheckBalance);
             Part("Transitions", () => CheckTransitions(options.Int("transitions", 4)));
+            Part("Overture", CheckOverture);
 
             Console.WriteLine($"{_checks} checks, {_failures} failed, in {clock.Elapsed.TotalSeconds:0.0} s.");
             return _failures == 0 ? 0 : 1;
@@ -761,6 +762,134 @@ namespace Dino_SoundLab
             return 10f * MathF.Log10((float)energy + 1e-9f);
         }
 
+        // ---- The overture. ----
+
+        // The menu's overture has the shape of the recording a person chose for it, measured: no bass for its opening, a pedal arriving, a crescendo of some twenty decibels to the
+        // theme with everyone behind it, a drop into the dominant that builds back, the loudest return, a swell onto the last chord and a long fade over its bass. Checked for the
+        // game's own and for other seeds, as the generator has to make one of these from any.
+        private static void CheckOverture()
+        {
+            foreach (ulong seed in new ulong[] { MusicPlace.HavenSeed, 7, 4242 })
+            {
+                MusicPlace place = MusicPlace.Home;
+                place.Seed = seed;
+                var engine = new MusicEngine(place);
+                Score.Setting setting = engine.Score.For(MusicMood.Title);
+                string name = $"the overture, seed {seed}";
+
+                // Where each movement starts, and every note, as the band is told them.
+                var starts = new Dictionary<string, double>();
+                var notes = new List<(string movement, Note note)>();
+                int count = 0;
+                engine.Listener = (bar, at) =>
+                {
+                    string movement = bar.Label.Split(' ').Length > 1 ? bar.Label.Split(' ')[1] : bar.Label;
+                    if (bar.Label == "rest") movement = "rest";
+                    starts.TryAdd(movement, at / (double)AudioFormat.SampleRate);
+                    if (starts.ContainsKey("rest") && movement == "Prelude" && !starts.ContainsKey("again")) starts["again"] = at / (double)AudioFormat.SampleRate;
+                    foreach (Note note in bar.Notes) notes.Add((movement, note));
+                    count += bar.Notes.Count;
+                };
+                engine.Set(new MusicIntent { Mood = MusicMood.Title, Intensity = 0.35f });
+
+                const int Step = 1024;
+                var left = new float[Step];
+                var right = new float[Step];
+                var energy = new List<double>();
+                var low = new List<double>();
+                var filter = Biquad.Lowpass(110f);
+                float peak = 0f;
+                bool finite = true;
+                for (int block = 0; block < 260 * AudioFormat.SampleRate / Step && !starts.ContainsKey("again"); block++)
+                {
+                    engine.Render(left, right, Step);
+                    double sum = 0.0, under = 0.0;
+                    for (int i = 0; i < Step; i++)
+                    {
+                        float mono = 0.5f * (left[i] + right[i]);
+                        float bass = filter.Process(mono);
+                        sum += mono * mono;
+                        under += bass * bass;
+                        peak = MathF.Max(peak, MathF.Max(MathF.Abs(left[i]), MathF.Abs(right[i])));
+                        finite &= float.IsFinite(left[i]) && float.IsFinite(right[i]);
+                    }
+                    energy.Add(sum);
+                    low.Add(under);
+                }
+
+                string[] movements = setting.Style.Plan.Select(movement => movement.Name).ToArray();
+                Expect(movements.All(starts.ContainsKey) && starts.ContainsKey("rest") && starts.ContainsKey("again"), $"{name} didn't play through and begin again: it reached {string.Join(", ", starts.Keys)}");
+                Expect(finite && engine.Band.Faults == 0, $"{name} has NaN or infinity in it");
+                Expect(engine.Band.Stolen <= count / 100, $"{name} ran out of voices for {engine.Band.Stolen} of its {count} notes");
+                Expect(peak <= AudioFormat.DecibelsToGain(-2f) + 0.001f, $"{name} went over the band's ceiling");
+                if (!movements.All(starts.ContainsKey) || !starts.ContainsKey("rest")) continue;
+
+                double blockSeconds = Step / (double)AudioFormat.SampleRate;
+                double Seconds(string movement) => starts[movement];
+                double End(string movement) => movement == movements[^1] ? starts["rest"] : starts[movements[Array.IndexOf(movements, movement) + 1]];
+                float Level(double from, double to)
+                {
+                    int a = (int)(from / blockSeconds), b = Math.Min((int)(to / blockSeconds), energy.Count);
+                    double sum = 1e-12;
+                    for (int i = a; i < b; i++) sum += energy[i];
+                    return 10f * MathF.Log10((float)(sum / Math.Max(b - a, 1) / Step));
+                }
+                float LowShare(double from, double to)
+                {
+                    int a = (int)(from / blockSeconds), b = Math.Min((int)(to / blockSeconds), energy.Count);
+                    double under = 0.0, all = 1e-12;
+                    for (int i = a; i < b; i++)
+                    {
+                        under += low[i];
+                        all += energy[i];
+                    }
+                    return (float)(under / all);
+                }
+                float Whole(string movement) => Level(Seconds(movement), End(movement));
+                float Opening(string movement) => Level(Seconds(movement), Seconds(movement) + 5.0);
+                float Ending(string movement) => Level(End(movement) - 5.0, End(movement));
+
+                float prelude = Whole("Prelude"), rising = Whole("Rising"), theme = Ending("Theme"), away = Opening("Away"), awayEnd = Ending("Away"), back = Whole("Return");
+                float fade = Level(starts["rest"] + 10.0, starts["rest"] + 13.0);
+                Console.WriteLine($"  {name}: {setting.Tempo:0} bpm, key {MusicLab.NoteName(setting.Tonic)}. Prelude {prelude - back:0.0}, rising {rising - back:0.0}, theme's height {theme - back:0.0}, away {away - back:0.0} building to {awayEnd - back:0.0}, return 0, ten seconds into the fade {fade - back:0.0} dB. {Seconds("rest"):0} s long.");
+                Expect(back - prelude > 14f, $"{name}: the prelude is only {back - prelude:0.0} dB under the return, where the recording's is twenty or more");
+                Expect(rising > prelude + 1.5f && theme > rising + 3f, $"{name} doesn't build: prelude {prelude:0.0}, rising {rising:0.0}, theme {theme:0.0} dB");
+                Expect(away < theme - 2f && awayEnd > away + 2f, $"{name}: the dominant doesn't drop and build back ({away - theme:0.0} dB on arriving, {awayEnd - away:0.0} dB on)");
+                Expect(back >= theme - 1f && back >= awayEnd, $"{name}: the return isn't its height");
+                Expect(fade < back - 25f, $"{name} doesn't fade out: {fade - back:0.0} dB ten seconds after the last chord");
+
+                // No bass until the pedal comes in, and then plenty: its arrival is the first thing that happens.
+                float before = LowShare(Seconds("Prelude"), End("Prelude")), after = LowShare(Seconds("Rising"), End("Rising"));
+                Expect(before < 0.06f && after > before * 2f, $"{name}: {before * 100f:0}% of the prelude is under 110 Hz and {after * 100f:0}% of what follows");
+
+                // The middle is really in the dominant: what it plays belongs to that key, and the return comes home.
+                Mode mode = setting.Mode;
+                bool InKey(int pitch, int tonic)
+                {
+                    int degree = ((pitch - tonic) % 12 + 12) % 12;
+                    for (int d = 0; d < 7; d++)
+                    {
+                        if (mode.Pitch(0, d) % 12 == degree) return true;
+                    }
+                    return false;
+                }
+                float Belongs(string movement, int tonic)
+                {
+                    var pitched = notes.Where(n => n.movement == movement && !IsDrum(n.note.Section)).ToList();
+                    return pitched.Count == 0 ? 0f : pitched.Count(n => InKey(n.note.Pitch, tonic)) / (float)pitched.Count;
+                }
+                int dominant = setting.Tonic + setting.Style.Plan.First(m => m.Name == "Away").Key;
+                Expect(Belongs("Away", dominant) > 0.9f, $"{name}: only {Belongs("Away", dominant) * 100f:0}% of the middle is in the dominant");
+                Expect(Belongs("Return", setting.Tonic) > 0.9f, $"{name}: only {Belongs("Return", setting.Tonic) * 100f:0}% of the return is in the home key");
+            }
+
+            // It's the Haven's score, so the theme it announces is the one the Haven's waltz is made of.
+            var home = new Score(MusicPlace.Home);
+            float kinship = Correlation(Songwriter.ShapeOf(home.For(MusicMood.Haven).First), Songwriter.ShapeOf(home.For(MusicMood.Title).First));
+            Console.WriteLine($"  The overture's theme and the Haven's correlate by {kinship:0.00}.");
+            Expect(kinship > 0.5f, $"the overture's theme isn't the Haven's ({kinship:0.00})");
+        }
+
         // ---- Sound. ----
 
         // Recorded orchestras have under a tenth of their energy there.
@@ -783,6 +912,7 @@ namespace Dino_SoundLab
             foreach (MusicPlace place in Places(30).Where((place, i) => i % 3 == 0)) cases.Add((place, MusicMood.Land));
             cases.Add((Places(4).Last(), MusicMood.Boss));
             cases.Add((MusicPlace.Home, MusicMood.Haven));
+            cases.Add((MusicPlace.Home, MusicMood.Title));
             foreach (MusicPlace arena in Specials().Skip(1)) cases.Add((arena, MusicMood.Arena));
 
             var lines = new string[cases.Count];

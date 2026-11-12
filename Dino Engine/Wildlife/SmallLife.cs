@@ -74,7 +74,8 @@ namespace Dino_Engine.Wildlife
         public override void Step(float deltaTime)
         {
             float now = Sim.Now;
-            float grass = Sim.Land.RoughGround(_at) + _grass;
+            // Over the ground as it's drawn, which on anything steep is not a straight line between the height map's points.
+            float grass = MathF.Max(Sim.Land.RoughGround(_at), Sim.Land.Ground(_at)) + _grass;
             float fright = Sim.Fright(_at, _kind.Shy, out Vector2 away);
             if (fright < 1f && now >= _scaredUntil)
             {
@@ -187,7 +188,7 @@ namespace Dino_Engine.Wildlife
         private Vector3 Somewhere()
         {
             Vector2 at = _patrol.Centre + new Vector2(Sim.Random.Range(-Roam, Roam), Sim.Random.Range(-Roam, Roam));
-            float below = MathF.Max(Sim.Land.WaterLevel(at), Sim.Land.RoughGround(at) + Sim.Land.GrassTop(at));
+            float below = MathF.Max(Sim.Land.WaterLevel(at), MathF.Max(Sim.Land.RoughGround(at), Sim.Land.Ground(at)) + Sim.Land.GrassTop(at));
             return new Vector3(at.X, below + Sim.Random.Range(0.9f, 1.8f), at.Y);
         }
 

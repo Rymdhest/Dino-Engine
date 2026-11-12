@@ -241,12 +241,17 @@ namespace Dino_Engine.Sound.Music
         /// <summary>Every mood asked for so far, as a scripted run only sees where it ended up.</summary>
         public static HashSet<MusicMood> Heard { get; } = new();
 
-        /// <summary>Starts a place's score, replacing any other.</summary>
-        public static void Begin(MusicPlace place)
+        /// <summary>
+        /// Starts a place's score, replacing any other, with what it should play from its first bar: the mood the last place was left in means nothing here, and once began the
+        /// Haven with a tyrant's fight asked of it.
+        /// </summary>
+        public static void Begin(MusicPlace place, MusicMood mood)
         {
             End(1.5f);
             _starting = place;
             Place = place;
+            _mood = mood;
+            Heard.Add(mood);
             _voice = Audio.Start(Definition, gain: 1f, seed: place.Seed + 1UL);
             _stream = Audio.LiveOf(_voice) as MusicStream;
             Update(MusicCue.None);

@@ -276,13 +276,14 @@ namespace Dino_NetLab
         // Past the most an isle can be over the least it usually is, so that the size drawn for the land is what it comes to.
         private const float AsLargeAsItCanBe = 3f;
 
-        public GameLab(WorldCache worlds, WorldRequest request, string? startSite = "BanditCamp", LandTerms? terms = null, SaveGame? save = null)
+        /// <param name="calm">Nothing that's there to be fought stirs (ServerSettings.Calm), for what's about the line and not a fight: a land's packs are laid out by its mountains, and one can come to lie near enough to wake.</param>
+        public GameLab(WorldCache worlds, WorldRequest request, string? startSite = "BanditCamp", LandTerms? terms = null, SaveGame? save = null, bool calm = false)
         {
             _worlds = worlds;
 
             // Generation takes real time, and this clock doesn't wait for it.
             worlds.Get(Shaped(request, terms)).Wait();
-            Server = new GameServer(new ServerSettings { Request = request, Terms = terms, Save = save, StartSite = startSite, AllowTeleport = true }, worlds);
+            Server = new GameServer(new ServerSettings { Request = request, Terms = terms, Save = save, StartSite = startSite, AllowTeleport = true, Calm = calm }, worlds);
             Server.Clock = () => (long)(_now * 1000.0);
         }
 
@@ -663,8 +664,9 @@ namespace Dino_NetLab
         // A blow can stun someone on any line at all, and it's the server's word. A hero who's walking is what shows it, as one standing still has nothing to be wrong about.
         private static void StunnedWalking(Report report, WorldCache worlds, WorldRequest request)
         {
-            // From the landing, inland, where nothing else can stop them: what a held place's raptors do to someone walking through is a fight, and not what's being looked at.
-            using var lab = new GameLab(worlds, request, "Landing");
+            // From the landing, inland, where nothing else can stop them: what a held place's raptors do to someone walking through is a fight, and not what's being looked at,
+            // and neither is a pack near enough the landing to wake.
+            using var lab = new GameLab(worlds, request, "Landing", calm: true);
             LabPlayer player = lab.AddPlayer("Hero", new NetworkConditions { Latency = 30, Jitter = 5 }, 6, hero: GameLab.SturdyHero());
             lab.Run(6);
 
@@ -1082,8 +1084,9 @@ namespace Dino_NetLab
         // twice. Whatever the line does, one press has to be one action.
         private static void PressesHappenOnce(Report report, WorldCache worlds, WorldRequest request, string name, NetworkConditions conditions)
         {
-            // At the landing, as this is about the line: a hero stunned in the middle of a camp has a press refused, rightly, and that would count against it.
-            using var lab = new GameLab(worlds, request, "Landing");
+            // At the landing, as this is about the line: a hero stunned in the middle of a camp has a press refused, rightly, and that would count against it, as it would by
+            // a pack near enough the landing to wake, so nothing there stirs.
+            using var lab = new GameLab(worlds, request, "Landing", calm: true);
             LabPlayer player = lab.AddPlayer("Hero", conditions, 80);
             player.Fights = false;
             lab.Run(6);

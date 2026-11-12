@@ -140,6 +140,8 @@ namespace Dino_Engine.World
             float bare = world.Rock.Sample(x, z);
             rock = MathF.Max(rock, bare * Smoothstep(0.26f, 0.5f, slope + breakup * 0.2f));
             float scree = world.Scree.Sample(x, z) * (1f - Smoothstep(0.75f, 1.25f, slope));
+            // And in the land people walk on, bedrock shows through where the soil's thin (GroundRock): a pavement of its blocks.
+            float pavement = (world.GroundRock?.Pavement(x, z) ?? 0f) * (1f - rock);
 
             float above = height - world.Height.Sample(position) + world.ShoreHeightAt(position);
             float shore = 1f - Smoothstep(0.3f, 1.8f, above + breakup * 0.45f + drift * 0.4f);
@@ -153,7 +155,8 @@ namespace Dino_Engine.World
             paving = Smoothstep(0.28f, 0.72f, paving + (breakup * 0.32f + drift * 0.12f) * Saturate(paving * 3f) * Saturate((1f - paving) * 3f));
 
             float notRoad = 1f - onRoad;
-            float natural = notRoad * (1f - rock) * (1f - shore) * (1f - plaza) * (1f - farm) * (1f - yard * 0.85f);
+            pavement *= notRoad * (1f - plaza) * (1f - farm) * (1f - yard) * (1f - garden) * (1f - shore);
+            float natural = notRoad * (1f - rock) * (1f - shore) * (1f - plaza) * (1f - farm) * (1f - yard * 0.85f) * (1f - pavement);
             float shade = Saturate(canopy * 1.25f + drift * 0.3f);
 
             float cover = 0f;
@@ -193,6 +196,7 @@ namespace Dino_Engine.World
             }
 
             weights[_slot[(int)SurfaceMaterial.Gravel]] += scree * rock * notRoad * 2f;
+            weights[_slot[(int)SurfaceMaterial.Rock]] += pavement;
             // A square is cobbled, and frays out into the land through a margin of gravel.
             float square = Smoothstep(0.45f, 0.8f, plaza);
             // A street is setts laid square across it between kerbs, read along the road; where roads meet, where it ends or where it runs into a square there's
@@ -236,7 +240,7 @@ namespace Dino_Engine.World
 
             float small = 0.8f + 0.2f * _noise.Fbm01(x, z, 2.2f, 2);
             float broad = 0.72f + 0.28f * _noise.Fbm01(x + 91f, z - 13f, 6f, 2);
-            float grows = (1f - rock) * (1f - bare * 0.55f) * notRoad * (1f - plaza) * (1f - farm) * (1f - yard * 0.7f) * (1f - hall) * (1f - paving) * (1f - Saturate(floor * 1.6f));
+            float grows = (1f - rock) * (1f - bare * 0.55f) * notRoad * (1f - plaza) * (1f - farm) * (1f - yard * 0.7f) * (1f - hall) * (1f - paving) * (1f - Saturate(floor * 1.6f)) * (1f - pavement * 0.8f);
             // Grass thins out over the last of the dry ground and stops at the water.
             grows *= Smoothstep(0.02f, 0.5f, above);
 

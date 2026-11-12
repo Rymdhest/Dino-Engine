@@ -68,6 +68,9 @@ namespace Dino_Engine.Sound.Music
             {
                 Main = MusicMood.Haven;
                 _settings[Main] = Set(Arranger.Haven(arranging));
+
+                // The game's theme, behind the main menu: the Haven's own tune, as an overture. After the waltz, so as to take nothing from what the waltz draws.
+                _settings[MusicMood.Title] = Set(Arranger.Overture(arranging));
             }
             else if (place.Arena)
             {
@@ -110,8 +113,8 @@ namespace Dino_Engine.Sound.Music
             Chord[] harmony = Harmony.Write(random, style.Language, mode, style.Colour);
             Chord[] contrast = Harmony.Write(random, style.Language, mode, style.Colour);
 
-            var brief = new TuneBrief { Mode = mode, Meter = meter, Style = style.Melodic, Harmony = harmony, Shape = _shape, Taste = _taste };
-            var answer = new TuneBrief { Mode = mode, Meter = meter, Style = style.Melodic, Harmony = contrast, LowestDegree = 0, HighestDegree = 11, Taste = _taste };
+            var brief = new TuneBrief { Mode = mode, Meter = meter, Style = style.Melodic, Harmony = harmony, Shape = _shape, Taste = _taste, Candidates = style.TuneCandidates };
+            var answer = new TuneBrief { Mode = mode, Meter = meter, Style = style.Melodic, Harmony = contrast, LowestDegree = 0, HighestDegree = 11, Taste = _taste, Candidates = style.TuneCandidates };
 
             return new Setting
             {
@@ -305,15 +308,29 @@ namespace Dino_Engine.Sound.Music
         private Bar WriteBar(float intensity)
         {
             Score.Setting setting = _setting!;
-            MelodyUse section = Form[_formIndex % Form.Length];
-            _tune ??= TuneFor(section);
+            Style style = setting.Style;
+
+            // A piece with a plan goes where it says, whatever the game asks for: an overture builds as it was written to.
+            Movement? movement = style.Plan.Length > 0 ? style.Plan[_formIndex % style.Plan.Length] : null;
+            if (movement is { Close: true }) return WriteClose(setting, movement);
+
+            MelodyUse section = movement?.Use ?? Form[_formIndex % Form.Length];
+            _tune ??= TuneFor(movement?.Tune ?? section);
             Tune tune = _tune;
 
-            Style style = setting.Style;
-            float tempo = setting.Tempo * (1f + style.TempoLift * (intensity - 0.5f));
-            float arrival = 1f - ArrivalDip * _arriving / ArrivalBars;
-            if (_arriving > 0) _arriving--;
-            float shaped = Math.Clamp(intensity * Tide(style, tune.Bars) * arrival, 0f, 1f);
+            float shaped;
+            if (movement != null)
+            {
+                float along = MathF.Pow(_bar / (float)Math.Max(tune.Bars - 1, 1), movement.Curve);
+                shaped = Math.Clamp(movement.From + (movement.To - movement.From) * along, 0f, 1f);
+            }
+            else
+            {
+                float arrival = 1f - ArrivalDip * _arriving / ArrivalBars;
+                if (_arriving > 0) _arriving--;
+                shaped = Math.Clamp(intensity * Tide(style, tune.Bars) * arrival, 0f, 1f);
+            }
+            float tempo = setting.Tempo * (movement?.Pace ?? 1f) * (1f + style.TempoLift * ((movement != null ? shaped : intensity) - 0.5f));
             _played = shaped;
             BarContext bar = _context;
             bar.Chord = tune.Harmony[_bar];
@@ -322,7 +339,7 @@ namespace Dino_Engine.Sound.Music
             bar.Mode = bar.Chord.Borrow ?? setting.Mode;
             bar.Harmony = tune.Harmony;
             bar.AbsoluteBeat = _absolute;
-            bar.Tonic = setting.Tonic;
+            bar.Tonic = setting.Tonic + (movement?.Key ?? 0);
             bar.Meter = setting.Meter;
             bar.BeatSeconds = 60f / tempo;
             _beat = bar.BeatSeconds;
@@ -362,7 +379,7 @@ namespace Dino_Engine.Sound.Music
             }
             if (melody.Count > 0) bar.PreviousMelodyDegree = melody[^1].Degree;
 
-            var written = new Bar { Seconds = beats * bar.BeatSeconds, Beats = (int)beats, Label = $"{style.Mood} {section} {_bar + 1}" };
+            var written = new Bar { Seconds = beats * bar.BeatSeconds, Beats = (int)beats, Label = $"{style.Mood} {movement?.Name ?? section.ToString()} {_bar + 1}" };
             float ritard = _performer.Perform(bar, written);
             written.Seconds *= ritard;
             _absolute += beats;
@@ -400,14 +417,38 @@ namespace Dino_Engine.Sound.Music
             _formIndex++;
             _phrasesSinceRest++;
 
-            bool whole = _formIndex % Form.Length == 0;
+            bool planned = style.Plan.Length > 0;
+            bool whole = _formIndex % (planned ? style.Plan.Length : Form.Length) == 0;
             if (whole) _score.Refresh(style.Mood, _random);
+
+            // An overture that has finished is left to ring out into a silence before it's begun again, with new variations on the same theme.
+            if (planned)
+            {
+                if (whole) _rest = style.RestBars;
+                return;
+            }
             if (!style.Rests) return;
             if (whole || _phrasesSinceRest >= 2 && _random.Chance(0.4f))
             {
                 _rest = (int)(style.RestBars * _random.Range(0.7f, 1.5f));
                 _phrasesSinceRest = 0;
             }
+        }
+
+        // An overture's last two bars, which aren't a tune's: the swell into the last chord, and the chord.
+        private Bar WriteClose(Score.Setting setting, Movement movement)
+        {
+            float beat = 60f / (setting.Tempo * movement.Pace);
+            int beats = setting.Meter.Beats;
+            var bar = new Bar { Seconds = beats * beat, Beats = beats, Label = $"{setting.Style.Mood} {movement.Name} {_bar + 1}" };
+            int tonic = setting.Tonic + movement.Key;
+            if (_bar == 0) Close.Approach(bar, tonic, beat, beats);
+            else Close.Arrive(bar, tonic, beat, beats);
+            _played = 1f;
+            _absolute += beats;
+            _bar++;
+            if (_bar >= 2) EndPhrase(setting.Style);
+            return bar;
         }
 
         private void BeginCue(MusicCue cue)
@@ -477,6 +518,91 @@ namespace Dino_Engine.Sound.Music
             bar.Notes.Add(new Note { Section = Section.Basses, Pitch = tonic - 24, Start = 0f, Length = 4f * beat, Loudness = 0.3f, Articulation = Articulation.Swell });
             bar.Notes.Add(new Note { Section = Section.Choir, Pitch = tonic - 12, Start = 0f, Length = 4f * beat, Loudness = 0.2f, Articulation = Articulation.Swell });
             bar.Notes.Add(new Note { Section = Section.Choir, Pitch = tonic - 5, Start = 0f, Length = 4f * beat, Loudness = 0.2f, Articulation = Articulation.Swell });
+        }
+    }
+
+    /// <summary>
+    /// How an overture ends. The band drops back and swells from the subdominant through the flat seventh, the oldest way a film score says that home is coming, with the
+    /// violins and trumpets climbing by step to the tonic chord's third, a timpani roll closing in and a cymbal timed to break on the downbeat. Then the tonic, struck by everyone at
+    /// once with a harp swept up through it, held, and let go into the hall over its bass, as the recording it was measured from fades for thirteen seconds. Written in major chords,
+    /// as the overture is in a major mode.
+    /// </summary>
+    internal static class Close
+    {
+        private const float CymbalPeak = 1.6f;      // Seconds into its take that a cymbal roll is at its height.
+        private const float Ring = 5f;              // Seconds the last chord takes to die away once let go, and its bass longer.
+
+        // Chords as semitones over the tonic, and the line climbing over them.
+        private static readonly int[] Subdominant = { 5, 9, 12 };
+        private static readonly int[] FlatSeventh = { 10, 14, 17 };
+        private static readonly int[] Home = { 0, 4, 7 };
+
+        private static void Put(Bar bar, Section section, int pitch, float start, float length, float loudness, Articulation articulation, float tail = 0f, float fader = 0f)
+        {
+            bar.Notes.Add(new Note
+            {
+                Section = section,
+                Pitch = Textures.Fit(section, pitch),
+                Start = start,
+                Length = length,
+                Loudness = Math.Clamp(loudness, 0.02f, 1f),
+                Fader = fader,
+                Articulation = articulation,
+                Tail = tail,
+            });
+        }
+
+        // One chord for the whole band, from the line at the top to the root at the bottom.
+        private static void Chord(Bar bar, int tonic, int[] chord, int line, float at, float length, float loudness, Articulation articulation, float tail)
+        {
+            Put(bar, Section.Violins, tonic + line, at, length, loudness, articulation, tail, 2f);
+            Put(bar, Section.Violins, tonic + line - 12, at, length, loudness - 0.05f, articulation, tail, 0f);
+            Put(bar, Section.Trumpets, tonic + line - 12, at, length, loudness - 0.1f, articulation, tail, 0f);
+            Put(bar, Section.Violas, tonic + chord[1], at, length, loudness - 0.05f, articulation, tail, -2f);
+            Put(bar, Section.Horns, tonic + chord[0] - 12, at, length, loudness, articulation, tail, -1f);
+            Put(bar, Section.Horns, tonic + chord[1] - 12, at, length, loudness, articulation, tail, -1f);
+            Put(bar, Section.Horns, tonic + chord[2] - 12, at, length, loudness, articulation, tail, -1f);
+            Put(bar, Section.Trombones, tonic + chord[0] - 24, at, length, loudness - 0.05f, articulation, tail, -3f);
+            Put(bar, Section.Trombones, tonic + chord[0] - 17, at, length, loudness - 0.05f, articulation, tail, -3f);
+            Put(bar, Section.Choir, tonic + chord[1], at, length, loudness - 0.1f, articulation, tail, -4f);
+            Put(bar, Section.Choir, tonic + chord[2], at, length, loudness - 0.1f, articulation, tail, -4f);
+            // The bass is the last thing heard, as the recording's fade is mostly its low end.
+            Put(bar, Section.Cellos, tonic + chord[0] - 24, at, length, loudness, articulation, tail * 1.5f, -2f);
+            Put(bar, Section.Basses, tonic + chord[0] - 36, at, length, loudness - 0.05f, articulation, tail * 2f, -3f);
+            Put(bar, Section.Tuba, tonic + chord[0] - 36, at, length, loudness - 0.1f, articulation, tail * 1.6f, -5f);
+        }
+
+        public static void Approach(Bar bar, int tonic, float beat, int beats)
+        {
+            float half = beats / 2f * beat;
+            Chord(bar, tonic, Subdominant, 12, 0f, half * 1.05f, 0.6f, Articulation.Swell, 0f);
+            Chord(bar, tonic, FlatSeventh, 14, half, half * 1.05f, 0.8f, Articulation.Normal, 0f);
+
+            // A roll on the fifth, closing up and getting louder, and a cymbal that breaks on the downbeat.
+            int strokes = beats * 6;
+            for (int s = 0; s < strokes; s++)
+            {
+                float rise = s / (float)(strokes - 1);
+                float at = beats * beat * (1f - MathF.Pow(1f - rise, 1.3f));
+                Put(bar, Section.Timpani, tonic - 17, at, 0.2f, 0.25f + 0.6f * rise * rise, Articulation.Normal, 0f, -3f);
+            }
+            Put(bar, Section.Cymbal, 60, MathF.Max(beats * beat - CymbalPeak, 0f), 2f, 0.6f, Articulation.Normal, 0f, -2f);
+        }
+
+        public static void Arrive(Bar bar, int tonic, float beat, int beats)
+        {
+            float hold = (beats - 1) * beat;
+            Chord(bar, tonic, Home, 16, 0f, hold, 0.92f, Articulation.Marcato, Ring);
+
+            // The harp swept up through the chord, and the drums: one great stroke, and a roll under the chord dying away with it.
+            for (int n = 0; n < 9; n++) Put(bar, Section.Harp, tonic - 12 + Home[n % 3] + n / 3 * 12, n * 0.045f, Ring, 0.6f + n * 0.03f, Articulation.Normal, 0f, -3f);
+            Put(bar, Section.BigDrum, 36, 0f, 1f, 0.8f, Articulation.Normal, 0f, -4f);
+            Put(bar, Section.Timpani, tonic - 24, 0f, 1f, 0.95f, Articulation.Normal, 0f, -2f);
+            for (int s = 1; s < 24; s++)
+            {
+                float fade = 1f - s / 24f;
+                Put(bar, Section.Timpani, tonic - 24, s * 0.12f, 0.2f, 0.15f + 0.4f * fade * fade, Articulation.Normal, 0f, -4f);
+            }
         }
     }
 

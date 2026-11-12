@@ -35,11 +35,15 @@ namespace Dino_Engine.ECS.Components
         /// <summary>Loose clutter that's been broken, by <see cref="Key"/>. It stays broken for as long as this world does: walking away and back doesn't mend it.</summary>
         public HashSet<long> Broken = new();
 
+        /// <summary>The skin of the rock, in tiles round the camera.</summary>
+        public RockSkinStream Skins;
+
         public WorldStreamSingleton(WorldData world, WorldAssetLibrary assets)
         {
             World = world;
             Assets = assets;
             GroundCover = new WorldGroundCover(world);
+            Skins = new RockSkinStream(world);
             ObjectModels = new glModel[world.Objects.AssetIds.Count];
             ObjectLights = new IReadOnlyList<AssetLight>[ObjectModels.Length];
             ObjectLoose = new StructureDefinition?[ObjectModels.Length];

@@ -317,16 +317,20 @@ namespace Dino_Engine.Textures
             return earth.Stack(stubble with { Height = stubble.Height * Patches(c, 5f, 0.15f, 0.15f) }, 0.02f);
         }
 
-        // What rock is made of at the scale of a hand and a stride: blocks with flat faces, the cracks between them, and a grain over all of it. It's read at two sizes
-        // at once and from a long way up (Rock.glsl), so it's the large strong shapes that count. The grey is as bright as rock gets, as the world's layers multiply it.
+        // What rock is made of at the scale of a hand and a stride, under the blocks its joints make (Rock.glsl draws those, a bed at a time): small faces broken off it,
+        // a grain over all of it, and the pits weather opens in it. It's read at two sizes at once and from a long way up, so it stays quiet: anything as large as a block
+        // here would fight the joints, as the net of big faces this once had did, which read as crazed glaze. The grey is as bright as rock gets, as the world's layers
+        // multiply it.
         private static Surface Cliff(Canvas c)
         {
-            Facets faces = c.Facets(new Vector2(3f, 6f), tilt: 0.42f, relief: 0.5f, crack: 0.28f, width: 0.022f);
-            Facets smaller = c.Facets(new Vector2(8f, 13f), tilt: 0.5f, relief: 0.55f, crack: 0.3f, width: 0.04f);
-            Facets chips = c.Facets(new Vector2(21f, 31f), tilt: 0.6f, relief: 0.5f, crack: 0.24f, width: 0.07f);
-            Field grain = c.Noise(29f, octaves: 7, gain: 0.58f);
-            Field height = (faces.Height + smaller.Height * 0.42f + chips.Height * 0.3f + grain * 0.16f).Normalize();
-            Paint colour = Grey(232) * Field.Lerp(0.82f, 1f, height.Smooth(0.15f, 0.7f));
+            Facets chips = c.Facets(new Vector2(13f, 19f), tilt: 0.35f, relief: 0.4f, crack: 0.12f, width: 0.03f);
+            Facets flakes = c.Facets(new Vector2(31f, 43f), tilt: 0.45f, relief: 0.4f, crack: 0.1f, width: 0.05f);
+            Field grain = c.Noise(61f, octaves: 6, gain: 0.55f);
+            Field mottle = c.Noise(9f, octaves: 4, gain: 0.5f);
+            Stones pits = c.Scatter(new Vector2(37f), count: 2, radius: 0.14f, radiusJitter: 0.5f, elongation: 0.4f, heightJitter: 0.4f);
+            Field pitted = pits.Cover.Smooth(0.2f, 0.8f) * c.Noise(5f, octaves: 3).Smooth(0.45f, 0.75f);
+            Field height = (chips.Height * 0.55f + flakes.Height * 0.25f + grain * 0.22f - pitted * 0.3f).Normalize();
+            Paint colour = Grey(232) * Field.Lerp(0.86f, 1f, height.Smooth(0.15f, 0.7f)) * Field.Lerp(0.9f, 1.04f, mottle) * Field.Lerp(1f, 0.72f, pitted);
             return new Surface(colour, 0.86f, height);
         }
 

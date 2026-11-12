@@ -574,6 +574,9 @@ namespace Dino_Defenders.UI
                     Hero.OpenVendor();
                     break;
                 case InteractKind.Workbench:
+                    Hero.Visible = true;
+                    Hero.OpenBench();
+                    break;
                 case InteractKind.GamingTable:
                     HallTable.Visible = true;
                     HallTable.Open(kind);

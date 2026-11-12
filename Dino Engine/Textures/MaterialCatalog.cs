@@ -76,8 +76,11 @@ namespace Dino_Engine.Textures
         public static readonly MaterialSpec RoadDirt = Add("road-dirt", 3f, 0.1f, 0.75f);
         public static readonly MaterialSpec Farmland = Add("farmland", 4f, 0.14f, 0.85f);
 
-        /// <summary>The world's bedrock, projected three ways over cliffs and stones (Rock.glsl) at its own two sizes, and never parallaxed: its relief is only its normals'.</summary>
-        public static readonly MaterialSpec Cliff = Add("cliff", 11.3f, 1.4f, 0.35f);
+        /// <summary>
+        /// The world's bedrock, projected three ways over cliffs and stones (Rock.glsl) at its own two sizes, and never parallaxed: its relief is only its normals'. It's the grain
+        /// under the blocks, small, so it's shallow, or its slopes would be steeper than the rock's own form.
+        /// </summary>
+        public static readonly MaterialSpec Cliff = Add("cliff", 11.3f, 0.6f, 0.35f);
         public static readonly MaterialSpec Rock = Add("rock", 3f, 0.07f, 0.35f);
 
         // What's built. A wall is seen at 67 degrees or more, so its relief shows mostly as the parallax of its joints.

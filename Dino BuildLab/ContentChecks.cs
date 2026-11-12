@@ -591,7 +591,7 @@ namespace Dino_BuildLab
             ItemGenerator.Fix(old);
 
             report.Check("A rare from before this is a rare within the rules", old.Rarity == Rarity.Rare && Side(old, true) == 2 && Side(old, false) == 2 && old.Lines.All(line => AffixCatalog.Find(line.Affix)!.Slots.Contains(ItemSlot.Finger)), string.Join(", ", old.Lines.Select(line => line.Affix)));
-            report.Check("What could stay did, and once only", old.Lines.Count(line => line.Affix == "fire-resistance" && line.Value == 9f) == 1 && old.Lines.Any(line => line.Affix == "added-fire") && old.Lines.Any(line => line.Affix == "added-cold") && !old.Lines.Any(line => line.Affix == "added-lightning"));
+            report.Check("What could stay did, the same line twice too, as fusing at the bench makes", old.Lines.Count(line => line.Affix == "fire-resistance" && line.Value == 9f) == 2 && old.Lines.Any(line => line.Affix == "added-fire") && old.Lines.Any(line => line.Affix == "added-cold") && !old.Lines.Any(line => line.Affix == "added-lightning"));
             report.Check("Comes out the same every time", Written(old) == Written(twin) && Written(old) == once);
             report.Check("And is called what it now is", old.Name.Contains("Ring") && !old.Name.Contains("Haste") && !old.Name.Contains("Keen"), old.Name);
 

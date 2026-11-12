@@ -412,6 +412,99 @@ namespace Dino_Engine.Sound.Music
             return style;
         }
 
+        // ---- The game's theme. ----
+
+        /// <summary>
+        /// What plays behind the main menu: the game's theme as an overture, which has to tell a player in a minute that something vast is ahead of them. Its shape was taken from a
+        /// recording a person held up as the spirit they wanted, measured and never transcribed: a soft beginning with no bass at all, where most of what's heard is low strings and a
+        /// horn between 250 and 700 Hz; a low pedal arriving and a crescendo of some twenty decibels over a minute while the accompaniment grows busier; a drop into the dominant that
+        /// builds back; a broad return of the theme at the loudest the piece gets; a last swell onto the tonic and a long fade over its bass. Warm and dark throughout, its energy
+        /// highest from 250 to 500 Hz and falling steeply above 2 kHz, so it's horns, low strings and voices that carry it and never anything bright. It's in the Haven's score, so the
+        /// theme it announces is the one the Haven's waltz is made of.
+        /// </summary>
+        public static Style Overture(SoundRandom random)
+        {
+            var style = new Style
+            {
+                Mood = MusicMood.Title,
+                Name = "the overture",
+                Meters = new[] { Meter.Four },
+                Tempo = random.Range(92f, 102f),
+                TempoSpread = 0f,
+                TempoLift = 0.03f,
+                Modes = new[] { random.Chance(0.75f) ? Mode.Ionian : Mode.Mixolydian },
+                Melodic = Pick(random, (MelodicStyle.Lyrical, 0.55f), (MelodicStyle.Hymn, 0.3f), (MelodicStyle.Heroic, 0.15f)),
+                Language = HarmonicLanguage.Hymn,
+                Colour = 0.2f,
+                Tide = 0f,
+                RestBars = 6,
+                TuneCandidates = 800,
+            };
+
+            // The recording keeps its bass out for the first forty-seven seconds and goes over to the dominant about two thirds through, both of which these keep.
+            style.Plan = new[]
+            {
+                new Movement { Name = "Prelude", Tune = MelodyUse.First, Use = MelodyUse.Prelude, From = 0.06f, To = 0.16f, Pace = 0.58f },
+                new Movement { Name = "Rising", Tune = MelodyUse.First, Use = MelodyUse.Rising, From = 0.26f, To = 0.42f },
+                new Movement { Name = "Answer", Tune = MelodyUse.Second, Use = MelodyUse.Second, From = 0.45f, To = 0.62f },
+                new Movement { Name = "Theme", Tune = MelodyUse.First, Use = MelodyUse.Statement, From = 0.66f, To = 0.9f, Curve = 1.4f },
+                new Movement { Name = "Away", Tune = MelodyUse.Contrast, Use = MelodyUse.Contrast, From = 0.3f, To = 0.86f, Curve = 1.6f, Key = -5 },
+                new Movement { Name = "Return", Tune = MelodyUse.First, Use = MelodyUse.Return, From = 0.93f, To = 1f, Pace = 0.92f },
+                new Movement { Name = "Close", Close = true, From = 1f, To = 1f, Pace = 0.8f },
+            };
+
+            Section prelude = Pick(random, (Section.Horns, 0.6f), (Section.EnglishHorn, 0.2f), (Section.Clarinet, 0.2f));
+            Section rising = Pick(random, (Section.Violins, 0.4f), (Section.Cellos, 0.35f), (Section.Horns, prelude == Section.Horns ? 0f : 0.25f));
+            Section answer = Pick(random, (Section.Horns, rising == Section.Horns ? 0f : 0.5f), (Section.Violins, rising == Section.Violins ? 0f : 0.3f), (Section.Cellos, rising == Section.Cellos ? 0f : 0.2f));
+            Section away = Pick(random, (Section.Oboe, 0.3f), (Section.Clarinet, 0.25f), (Section.Flute, 0.2f), (Section.Cellos, 0.15f), (Section.EnglishHorn, 0.1f));
+            var parts = new List<Part>
+            {
+                // The prelude: held chords low in the strings, voices far off, and the theme on one player. Nothing under 120 Hz.
+                P(Section.Violas, Textures.Pad, 0f, 0.1f, 0.3f, -4f),
+                Until(P(Section.Cellos, Textures.Pad, 0f, 0.1f, 0.25f, -4f), 0.42f),
+                Until(P(Section.Voices, Textures.Pad, 0.05f, 0.06f, 0.2f, -12f), 0.42f),
+                P(prelude, Textures.Melody, 0f, 0.14f, 0.3f, -6f, use: MelodyUse.Prelude),
+
+                // The pedal arrives, and with it the pulse: a harp and then the violas breaking the chord in eighths, busier as the piece grows.
+                Until(P(Section.Basses, Textures.Pedal, 0.24f, 0.3f, 0.2f, -3f, -1, "still"), 0.64f),
+                P(Section.Harp, Textures.Arpeggio, 0.26f, 0.22f, 0.15f, -5f),
+                P(rising, Textures.Melody, 0.2f, 0.3f, 0.3f, 0f, use: MelodyUse.Rising),
+                P(Section.Violas, Textures.Arpeggio, 0.4f, 0.2f, 0.22f, -6f),
+                P(Section.Cellos, Textures.Hymn, 0.44f, 0.28f, 0.3f, -3f, name: "bass"),
+                P(Section.Clarinet, Textures.Hymn, 0.44f, 0.26f, 0.25f, -4f, name: "alto"),
+                P(Section.Timpani, Textures.Drums, 0.44f, 0.3f, 0.35f, -3f, name: "cadence"),
+                P(answer, Textures.Melody, 0.2f, 0.4f, 0.3f, 1f, use: MelodyUse.Second),
+
+                // The theme with the band behind it: the horns singing it with the violins an octave above, and a brass chorale moving with it.
+                P(Section.Horns, Textures.Hymn, 0.5f, 0.26f, 0.3f, -4f, name: "tenor"),
+                Until(P(Section.MutedViolins, Textures.Pad, 0.55f, 0.12f, 0.15f, -9f, 0, "tremolo"), 0.8f),
+                P(Section.Cymbal, Textures.Swell, 0.62f, 0.32f, 0.4f, -2f),
+                P(Section.Basses, Textures.Bass, 0.64f, 0.28f, 0.25f, -3f, -1, "long"),
+                P(Section.Horns, Textures.Melody, 0.6f, 0.46f, 0.4f, 4f, use: MelodyUse.Statement),
+                P(Section.Violins, Textures.Melody, 0.6f, 0.4f, 0.35f, 2f, use: MelodyUse.Statement),
+                P(away, Textures.Melody, 0.3f, 0.42f, 0.3f, 3.5f, use: MelodyUse.Contrast),
+                P(Section.Trombones, Textures.Hymn, 0.72f, 0.3f, 0.35f, -4f, name: "tenor"),
+
+                // At its height, everyone: trumpets on the tune, the choir, the tuba and the big drum under the cadences.
+                P(Section.Choir, Textures.Pad, 0.8f, 0.3f, 0.35f, -4f),
+                P(Section.Tuba, Textures.Bass, 0.8f, 0.26f, 0.25f, -5f, -1, "long"),
+                P(Section.BigDrum, Textures.Drums, 0.9f, 0.3f, 0.3f, -5f, name: "cadence"),
+                P(Section.Trumpets, Textures.Melody, 0.9f, 0.36f, 0.35f, 0f, use: MelodyUse.Return),
+                P(Section.Horns, Textures.Melody, 0.9f, 0.48f, 0.4f, 4f, use: MelodyUse.Return),
+                P(Section.Violins, Textures.Melody, 0.9f, 0.44f, 0.35f, 2.5f, use: MelodyUse.Return),
+            };
+            style.Parts = parts.ToArray();
+            style.Leads = new[] { Section.Horns, Section.Violins, Section.Cellos, Section.Oboe, Section.Clarinet, Section.Flute };
+            style.Staging = new Staging { Room = Room(random, 2.6f, 3.3f, 0.7f, 1f) };
+            return style;
+        }
+
+        private static Part Until(Part part, float to)
+        {
+            part.To = to;
+            return part;
+        }
+
         // ---- Fights. ----
 
         /// <summary>

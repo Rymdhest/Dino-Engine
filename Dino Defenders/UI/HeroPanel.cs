@@ -32,6 +32,7 @@ namespace Dino_Defenders.UI
         Held,       // Inside something: its index is the place's own number.
         Stash,      // Put away: its index is the tab times the size of one, and the cell.
         Vendor,     // On the beta vendor's table: its index is the tab times BetaVendorPanel.Stride, and the place.
+        Bench,      // On the Forge's crafting bench: the first or second place, or what they'd make (CraftingBench).
     }
 
     /// <summary>A place something can be in this panel: on the hero, on a merchant's table, or in the stash.</summary>
@@ -239,6 +240,8 @@ namespace Dino_Defenders.UI
         private readonly GuiElement _stage;
         private readonly BetaVendorPanel _vendor;
         private bool _vending;
+        private readonly CraftingBench _bench;
+        private bool _crafting;
         private readonly List<Button> _tabs = new();
         private bool _stashing;
         private int _tab;
@@ -288,6 +291,7 @@ namespace Dino_Defenders.UI
             _sheet = sheet;
             _market = left.Add(BuildMarket());
             _stash = left.Add(BuildStash());
+            _bench = left.Add(new CraftingBench(this));
 
             _stage = columns.Add(BuildStage());
 
@@ -316,14 +320,6 @@ namespace Dino_Defenders.UI
 
             var bag = right.Add(new GridPanel(Columns, CellGap, CellGap));
             for (int i = 0; i < HeroState.InventorySize; i++) bag.Add(new ItemCell(this, new Spot(Shelf.Pack, i)));
-
-            var help = right.Add(new StackPanel(Orientation.Vertical, 2f) { Width = UIValue.Fill, Height = UIValue.Auto, Margin = new Thickness(0f, 6f, 0f, 0f) });
-            help.Add(Ui.Line("Click to pick up and put down, or drag", 13f, Ui.Faded));
-            help.Add(Ui.Line("", 13f, Ui.Faded).Bind(() => _vending ? $"Right-click or {Bindings.Label(GameAction.Details)}-click the vendor's things to take them at once" : _stashing ? $"{Bindings.Label(GameAction.Details)}-click to put away or take out, right-click to wear" : _merchant != null ? $"{Bindings.Label(GameAction.Details)}-click to sell, right-click to wear" : $"{Bindings.Label(GameAction.Details)}-click or right-click to wear"));
-            help.Add(Ui.Line("Right-click a Book or a Page to open it, and drag a Book to the bar to use it", 13f, Ui.Faded));
-            help.Add(Ui.Line("Drag off the panel to drop on the ground", 13f, Ui.Faded));
-            help.Add(Ui.Line("Click a place on the hero to see what fits it", 13f, Ui.Faded));
-            help.Add(Ui.Line("", 13f, Ui.Faded).Bind(() => $"Hold {Bindings.Label(GameAction.Compare)} to compare with what's worn"));
 
             _picker = Add(new SlotPicker(this));
         }
@@ -456,6 +452,9 @@ namespace Dino_Defenders.UI
             _merchant = merchant;
             _stashing = false;
             _vending = false;
+            _crafting = false;
+            _bench.Visible = false;
+            _bench.Clear();
             _vendor.Visible = false;
             _left.Visible = true;
             _stage.Visible = true;
@@ -478,6 +477,16 @@ namespace Dino_Defenders.UI
             _title.Text = "The Stash";
         }
 
+        /// <summary>Shows the panel with the Forge's crafting bench beside the pack, as it is at the bench.</summary>
+        public void OpenBench()
+        {
+            Open(null);
+            _crafting = true;
+            _sheet.Visible = false;
+            _bench.Visible = true;
+            _title.Text = "Crafting Bench";
+        }
+
         /// <summary>Shows the panel with the beta vendor's table in place of the sheet and the hero, as it is at his stall.</summary>
         public void OpenVendor()
         {
@@ -488,6 +497,9 @@ namespace Dino_Defenders.UI
             _vendor.Visible = true;
             _vendor.Opened();
         }
+
+        /// <summary>The crafting bench's side of this, for a scripted run to lay things on.</summary>
+        public CraftingBench Bench => _bench;
 
         /// <summary>The beta vendor's side of this, for a scripted run to open at a tab.</summary>
         public BetaVendorPanel Vendor => _vendor;
@@ -576,13 +588,14 @@ namespace Dino_Defenders.UI
             Shelf.Sold => OnShelf(_merchant?.Table.Sold, spot.Index),
             Shelf.Stash => Session.Client.Stash?.At(spot.Tab, spot.Cell),
             Shelf.Vendor => _vending ? _vendor.At(spot.Index) : null,
+            Shelf.Bench => _crafting ? _bench.At(spot.Index) : null,
             _ => Hero.At(spot.Place),
         };
 
         private static Item? OnShelf(Item?[]? shelf, int index) => shelf != null && index < shelf.Length ? shelf[index] : null;
 
         /// <summary>What something on the table costs, to show on it.</summary>
-        public int? PriceOn(Spot spot, Item item) => spot.OnHero || spot.Shelf is Shelf.Stash or Shelf.Vendor ? null : MerchantTable.PriceOf(item, spot.Shelf == Shelf.Sold);
+        public int? PriceOn(Spot spot, Item item) => spot.OnHero || spot.Shelf is Shelf.Stash or Shelf.Vendor or Shelf.Bench ? null : MerchantTable.PriceOf(item, spot.Shelf == Shelf.Sold);
 
         public CellMood MoodOf(ItemCell cell, Item? item)
         {
@@ -596,6 +609,10 @@ namespace Dino_Defenders.UI
             if (_hand != null && cell.IsHovered && PlanFor(cell).Refused) return CellMood.Refused;
 
             if (item == null) return CellMood.Plain;
+
+            // What's on the bench is still in the pack, and shows there faintly, and what couldn't go on it is dimmed.
+            if (_crafting && spot.Shelf == Shelf.Pack && _bench.Holds(spot.Index)) return CellMood.Lifted;
+            if (_crafting && spot.Shelf == Shelf.Pack && _hand == null && !_bench.Takes(item)) return CellMood.Missed;
             if (_picker.Visible && spot.Shelf == Shelf.Pack) return WornSlots.Fits(item, _picker.Slot) ? CellMood.Wanted : CellMood.Missed;
             return ItemSearch.Finds(item, _words) ? CellMood.Plain : CellMood.Missed;
         }
@@ -641,6 +658,28 @@ namespace Dino_Defenders.UI
             {
                 if (from.Shelf == Shelf.Held) return Plan.Refuse("Take it out of the Book first");
                 return Session.Client.Stash?.FreeCell(_tab) is int free and >= 0 ? new Plan("Put away", () => Stow(from, new Spot(Shelf.Stash, _tab * Stash.TabSize + free))) : Plan.Refuse("This tab is full");
+            }
+
+            // Off the crafting bench, which only ever showed it, or to its other place.
+            if (from.Shelf == Shelf.Bench)
+            {
+                if (from.Index == CraftingBench.Made) return Plan.Nothing;
+                if (cell?.Spot.Shelf == Shelf.Bench && cell.Spot.Index != CraftingBench.Made)
+                {
+                    int moved = cell.Spot.Index;
+                    return new Plan(_bench.At(moved) != null ? "Swap" : "Move", () => SwapOnBench(from.Index, moved));
+                }
+                return new Plan("Take off the bench", () => _bench.TakeOff(from.Index));
+            }
+
+            // Onto the crafting bench, from the pack. It stays where it is, and the bench only shows it.
+            if (_crafting && from.Shelf == Shelf.Pack && (cell?.Spot.Shelf == Shelf.Bench || (cell == null && _bench.Contains(under))))
+            {
+                int? place = cell?.Spot.Shelf == Shelf.Bench ? cell.Spot.Index : _bench.FreePlace;
+                if (place is not int into || into == CraftingBench.Made) return Plan.Refuse("Put it in the first or second place");
+                if (_bench.WhyNotPut(from.Index, into) is string why) return Plan.Refuse(why);
+                int benching = from.Index;
+                return new Plan("Put on the bench", () => _bench.Put(benching, into));
             }
 
             // From the beta vendor, into the pack, for nothing, and it stays where it was.
@@ -862,6 +901,12 @@ namespace Dino_Defenders.UI
                 case Shelf.Vendor:
                     TakeOffer(spot, null);
                     break;
+                case Shelf.Bench:
+                    _bench.TakeOff(spot.Index);
+                    break;
+                case Shelf.Pack when _crafting && !rightClick:
+                    PutOnBench(spot);
+                    break;
                 case Shelf.Pack when _stashing && !rightClick:
                     PutAway(spot);
                     break;
@@ -1055,10 +1100,39 @@ namespace Dino_Defenders.UI
             Session.Client.Drop(from.Place);
         }
 
+        // Into the first free place on the bench, or the second if both are taken, which is the one most often changed. Something already there comes off.
+        private void PutOnBench(Spot from)
+        {
+            if (_bench.Holds(from.Index))
+            {
+                _bench.TakeOff(ReferenceEquals(_bench.At(CraftingBench.First), ItemAt(from)) ? CraftingBench.First : CraftingBench.Second);
+                return;
+            }
+            int into = _bench.FreePlace ?? CraftingBench.Second;
+            if (_bench.WhyNotPut(from.Index, into) is string why)
+            {
+                Refuse(why);
+                return;
+            }
+            _bench.Put(from.Index, into);
+        }
+
+        private void SwapOnBench(int from, int to)
+        {
+            int? fromCell = BenchCell(from);
+            int? toCell = BenchCell(to);
+            if (fromCell is int moving) _bench.Put(moving, to);
+            if (toCell is int other) _bench.Put(other, from);
+            else _bench.TakeOff(from);
+        }
+
+        private int? BenchCell(int index) => _bench.At(index) is Item item && Array.IndexOf(Hero.Inventory, item) is int cell and >= 0 ? cell : null;
+
         private void SortPack()
         {
             // What's on the cursor is known by where it is, and that's about to mean something else.
             Forget();
+            _bench.Clear();
             Session.Client.SortPack();
         }
 
@@ -1081,6 +1155,7 @@ namespace Dino_Defenders.UI
 
             // Where it can be sold is all of the merchant's side, and where it can be put away all of the stash.
             if (_merchant != null && _hand is Spot held && held.OnHero) draw.AddRect(_market.Bounds.Inflate(5f), GuiColors.Rgba(214, 172, 92, 18), 3f, 1.5f, Ui.Gold.MultiplyAlpha(0.8f));
+            if (_crafting && _hand is Spot benched && benched.Shelf == Shelf.Pack) draw.AddRect(_bench.Bounds.Inflate(5f), GuiColors.Rgba(250, 156, 92, 14), 3f, 1.5f, GuiColors.Rgba(250, 156, 92, 160));
             if (_stashing && _hand is Spot lifted && lifted.OnHero) draw.AddRect(_stash.Bounds.Inflate(5f), GuiColors.Rgba(214, 188, 146, 14), 3f, 1.5f, GuiColors.Rgba(214, 188, 146, 160));
             for (int t = 0; t < _tabs.Count && _stashing; t++)
             {
@@ -1110,6 +1185,7 @@ namespace Dino_Defenders.UI
                 Shelf.Stock => Cards.Costs(item),
                 Shelf.Sold => Cards.BuyBack(item),
                 Shelf.Vendor => "Free to take",
+                Shelf.Bench when spot.Index == CraftingBench.Made => $"Fusing costs {Crafting.FuseCost(item)} gold",
                 _ => null,
             };
             Ui.DrawTooltip(Hero, item, from, price, compare: spot.Shelf != Shelf.Worn, loose: true);

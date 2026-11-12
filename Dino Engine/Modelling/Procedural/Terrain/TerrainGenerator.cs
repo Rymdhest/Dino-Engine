@@ -57,17 +57,15 @@ namespace Dino_Engine.Modelling.Procedural.Terrain
         /// <summary>Where a point lies on the roads (<see cref="RoadFrames"/>).</summary>
         public RoadFrame RoadAt(Vector2 position) => _roads.At(position);
 
-        public float getHeightAt(Vector2 position)
-        {
-            return World.Height.SampleCubic(position.X, position.Y);
-        }
+        /// <summary>The ground as it's drawn: the height map, read smoothly. Bare rock is clad over it in blocks of its own (<see cref="Procedural.Rock.RockSkin"/>), which are measured from this.</summary>
+        public float getHeightAt(Vector2 position) => World.Height.SampleCubic(position.X, position.Y);
 
         public Vector3 GetNormalAt(float x, float z)
         {
-            float hL = World.Height.SampleCubic(x - NormalStep, z);
-            float hR = World.Height.SampleCubic(x + NormalStep, z);
-            float hD = World.Height.SampleCubic(x, z - NormalStep);
-            float hU = World.Height.SampleCubic(x, z + NormalStep);
+            float hL = getHeightAt(new Vector2(x - NormalStep, z));
+            float hR = getHeightAt(new Vector2(x + NormalStep, z));
+            float hD = getHeightAt(new Vector2(x, z - NormalStep));
+            float hU = getHeightAt(new Vector2(x, z + NormalStep));
             return new Vector3(hL - hR, 2f * NormalStep, hD - hU).Normalized();
         }
 

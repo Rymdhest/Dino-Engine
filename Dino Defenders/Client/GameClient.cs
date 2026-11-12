@@ -761,6 +761,16 @@ namespace Dino_Defenders.Client
             Send(writer);
         }
 
+        /// <summary>Fuses what's in two cells of the pack at the Forge's crafting bench, the first keeping its base. Done here at once by the same rules, and the server has the last word.</summary>
+        public void Fuse(int firstCell, int secondCell)
+        {
+            if (Session?.IsHaven == true) Crafting.Fuse(Hero, firstCell, secondCell);
+            BitWriter writer = AskGear(HeroAction.Fuse);
+            writer.WriteVarInt(firstCell);
+            writer.WriteVarInt(secondCell);
+            Send(writer);
+        }
+
         public void BuyFlasks() => Send(Action(HeroAction.BuyFlasks));
 
         public void TravelToSite(int site)

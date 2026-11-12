@@ -68,7 +68,9 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         public int NormalRoadHeightTextureArray => normalRoadHeightTextureArray;
         public Vector4[] SurfaceMaterials => surfaceMaterials;
         private IDAllocator<ushort> normalHeightTextureArrayAllocator = new();
-        private readonly int MAX_TERRAIN_CHUNKS = 1024*2;
+        /// <summary>How many chunks can be alive at once: a layer of each chunk array apiece. 2048 is the most layers an array can have on NVIDIA's cards, so it can't be raised.</summary>
+        public const int MaxChunks = 2048;
+        private const int MAX_TERRAIN_CHUNKS = MaxChunks;
         public static readonly int CHUNK_RESOLUTION = 16;
         /// <summary>
         /// Metres Terrain.vert lifts the drawn surface above the height map (Terrain_shadow.vert, used for shadows and height
@@ -89,8 +91,8 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         private Vector2 farHeightMapping;
         private readonly List<(TerrainChunkRenderData tile, float lowest, float highest)> farTiles = new();
 
-        private const int GeologyHeader = 12;
-        private const int GeologyDataBytes = GeologyHeader * sizeof(float) + Geology.Steps * 4;
+        private const int GeologyHeader = 32;
+        private const int GeologyDataBytes = GeologyHeader * sizeof(float) + Geology.Steps * 4 + Geology.Steps * 2;
         private int geologyBuffer;
 
         public TerrainRenderer() : base("Terrain")
@@ -178,6 +180,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             // With no world yet, no material is rock: item pictures are drawn before there's a world, and a 0 here is a real material.
             float[] nothing = new float[GeologyHeader];
             nothing[7] = nothing[11] = -10f;
+            nothing[3] = 4f;
             GL.BufferSubData(BufferTarget.UniformBuffer, IntPtr.Zero, nothing.Length * sizeof(float), nothing);
             GL.BindBuffer(BufferTarget.UniformBuffer, 0);
             GL.BindBufferBase(BufferRangeTarget.UniformBuffer, GeologyBinding, geologyBuffer);
@@ -275,9 +278,33 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             header[10] = hue.Z;
             header[11] = TextureGenerator.gravel;
 
+            // How it's jointed, for bare rock (Rock.glsl).
+            JointStyle joint = geology.Joint;
+            header[12] = MathF.Cos(geology.Strike);
+            header[13] = MathF.Sin(geology.Strike);
+            header[14] = joint.Across;
+            header[15] = joint.Along;
+            header[16] = joint.Least;
+            header[17] = joint.Most;
+            header[18] = joint.Gap;
+            header[19] = joint.Bevel;
+            header[20] = joint.Tilt;
+            header[21] = joint.Recess;
+            header[22] = (int)geology.Kind;
+            header[23] = geology.SnowCover;
+            header[24] = geology.Moss.X;
+            header[25] = geology.Moss.Y;
+            header[26] = geology.Moss.Z;
+            header[27] = geology.MossCover;
+            header[28] = joint.CrossBedding;
+            header[29] = joint.Foliation;
+            header[30] = joint.Varnish;
+            header[31] = joint.Karst;
+
             GL.BindBuffer(BufferTarget.UniformBuffer, geologyBuffer);
             GL.BufferSubData(BufferTarget.UniformBuffer, IntPtr.Zero, GeologyHeader * sizeof(float), header);
             GL.BufferSubData(BufferTarget.UniformBuffer, (IntPtr)(GeologyHeader * sizeof(float)), geology.Layers.Length, geology.Layers);
+            GL.BufferSubData(BufferTarget.UniformBuffer, (IntPtr)(GeologyHeader * sizeof(float) + geology.Layers.Length), geology.Beds.Length, geology.Beds);
             GL.BindBuffer(BufferTarget.UniformBuffer, 0);
         }
 

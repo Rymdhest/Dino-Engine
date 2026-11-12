@@ -111,6 +111,7 @@ namespace Dino_BuildLab
             LandLab.Checks(report);
             LootLab.Check(report);
             VendorChecks.Run(report);
+            CraftingChecks.Run(report);
             FuzzChecks.Run(report, options.Int("rounds", 3000));
             return report.Finish();
         }

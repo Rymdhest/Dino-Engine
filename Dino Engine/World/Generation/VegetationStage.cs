@@ -1,3 +1,4 @@
+using Dino_Engine.Modelling.Procedural.Rock;
 using Dino_Engine.World.Content;
 using OpenTK.Mathematics;
 using static Dino_Engine.World.WorldMath;
@@ -18,6 +19,9 @@ namespace Dino_Engine.World.Generation
         private const float ShrubSpacing = 3.2f;
         private const float DeadwoodSpacing = 11f;
         private const float BoulderSpacing = 7f;
+        private const float OutcropSpacing = 24f;
+        private const float RunoutSpacing = 5f;
+        private const float SolidFrom = 0.45f;  // Metres a stone stands out of the ground before anyone has to go round it.
         private const float LowSolidHeight = 1.6f;  // How tall a boulder or a fallen trunk is, for its width.
         private const float MinAboveWater = 0.55f;
         private const float MaxTreeSlope = 0.8f;
@@ -39,6 +43,120 @@ namespace Dino_Engine.World.Generation
             PlantShrubs(world, objects, random.Fork("shrubs"), patches);
             PlaceDeadwood(world, objects, random.Fork("deadwood"));
             PlaceBoulders(world, objects, random.Fork("boulders"), patches);
+            PlaceOutcrops(world, objects, random.Fork("outcrops"));
+            PlaceRunout(world, objects, random.Fork("runout"));
+        }
+
+        // The land's own rock coming up through it in companies, by the form its mountains take, wherever the land is rocky (GroundRock): low slabs in rows along the strike where
+        // beds lie level, rounded boulders and a low tor among domes, a stone forest of little pinnacles where towers stand, small hoodoos where canyons are, column stumps where
+        // the rock is basalt, slabs stood on edge where its beds are. None of it tall enough to hide anyone, and whatever stands out of the ground is solid.
+        private static void PlaceOutcrops(WorldData world, WorldObjects objects, WorldRandom random)
+        {
+            GroundRock? ground = world.GroundRock;
+            if (ground == null) return;
+            Geology rock = world.Geology;
+            Vector2 strike = new Vector2(MathF.Cos(rock.Strike), MathF.Sin(rock.Strike));
+            Vector2 across = new Vector2(-strike.Y, strike.X);
+            foreach (Vector2 seed in Candidates(world, OutcropSpacing, random))
+            {
+                float rocky = ground.Rockiness(seed.X, seed.Y);
+                float chance = random.Float();
+                if (chance >= rocky * 0.55f) continue;
+                if (!GroundFits(world, seed, 0.5f)) continue;
+
+                MountainForm form = MountainForms.At(world, seed.X, seed.Y).Strongest;
+                int company = 3 + (int)(random.Float() * (4f + rocky * 6f));
+                for (int i = 0; i < company; i++)
+                {
+                    Vector2 at = seed + strike * random.Range(-8f, 8f) + across * random.Range(-3f, 3f);
+                    float pick = random.Float();
+                    float size = random.Float();
+                    float turn = random.Float();
+                    float lean = random.Float();
+                    if (!world.InBounds(at) || ground.Rockiness(at.X, at.Y) <= 0.02f || !GroundFits(world, at, 0.6f)) continue;
+                    (RockForm piece, FloatRange scales) = PieceOf(form, pick);
+                    TryOutcrop(world, objects, piece, scales.Lerp(size), at, form, strike, turn, lean);
+                }
+            }
+        }
+
+        // What a form's land has coming up through it, and how big, at the stone's own scale: never so tall that someone behind it is lost.
+        private static (RockForm piece, FloatRange scales) PieceOf(MountainForm form, float pick) => form switch
+        {
+            MountainForm.Ledged => pick < 0.7f ? (RockForm.Slab, new FloatRange(0.7f, 1.3f)) : (RockForm.Block, new FloatRange(0.5f, 0.9f)),
+            MountainForm.Jagged => pick < 0.6f ? (RockForm.Block, new FloatRange(0.5f, 1f)) : (RockForm.Boulder, new FloatRange(0.5f, 0.9f)),
+            MountainForm.Towers => pick < 0.6f ? (RockForm.Spire, new FloatRange(0.07f, 0.13f)) : (RockForm.Block, new FloatRange(0.5f, 0.85f)),
+            MountainForm.Domes => pick < 0.6f ? (RockForm.Boulder, new FloatRange(0.6f, 1.2f)) : pick < 0.78f ? (RockForm.Tor, new FloatRange(0.24f, 0.34f)) : (RockForm.Slab, new FloatRange(0.6f, 1.1f)),
+            MountainForm.Canyons => pick < 0.4f ? (RockForm.Hoodoo, new FloatRange(0.16f, 0.28f)) : pick < 0.8f ? (RockForm.Slab, new FloatRange(0.7f, 1.2f)) : (RockForm.Block, new FloatRange(0.5f, 0.85f)),
+            MountainForm.Columns => pick < 0.5f ? (RockForm.Columns, new FloatRange(0.2f, 0.3f)) : (RockForm.Block, new FloatRange(0.5f, 0.9f)),
+            _ => pick < 0.7f ? (RockForm.Slab, new FloatRange(0.7f, 1.2f)) : pick < 0.85f ? (RockForm.Fin, new FloatRange(0.16f, 0.24f)) : (RockForm.Block, new FloatRange(0.5f, 0.85f)),
+        };
+
+        private static void TryOutcrop(WorldData world, WorldObjects objects, RockForm piece, float scale, Vector2 at, MountainForm form, Vector2 strike, float turn, float lean)
+        {
+            PlacementIndex placement = world.Placement;
+            const PlacementLayer Avoid = PlacementLayer.Rock | PlacementLayer.Deadwood | PlacementLayer.Shrub | PlacementLayer.Tree | PlacementLayer.Built | PlacementLayer.Road;
+            WorldAsset asset = NatureCatalog.RockOf(world.Geology.Kind, piece);
+            float reach = MathF.Max(asset.Footprint * scale, 0.5f);
+            Footprint footprint = Footprint.Circle(at, reach);
+            if (placement.Overlaps(footprint, Avoid) || TouchesSolid(placement, at, reach)) return;
+
+            // Slabs lie along the strike, nearly flat where beds lie level and stood up where they stand on end; anything else squares up to the strike.
+            float yaw = MathF.Atan2(strike.X, strike.Y) + (turn - 0.5f) * 0.5f;
+            Quaternion rotation = Quaternion.FromAxisAngle(Vector3.UnitY, yaw);
+            float sink = 0.15f;
+            if (piece == RockForm.Slab)
+            {
+                float tip = form == MountainForm.Blades ? 0.55f + lean * 0.45f : (lean - 0.5f) * 0.25f;
+                rotation *= Quaternion.FromAxisAngle(Vector3.UnitZ, tip);
+                sink = form == MountainForm.Blades ? 0.9f : 0.3f;
+            }
+            else if (piece is RockForm.Block or RockForm.Boulder)
+            {
+                rotation *= Quaternion.FromAxisAngle(Vector3.UnitX, (lean - 0.5f) * 0.4f);
+                sink = 0.3f;
+            }
+            float top = RockForge.TopOf(piece) * scale - sink * scale;
+            if (top > SolidFrom)
+            {
+                float solid = reach * 0.8f;
+                if (placement.OverlapsSolid(Footprint.Circle(at, solid + WorldData.CharacterRadius))) return;
+                placement.Add(Footprint.Circle(at, solid), PlacementLayer.None, solid: true, height: top);
+            }
+            placement.Add(footprint, PlacementLayer.Rock);
+            float height = world.Height.Sample(at) - sink * scale;
+            objects.Add(NatureCatalog.ModelAt(asset, world.Plan.Seed, at), new Vector3(at.X, height, at.Y), rotation, new Vector3(scale));
+        }
+
+        // What's come down off a rock wall and rolled out into the land at its foot: more the nearer the wall, a boulder or a block here and there, solid, and never on anything built.
+        private static void PlaceRunout(WorldData world, WorldObjects objects, WorldRandom random)
+        {
+            GroundRock? ground = world.GroundRock;
+            if (ground == null || world.RockNear == null || world.Plan.Archetype.Enclosed) return;
+            PlacementIndex placement = world.Placement;
+            const PlacementLayer Avoid = PlacementLayer.Rock | PlacementLayer.Deadwood | PlacementLayer.Shrub | PlacementLayer.Tree | PlacementLayer.Built | PlacementLayer.Road;
+            RockKind kind = world.Geology.Kind;
+            foreach (Vector2 point in Candidates(world, RunoutSpacing, random))
+            {
+                float pick = random.Float();
+                float size = random.Float();
+                float turn = random.Float();
+                float near = world.RockNear.Sample(point);
+                if (near > 12f || near < 1.5f) continue;
+                if (pick >= (1f - Smoothstep(2f, 12f, near)) * 0.22f) continue;
+                if (ground.RoomAt(point.X, point.Y) < 5f || world.Rock.Sample(point) > 0.4f || !GroundFits(world, point, 0.7f)) continue;
+
+                WorldAsset asset = NatureCatalog.RockOf(kind, turn < 0.55f ? RockForm.Boulder : RockForm.Block);
+                // Big ones roll furthest.
+                float scale = asset.Scale.Lerp(size * size) * Lerp(0.6f, 1f, Smoothstep(1.5f, 10f, near));
+                float reach = asset.Footprint * scale;
+                Footprint footprint = Footprint.Circle(point, reach);
+                if (placement.Overlaps(footprint, Avoid) || TouchesSolid(placement, point, reach)) continue;
+                placement.Add(footprint, PlacementLayer.Rock);
+                placement.Add(Footprint.Circle(point, asset.SolidRadius * scale * 0.85f), PlacementLayer.None, solid: true, height: asset.SolidRadius * scale * LowSolidHeight);
+                Quaternion rotation = Quaternion.FromAxisAngle(Vector3.UnitY, turn * MathF.Tau) * Quaternion.FromAxisAngle(Vector3.UnitX, (pick * 4.7f % 1f - 0.5f) * 0.7f);
+                objects.Add(NatureCatalog.ModelAt(asset, world.Plan.Seed, point), new Vector3(point.X, world.Height.Sample(point) - 0.25f * scale, point.Y), rotation, new Vector3(scale));
+            }
         }
 
         // How thickly trees stand everywhere: each biome's forest cover, shaped into woods and clearings by noise.
@@ -49,8 +167,11 @@ namespace Dino_Engine.World.Generation
             ScalarField clearing = BuildClearings(world);
             IReadOnlyList<BiomeDefinition> biomes = world.Plan.Biomes;
 
+            // The picture behind the menu says where its woods are.
+            Vista? vista = world.Plan.Archetype.Vista ? new Vista(world.Random.Fork("vista")) : null;
             canopy.Generate((x, z) =>
             {
+                if (vista != null) return vista.Woods(x, z) * (1f - Smoothstep(0.55f, 0.95f, world.Elevation.SlopeAt(new Vector2(x, z))));
                 float cover = 0f;
                 float patchSize = 0f;
                 for (int b = 0; b < biomes.Count; b++)

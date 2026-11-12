@@ -15,7 +15,8 @@ namespace Dino_Engine.Modelling.Procedural.Rock
             (0, 4), (1, 5), (2, 6), (3, 7),
         };
 
-        public static void Extract(float[] field, int nx, int ny, int nz, Vector3 origin, float cell, List<Vector3> points, List<int> triangles)
+        /// <param name="cells">If given, the cell each point was made in, by its corner nearest the origin.</param>
+        public static void Extract(float[] field, int nx, int ny, int nz, Vector3 origin, float cell, List<Vector3> points, List<int> triangles, List<Vector3i>? cells = null)
         {
             int cx = nx - 1, cy = ny - 1, cz = nz - 1;
             int[] vertexOf = new int[cx * cy * cz];
@@ -48,6 +49,7 @@ namespace Dino_Engine.Modelling.Procedural.Rock
 
                         vertexOf[x + cx * (y + cy * z)] = points.Count;
                         points.Add(origin + (new Vector3(x, y, z) + sum / crossings) * cell);
+                        cells?.Add(new Vector3i(x, y, z));
                     }
                 }
             }

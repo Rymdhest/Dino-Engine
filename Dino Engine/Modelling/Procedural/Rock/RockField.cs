@@ -40,7 +40,8 @@ namespace Dino_Engine.Modelling.Procedural.Rock
 
     /// <summary>
     /// A rock mass in the joints that cut it: planes along three directions in a frame of their own, sheared by how the rock was folded. Each layer is shifted along, so that joints don't line
-    /// up through it like bricks in a bad wall, and every block in it stands back from the mass by its own amount. That's the whole of how a crag looks like a pile of blocks, for one lookup a point.
+    /// up through it like bricks in a bad wall, every joint lies a third of a spacing either side of where it would evenly be, so that no two beds or blocks are the same size, as evenly
+    /// spaced ones read as masonry, and every block in it stands back from the mass by its own amount. That's the whole of how a crag looks like a pile of blocks, for one lookup a point.
     /// </summary>
     internal sealed class JointLattice
     {
@@ -58,14 +59,14 @@ namespace Dino_Engine.Modelling.Procedural.Rock
         public float Distance(Vector3 p, float envelope, out float retreat)
         {
             float w = Vector3.Dot(p, Up) / Spacing.Z;
-            int layer = (int)MathF.Floor(w);
+            Interval(w, Seed ^ 0x2545F491u, out int layer, out float wLow, out float wHigh);
             uint layerHash = FloraNoise.Hash((uint)layer * 0x9E3779B1u ^ Seed);
 
             // A bed stands out or lies back as a whole, and its joints fall where they will.
             float u = Vector3.Dot(p, Along) / Spacing.X + (layerHash & 0xFFFF) / 65535f;
             float v = Vector3.Dot(p, Across) / Spacing.Y + (layerHash >> 16) / 65535f;
-            int column = (int)MathF.Floor(u);
-            int row = (int)MathF.Floor(v);
+            Interval(u, layerHash ^ 0x68E31DA4u, out int column, out float uLow, out float uHigh);
+            Interval(v, layerHash ^ 0xB5297A4Du, out int row, out float vLow, out float vHigh);
 
             uint hash = FloraNoise.Hash((uint)column * 0x85EBCA6Bu ^ (uint)row * 0xC2B2AE35u ^ layerHash);
             float own = (hash & 0xFFFF) / 65535f;
@@ -74,15 +75,77 @@ namespace Dino_Engine.Modelling.Procedural.Rock
             float bed = ((layerHash >> 8) & 0xFF) / 255f;
             retreat = Retreat * own * own * missing + BedRecess * bed * bed;
 
-            float x = (u - column - 0.5f) * Spacing.X;
-            float y = (v - row - 0.5f) * Spacing.Y;
-            float z = (w - layer - 0.5f) * Spacing.Z;
-            float qx = MathF.Abs(x) - (Spacing.X * 0.5f - Gap - Rounding);
-            float qy = MathF.Abs(y) - (Spacing.Y * 0.5f - Gap - Rounding);
-            float qz = MathF.Abs(z) - (Spacing.Z * 0.5f - Gap - Rounding);
+            float x = (u - (uLow + uHigh) * 0.5f) * Spacing.X;
+            float y = (v - (vLow + vHigh) * 0.5f) * Spacing.Y;
+            float z = (w - (wLow + wHigh) * 0.5f) * Spacing.Z;
+            float qx = MathF.Abs(x) - ((uHigh - uLow) * 0.5f * Spacing.X - Gap - Rounding);
+            float qy = MathF.Abs(y) - ((vHigh - vLow) * 0.5f * Spacing.Y - Gap - Rounding);
+            float qz = MathF.Abs(z) - ((wHigh - wLow) * 0.5f * Spacing.Z - Gap - Rounding);
             float outside = new Vector3(MathF.Max(qx, 0f), MathF.Max(qy, 0f), MathF.Max(qz, 0f)).Length;
             return outside + MathF.Min(MathF.Max(qx, MathF.Max(qy, qz)), 0f) - Rounding;
         }
+
+        // Which gap between joints a coordinate falls in, counting in spacings: joint k lies a third of a spacing either side of k, so the gaps run from 0.4 of a spacing to 1.6.
+        private static void Interval(float t, uint seed, out int index, out float low, out float high)
+        {
+            int k = (int)MathF.Floor(t);
+            float b0 = JointAt(k, seed);
+            float b1 = JointAt(k + 1, seed);
+            if (t < b0) { index = k - 1; low = JointAt(k - 1, seed); high = b0; }
+            else if (t < b1) { index = k; low = b0; high = b1; }
+            else { index = k + 1; low = b1; high = JointAt(k + 2, seed); }
+        }
+
+        private static float JointAt(int k, uint seed) => k + ((FloraNoise.Hash((uint)k * 0x27D4EB2Fu ^ seed) & 0xFFFF) / 65535f - 0.5f) * 0.6f;
+    }
+
+    /// <summary>
+    /// Columns of basalt: hexagonal prisms on a lattice, each its own height, standing apart by a narrow joint, as lava that cooled slowly cracks. Worked out from the few columns
+    /// round a point, not by going through all of them, as a stand of them is dozens.
+    /// </summary>
+    internal sealed class ColumnSet
+    {
+        public float Width = 1f;        // Metres between the middles of neighbouring columns.
+        public float Gap = 0.1f;        // Metres open between them.
+        public float Reach = 3f;        // Metres from the middle the stand reaches.
+        public float Low, High;         // The heights of the tops of the shortest columns, at the stand's edge, and of the tallest.
+        public float Bottom = -3f;      // The floor every column goes down to.
+        public float Tilt = 0.08f;      // How far a top leans, as a slope.
+        public uint Seed;
+
+        private static readonly Vector2[] Around =
+        {
+            new(0f, 0f), new(1f, 0f), new(-1f, 0f), new(0.5f, 0.8660254f), new(-0.5f, 0.8660254f), new(0.5f, -0.8660254f), new(-0.5f, -0.8660254f),
+        };
+
+        public float Distance(Vector3 p)
+        {
+            Vector2 h = p.Xz / Width;
+            Vector2 s = new Vector2(1f, 1.7320508f);
+            Vector2 a = Mod(h, s) - s * 0.5f;
+            Vector2 b = Mod(h - s * 0.5f, s) - s * 0.5f;
+            Vector2 centre = h - (Vector2.Dot(a, a) < Vector2.Dot(b, b) ? a : b);
+            float inner = Width * 0.5f - Gap * 0.5f;
+            float d = float.MaxValue;
+            foreach (Vector2 step in Around)
+            {
+                Vector2 middle = (centre + step) * Width;
+                float out_ = middle.Length / Reach;
+                if (out_ > 1f) continue;
+                uint hash = FloraNoise.Hash((uint)(int)MathF.Round(middle.X * 8f) * 0x9E3779B1u ^ FloraNoise.Hash((uint)(int)MathF.Round(middle.Y * 8f)) ^ Seed);
+                float rise = (1f - out_ * out_) * (0.55f + 0.45f * ((hash & 0xFFFF) / 65535f));
+                float top = Low + (High - Low) * rise;
+                Vector2 lean = new Vector2(((hash >> 16) & 0xFF) / 255f - 0.5f, ((hash >> 24) & 0xFF) / 255f - 0.5f) * (2f * Tilt);
+                Vector2 q = p.Xz - middle;
+                float side = MathF.Max(MathF.Abs(q.X), MathF.Max(MathF.Abs(q.X * 0.5f + q.Y * 0.8660254f), MathF.Abs(q.X * 0.5f - q.Y * 0.8660254f))) - inner;
+                float cap = p.Y - (top + Vector2.Dot(q, lean));
+                float floor = Bottom - p.Y;
+                d = MathF.Min(d, MathF.Max(side, MathF.Max(cap, floor)));
+            }
+            return d;
+        }
+
+        private static Vector2 Mod(Vector2 x, Vector2 y) => new Vector2(x.X - y.X * MathF.Floor(x.X / y.X), x.Y - y.Y * MathF.Floor(x.Y / y.Y));
     }
 
     /// <summary>A rock as a signed distance, negative inside. Everything about its shape is here: <see cref="RockForge"/> only makes a mesh of it.</summary>
@@ -90,6 +153,9 @@ namespace Dino_Engine.Modelling.Procedural.Rock
     {
         public readonly List<RockBody> Bodies = new();
         public readonly List<Crack> Cracks = new();
+        /// <summary>Ellipsoids taken out of the rock, the opening of an arch.</summary>
+        public readonly List<(Vector3 Centre, Vector3 Radii)> Hollows = new();
+        public ColumnSet? Columns;
         public JointLattice? Joints;
         public float Blend;             // How far apart bodies still run together.
         public float WarpSize = 1f;     // Metres to a wander of the joints, so that no fracture is a ruled line.
@@ -113,6 +179,13 @@ namespace Dino_Engine.Modelling.Procedural.Rock
                 float plane = MathF.Abs(Vector3.Dot(p, crack.Normal) - crack.Offset);
                 mass = MathF.Max(mass, MathF.Min(crack.Width - plane, mass + crack.Depth));
             }
+            foreach ((Vector3 centre, Vector3 radii) in Hollows)
+            {
+                // A scaled sphere's distance, which is near enough to the ellipsoid's for a surface to be found by.
+                Vector3 local = (p - centre) / radii;
+                float hollow = (local.Length - 1f) * MathF.Min(radii.X, MathF.Min(radii.Y, radii.Z));
+                mass = MathF.Max(mass, -hollow);
+            }
             return mass;
         }
 
@@ -126,16 +199,21 @@ namespace Dino_Engine.Modelling.Procedural.Rock
             if (value > radius) return true;
             float inward = radius + (Joints != null ? Joints.Depth + Joints.Retreat * 2f : 0f);
             foreach (Crack crack in Cracks) inward = MathF.Max(inward, radius + crack.Depth);
+            // A hollow can open anywhere inside, so nowhere near one is certainly rock.
+            foreach ((Vector3 centre, Vector3 radii) in Hollows)
+            {
+                if ((p - centre).Length < MathF.Max(radii.X, MathF.Max(radii.Y, radii.Z)) + radius) return false;
+            }
             return value < -inward;
         }
 
         private float Mass(Vector3 p)
         {
-            float d = float.PositiveInfinity;
+            float d = Columns != null ? Columns.Distance(p) : float.PositiveInfinity;
             foreach (RockBody body in Bodies)
             {
                 float b = body.Distance(p);
-                d = float.IsPositiveInfinity(d) ? b : SmoothMin(d, b, Blend);
+                d = float.IsPositiveInfinity(d) ? b : Blend > 1e-4f ? SmoothMin(d, b, Blend) : MathF.Min(d, b);
             }
             return d;
         }

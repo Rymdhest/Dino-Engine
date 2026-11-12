@@ -35,6 +35,9 @@ namespace Dino_Defenders
 
         private readonly record struct PreparedWorld(WorldData World, byte[] Map);
 
+        // Metres round the landing the rock's skin is grown in while a land loads: what the camera sees from there.
+        private const float SkinAtLanding = 44f;
+
         // What's begun before there's a window (Begin), and taken up by the game when it's made.
         private static WorldCache? _earlyWorlds;
         private static WorldAssetLibrary? _earlyAssets;
@@ -320,10 +323,8 @@ namespace Dino_Defenders
             _ui.Playing(false);
             _ui.Menu.Rebuild();
             _ui.Loading.Visible = false;
-            // Behind the menu, the Haven's own tune: the one a player will come to know as the game's.
-            Music.Begin(MusicPlace.Home);
-            Music.Mood = MusicMood.Haven;
-            Music.Intensity = 0.35f;
+            // Behind the menu, the game's theme as an overture: the Haven's own tune, the one a player will come to know as the game's, announcing what's ahead of them.
+            Music.Begin(MusicPlace.Home, MusicMood.Title);
         }
 
         private void ToMenu()
@@ -464,6 +465,7 @@ namespace Dino_Defenders
             SystemRegistry.InsertAfter<GhostPresentationSystem>(new PropLightSystem());
             SystemRegistry.InsertBefore<ModelRenderSystem>(new WildlifeSystem());
             Nature.Off = _options.NoLife;
+            TerrainChunkSystem.Skins = _options.Skin;
             Nature.LogFile = _options.LifeLog;
         }
 
@@ -860,6 +862,18 @@ namespace Dino_Defenders
                 case "travel": _ui.Open(InteractKind.Waygate, GameSession.Current.Sites[0]); break;
                 case "stash": _ui.Open(InteractKind.Stash, GameSession.Current.Sites[0]); break;
                 case "vendor": _ui.Open(InteractKind.BetaVendor, GameSession.Current.Sites[0]); break;
+                case "bench":
+                    // With the first two things in the pack that fuse already on it, so that what they'd make shows.
+                    _ui.Open(InteractKind.Workbench, GameSession.Current.Sites[0]);
+                    Item?[] pack = GameSession.Current.Hero.Inventory;
+                    var pair = Enumerable.Range(0, pack.Length).SelectMany(a => Enumerable.Range(0, pack.Length).Select(b => (a, b)))
+                        .FirstOrDefault(p => p.a != p.b && pack[p.a] is Item x && pack[p.b] is Item y && Crafting.WhyNot(x, y) == null, (a: -1, b: -1));
+                    if (pair.Item1 >= 0)
+                    {
+                        _ui.Hero.Bench.Put(pair.Item1, CraftingBench.First);
+                        _ui.Hero.Bench.Put(pair.Item2, CraftingBench.Second);
+                    }
+                    break;
                 case "uniques":
                     _ui.Open(InteractKind.BetaVendor, GameSession.Current.Sites[0]);
                     _ui.Hero.Vendor.ShowLookup();
@@ -1002,8 +1016,11 @@ namespace Dino_Defenders
             var clock = Stopwatch.StartNew();
             WorldData world = await _worlds.Get(request);
             Task growing = Task.Run(() => _assets.Grow(WorldAssetLibrary.AssetsOf(world)));
+            // The rock round the landing is clad before anyone sees it, and the rest comes in around the camera (RockSkinStream).
+            Task cladding = _options.Skin ? Task.Run(() => RockSkinStream.Prepare(world, world.Sites[0].Landing, SkinAtLanding)) : Task.CompletedTask;
             byte[] map = await Task.Run(() => WorldMapImage.Render(world, MapPanel.Resolution, showSites: false));
             await growing;
+            await cladding;
             Console.WriteLine($"Generated {world.Plan.Name} ({world.Plan.Archetype.Name}, {world.Plan.Mood.Name}) in {clock.Elapsed.TotalSeconds:0.00} s");
             return new PreparedWorld(world, map);
         }

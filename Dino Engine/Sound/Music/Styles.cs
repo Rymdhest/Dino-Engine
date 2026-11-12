@@ -11,6 +11,7 @@ namespace Dino_Engine.Sound.Music
         Haven,      // Home.
         Boss,       // The tyrant of a land's keep.
         Arena,      // One of the great arenas, every tenth level.
+        Title,      // The main menu: the game's theme as an overture, the first thing a player hears.
     }
 
     /// <summary>A moment that gets its own few bars, then hands back to whatever was going on.</summary>
@@ -75,6 +76,28 @@ namespace Dino_Engine.Sound.Music
         First,      // The tune's first statement.
         Second,     // Its repeat.
         Contrast,   // The middle section.
+
+        // The overture's movements, each sung by players of its own.
+        Prelude,    // The theme alone, before the piece begins in earnest.
+        Rising,     // The theme again once the bass has come in, softly.
+        Statement,  // The theme with the whole band behind it.
+        Return,     // The theme at the height of the piece.
+    }
+
+    /// <summary>
+    /// One stretch of a piece that goes somewhere rather than round: which tune, who sings it, how far it builds and in what key. An overture is a list of these, played through
+    /// once, as a concert piece is, and begun again after a silence.
+    /// </summary>
+    public sealed class Movement
+    {
+        public string Name = "";
+        public MelodyUse Tune = MelodyUse.First;    // Which of the three tunes: First, Second or Contrast.
+        public MelodyUse Use = MelodyUse.First;     // Which of the parts sing it.
+        public float From, To;          // Intensity at its first bar and its last, which decides who plays.
+        public float Curve = 1f;        // How late the rise comes: over one it holds back and builds at the end.
+        public int Key;                 // Semitones from the home key.
+        public float Pace = 1f;         // Share of the piece's tempo.
+        public bool Close;              // The last chord, swelled into, struck and let ring.
     }
 
     public delegate void PartWriter(BarContext bar, Part part);
@@ -104,5 +127,7 @@ namespace Dino_Engine.Sound.Music
         public Part[] Parts = Array.Empty<Part>();
         public Section[] Leads = Array.Empty<Section>();    // Who can carry the tune, passed round as the piece goes on.
         public Staging Staging = new() { Room = Orchestra.ConcertHall };
+        public Movement[] Plan = Array.Empty<Movement>();   // Where there is one, the piece plays through it instead of going round its form, and rests RestBars at its end.
+        public int TuneCandidates = 300;                    // Drafts each tune is chosen from.
     }
 }

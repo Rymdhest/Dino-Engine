@@ -52,8 +52,96 @@ namespace Dino_WorldLab
                 if (TryFindCliff(world, out Vector2 cliff)) spots += $"  cliff {cliff.X:0},{cliff.Y:0}";
                 float share = 100f / MathF.Max(land, 1);
                 Console.WriteLine($"{$"{seed} {id}",-26} {world.Geology.Kind,-10} {world.Size,5:0} {top,5:0} {walk * share,6:0.0} {wall * share,6:0.0} {rim * share,5:0.0} {Percentile(0.5f),5:0.00} {Percentile(0.9f),5:0.00} {Percentile(0.99f),5:0.00}  {spots}");
+                Console.WriteLine($"{"",-26} {Forms(world)}");
+                Console.WriteLine($"{"",-26} {SpotsByForm(world)}");
             }
             return 0;
+        }
+
+        // For each form the world's mountains take, the place a character can stand with the most of that form rising in front of the camera and no trees between.
+        private static string SpotsByForm(WorldData world)
+        {
+            var best = new (Vector2 at, float score)[MountainForms.Count];
+            const float Grid = 8f;
+            for (float z = Grid; z < world.Size - Grid; z += Grid)
+            {
+                for (float x = Grid; x < world.Size - Grid; x += Grid)
+                {
+                    Vector2 at = new Vector2(x, z);
+                    if (!world.Walkable.IsSet(at)) continue;
+                    float here = world.Height.Sample(at);
+                    float rise = 0f;
+                    Vector2 peak = at;
+                    for (float ahead = 10f; ahead <= 34f; ahead += 4f)
+                    {
+                        Vector2 out_ = at + new Vector2(0f, ahead);
+                        if (!world.InBounds(out_) || world.Rock.Sample(out_) < 0.7f) continue;
+                        float up = world.Height.Sample(out_) - here;
+                        if (up > rise) { rise = up; peak = out_; }
+                    }
+                    if (rise < 4f) continue;
+                    // Trees standing in front of a face hide it from up here.
+                    int trees = 0;
+                    Vector2i from = world.Objects.SectorOf(new Vector2(x - 8f, z));
+                    Vector2i to = world.Objects.SectorOf(new Vector2(x + 8f, z + 22f));
+                    for (int sz = from.Y; sz <= to.Y; sz++)
+                    {
+                        for (int sx = from.X; sx <= to.X; sx++)
+                        {
+                            if (world.Objects.InSector(new Vector2i(sx, sz)) is not IReadOnlyList<WorldObject> objects) continue;
+                            foreach (WorldObject o in objects)
+                            {
+                                if (o.Position.X < x - 8f || o.Position.X > x + 8f || o.Position.Z < z || o.Position.Z > z + 22f) continue;
+                                if (NatureCatalog.TryGet(world.Objects.AssetIds[o.Asset], out WorldAsset asset) && asset.Kind == WorldAssetKind.Tree) trees++;
+                            }
+                        }
+                    }
+                    FormBlend form = MountainForms.At(world, peak.X, peak.Y);
+                    MountainForm strongest = form.Strongest;
+                    float score = rise * form[strongest] - trees * 6f;
+                    if (score > best[(int)strongest].score) best[(int)strongest] = (at, score);
+                }
+            }
+            // And the rockiest open ground, for the bedrock and knolls in the land people walk on.
+            Vector2 rocky = default;
+            float most = 0f;
+            if (world.GroundRock != null)
+            {
+                for (float z = Grid; z < world.Size - Grid; z += Grid)
+                {
+                    for (float x = Grid; x < world.Size - Grid; x += Grid)
+                    {
+                        if (!world.Walkable.IsSet(new Vector2(x, z))) continue;
+                        float sum = 0f;
+                        for (float dz = -8f; dz <= 16f; dz += 4f)
+                        {
+                            for (float dx = -12f; dx <= 12f; dx += 4f) sum += world.GroundRock.Pavement(x + dx, z + dz);
+                        }
+                        if (sum > most) { most = sum; rocky = new Vector2(x, z); }
+                    }
+                }
+            }
+            string ground = most > 0f ? $"  rocky ground {rocky.X:0},{rocky.Y:0}" : "";
+            return "look at: " + string.Join("  ", Enumerable.Range(0, MountainForms.Count).Where(i => best[i].score > 0f).Select(i => $"{(MountainForm)i} {best[i].at.X:0},{best[i].at.Y:0}")) + ground;
+        }
+
+        // What shapes the world's mountains take, by the share of its bare rock each has most of, and the biomes it has.
+        private static string Forms(WorldData world)
+        {
+            var counts = new int[MountainForms.Count];
+            int total = 0;
+            for (float z = 0f; z < world.Size; z += 8f)
+            {
+                for (float x = 0f; x < world.Size; x += 8f)
+                {
+                    if (world.Rock.Sample(x, z) < 0.5f || world.Massif.Sample(x, z) < 0.5f) continue;
+                    counts[(int)MountainForms.At(world, x, z).Strongest]++;
+                    total++;
+                }
+            }
+            string forms = string.Join(" ", Enumerable.Range(0, MountainForms.Count).Where(i => counts[i] > 0).Select(i => $"{(MountainForm)i} {100f * counts[i] / Math.Max(total, 1):0}%"));
+            string biomes = string.Join(", ", world.Plan.Biomes.Select(b => b.Id));
+            return $"forms: {forms}   biomes: {biomes}";
         }
 
         // Somewhere to stand with a sea cliff just ahead, for rock that's no part of a mountain.
@@ -106,10 +194,11 @@ namespace Dino_WorldLab
             return spots;
         }
 
-        /// <summary>Says why a point can or can't be walked on.</summary>
-        public static int Probe(int seed, string? archetype, Vector2 at)
+        /// <summary>Says why a point can or can't be walked on. <paramref name="larger"/> is WorldRequest's, as NetLab's lands are grown as large as they can be.</summary>
+        public static int Probe(int seed, string? archetype, Vector2 at, float larger = 0f)
         {
-            WorldData world = new WorldGenerator().Generate(new WorldRequest(seed, archetype));
+            WorldData world = new WorldGenerator().Generate(new WorldRequest(seed, archetype, larger: larger));
+            Console.WriteLine($"landing at {world.Sites[0].Landing}, the land {world.Size:0} m across");
             for (int dz = -8; dz <= 8; dz += 2)
             {
                 var line = new System.Text.StringBuilder();
@@ -123,6 +212,7 @@ namespace Dino_WorldLab
 
             // What's near, as a fault at a spot is usually something else's doing.
             foreach (WorldSite site in world.Sites.Where(site => (site.Position - at).Length < 200f)) Console.WriteLine($"  {site.Kind} {site.Name} at {site.Position}, radius {site.Radius:0}, {(site.Position - at).Length:0} m away");
+            foreach (WorldSite haunt in world.Haunts.Where(haunt => (haunt.Position - at).Length < 200f)) Console.WriteLine($"  a pack at {haunt.Position}, {haunt.Spawns.Count} of them, {(haunt.Position - at).Length:0} m away");
             foreach (WorldRoad road in world.Roads)
             {
                 int nearest = Enumerable.Range(0, road.Points.Count).MinBy(i => (road.Points[i].Xz - at).LengthSquared);

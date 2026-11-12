@@ -21,6 +21,7 @@ namespace Dino_Engine.World.Content
         Waygate,        // One of a land's old roads: a gate to travel between, and to leave the land by.
         Haven,          // The one village the Reich has never found, which is the whole of the Haven.
         Arena,          // Where a land's boss is fought, every tenth level: the whole of an arena's world.
+        Overlook,       // Where the hero stands behind the main menu, the one place in its world, with nothing built.
     }
 
     public enum RoadClass
@@ -359,6 +360,18 @@ namespace Dino_Engine.World.Content
             Levelling = 0.8f,
         };
 
+        /// <summary>Where the hero stands in the picture behind the main menu (<see cref="Vista"/>), which is only ever placed there, by itself. Nothing is built on it. It isn't in <see cref="All"/>.</summary>
+        public static readonly SiteDefinition Overlook = new SiteDefinition
+        {
+            Kind = SiteKind.Overlook,
+            Label = "Overlook",
+            MapColour = new Vector3(0.6f, 0.8f, 0.5f),
+            Radius = new FloatRange(10f, 10f),
+            Limits = new IntRange(0, 0),
+            Road = RoadClass.Footpath,
+            Levelling = 0f,             // The meadow falls away from the hero's feet, which is the whole point of standing there.
+        };
+
         /// <summary>What every <see cref="WorldData.Haunts"/> is. It isn't in <see cref="All"/>, as these don't claim land the way places do.</summary>
         public static readonly SiteDefinition Haunt = new SiteDefinition
         {
@@ -381,6 +394,7 @@ namespace Dino_Engine.World.Content
             }
             if (kind == SiteKind.Haven) return Haven;
             if (kind == SiteKind.Arena) return Arena;
+            if (kind == SiteKind.Overlook) return Overlook;
             if (kind == SiteKind.Haunt) return Haunt;
             throw new ArgumentException($"No site definition for {kind}.");
         }

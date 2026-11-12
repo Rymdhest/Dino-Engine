@@ -44,7 +44,10 @@ namespace Dino_Engine.World.Generation
             {
                 Candidate heart = PickHeart(world, candidates);
                 BuildRemoteness(world, heart.Position);
-                if (world.Plan.Archetype.Peaceful) AddSite(world, SiteCatalog.Haven, heart, random.Fork("haven"));
+                // The picture behind the menu is composed, and its one place is where it says the hero stands.
+                if (world.Plan.Archetype.Vista) heart = candidates.MinBy(candidate => (candidate.Position - World.Vista.Hero).LengthSquared) with { Position = World.Vista.Hero };
+                if (world.Plan.Archetype.Vista) AddSite(world, SiteCatalog.Overlook, heart, random.Fork("overlook"));
+                else if (world.Plan.Archetype.Peaceful) AddSite(world, SiteCatalog.Haven, heart, random.Fork("haven"));
                 else AddSite(world, SiteCatalog.Arena, heart, random.Fork("arena"));
                 LevelSites(world);
                 return;
@@ -508,6 +511,8 @@ namespace Dino_Engine.World.Generation
                     return "The Haven";
                 case SiteKind.Arena:
                     return "The Arena";
+                case SiteKind.Overlook:
+                    return "The Overlook";
                 default:
                     return "The Landing";
             }

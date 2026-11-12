@@ -243,6 +243,7 @@ namespace Dino_Engine.World.Generation
 
             Settle(height, rock, width, depth);
             KeepRecord(world, area, order, count);
+            world.Drainage = BuildDrainage(world, area, receiver, order, count);
         }
 
         // Water here can only leave a cell by one of eight ways, so neighbours on an even slope carry unequal shares of it and settle at unequal heights: a comb, a cell wide.
@@ -334,6 +335,75 @@ namespace Dino_Engine.World.Generation
             }
             crests.Blur(1, 1);
             world.Crests = crests;
+        }
+
+        // Every cell with water enough to cut a channel, joined to the one it drains into. Where its water leaves the rock, and how far it has to go to get there, set the lowest
+        // its floor can be cut, so that a ravine always falls towards its mouth. The way through the map's eight directions is a staircase, so each point is drawn towards
+        // the cells above and below it on its channel, which rounds the steps off without moving the channel.
+        private static Drainage BuildDrainage(WorldData world, float[] area, int[] receiver, int[] order, int count)
+        {
+            ScalarField elevation = world.Elevation;
+            float[] rock = world.Massif.Data;
+            float[] ground = elevation.Data;
+            int width = elevation.Width;
+            int cells = ground.Length;
+            var drainage = new Drainage();
+
+            // Receivers come before the cells draining into them in the order, so each floor is known from the one below it.
+            float[] floor = new float[cells];
+            int[] donor = new int[cells];
+            float[] donorArea = new float[cells];
+            Array.Fill(donor, -1);
+            for (int n = 0; n < count; n++)
+            {
+                int i = order[n];
+                int down = receiver[i];
+                if (down < 0) continue;
+                float step = (elevation.WorldPosition(i % width, i / width) - elevation.WorldPosition(down % width, down / width)).Length;
+                floor[i] = (rock[down] > 0f ? floor[down] : ground[down]) + step * Drainage.LeastFall;
+                if (area[i] >= Drainage.LeastArea && area[i] > donorArea[down])
+                {
+                    donorArea[down] = area[i];
+                    donor[down] = i;
+                }
+            }
+
+            var at = new Vector2[cells];
+            for (int n = 0; n < count; n++)
+            {
+                int i = order[n];
+                at[i] = elevation.WorldPosition(i % width, i / width);
+            }
+            var smoothed = new Vector2[cells];
+            for (int pass = 0; pass < 2; pass++)
+            {
+                for (int n = 0; n < count; n++)
+                {
+                    int i = order[n];
+                    if (area[i] < Drainage.LeastArea || receiver[i] < 0) continue;
+                    int down = receiver[i];
+                    Vector2 below = rock[down] > 0f ? at[down] : elevation.WorldPosition(down % width, down / width);
+                    Vector2 above = donor[i] >= 0 ? at[donor[i]] : at[i];
+                    smoothed[i] = at[i] * 0.5f + below * 0.25f + above * 0.25f;
+                }
+                for (int n = 0; n < count; n++)
+                {
+                    int i = order[n];
+                    if (area[i] >= Drainage.LeastArea && receiver[i] >= 0) at[i] = smoothed[i];
+                }
+            }
+
+            for (int n = 0; n < count; n++)
+            {
+                int i = order[n];
+                int down = receiver[i];
+                if (area[i] < Drainage.LeastArea || down < 0) continue;
+                bool inRock = rock[down] > 0f;
+                Vector2 to = inRock ? at[down] : elevation.WorldPosition(down % width, down / width);
+                drainage.Reaches.Add(new Drainage.Reach(at[i], to, area[i], inRock ? area[down] : area[i], ground[i], ground[down], floor[i], inRock ? floor[down] : ground[down]));
+            }
+            drainage.Index(world.Size);
+            return drainage;
         }
 
         /// <summary>A binary heap of cells by height, lowest first, and by index between equals: a seed has to make the same world on every machine.</summary>

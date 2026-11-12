@@ -51,6 +51,8 @@ namespace Dino_Engine.World
         public ScalarField Crests = null!;
         /// <summary>The bedrock, from MountainStage on.</summary>
         public Geology Geology = null!;
+        /// <summary>The ways water leaves the mountains, from MountainStage on, which RockSculpt cuts its ravines along.</summary>
+        public Drainage Drainage = new();
 
         // --- Climate, at ClimateCell ---
         public ScalarField Temperature = null!;
@@ -114,6 +116,10 @@ namespace Dino_Engine.World
         public ByteField Scree = null!;
         /// <summary>How far bare rock stands out of what's around it: half is level, 1 a sharp crest and 0 the bottom of a crack.</summary>
         public ByteField Proud = null!;
+        /// <summary>The rock in the land people walk on, its pavements and knolls (GroundRock), from TerrainBakeStage on.</summary>
+        public GroundRock? GroundRock;
+        /// <summary>Metres to the nearest bare rock, at CoarseCell, from TerrainBakeStage on: what's fallen off a wall lies near its foot.</summary>
+        public ScalarField RockNear = null!;
 
         // --- Water and plants ---
         public readonly List<WorldPond> Ponds = new();
@@ -195,6 +201,8 @@ namespace Dino_Engine.World
             if (Plaza.Sample(x, z) > 0.5f) return SurfaceMaterial.Gravel;
             if (Yard.Sample(x, z) > 0.5f) return SurfaceMaterial.Dirt;
             if (Farmland.Sample(x, z) > 0.5f) return SurfaceMaterial.Farmland;
+            // Bedrock showing through, as TerrainSurface paints it.
+            if (GroundRock != null && GroundRock.Pavement(x, z) > 0.5f) return SurfaceMaterial.Rock;
 
             if (ShoreHeightAt(position) < 1f) return biome.Shore;
             if (Height.SlopeAt(position) > 0.8f) return biome.Slope;

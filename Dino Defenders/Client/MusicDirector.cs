@@ -56,7 +56,7 @@ namespace Dino_Defenders.Client
                 _inKeep = false;
                 _tyrantSeen = false;
                 _won = false;
-                Music.Begin(PlaceOf(session));
+                Music.Begin(PlaceOf(session), session.IsHaven ? MusicMood.Haven : session.World.Plan.Archetype.Arena ? MusicMood.Arena : MusicMood.Land);
             }
 
             _next -= deltaTime;

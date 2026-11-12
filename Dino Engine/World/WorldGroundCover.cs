@@ -75,8 +75,14 @@ namespace Dino_Engine.World
 
             float slope = world.Height.SlopeAt(point);
 
-            // A scree is nothing but small stones, on ground far too steep for anything else.
+            // A scree is nothing but small stones, on ground far too steep for anything else, and stones lie about at the foot of a wall and on bedrock.
             float scree = world.Scree.Sample(point);
+            float fallen = world.RockNear != null ? (1f - Smoothstep(1f, 7f, world.RockNear.Sample(point))) * 0.45f : 0f;
+            float pavement = world.GroundRock?.Pavement(point.X, point.Y) ?? 0f;
+            float strewn = MathF.Max(fallen, pavement * 0.35f);
+            // What lies about in the land keeps off whatever's built there, as a scree on a mountain has nothing built on it to keep off.
+            if (strewn > scree && world.Placement.Overlaps(Footprint.Circle(point, 0.5f), PlacementLayer.Built | PlacementLayer.Road)) strewn = 0f;
+            scree = MathF.Max(scree, strewn);
             if (scree > 0.25f && slope < 1.7f)
             {
                 if (Random01(ref state) >= scree * 0.75f) return;

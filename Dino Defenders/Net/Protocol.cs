@@ -60,6 +60,7 @@ namespace Dino_Defenders.Net
         TakeOffer,      // From the beta vendor in the Haven, into the pack.
         CallRoads,      // Begin calling the old roads open from wherever the hero stands, in a land.
         Reroll,         // At the Haven's map table: three other lands for a level, for gold.
+        Fuse,           // At the Forge's crafting bench: two Magic things of a sort into one Rare, for gold.
     }
 
     public enum NoticeKind : byte
@@ -75,7 +76,7 @@ namespace Dino_Defenders.Net
     public static class Protocol
     {
         /// <summary>Goes up with any change to what's written here. Component changes are caught by <see cref="NetSchema.Hash"/>.</summary>
-        public const uint Version = 13;
+        public const uint Version = 14;
 
         /// <summary>
         /// Which build this is, compared at the door. The schema hash only sees replicated components: two builds with different rules

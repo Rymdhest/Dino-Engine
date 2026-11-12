@@ -667,6 +667,7 @@ void main() {
     vec3 facing = gl_FrontFacing ? N : -N;
     GroundLook look = LookGround(winningMat, winningUV, N, facing, uvDX, uvDY, positionDX, positionDY);
     if (rock) {
+        // Its joints are the skin's, which stands over it (RockSkin): what shows of the ground itself is the floor of a crack, and the rock where the skin goes into it.
         RockLook stone = rockLook(fragWorldPos, N, positionDX, positionDY);
         look.albedo = stone.albedo;
         look.roughness = stone.roughness;
