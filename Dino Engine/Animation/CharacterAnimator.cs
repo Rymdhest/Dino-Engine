@@ -205,6 +205,15 @@ namespace Dino_Engine.Animation
             _gripTurn = new TurnContinuity[rig.Arms.Length];
             _clock = (seed & 1023) * 0.37f;
 
+            // What arms have to keep out of: a trunk as wide as the shoulders stand apart, between the hips and the shoulders. Only a person's arms are posed against it.
+            if (rig.Arms.Length == 2 && !rig.Saurian)
+            {
+                Vector3 shoulder = rig.Pivots[(int)rig.Arms[0].Upper];
+                _trunkWidth = MathF.Abs(shoulder.X) * TrunkWidth;
+                _trunkLow = rig.Pivots[(int)BoneType.Pelvis].Y;
+                _trunkHigh = shoulder.Y;
+            }
+
             Array.Copy(rig.Pivots, _joints, Rig.BoneCount);
             Array.Fill(_rotations, Quaternion.Identity);
             for (int i = 0; i < Skinning.Length; i++) Skinning[i] = Matrix4.Identity;
@@ -457,7 +466,7 @@ namespace Dino_Engine.Animation
                 // A blow that follows hard on the last one takes up from where that one left the hand. With a weapon in each, the other hand opens instead, and a weapon alone in the off hand does it all.
                 if (acting)
                 {
-                    _offTurn = _second != null && (_carry == Carry.Nothing || _offNext);
+                    _offTurn = _second is { Swings: true } && (_carry == Carry.Nothing || _offNext);
                     _offNext = !_offTurn;
                     bool follows = _second == null && _sinceActing < ChainWithin && _playing?.Next != null && action.Gesture!.Next != null;
                     _playing = follows ? _playing!.Next : action.Gesture;
@@ -473,6 +482,7 @@ namespace Dino_Engine.Animation
                 _lost = _held > 0f ? _lost + deltaTime : MathF.Max(_lost - deltaTime * 1.5f, 0f);
                 gesture = GesturePlayer.Sample(_playing ?? action.Gesture!, MathF.Max(action.Elapsed - _lost, 0f), action.Impact, action.Length);
                 if (_offTurn && _second != null) gesture = Mirrored(gesture);
+                else if (_carry.Arm != 1 && !(_playing ?? action.Gesture!).LeftHanded) gesture = Bowed(gesture);
                 _aim = Spring.Shortest(action.Aim - input.Yaw);
             }
             Swinging = acting && gesture.Swing > 0f && gesture.Swing < 1f;
@@ -486,8 +496,24 @@ namespace Dino_Engine.Animation
             Off = gesture.Main.Mirrored,
             HasMain = gesture.HasOff,
             HasOff = gesture.HasMain,
+            MainSweep = new Vector2(-gesture.OffSweep.X, gesture.OffSweep.Y),
+            OffSweep = new Vector2(-gesture.MainSweep.X, gesture.MainSweep.Y),
             Body = gesture.Body.Mirrored,
         };
+
+        // What's written for a right hand, done with a bow in the left: the free right hand does what the main hand would, and the bow hand what the other would, each on its own side. What's done
+        // with a free hand alone is done with the right, on the right.
+        private static GestureSample Bowed(in GestureSample gesture) => gesture.FreeHand
+            ? gesture with { Off = gesture.Off.Mirrored, OffSweep = new Vector2(-gesture.OffSweep.X, gesture.OffSweep.Y), Body = gesture.Body.Mirrored }
+            : gesture with
+            {
+                Main = gesture.Off,
+                Off = gesture.Main,
+                HasMain = gesture.HasOff,
+                HasOff = gesture.HasMain,
+                MainSweep = gesture.OffSweep,
+                OffSweep = gesture.MainSweep,
+            };
 
         // The hips go the way the body is going, so that legs step out the way they're going, while the shoulders stay on what they're looking at.
         private void ReadFacing(float deltaTime, float life)
@@ -790,6 +816,8 @@ namespace Dino_Engine.Animation
             float arm = Rig.ArmLength;
             Vector3 chest = _joints[(int)BoneType.Chest];
             Quaternion chestRotation = _rotations[(int)BoneType.Chest];
+            _chestAt = chest;
+            _unchest = Quaternion.Invert(chestRotation);
             float weight = gesture.Weight;
             float moving = Gait.Smooth(0.5f, 4f, speed);
             float swing = 20f + 34f * run;
@@ -829,6 +857,8 @@ namespace Dino_Engine.Animation
                 float bladeRise = MathHelper.DegreesToRadians(key.BladeRise);
 
                 bool told = main ? gesture.HasMain : gesture.HasOff && !(gesture.FreeHand && _shield);
+                Vector3 cut = Vector3.Zero;
+                float cutting = 0f;
                 if (told && weight > 0f)
                 {
                     // Both are angles around the body, measured from the front. So going from one to the other stays in front of the body and can't flip: the short way round would be through it.
@@ -842,6 +872,18 @@ namespace Dino_Engine.Animation
                     height += (act.Height - height) * weight;
                     reach += (act.Reach - reach) * weight;
                     bladeRise += (MathHelper.DegreesToRadians(act.BladeRise) - bladeRise) * weight;
+
+                    // What's swung leads with its edge, which a wrist and a forearm can turn it to: the way the blade is travelling, at right angles to it. A bow keeps its string to whoever draws it.
+                    Vector2 sweep = main ? gesture.MainSweep : gesture.OffSweep;
+                    bool edged = main ? _carry != Carry.Bow && _carry != Carry.Nothing : _second is { Swings: true };
+                    if (edged)
+                    {
+                        float turning = MathHelper.DegreesToRadians(sweep.X), rising = MathHelper.DegreesToRadians(sweep.Y);
+                        cut = Frames.Left(bladeTurn) * (turning * MathF.Cos(bladeRise)) + (Vector3.UnitY * MathF.Cos(bladeRise) - Frames.Forward(bladeTurn) * MathF.Sin(bladeRise)) * rising;
+                        float pace = cut.Length;
+                        if (pace > 1e-4f) cut /= pace;
+                        cutting = weight * Gait.Smooth(MathHelper.DegreesToRadians(LeastCut), MathHelper.DegreesToRadians(FullCut), pace);
+                    }
                 }
 
                 Vector3 wanted = chest + (Frames.Forward(turn) * reach + Vector3.UnitY * height) * arm;
@@ -851,14 +893,59 @@ namespace Dino_Engine.Animation
                 Vector3 axis = Frames.Forward(bladeTurn) * rise + Vector3.UnitY * MathF.Sin(bladeRise);
                 if (!main && _carry.TwoHanded)
                 {
-                    wanted = _mainHand + _mainAxis * _carry.SecondGrip;
-                    axis = _mainAxis;
+                    // It holds on unless holding on would take it into the body or round behind it, or what's being done gives it something of its own to do: then it lets go, and takes hold again after.
+                    Vector3 grip = _mainHand + _mainAxis * _carry.SecondGrip;
+                    float hold = _trunkWidth > 0f ? Gait.Smooth(LetGo, TakeHold, -IntoTrunk(grip)) * Gait.Smooth(Behind, Ahead, InFront(grip)) : 1f;
+                    if (told) hold *= 1f - weight;
+                    wanted = Vector3.Lerp(wanted, grip, hold);
+                    if (hold > 0.5f) axis = _mainAxis;
                 }
 
                 Vector3 hand = _handMotion[i].Follow(wanted, BlendHalfLife, FastestHand, deltaTime, transition);
-                PoseArm(i, limb, chest, chestRotation, chestYaw, hand, axis, main, side, deltaTime, transition);
+                PoseArm(i, limb, chest, chestRotation, chestYaw, hand, axis, main, side, deltaTime, transition, cut, cutting);
             }
         }
+
+        // The trunk arms keep out of, in the rest pose's terms, and the chest's turn undone this frame, to read anything against it.
+        private const float TrunkWidth = 1.33f;
+        private const float TrunkDepth = 0.68f;
+        private readonly float _trunkWidth;
+        private readonly float _trunkLow;
+        private readonly float _trunkHigh;
+        private Quaternion _unchest = Quaternion.Identity;
+        private Vector3 _chestAt;
+
+        // How far into the trunk a point is, as a share of the way from its surface to its middle: under 0 is clear of it by that share.
+        private float IntoTrunk(Vector3 point)
+        {
+            Vector3 local = Vector3.Transform(point - _chestAt, _unchest) + Rig.Pivots[(int)BoneType.Chest];
+            if (local.Y < _trunkLow || local.Y > _trunkHigh) return -1f;
+            float x = local.X / _trunkWidth, z = local.Z / (_trunkWidth * TrunkDepth);
+            return 1f - MathF.Sqrt(x * x + z * z);
+        }
+
+        // How far in front of the trunk's middle a point is, as a share of the trunk's depth: under 0 is behind.
+        private float InFront(Vector3 point) => Vector3.Transform(point - _chestAt, _unchest).Z / (_trunkWidth * TrunkDepth);
+
+        // The deepest a forearm goes, from a little past the elbow to the wrist.
+        private float ForearmInto(Vector3 elbow, Vector3 wrist)
+        {
+            float most = -1f;
+            for (int i = 1; i <= 3; i++) most = MathF.Max(most, IntoTrunk(elbow + (wrist - elbow) * (0.1f + 0.3f * i)));
+            return most;
+        }
+
+        // A second hand on a weapon holds on while where it holds is clear of the trunk by this share, and has let go by this.
+        private const float TakeHold = 0.3f;
+        private const float LetGo = 0.08f;
+
+        // And while it's in front of the trunk's middle by this share of its depth, having let go by the time it's this far behind.
+        private const float Ahead = 0.1f;
+        private const float Behind = -0.3f;
+
+        // How near a forearm comes to the trunk before its elbow starts going out and down rather than back, and how far in it would go for that to be all of it.
+        private const float ElbowRoom = 0.25f;
+        private const float ElbowOut = 0.15f;
 
         private Vector3 _mainHand;
         private Vector3 _mainAxis = Vector3.UnitZ;
@@ -871,7 +958,13 @@ namespace Dino_Engine.Animation
             return HandKey.Lerp(going, carry.Guard, _alert * (1f - run * 0.7f));
         }
 
-        private void PoseArm(int index, Limb limb, Vector3 chest, Quaternion chestRotation, float chestYaw, Vector3 hand, Vector3 axis, bool main, float side, float deltaTime, bool transition)
+        private const float ElbowsBack = 0.2f;
+
+        // Degrees a blade has to sweep in a whole swing before its edge leads, and by when it leads entirely: a thrust turns nothing.
+        private const float LeastCut = 30f;
+        private const float FullCut = 120f;
+
+        private void PoseArm(int index, Limb limb, Vector3 chest, Quaternion chestRotation, float chestYaw, Vector3 hand, Vector3 axis, bool main, float side, float deltaTime, bool transition, Vector3 cut, float cutting)
         {
             BoneType clavicle = limb.Parent;
             int clavicleIndex = (int)clavicle;
@@ -896,7 +989,21 @@ namespace Dino_Engine.Animation
             // A shield lies along the forearm, so the elbow has to stand out for it to face anything.
             if (!main && _shield) elbowWay = back * 0.4f + outward * 1.3f - Vector3.UnitY * 0.3f;
 
+            // Both hands on one weapon are in front of the body, and an elbow that went back would take its forearm through the body's side to get there: they hang down and out instead.
+            if (_carry.TwoHanded) elbowWay = back * ElbowsBack + outward * 0.9f - Vector3.UnitY * 0.8f;
+
             Reach.Solve(limb, shoulder, hand, elbowWay, out Vector3 elbow, out Vector3 wrist, out Quaternion upper, out Quaternion lower);
+
+            // An elbow that went back would take its forearm through the body when the hand's in front of it: the nearer it would come, the more the elbow goes out and down instead, as an arm does.
+            if (_trunkWidth > 0f)
+            {
+                float out_ = Gait.Smooth(-ElbowRoom, ElbowOut, ForearmInto(elbow, wrist));
+                if (out_ > 0f)
+                {
+                    Vector3 way = Vector3.Lerp(elbowWay.Normalized(), (outward - Vector3.UnitY * 0.5f).Normalized(), out_);
+                    Reach.Solve(limb, shoulder, hand, way, out elbow, out wrist, out upper, out lower);
+                }
+            }
             _joints[upperIndex] = shoulder;
             _joints[(int)limb.Lower] = elbow;
             _joints[(int)limb.End] = wrist;
@@ -912,7 +1019,15 @@ namespace Dino_Engine.Animation
                 return;
             }
 
-            Quaternion grip = Frames.Of(axis, Frames.Across(forearm, axis, Vector3.Cross(axis, Frames.Left(chestYaw)))) * _gripRests[index];
+            // At rest an edge hangs the way the forearm points, away from the elbow (HumanoidGenerator.MainHand); in a blow it turns round the blade to the way it's going, by the shorter way.
+            Vector3 across = Frames.Across(forearm, axis, Vector3.Cross(axis, Frames.Left(chestYaw)));
+            if (cutting > 0f)
+            {
+                Vector3 beside = Vector3.Cross(axis, across);
+                float roll = MathF.Atan2(Vector3.Dot(cut, beside), Vector3.Dot(cut, across)) * cutting;
+                across = across * MathF.Cos(roll) + beside * MathF.Sin(roll);
+            }
+            Quaternion grip = Frames.Of(axis, across) * _gripRests[index];
             grip = _gripTurn[index].Follow(grip, BlendHalfLife, FastestGrip, deltaTime, transition);
             _rotations[(int)limb.End] = grip;
 
@@ -1550,7 +1665,7 @@ namespace Dino_Engine.Animation
         // Whichever hand's turn it is, as that's the one leaving something in the air.
         private void ReadWeapon(in AnimationInput input)
         {
-            bool second = _second != null && (_offTurn || _carry == Carry.Nothing);
+            bool second = _second is { Swings: true } && (_offTurn || _carry == Carry.Nothing);
             Vector3 hand = second ? _secondHand : _mainHand;
             Vector3 axis = second ? _secondAxis : _mainAxis;
             float length = second ? _second!.Length : _carry.Length;

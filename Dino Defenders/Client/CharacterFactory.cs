@@ -302,10 +302,10 @@ namespace Dino_Defenders.Client
             Carry carry = weapon is (_, uint traits) ? SkillMotions.CarryOf(traits) : Carry.Nothing;
             Carry? second = null;
             bool shield = false;
-            if (offHand is (_, uint looks))
+            if (offHand is (ulong other, uint looks))
             {
-                if (Progression.ItemLook.SlotOf(looks) == Progression.ItemSlot.MainHand) second = SkillMotions.CarryOf(looks);
-                else shield = true;
+                second = SkillMotions.SecondOf(other, looks);
+                shield = second == null;
             }
             return new Bearing(rig, style, carry, shield, second);
         }

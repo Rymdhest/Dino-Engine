@@ -7,8 +7,9 @@ namespace Dino_Engine.Modelling.Procedural.Gear
     /// What's in the other hand. A shield is a width drawn down its height and a bow across it, so a buckler, a round shield, a heater and a tower are places in one space, and how it's made
     /// decides its face: boards painted in two tinctures, leather over wood studded in rings, or a face of steel. Heraldry is laid on as fields of its own with exact edges, the way paint over
     /// boards reads, never as colour smeared across a mesh, and keeps to the old rule of a light tincture against a dark. It never makes a cross, never puts white and red together and never wears
-    /// the Reich's colours (LORE.md); its charges are a Defender's: a beast's fang, claws, a lozenge, a ring. A caster's ward isn't a shield at all (<see cref="Ward"/>). Built facing +z, with the
-    /// hand at the origin. See GEAR.md.
+    /// the Reich's colours (LORE.md); its charges are a Defender's: a beast's fang, claws, a lozenge, a ring. A caster's ward isn't a shield at all (<see cref="Ward"/>). A shield is built facing +z
+    /// with the middle of the fist that holds it at the origin and the forearm along +y, its board <see cref="GearFit.ShieldStandoff"/> in front of them; a ward stands up y out of the fist, as a
+    /// weapon does. See GEAR.md.
     /// </summary>
     public static class ShieldGenerator
     {
@@ -30,9 +31,16 @@ namespace Dino_Engine.Modelling.Procedural.Gear
 
         public static void Build(GearMesh mesh, GearLook look)
         {
-            GearMake make = look.Spec.Form.Make;
-            if (make is GearMake.Silk or GearMake.Wraps or GearMake.Cloth || make == GearMake.Any && look.Cloth > 0.5f) Ward(mesh, look);
+            if (IsWard(look.Spec)) Ward(mesh, look);
             else Shield(mesh, look);
+        }
+
+        /// <summary>Whether what's in the other hand is a caster's ward, which is held up out of the fist like a weapon, rather than a shield on the forearm.</summary>
+        public static bool IsWard(GearSpec spec)
+        {
+            GearMake make = spec.Form.Make;
+            float total = spec.Heavy + spec.Leather + spec.Cloth;
+            return make is GearMake.Silk or GearMake.Wraps or GearMake.Cloth || make == GearMake.Any && total > 0f && spec.Cloth / total > 0.5f;
         }
 
         private static void Shield(GearMesh mesh, GearLook look)
@@ -163,9 +171,12 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             };
             mesh.Counted("rim", () =>
             {
+                // Once round, through the foot and the top of the outline once each, as a pair of points there a few centimetres apart turned the rim back on itself.
                 var loop = new List<Vector3>(steps * 2 + 1);
-                for (int i = 0; i <= steps; i++) loop.Add(new Vector3(rings[i].HalfWidth, rings[i].Centre.Y, Bowed(rings[i].HalfWidth)));
-                for (int i = steps - 1; i >= 0; i--) loop.Add(new Vector3(-rings[i].HalfWidth, rings[i].Centre.Y, Bowed(rings[i].HalfWidth)));
+                loop.Add(new Vector3(0f, rings[0].Centre.Y, Bowed(0f)));
+                for (int i = 1; i < steps; i++) loop.Add(new Vector3(rings[i].HalfWidth, rings[i].Centre.Y, Bowed(rings[i].HalfWidth)));
+                loop.Add(new Vector3(0f, rings[steps].Centre.Y, Bowed(0f)));
+                for (int i = steps - 1; i >= 1; i--) loop.Add(new Vector3(-rings[i].HalfWidth, rings[i].Centre.Y, Bowed(rings[i].HalfWidth)));
                 loop.Add(loop[0]);
                 mesh.Sweep(Section.Super(6, 2.4f), loop, _ => new Vector2(MathF.Max(rim, thick * 1.15f), MathF.Max(rim * 0.8f, thick * 1.1f)), edge, Vector3.UnitZ, capStart: false, capEnd: false);
                 // Nails through the rim on boards, and rivets on steel.
@@ -186,7 +197,10 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             if (face == Face.Leather && (kit.Make == GearMake.Studded || genes.Chance("studs", 0.4f))) mesh.Counted("studs", () => StudRings(mesh, genes.Part("studs"), look, c, WidthAt, On, Normal, tall));
             if (tall > wide * 2.6f) mesh.Counted("bands", () => Bands(mesh, genes.Part("bands"), c, WidthAt, On, Normal, tall, Low));
             if (look.Legendary) mesh.Counted("flourish", () => Flourish(mesh, genes.Part("flourish"), look, c, wide, WidthAt, On, Normal, tall, Low, bossed));
-            mesh.Counted("grip", () => Grip(mesh, genes.Part("grip"), c, thick, wide, bossed));
+            // Where the hand goes: far enough behind the board that nothing on the forearm or the fist meets it, where they lie across it. Everything moves so that's the origin.
+            float hand = Bowed(GearFit.ShieldArmRoom) - thick - GearFit.ShieldStandoff;
+            mesh.Counted("grip", () => Grip(mesh, genes.Part("grip"), c, x => Bowed(x) - thick, hand, wide, bossed));
+            mesh.Transform(Matrix4.CreateTranslation(0f, 0f, -hand));
         }
 
         // Boards edge to edge down the face, their seams showing through whatever's painted over them.
@@ -484,18 +498,32 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             }
         }
 
-        // Where the arm goes, on the back: a bar to hold behind the boss, or straps for the forearm and a grip for the hand.
-        private static void Grip(GearMesh mesh, Genes genes, GearColours c, float thick, float wide, bool bossed)
+        // Where the arm goes, on the back: a bar across the fist on posts from the board, and on a shield without a boss a strap round the forearm above it. The board's back is at back(x),
+        // and the hand at hand, behind it.
+        private static void Grip(GearMesh mesh, Genes genes, GearColours c, Func<float, float> back, float hand, float wide, bool bossed)
         {
-            float reach = MathF.Min(genes.Range("reach", 0.24f, 0.34f), wide * 0.7f);
-            var keys = new[] { new Vector3(-reach, 0f, -thick), new Vector3(-reach * 0.5f, 0f, -thick - 0.08f), new Vector3(reach * 0.5f, 0f, -thick - 0.08f), new Vector3(reach, 0f, -thick) };
-            mesh.Sweep(Section.Slab(0.3f), Spine.Through(keys, 8), _ => new Vector2(0.05f, 0.022f), bossed ? c.Wood : c.Strap, Vector3.UnitZ);
+            float reach = MathF.Min(genes.Range("reach", 0.2f, 0.26f), wide * 0.7f);
+            VertexMaterial grip = bossed ? c.Wood : c.Strap;
+            var keys = new[]
+            {
+                new Vector3(-reach, 0f, back(reach) + 0.01f), new Vector3(-reach, 0f, hand + 0.04f), new Vector3(-reach * 0.6f, 0f, hand),
+                new Vector3(reach * 0.6f, 0f, hand), new Vector3(reach, 0f, hand + 0.04f), new Vector3(reach, 0f, back(reach) + 0.01f),
+            };
+            mesh.Sweep(Section.Slab(0.3f), Spine.Through(keys, 12), _ => new Vector2(0.022f, 0.05f), grip, Vector3.UnitY);
             if (!bossed)
             {
-                // A strap for the forearm, above the grip.
-                float y = genes.Range("strap.at", 0.22f, 0.32f);
-                var strap = new[] { new Vector3(-reach * 0.9f, y, -thick), new Vector3(-reach * 0.4f, y, -thick - 0.1f), new Vector3(reach * 0.4f, y, -thick - 0.1f), new Vector3(reach * 0.9f, y, -thick) };
-                mesh.Sweep(Section.Slab(0.3f), Spine.Through(strap, 8), _ => new Vector2(0.04f, 0.012f), c.Strap, Vector3.UnitZ);
+                // A strap for the forearm, round it from the board and back, loose enough for whatever's worn on it.
+                float y = genes.Range("strap.at", 0.24f, 0.34f);
+                float round = GearFit.ShieldStandoff - 0.01f;
+                var strap = new List<Vector3>();
+                for (int i = 0; i <= 12; i++)
+                {
+                    float angle = MathF.PI * 0.5f + MathF.Tau * (0.06f + 0.88f * i / 12f);
+                    strap.Add(new Vector3(MathF.Cos(angle) * round, y, hand + MathF.Sin(angle) * round));
+                }
+                strap[0] = new Vector3(strap[0].X, y, back(strap[0].X) + 0.01f);
+                strap[12] = new Vector3(strap[12].X, y, back(strap[12].X) + 0.01f);
+                mesh.Sweep(Section.Slab(0.3f), strap, _ => new Vector2(0.012f, 0.04f), c.Strap, Vector3.UnitY);
             }
         }
 
@@ -513,7 +541,8 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                 _ => genes.Pick("kind", 2f * (1f - look.Craft), 1f + look.Craft * 2f, 1.5f),
             };
             float size = genes.Around("size", 0.3f + form.Size * 0.3f, 0.04f);
-            float stem = genes.Range("stem", 0.2f, 0.34f);
+            // Its head clears the fist and whatever's worn on the forearm beside it, with what hangs from its foot and a legendary's halo, which come a third of its size below it.
+            float stem = GearFit.ShieldStandoff + size * 0.4f + genes.Range("stem", 0.02f, 0.1f);
             Vector3 heart = new Vector3(0f, stem + size, 0f);
             VertexMaterial metal = look.Legendary ? c.Precious : look.Craft > 0.55f ? c.Fitting : c.Metal;
 

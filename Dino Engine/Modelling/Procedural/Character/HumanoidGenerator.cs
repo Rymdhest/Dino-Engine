@@ -55,9 +55,12 @@ namespace Dino_Engine.Modelling.Procedural.Character
 
         private static Matrix4 Turned(float x, float y, float z) => Util.MyMath.createTransformationMatrix(Vector3.Zero, new Vector3(x, y, z), Vector3.One);
 
-        /// <summary>Where something held in the left hand goes, built facing +z and standing up y, along the arm. On the same bone as the hand.</summary>
+        /// <summary>
+        /// Where a shield goes on the left arm, built facing +z with the middle of the fist at the origin and the forearm along +y: its grip in the fist, <see cref="GearFit.GripPast"/> past the wrist,
+        /// and its board out over the back of the hand. On the same bone as the hand. A ward is held as a weapon is (<see cref="SecondHand"/>).
+        /// </summary>
         public static readonly Matrix4 OffHand =
-            Turned(0f, MathF.PI / 2f, 0f) * Matrix4.CreateTranslation(0f, -ArmLength - 0.4f, 0f) * Turned(0f, 0f, MathF.PI / 2f) * Matrix4.CreateTranslation(ShoulderX, ShoulderY + LegLength, 0f);
+            Turned(0f, MathF.PI / 2f, 0f) * Matrix4.CreateTranslation(0f, -ArmLength - GearFit.GripPast, 0f) * Turned(0f, 0f, MathF.PI / 2f) * Matrix4.CreateTranslation(ShoulderX, ShoulderY + LegLength, 0f);
 
         /// <summary>Where a bow goes, which is in the left hand, across the fist, so that a straight arm has it upright and pointing where the arm points.</summary>
         public static readonly Matrix4 BowHand =
@@ -66,14 +69,17 @@ namespace Dino_Engine.Modelling.Procedural.Character
         /// <summary>Where a ring goes, on either hand, for what's built lying around y.</summary>
         public static Matrix4 RingOn(float side) => Turned(0f, 0f, MathF.PI / 2f) * Matrix4.CreateTranslation(side * (ShoulderX + ArmLength + 0.1f), ShoulderY + LegLength, 0f);
 
-        /// <summary>Where something held in the right hand goes, for what's built standing up with the middle of its grip at the origin. On the same bone as the hand.</summary>
+        /// <summary>
+        /// Where something held in the right hand goes, for what's built standing up with the middle of its grip at the origin. On the same bone as the hand. What it has on its +x side, an axe's bit, a hammer's
+        /// face, a one-edged blade's edge, goes the way the forearm points, away from the elbow: that's the way a fist swings what's in it, so the edge leads a blow and hangs down from a hand at rest.
+        /// </summary>
         public static readonly Matrix4 MainHand =
-            Turned(0f, MathF.PI / 2f, 0f) * Turned(MathF.PI / 2f, 0f, 0f) * Matrix4.CreateTranslation(0f, -ArmLength - 0.15f, 0f)
+            Turned(0f, -MathF.PI / 2f, 0f) * Turned(MathF.PI / 2f, 0f, 0f) * Matrix4.CreateTranslation(0f, -ArmLength - 0.15f, 0f)
             * Turned(0f, 0f, -MathF.PI / 2f) * Matrix4.CreateTranslation(-ShoulderX, ShoulderY + LegLength, 0f);
 
         /// <summary>The same for a second weapon in the left hand: turned onto the other arm rather than mirrored, so that nothing is built inside out. On the same bone as that hand.</summary>
         public static readonly Matrix4 SecondHand =
-            Turned(0f, MathF.PI / 2f, 0f) * Turned(MathF.PI / 2f, 0f, 0f) * Matrix4.CreateTranslation(0f, -ArmLength - 0.15f, 0f)
+            Turned(0f, -MathF.PI / 2f, 0f) * Turned(MathF.PI / 2f, 0f, 0f) * Matrix4.CreateTranslation(0f, -ArmLength - 0.15f, 0f)
             * Turned(0f, 0f, MathF.PI / 2f) * Matrix4.CreateTranslation(ShoulderX, ShoulderY + LegLength, 0f);
 
         private static VertexMaterial Cloth(Vector3 colour) => new VertexMaterial(GearMaterials.Cloth, new Colour(colour));

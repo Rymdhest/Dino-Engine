@@ -219,8 +219,9 @@ namespace Dino_Engine.Modelling.Procedural.Gear
             }
 
             VertexMaterial plate = kit.Shell;
-            mesh.Plate((u, v) => Surface(u, v, Front, 1f), 14, 6, thick, (_, _) => plate, PlateEdge.Top | PlateEdge.Start | PlateEdge.End, roll, underside: kit.ShellDark, rollMaterial: kit.Gilt);
-            mesh.Plate((u, v) => Surface(u, v, Back, 0.3f), 14, 6, thick, (_, _) => plate, PlateEdge.Top, roll, underside: kit.ShellDark, rollMaterial: kit.Gilt);
+            // A breastplate is some forty pixels across from where the camera is, so a dozen faces round it are already more than the eye can count.
+            mesh.Plate((u, v) => Surface(u, v, Front, 1f), 12, 6, thick, (_, _) => plate, PlateEdge.Top | PlateEdge.Start | PlateEdge.End, roll, underside: kit.ShellDark, rollMaterial: kit.Gilt);
+            mesh.Plate((u, v) => Surface(u, v, Back, 0.3f), 12, 5, thick, (_, _) => plate, PlateEdge.Top, roll, underside: kit.ShellDark, rollMaterial: kit.Gilt);
 
             // On a legendary harness, gilt scrolls up the breastplate either side of its keel.
             if (look.Legendary)
@@ -265,7 +266,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                     float angle = Front - 1.55f + 3.1f * u;
                     float y = lameLow + (lameTop - lameLow) * v;
                     return (shape.Point(y, angle, out_), shape.Normal(y, angle, out_));
-                }, 12, 1, thick * 0.9f, (_, _) => plate, PlateEdge.Bottom, roll * 0.8f, underside: kit.ShellDark, rollMaterial: kit.Gilt);
+                }, 10, 1, thick * 0.9f, (_, _) => plate, PlateEdge.Bottom, roll * 0.8f, underside: kit.ShellDark, rollMaterial: kit.Gilt);
                 foreach (float end in new[] { Front - 1.45f, Front + 1.45f })
                 {
                     float y = (lameTop + lameLow) * 0.5f;
@@ -722,7 +723,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                         var p = new Vector3(x, BodyForm.Shoulder + rise * (1f - t) + MathF.Sin(angle) * up, MathF.Cos(angle) * wide);
                         var n = new Vector3(0f, MathF.Sin(angle) / up, MathF.Cos(angle) / wide).Normalized();
                         return (p, n);
-                    }, across, 8, thick, (_, _) => shell, lame == lames - 1 ? PlateEdge.End : PlateEdge.None, thick * 1.3f, underside: kit.ShellDark, rollMaterial: kit.Gilt);
+                    }, across, 7, thick, (_, _) => shell, lame == lames - 1 ? PlateEdge.End : PlateEdge.None, thick * 1.3f, underside: kit.ShellDark, rollMaterial: kit.Gilt);
                 }
                 // A rivet at each end of each lame, where it's held to the next.
                 for (int lame = 0; lame < lames && kit.Make == GearMake.Plate; lame++)

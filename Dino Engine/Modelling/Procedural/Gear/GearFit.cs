@@ -61,6 +61,12 @@ namespace Dino_Engine.Modelling.Procedural.Gear
         public const float GloveOuter = 0.2f;
         public const float CuffReach = 0.8f;        // How far up the forearm a cuff may come, as a share of it: never as far as the elbow's plate.
 
+        // What's held on the forearm. A shield's grip is in the middle of the fist, this far past the wrist, and its board lies along the back of the forearm this far off its middle, over anything
+        // a glove or a sleeve puts there (a gauntlet's cuff comes to 0.29): from the grip out to this far either side, where the forearm and the fist are, nothing of the board is nearer.
+        public const float GripPast = 0.1f;
+        public const float ShieldStandoff = 0.3f;
+        public const float ShieldArmRoom = 0.3f;
+
         // The head.
         public const float NeckTuck = 0.34f;        // Below the brow's band, a helm's or a hood's neck comes no further from the neck's middle than this.
         public const float HelmLow = 4.12f;         // Anything of the head's wider than that stays above this.

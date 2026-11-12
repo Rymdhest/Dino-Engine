@@ -58,7 +58,7 @@ namespace Dino_AnimLab
         public static int KitGrade = 2;
 
         // A whole person in one family's armour with a weapon, as a hero is seen: what's worn has to stay apart however the body moves (GearFit), and this is where that's watched.
-        private static Mesh Kitted(float heavy, float leather, float cloth, GearKind weapon)
+        private static Mesh Kitted(float heavy, float leather, float cloth, GearKind weapon, bool shield = false, bool pair = false)
         {
             var form = new GearForm(0.55f, 0.45f, 0.3f, 0.6f, 0.45f, 0.15f);
             var worn = new List<(GearSpec, float)>();
@@ -67,6 +67,8 @@ namespace Dino_AnimLab
                 worn.Add((new GearSpec(KitSeed * 64 + (ulong)kind, kind, heavy, leather, cloth, form, KitGrade, GearTheme.None), -1f));
             }
             worn.Add((new GearSpec(KitSeed * 64 + 40, weapon, heavy, leather, cloth, form, KitGrade, GearTheme.None), -1f));
+            if (shield) worn.Add((new GearSpec(KitSeed * 64 + 41, GearKind.OffHand, heavy, leather, cloth, form, KitGrade, GearTheme.None), 1f));
+            if (pair) worn.Add((new GearSpec(KitSeed * 64 + 42, weapon, heavy, leather, cloth, form, KitGrade, GearTheme.None), 1f));
             return Outfit.Dress(Person(HeldItem.None), worn);
         }
 
@@ -101,6 +103,11 @@ namespace Dino_AnimLab
             new Body("knight", Rig.Humanoid, MotionStyle.Hero, Carry.Sword, false, () => Kitted(1f, 0f, 0f, GearKind.Sword)),
             new Body("ranger", Rig.Humanoid, MotionStyle.Hero, Carry.Bow, false, () => Kitted(0f, 1f, 0f, GearKind.Bow)),
             new Body("mage", Rig.Humanoid, MotionStyle.Hero, Carry.Staff, false, () => Kitted(0f, 0f, 1f, GearKind.Staff)),
+            new Body("axeman", Rig.Humanoid, MotionStyle.Hero, Carry.Sword, true, () => Kitted(1f, 0f, 0f, GearKind.Axe, shield: true)),
+            new Body("greataxe", Rig.Humanoid, MotionStyle.Hero, Carry.Greatsword, false, () => Kitted(1f, 0f, 0f, GearKind.Greataxe)),
+            new Body("greatsword", Rig.Humanoid, MotionStyle.Hero, Carry.Greatsword, false, () => Kitted(1f, 0f, 0f, GearKind.Greatsword)),
+            new Body("axes", Rig.Humanoid, MotionStyle.Hero, Carry.Sword, false, () => Kitted(0.5f, 0.5f, 0f, GearKind.Axe, pair: true), Carry.Sword),
+            new Body("warden", Rig.Humanoid, MotionStyle.Hero, Carry.Wand, false, () => Kitted(0f, 0f, 1f, GearKind.Wand, shield: true), Carry.Ward),
             Beast("wolf", new BeastLook(), MotionStyle.Hound),
             Beast("boar", new BeastLook { Height = 1.35f, Length = 2.9f, Girth = 0.82f, Skull = 0.46f, Muzzle = 0.56f, Tail = 0.4f, Ears = 0.16f, Tusks = 0.36f, Hump = 0.28f, Neck = 0.42f, Coat = new Vector3(0.42f, 0.24f, 0.13f), Belly = new Vector3(0.5f, 0.34f, 0.22f) }, MotionStyle.Boar),
             Beast("bear", new BeastLook { Height = 2.3f, Length = 3.9f, Girth = 1.25f, Skull = 0.62f, Muzzle = 0.44f, Tail = 0f, Ears = 0.17f, Hump = 0.34f, Neck = 0.8f, Coat = new Vector3(0.34f, 0.2f, 0.1f), Belly = new Vector3(0.42f, 0.27f, 0.15f) }, MotionStyle.Bear),

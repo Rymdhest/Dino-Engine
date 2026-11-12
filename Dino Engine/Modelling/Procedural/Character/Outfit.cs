@@ -26,7 +26,7 @@ namespace Dino_Engine.Modelling.Procedural.Character
                 {
                     case GearKind.OffHand:
                         piece.SetBone((int)BoneType.HandL);
-                        dressed.At(HumanoidGenerator.OffHand, () => dressed.Add(piece));
+                        dressed.At(ShieldGenerator.IsWard(spec) ? HumanoidGenerator.SecondHand : HumanoidGenerator.OffHand, () => dressed.Add(piece));
                         break;
                     case GearKind.Bow:
                         piece.SetBone((int)BoneType.HandL);
@@ -84,7 +84,7 @@ namespace Dino_Engine.Modelling.Procedural.Character
                 {
                     case GearKind.OffHand:
                         piece.SetBone((int)BoneType.HandL);
-                        dressed.At(HumanoidGenerator.OffHand, () => dressed.Add(piece));
+                        dressed.At(ShieldGenerator.IsWard(spec) ? HumanoidGenerator.SecondHand : HumanoidGenerator.OffHand, () => dressed.Add(piece));
                         break;
                     case GearKind.Bow:
                         piece.SetBone((int)BoneType.HandL);

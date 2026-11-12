@@ -24,11 +24,18 @@ namespace Dino_GearLab
             failures += Check(GearKind.Legs, count, Legs);
             failures += Check(GearKind.Feet, count, Feet);
             failures += Check(GearKind.Hands, count, Hands);
+            failures += Check(GearKind.OffHand, count, Held, Placed, Wraps);
             Console.WriteLine(failures == 0 ? "All fit" : $"{failures} failed");
             return failures == 0 ? 0 : 1;
         }
 
-        private static int Check(GearKind kind, int count, Func<Vector3, Fault?> rule)
+        // What's held is where the hand holds it, a shield on the forearm and a ward out of the fist (Outfit).
+        private static Matrix4 Placed(GearSpec spec) => ShieldGenerator.IsWard(spec) ? Dino_Engine.Modelling.Procedural.Character.HumanoidGenerator.SecondHand : Dino_Engine.Modelling.Procedural.Character.HumanoidGenerator.OffHand;
+
+        // What's meant to go round the arm or through the fist: a shield's grip and strap, and a ward's handle.
+        private static bool Wraps(string part) => part is "grip" or "handle";
+
+        private static int Check(GearKind kind, int count, Func<Vector3, Fault?> rule, Func<GearSpec, Matrix4>? place = null, Func<string, bool>? skip = null)
         {
             var faults = new Dictionary<string, (int pieces, float worst, ulong seed, Vector3 at, string part)>();
             var parts = new Dictionary<string, Dictionary<string, int>>();
@@ -37,12 +44,14 @@ namespace Dino_GearLab
             {
                 GearSpec spec = GearCheck.Sample(kind, (ulong)i * 2654435761UL + 7, i);
                 GearMesh made = GearForge.Make(spec, new Dictionary<string, int>());
+                Matrix4 placed = place?.Invoke(spec) ?? Matrix4.Identity;
                 var here = new Dictionary<string, (float by, Vector3 at, string part)>();
                 for (int v = 0; v < made.VertexCount; v++)
                 {
-                    Vector3 position = made.Vertices[v].position;
+                    Vector3 position = Vector3.TransformPosition(made.Vertices[v].position, placed);
                     if (rule(position) is not Fault fault) continue;
                     string part = PartOf(made, v);
+                    if (skip != null && skip(part)) continue;
                     parts.TryAdd(fault.Why, new Dictionary<string, int>());
                     if (!here.ContainsKey(fault.Why + "|" + part)) parts[fault.Why][part] = parts[fault.Why].GetValueOrDefault(part) + 1;
                     here.TryAdd(fault.Why + "|" + part, (0f, position, part));
@@ -205,6 +214,16 @@ namespace Dino_GearLab
             if (MathF.Abs(p.X) < GearFit.SideStrap - 0.001f) return new Fault("past the middle into the other foot's", GearFit.SideStrap - MathF.Abs(p.X));
             float most = p.Y > GearFit.KneeLow ? GearFit.BootTopOuter : p.Y <= GearFit.CuffLow + 0.02f ? GearFit.CuffOuter : GearFit.BootOuter;
             if (d > most + Slack) return new Fault("out past a boot's band", d - most);
+            return null;
+        }
+
+        // Nothing held comes nearer the middle of the forearm or the fist it's on than a shield's board, where anything worn there could be, but what's meant to go round them.
+        private static Fault? Held(Vector3 p)
+        {
+            if (p.X < BodyForm.ElbowX || p.X > BodyForm.WristX + GearFit.GripPast + 0.25f) return null;
+            float dy = p.Y - BodyForm.Shoulder;
+            float from = MathF.Sqrt(dy * dy + p.Z * p.Z);
+            if (from < GearFit.ShieldStandoff - Slack) return new Fault("into what's worn on the forearm", GearFit.ShieldStandoff - from);
             return null;
         }
 

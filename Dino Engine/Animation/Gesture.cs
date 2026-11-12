@@ -71,6 +71,9 @@ namespace Dino_Engine.Animation
         /// <summary>Both feet leave the ground, as in a spin.</summary>
         public bool Airborne;
 
+        /// <summary>It's written for a bow in the left hand. Anything else is written for a right hand, and a bow's carrier does it with the free one.</summary>
+        public bool LeftHanded;
+
         /// <summary>What it turns into if it comes straight after this one, so that a run of cuts swings to and fro and doesn't start over each time. It's the body that knows this, from where its hand has got to.</summary>
         public Gesture? Next;
     }
@@ -89,6 +92,10 @@ namespace Dino_Engine.Animation
 
         /// <summary>From cock at 0 to through at 1, with contact at <see cref="Gesture"/>'s middle key. It's the same time the sample was taken at, as the eye saw it.</summary>
         public float Swing;
+
+        /// <summary>Which way each hand's blade is travelling, as degrees of <see cref="HandKey.BladeTurn"/> and <see cref="HandKey.BladeRise"/> for a whole swing at this moment's pace: what an edge leads with.</summary>
+        public Vector2 MainSweep;
+        public Vector2 OffSweep;
     }
 
     /// <summary>
@@ -159,8 +166,16 @@ namespace Dino_Engine.Animation
 
             sample.Swing = swing;
             sample.Weight = weight;
-            if (gesture.Main != null) sample.Main = AlongHand(gesture.Main, swing, creep, drawn);
-            if (gesture.Off != null) sample.Off = AlongHand(gesture.Off, swing, creep, drawn);
+            if (gesture.Main != null)
+            {
+                sample.Main = AlongHand(gesture.Main, swing, creep, drawn);
+                sample.MainSweep = Sweep(gesture.Main, swing, drawn);
+            }
+            if (gesture.Off != null)
+            {
+                sample.Off = AlongHand(gesture.Off, swing, creep, drawn);
+                sample.OffSweep = Sweep(gesture.Off, swing, drawn);
+            }
             sample.Body = AlongBody(gesture.Body, swing, creep, drawn);
             return sample;
         }
@@ -177,6 +192,19 @@ namespace Dino_Engine.Animation
 
             // Drawing back from where it's going to go.
             return new HandKey(key.Turn + (a.Turn - b.Turn) * creep, key.Height + (a.Height - b.Height) * creep, key.Reach, key.BladeTurn + (a.BladeTurn - b.BladeTurn) * creep, key.BladeRise);
+        }
+
+        // How the blade's way changes along the curve at this point, per whole swing. At the cock it's the way it's about to go.
+        private static Vector2 Sweep(HandKey[] keys, float swing, float drawn)
+        {
+            const float Step = 0.03f;
+            float from = MathF.Max(swing - Step, 0f), to = MathF.Min(swing + Step, 1f);
+            HandKey b = keys[1], c = keys[2];
+            HandKey a = HandKey.Lerp(b, keys[0], drawn);
+            float span = to - from;
+            return new Vector2(
+                (Through(a.BladeTurn, b.BladeTurn, c.BladeTurn, to) - Through(a.BladeTurn, b.BladeTurn, c.BladeTurn, from)) / span,
+                (Through(a.BladeRise, b.BladeRise, c.BladeRise, to) - Through(a.BladeRise, b.BladeRise, c.BladeRise, from)) / span);
         }
 
         private static BodyKey AlongBody(BodyKey[] keys, float swing, float creep, float drawn)
@@ -227,6 +255,9 @@ namespace Dino_Engine.Animation
         /// <summary>Which arm has it: 1 is the right, as it nearly always is. A bow is held in the left.</summary>
         public int Arm = 1;
 
+        /// <summary>It strikes. A weapon in the other hand takes turns with the first; a ward is only held up.</summary>
+        public bool Swings = true;
+
         public static readonly Carry Nothing = new Carry
         {
             Idle = new HandKey(-84f, -0.53f, 0.5f),
@@ -253,9 +284,9 @@ namespace Dino_Engine.Animation
         // Up on the shoulder on the move, as anyone carrying something heavy does, and held across the body with both hands at the ready.
         public static readonly Carry Greatsword = new Carry
         {
-            Idle = new HandKey(-62f, -0.42f, 0.62f, -40f, -36f),
+            Idle = new HandKey(-46f, -0.24f, 0.56f, -168f, 52f),
             Run = new HandKey(-54f, -0.2f, 0.58f, -176f, 42f),
-            Guard = new HandKey(-34f, -0.28f, 0.7f, -14f, 42f),
+            Guard = new HandKey(-6f, -0.3f, 0.8f, -4f, 32f),
             Length = 3.2f,
             TwoHanded = true,
             SecondGrip = -0.62f,
@@ -293,6 +324,17 @@ namespace Dino_Engine.Animation
             Guard = new HandKey(40f, -0.18f, 0.74f, 20f, 78f),
             Length = 1.6f,
             Arm = 0,
+        };
+
+        // A caster's ward, in the other hand and held up out of the fist as a lantern is: low at the side at rest and on the move, and raised in front when there's a fight. Written for a right
+        // hand, as everything is, and held in the left.
+        public static readonly Carry Ward = new Carry
+        {
+            Idle = new HandKey(-74f, -0.44f, 0.56f, -34f, 58f),
+            Run = new HandKey(-78f, -0.3f, 0.56f, -44f, 50f),
+            Guard = new HandKey(-38f, -0.08f, 0.7f, -16f, 74f),
+            Length = 0.9f,
+            Swings = false,
         };
 
         /// <summary>How a shield is carried, on the arm that isn't busy. Where a key says a blade points, here it's which way the shield faces.</summary>
@@ -471,6 +513,7 @@ namespace Dino_Engine.Animation
             Snap = 0.04f,
             Follow = 0.09f,
             Weight = 0.4f,
+            LeftHanded = true,
         };
 
         /// <summary>Over the shoulder and away.</summary>
@@ -555,13 +598,13 @@ namespace Dino_Engine.Animation
             Name = "burst",
             Main = new[]
             {
-                new HandKey(-22f, -0.04f, 0.26f, -20f, 20f),
+                new HandKey(-34f, -0.1f, 0.42f, -30f, 20f),
                 new HandKey(-96f, -0.14f, 0.98f, -100f, 2f),
                 new HandKey(-110f, -0.28f, 0.92f, -114f, -8f),
             },
             Off = new[]
             {
-                new HandKey(22f, -0.04f, 0.26f),
+                new HandKey(34f, -0.1f, 0.42f),
                 new HandKey(96f, -0.14f, 0.98f),
                 new HandKey(110f, -0.28f, 0.92f),
             },

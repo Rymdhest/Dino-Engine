@@ -87,10 +87,20 @@ namespace Dino_Defenders.Client
             foreach (WornLook look in worn)
             {
                 if (look.Place == WornSlot.MainHand) carry = CarryOf(look.Traits);
-                else if (look.Place == WornSlot.OffHand && ItemLook.SlotOf(look.Traits) == ItemSlot.MainHand) second = CarryOf(look.Traits);
-                else if (look.Place == WornSlot.OffHand) shield = true;
+                else if (look.Place == WornSlot.OffHand)
+                {
+                    second = SecondOf(look.Seed, look.Traits);
+                    shield = second == null;
+                }
             }
             animator.Hold(carry, shield, second);
+        }
+
+        /// <summary>How what's in the other hand is carried: a second weapon as a weapon is, a caster's ward held up out of the fist, or nothing here for a shield, which is on the forearm.</summary>
+        public static Carry? SecondOf(ulong seed, uint traits)
+        {
+            if (ItemLook.SlotOf(traits) == ItemSlot.MainHand) return CarryOf(traits);
+            return Dino_Engine.Modelling.Procedural.Gear.ShieldGenerator.IsWard(ItemLook.SpecOf(seed, traits)) ? Carry.Ward : null;
         }
 
         /// <summary>How something a hero has in their hands is carried, from what was said about it.</summary>
