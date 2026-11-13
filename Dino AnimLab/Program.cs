@@ -1,4 +1,4 @@
-using Dino_Engine.Animation;
+﻿using Dino_Engine.Animation;
 using Dino_Engine.Util;
 using OpenTK.Mathematics;
 
@@ -30,6 +30,8 @@ namespace Dino_AnimLab
                     return AnimCheck.Run(options);
                 case "bench":
                     return AnimCheck.Bench();
+                case "feet":
+                    return FeetProbe.Run(options);
                 default:
                     Console.WriteLine($"No command called {command}.");
                     return 1;
@@ -182,6 +184,11 @@ namespace Dino_AnimLab
                 input.Alert = script.Alert;
                 input.Dazed = script.Dazed;
                 if (script.Action != null) input.Action = script.Action(time);
+                if (script.ReachFor != null)
+                {
+                    input.ReachFor = position + Vector3.Transform(script.ReachFor(time), Frames.Yaw(yaw));
+                    input.Reaching = 1f;
+                }
                 if (script.DiesAt >= 0f && time >= script.DiesAt && !animator.Dead) animator.Die(script.Push);
                 animator.Step(input, step, script.Ground);
 

@@ -1,4 +1,4 @@
-using Dino_Engine.Animation;
+﻿using Dino_Engine.Animation;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.Modelling.Procedural.Gear;
 using OpenTK.Mathematics;
@@ -271,6 +271,9 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
         // Along the axis, in metres from the tail tip. Neck1At to Neck3At are only between NeckAt and NeckTopAt on a sauropod, and the same as NeckAt on anything else.
         public float TipAt, Tail3At, Tail2At, Tail1At, TailRootAt, HipAt, SpineAt, ChestAt, NeckAt, Neck1At, Neck2At, Neck3At, NeckTopAt, HeadAt;
 
+        /// <summary>Where the trunk ends and the root of the neck begins, along the axis: what a sauropod's forelegs stand under.</summary>
+        public float ShoulderAt;
+
         public float ChestDepth;        // Half the depth of the chest.
         public float ChestWidth;
         public float HipJoint;          // Height of the hip joint.
@@ -388,6 +391,7 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
             for (int i = 1; i < points.Count; i++) lengths[i] = lengths[i - 1] + (points[i] - points[i - 1]).Length;
             HipAt = lengths[60];
             float shoulderAt = lengths[60 + 24];
+            ShoulderAt = shoulderAt;
             NeckAt = lengths[60 + 24 + 4];
             HeadAt = lengths[60 + 24 + 4 + 22];
             float headEnd = lengths[^1];
@@ -496,6 +500,7 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
             for (int i = 1; i < points.Count; i++) lengths[i] = lengths[i - 1] + (points[i] - points[i - 1]).Length;
             HipAt = lengths[TailPoints];
             float shoulderAt = lengths[TailPoints + TrunkPoints];
+            ShoulderAt = shoulderAt;
             NeckAt = lengths[TailPoints + TrunkPoints + RootPoints];
             HeadAt = lengths[TailPoints + TrunkPoints + RootPoints + NeckPoints];
             float headEnd = lengths[^1];
@@ -593,16 +598,19 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
                 Legs[side] = leg;
             }
 
-            // Forelegs under the shoulders, the shoulder joint low on the side of the chest, the elbow a little back, and the wrist as high off the ground as the hind ankle, so that every foot
-            // rolls the same: below it the hand is a column, as a sauropod's was, and it's that the animal stands on.
-            Vector3 chest = Axis.At(ChestAt);
+            // Forelegs under the front of the chest, just behind where the neck rises from it, as a sauropod's shoulder blade lay along its front ribs and its arm hung from the foot of that:
+            // the shoulder joint low on the side of the chest, the elbow a little back, and the wrist as high off the ground as the hind ankle, so that every foot rolls the same. Below it the
+            // hand is a column, as a sauropod's was, and it's that the animal stands on. Stood under the chest's middle instead, as they once were, a third of the trunk went on past them,
+            // and they were shorter than its withers said, as the back is lower there.
+            Vector3 front = Axis.At(ShoulderAt);
             float armGirth = ChestDepth * g.Range("arm girth", s.ArmGirth);
-            float shoulderY = chest.Y - ChestDepth * ShoulderBelow;
+            float shoulderY = front.Y - ChestDepth * ShoulderBelow;
+            float shoulderZ = front.Z + ChestDepth * g.Range("shoulder forward", -0.04f, 0.04f);
             for (int side = 0; side < 2; side++)
             {
                 float x = side == 0 ? 1f : -1f;
                 var leg = new SaurianLeg { Side = x, Front = true };
-                leg.Hip = new Vector3(x * ChestWidth * 0.72f, shoulderY, chest.Z);
+                leg.Hip = new Vector3(x * ChestWidth * 0.72f, shoulderY, shoulderZ);
                 leg.Ankle = new Vector3(leg.Hip.X + x * ChestWidth * 0.03f, ankle, leg.Hip.Z + ChestDepth * 0.05f);
                 float reach = (leg.Ankle - leg.Hip).Length / 0.975f;
                 leg.Knee = Fold(leg.Hip, leg.Ankle, reach * 0.58f, reach * 0.42f, new Vector3(x * 0.1f, 0f, -1f));

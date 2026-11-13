@@ -1,4 +1,4 @@
-using Dino_Engine.ECS.Components;
+﻿using Dino_Engine.ECS.Components;
 using OpenTK.Mathematics;
 
 namespace Dino_Engine.Animation
@@ -112,8 +112,14 @@ namespace Dino_Engine.Animation
         private float _hipTurn;
         private float _hipHeight;
         private float _hipHeightSpeed;
+        private float _foreHeight;      // Where a body on four legs has its chest, as its hips have _hipHeight.
+        private float _foreHeightSpeed;
         private float _bounce;
         private float _sway;
+        private float _swaySpeed;
+        private readonly float[] _support;  // How much of the weight each foot carries, eased in and out (ReadSupport).
+        private readonly Vector3[] _bearing; // Where each foot last bore weight, in the body's own space, which is what holds the hips down while that weight goes.
+        private float _drawnScale = 1f;     // How big it's drawn this frame, which is what how quickly things settle on it goes by.
         private float _dazed;
         private float _stride;
         private float _clock;
@@ -203,6 +209,9 @@ namespace Dino_Engine.Animation
             _gripRests = new Quaternion[rig.Arms.Length];
             _gripAxes = new Vector3[rig.Arms.Length];
             _gripTurn = new TurnContinuity[rig.Arms.Length];
+            _support = new float[rig.Legs.Length];
+            Array.Fill(_support, 1f);
+            _bearing = new Vector3[rig.Legs.Length];
             _clock = (seed & 1023) * 0.37f;
 
             Array.Copy(rig.Pivots, _joints, Rig.BoneCount);
@@ -244,6 +253,12 @@ namespace Dino_Engine.Animation
             _hipTurn = 0f;
             _hipHeight = Rig.HipHeight;
             _hipHeightSpeed = 0f;
+            _foreHeight = Rig.Pivots[(int)BoneType.Chest].Y;
+            _foreHeightSpeed = 0f;
+            _swaySpeed = 0f;
+            _tailAmount = 0f;
+            Array.Fill(_support, 1f);
+            for (int i = 0; i < _bearing.Length; i++) _bearing[i] = Rig.Pivots[(int)Rig.Legs[i].End];
             _seen = true;
 
             _pelvisMotion.Reset();
@@ -382,6 +397,7 @@ namespace Dino_Engine.Animation
             _steppedOnce = true;
 
             float life = deltaTime * input.Rate;
+            _drawnScale = MathF.Max(input.Scale, 0.01f);
             ReadMotion(input, deltaTime);
             Flash = Spring.Damp(Flash, 0f, 0.05f, deltaTime);
             _sinceStruck += deltaTime;
@@ -420,9 +436,11 @@ namespace Dino_Engine.Animation
             if (airborne) CarryFeet(input, spin, dashing);
 
             ReadFeet(input, life);
+            ReadSupport(life);
 
             if (Rig.Saurian && Rig.Plan == BodyPlan.Biped) PoseSaurian(input, gesture, spin, life, deltaTime, transition);
             else if (Rig.Plan == BodyPlan.Biped) PoseBiped(input, gesture, spin, dashing, life, deltaTime, transition);
+            else if (Rig.Plan == BodyPlan.Arachnid) PoseArachnid(input, gesture, life, deltaTime, transition);
             else PoseQuadruped(input, gesture, life, deltaTime, transition);
 
             Solve(input);
@@ -592,6 +610,67 @@ namespace Dino_Engine.Animation
             }
             else toes = Frames.Yaw(yaw) * Frames.Pitch(-groundPitch) * Frames.Roll(groundRoll);
             return _toeTurn[i].Follow(toes, BlendHalfLife, FastestTurn, life);
+        }
+
+        private const float SupportFrom = 0.18f;    // Of a foot's time on the ground, the share it takes to carry its full part of the weight after landing,
+        private const float SupportUntil = 0.82f;   // and where it starts to give it up again before it lifts.
+
+        // How much of the weight each foot carries: nothing in the air, and its full share standing, taken up over the first moment after it lands and handed on before it lifts. A foot
+        // that lifts early, or lands in a stride that changed its mind, would still change things in a moment, so it's eased once more by its own half-life. Whatever's worked out from where
+        // the weight is, a sway over the feet or a hop, goes by this, as an average over the feet that are down jumps every time one comes up or goes down, and a body that size shows it.
+        private void ReadSupport(float life)
+        {
+            float halfLife = 0.035f * MathF.Sqrt(MathF.Max(Rig.LegLength * _drawnScale * 0.5f, 1f));
+            for (int i = 0; i < _support.Length; i++)
+            {
+                ref Foot foot = ref _gait.Feet[i];
+                float wanted = 0f;
+                if (!foot.Swinging)
+                {
+                    float through = foot.Planted / MathF.Max(foot.StandFor, 0.05f);
+                    wanted = Gait.Smooth(0f, SupportFrom, through);
+                    if (_gait.Moving && foot.StandFor < 0.99f) wanted = MathF.Min(wanted, 1f - Gait.Smooth(SupportUntil, 1f, through));
+                }
+                _support[i] = Spring.Damp(_support[i], wanted, halfLife, life);
+                if (!foot.Swinging) _bearing[i] = _ankles[i];
+            }
+        }
+
+        // Where over the feet the weight is, across the body, by how much each carries.
+        private float WeightOver(int from, int to, out float carried)
+        {
+            float over = 0f;
+            carried = 0f;
+            for (int i = from; i < to; i++)
+            {
+                over += _ankles[i].X * _support[i];
+                carried += _support[i];
+            }
+            return carried > 1e-3f ? over / carried : 0f;
+        }
+
+        // As high as the girdle a run of legs hangs from can be, as that bone's height, with each of their feet that's on the ground still in comfortable reach (Reach.Comfortable): a leg built
+        // nearly straight reaches only a little way either side of its hip, and anything further leaves the foot drawn short of where it stands. Each foot holds the girdle down by as much of
+        // the weight as it carries (ReadSupport), so a foot far behind that lifts lets go of it over a moment rather than at once, which threw a giant's hips up at every step. No lower than
+        // a share of the leg under where it stands, as a pose any lower than that is no way to stand.
+        private float GirdleAllows(int from, int to, BoneType girdle, float shift, float stand, float leg)
+        {
+            float highest = stand;
+            Vector3 girdleRest = Rig.Pivots[(int)girdle];
+            for (int i = from; i < to; i++)
+            {
+                // A foot that has just lifted still holds on for as long as its share of the weight takes to go, rising as it goes: let go of at once, it threw the hips up at every step.
+                if (_support[i] < 1e-3f) continue;
+                Limb limb = Rig.Legs[i];
+                Vector3 root = Rig.Pivots[(int)limb.Upper];
+                Vector3 ankle = _bearing[i];
+                float x = ankle.X - root.X - shift;
+                float z = ankle.Z - root.Z;
+                float length = limb.Length * Reach.Comfortable;
+                float top = ankle.Y + MathF.Sqrt(MathF.Max(length * length - x * x - z * z, 0f)) - (root.Y - girdleRest.Y);
+                highest = MathF.Min(highest, MathHelper.Lerp(stand, top, _support[i]));
+            }
+            return MathF.Max(highest, stand - leg * 0.3f);
         }
 
         private float StandingPitch(in Foot foot)
@@ -950,12 +1029,26 @@ namespace Dino_Engine.Animation
             float hind = (_gait.Feet[0].Swinging || _gait.Feet[1].Swinging ? hindLow : hindHigh) - ankle;
             float fore = (_gait.Feet[2].Swinging || _gait.Feet[3].Swinging ? foreLow : foreHigh) - ankle;
 
-            float sink = leg * (_style.Crouch + 0.08f * _alert + 0.05f * run + body.Sink * weight);
-            float wantedHeight = pelvisRest.Y + hind - sink;
-            Spring.Step(ref _hipHeight, ref _hipHeightSpeed, wantedHeight, StepHeightHalfLife, life);
+            // Something heavy rolls its weight over whichever side has more feet down, as an elephant does, and its hips go a little way with it.
+            float size = MathF.Max(leg * input.Scale * 0.5f, 1f);     // How big it really is, in a person's legs, which is what times go by: bigger is slower.
+            float shift = 0f;
+            if (_style.WeightShift > 0f)
+            {
+                float idle = MathF.Sin(_clock * 0.21f + _seed) * 0.03f * leg * _style.Liveliness * (1f - run);
+                float wantedShift = WeightOver(0, _gait.Feet.Length, out _) * SwayShare * _style.WeightShift + (_gait.Moving ? 0f : idle);
+                Spring.Step(ref _sway, ref _swaySpeed, wantedShift, 0.1f * MathF.Sqrt(size), life);
+                shift = _sway;
+            }
 
-            float foreHeight = chestRest.Y + fore - sink + body.Rise * leg * weight;
-            float slope = MathF.Atan2(foreHeight - wantedHeight - (chestRest.Y - pelvisRest.Y), length);
+            // Each end stands as high as its own feet let it, so the body rocks over them as they go, and both ends follow on springs, so that nothing about where the weight is ever jumps.
+            float sink = leg * (_style.Crouch + 0.08f * _alert + 0.05f * run + body.Sink * weight);
+            float heightHalfLife = MathF.Min(StepHeightHalfLife * MathF.Sqrt(size), 0.09f);
+            float wantedHeight = GirdleAllows(0, 2, BoneType.Pelvis, shift, pelvisRest.Y + hind - sink, leg);
+            Spring.Step(ref _hipHeight, ref _hipHeightSpeed, wantedHeight, heightHalfLife, life);
+
+            float foreHeight = GirdleAllows(2, 4, BoneType.Chest, shift, chestRest.Y + fore - sink, leg) + body.Rise * leg * weight;
+            Spring.Step(ref _foreHeight, ref _foreHeightSpeed, foreHeight, heightHalfLife, life);
+            float slope = MathF.Atan2(_foreHeight - _hipHeight - (chestRest.Y - pelvisRest.Y), length);
 
             float phase = _gait.Phase * MathF.Tau;
             float gallop = Gait.Smooth(0.55f, 1f, run) * _style.Gallop;
@@ -975,21 +1068,9 @@ namespace Dino_Engine.Animation
             pitch += _dazed * (0.1f + MathF.Sin(reel) * 0.05f);
             roll += _dazed * MathF.Cos(reel) * 0.13f;
 
-            // Something heavy rolls its weight over whichever side has more feet down, as an elephant does, and its hips go a little way with it. It breathes slowly, as everything about it is slow.
-            float shift = 0f;
+            // The roll that goes with the weight shifting over, and a slow breath, as everything about something that size is slow.
             if (_style.WeightShift > 0f)
             {
-                float over = 0f;
-                int down = 0;
-                for (int i = 0; i < _gait.Feet.Length; i++)
-                {
-                    if (_gait.Feet[i].Swinging) continue;
-                    over += _ankles[i].X;
-                    down++;
-                }
-                float idle = MathF.Sin(_clock * 0.21f + _seed) * 0.03f * leg * _style.Liveliness * (1f - run);
-                _sway = Spring.Damp(_sway, (down > 0 ? over / down * SwayShare * _style.WeightShift : 0f) + (_gait.Moving ? 0f : idle), 0.14f, life);
-                shift = _sway;
                 roll -= _sway / leg * 0.5f * _style.Sway;
                 pitch += MathF.Sin(_clock * BreathRate / MathF.Sqrt(MathF.Max(leg * 0.5f, 0.2f))) * 0.006f * _style.Liveliness;
             }
@@ -1034,6 +1115,88 @@ namespace Dino_Engine.Animation
             PoseTail(pelvisSmooth, speed, life);
         }
 
+        // ---- Eight legs.
+
+        private const float StrikeRaise = 0.9f;     // Of a leg, how high a foreleg comes up off where it stands to strike or threaten,
+        private const float StrikeReach = 0.55f;    // and how far forward.
+
+        // What walks on eight hangs its body between knees that stand higher than it, as a spider does. The body is carried level at whatever height its feet allow, front and back each by their
+        // own four legs, and rocks a little as each set of four comes down; it turns where it's going, and keeps its head on what it means to bite. Its forelegs come up off the ground to strike
+        // and to threaten, as anything on eight legs does before it bites, and its abdomen hangs behind on the tail's bones, swaying and lifting as it goes.
+        private void PoseArachnid(in AnimationInput input, in GestureSample gesture, float life, float deltaTime, bool transition)
+        {
+            float leg = Rig.LegLength;
+            float weight = gesture.Weight;
+            BodyKey body = gesture.Body;
+            float run = _gait.Run;
+            float size = MathF.Max(leg * input.Scale * 0.5f, 1f);
+
+            Vector3 pelvisRest = Rig.Pivots[(int)BoneType.Pelvis];
+            Vector3 chestRest = Rig.Pivots[(int)BoneType.Chest];
+            float length = MathF.Max(chestRest.Z - pelvisRest.Z, 0.1f);
+
+            // The back four and the front four, each holding its end of the body up only as far as its feet let it.
+            float back = (_ankles[0].Y + _ankles[1].Y + _ankles[6].Y + _ankles[7].Y) * 0.25f - Rig.AnkleHeight;
+            float front = (_ankles[2].Y + _ankles[3].Y + _ankles[4].Y + _ankles[5].Y) * 0.25f - Rig.AnkleHeight;
+            float sink = leg * (_style.Crouch + 0.1f * _alert + 0.06f * run + body.Sink * weight);
+            float heightHalfLife = MathF.Min(StepHeightHalfLife * MathF.Sqrt(size), 0.09f);
+            float hipStand = pelvisRest.Y + back - sink;
+            float hipWanted = MathF.Min(GirdleAllows(0, 2, BoneType.Pelvis, 0f, hipStand, leg), GirdleAllows(6, 8, BoneType.Pelvis, 0f, hipStand, leg));
+            Spring.Step(ref _hipHeight, ref _hipHeightSpeed, hipWanted, heightHalfLife, life);
+            float chestStand = chestRest.Y + front - sink;
+            float chestWanted = MathF.Min(GirdleAllows(2, 4, BoneType.Chest, 0f, chestStand, leg), GirdleAllows(4, 6, BoneType.Chest, 0f, chestStand, leg)) + body.Rise * leg * weight * 0.35f;
+            Spring.Step(ref _foreHeight, ref _foreHeightSpeed, chestWanted, heightHalfLife, life);
+            float slope = MathF.Atan2(_foreHeight - _hipHeight - (chestRest.Y - pelvisRest.Y), length);
+
+            // Twice a cycle, as each set of four comes down, the body dips and rises a little.
+            float phase = _gait.Phase * MathF.Tau;
+            float bob = MathF.Sin(phase * 2f) * 0.03f * leg * (0.35f + 0.65f * run) * _style.Bounce * _tailAmount;
+
+            AdvanceKicks(life);
+            Vector3 accel = Vector3.Transform(_acceleration, Frames.Yaw(-input.Yaw)) / input.Scale;
+            float left = (_ankles[0].Y + _ankles[2].Y + _ankles[4].Y + _ankles[6].Y) * 0.25f;
+            float right = (_ankles[1].Y + _ankles[3].Y + _ankles[5].Y + _ankles[7].Y) * 0.25f;
+            float width = MathF.Max(Rig.Pivots[(int)BoneType.SecondFootL].X - Rig.Pivots[(int)BoneType.SecondFootR].X, 0.1f);
+            _dazed = Spring.Damp(_dazed, input.Dazed ? 1f : 0f, 0.09f, life);
+            float reel = _clock * 4.1f + _seed;
+            float pitch = -slope - Math.Clamp(accel.Z / Rig.Gravity, -0.5f, 0.5f) * 0.1f + MathHelper.DegreesToRadians(body.Bend) * weight * 0.5f + _dazed * (0.08f + MathF.Sin(reel) * 0.05f);
+            float roll = MathF.Atan2(right - left, width) * 0.6f + Math.Clamp(-accel.X / Rig.Gravity, -0.5f, 0.5f) * 0.2f * _style.Lean + _dazed * MathF.Cos(reel) * 0.12f;
+            float turnBend = Math.Clamp(_turnRate * 0.06f, -0.3f, 0.3f);
+
+            // The body faces where it's going, and what it means to strike, turning its whole self to it, as nothing on eight legs turns its head far on its own.
+            float facing = _hipTurn + Spring.Shortest(_aim + MathHelper.DegreesToRadians(body.Turn) - _hipTurn) * weight;
+            Vector3 hips = pelvisRest + _lurch + Frames.Forward(_aim) * (body.Push * leg * weight);
+            hips.Y = _hipHeight + bob;
+
+            Quaternion pelvis = Frames.Yaw(facing - turnBend * 0.3f) * Frames.Pitch(pitch) * Frames.Roll(roll);
+            Quaternion chest = pelvis * Frames.Yaw(turnBend * 0.3f);
+            Vector3 hipsSmooth = _pelvisMotion.Follow(hips, BlendHalfLife, FastestBody, deltaTime, transition);
+            Quaternion pelvisSmooth = _pelvisTurn.Follow(pelvis, BlendHalfLife, FastestTurn, deltaTime, transition);
+            Quaternion spineSmooth = _spineTurn.Follow(Quaternion.Slerp(pelvis, chest, 0.5f), BlendHalfLife, FastestTurn, deltaTime, transition);
+            Quaternion chestSmooth = _chestTurn.Follow(chest, BlendHalfLife, FastestTurn, deltaTime, transition);
+            chestSmooth = (Spring.ToRotation(_kick) * chestSmooth).Normalized();
+
+            _joints[(int)BoneType.Pelvis] = hipsSmooth;
+            _rotations[(int)BoneType.Pelvis] = pelvisSmooth;
+            _rotations[(int)BoneType.Spine] = spineSmooth;
+            _rotations[(int)BoneType.Chest] = chestSmooth;
+            Chain(BoneType.Spine, BoneType.Pelvis);
+            Chain(BoneType.Chest, BoneType.Spine);
+
+            PoseSaurianHead(input, gesture, chestSmooth, 0f, life, deltaTime, transition, _dazed * 0.2f);
+            PoseSaurianTail(pelvisSmooth, pitch * 0.4f + 0.04f * _alert, body.Tail * weight, life);
+
+            // The forelegs come up to strike, and to threaten whatever it's watching, and the second pair a little with them: lifted up and forward from where they stand, which the feet
+            // themselves never leave, so that they're back on the very spot when it's over.
+            float raise = MathF.Max(body.Rise, 0f) * weight + MathF.Max(body.Head, 0f) * weight * 0.7f + _alert * 0.1f;
+            if (raise <= 0f) return;
+            Vector3 lift = new Vector3(0f, StrikeRaise * leg, StrikeReach * leg) * raise;
+            _ankles[2] += lift;
+            _ankles[3] += lift;
+            _ankles[4] += lift * 0.3f;
+            _ankles[5] += lift * 0.3f;
+        }
+
         private float _tailSwing;
         private float _tailSwingSpeed;
 
@@ -1063,6 +1226,7 @@ namespace Dino_Engine.Animation
         private static readonly float[] LashShares = { 0.12f, 0.18f, 0.22f, 0.24f, 0.24f };
         private const float BiteHeight = 2.6f;     // Metres. About a person's chest, which is what anything with teeth is going for.
 
+        private float _tailAmount;      // How much of a walk's swing is in the tail, eased in and out.
         private readonly float[] _tailYaw = new float[TailBones];
         private readonly float[] _tailYawSpeed = new float[TailBones];
         private readonly float[] _tailPitch = new float[TailBones];
@@ -1096,27 +1260,22 @@ namespace Dino_Engine.Animation
             float strideNow = moving ? (_ankles[0].Z - _ankles[1].Z) / (leg * 1.2f) : 0f;
             _stride = Spring.Damp(_stride, Math.Clamp(strideNow, -1f, 1f), 0.03f, life);
 
-            float over = 0f;
-            int down = 0;
-            for (int i = 0; i < 2; i++)
-            {
-                if (_gait.Feet[i].Swinging) continue;
-                over += _ankles[i].X;
-                down++;
-            }
+            // The weight goes over whichever foot carries it, by how much each does (ReadSupport), on a spring: a body this size that lurched across every time a foot came up was seen to.
+            float over = WeightOver(0, 2, out float carried);
             float idleShift = MathF.Sin(_clock * 0.29f + _seed) * 0.03f * size * _style.Liveliness * (1f - run);
-            float wantedSway = (down > 0 ? over / down * SwayShare * _style.Sway : 0f) + (moving ? 0f : idleShift);
-            _sway = Spring.Damp(_sway, wantedSway, 0.09f, life);
+            float wantedSway = over * SwayShare * _style.Sway + (moving ? 0f : idleShift);
+            float bigness = MathF.Sqrt(MathF.Max(size * input.Scale, 1f));     // Times go by how big it's drawn: bigger is slower.
+            Spring.Step(ref _sway, ref _swaySpeed, wantedSway, 0.07f * bigness, life);
             _dazed = Spring.Damp(_dazed, input.Dazed ? 1f : 0f, 0.09f, life);
 
-            float bounceWanted = down == 0 ? 1f : -0.35f * run;
+            float bounceWanted = MathHelper.Lerp(-0.35f * run, 1f, 1f - MathF.Min(carried, 1f));
             _bounce = Spring.Damp(_bounce, bounceWanted * run, 0.05f, life);
 
             // Breathing slows as bodies grow, as everything else about them does.
             float breathRate = BreathRate / MathF.Sqrt(MathF.Max(size, 0.2f));
             float breath = MathF.Sin(_clock * breathRate) * 0.012f * size * _style.Liveliness;
             float stand = Rig.HipHeight - leg * (_style.Crouch + 0.04f * _alert + 0.03f * run + body.Sink * weight) + _bounce * BounceHeight * leg * _style.Bounce + breath * (1f - run);
-            Spring.Step(ref _hipHeight, ref _hipHeightSpeed, HeightFeetAllow(stand, _sway, leg), StepHeightHalfLife, life);
+            Spring.Step(ref _hipHeight, ref _hipHeightSpeed, GirdleAllows(0, 2, BoneType.Pelvis, _sway, stand, leg), MathF.Min(StepHeightHalfLife * bigness, 0.09f), life);
 
             // The beam tips forward into speed and into starting off, and back as it stops: that's all a body balanced on its hips can do. Going for someone, it comes down as far as it has to
             // to reach them, and rearing it goes back on its tail.
@@ -1461,7 +1620,10 @@ namespace Dino_Engine.Animation
             float run = _gait.Run;
             float phase = _gait.Phase * MathF.Tau;
             float stiff = _style.TailStiff;
-            float swing = _gait.Moving ? _style.TailSway * (0.07f + 0.05f * run) : 0f;
+
+            // The swing comes and goes with walking over a moment, as it's the legs that drive it: a tail fifteen metres long that started and stopped swinging at once flicked its tip.
+            _tailAmount = Spring.Damp(_tailAmount, _gait.Moving ? 1f : 0f, 0.25f * MathF.Sqrt(MathF.Max(Rig.LegLength * _drawnScale * 0.5f, 1f)), life);
+            float swing = _style.TailSway * (0.07f + 0.05f * run) * _tailAmount;
             float carry = 1f - stiff * 0.8f;
             float lag = 0.75f - 0.5f * stiff;
             float lashBy = MathHelper.DegreesToRadians(lash);
@@ -1582,6 +1744,9 @@ namespace Dino_Engine.Animation
 
         /// <summary>Where a joint is, in the body's own space, for a lab to measure.</summary>
         public Vector3 JointOf(BoneType bone) => _joints[(int)bone];
+
+        /// <summary>Where a leg's ankle was wanted this frame, in the body's own space, for a lab to measure against where the leg really put it.</summary>
+        public Vector3 AnkleWanted(int leg) => _ankles[leg];
 
         /// <summary>How a bone is turned, in the body's own space.</summary>
         public Quaternion RotationOf(BoneType bone) => _rotations[(int)bone];

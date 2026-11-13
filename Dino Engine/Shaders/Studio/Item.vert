@@ -20,7 +20,7 @@ out vec3 viewPosition;
 uniform mat4 viewMatrix;
 uniform mat4 projectionMatrix;
 #ifdef SKINNED
-uniform mat4 u_Bones[32];
+uniform mat4 u_Bones[48];
 #endif
 
 void main() {

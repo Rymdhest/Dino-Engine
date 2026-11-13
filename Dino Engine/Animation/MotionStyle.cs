@@ -1,4 +1,4 @@
-namespace Dino_Engine.Animation
+﻿namespace Dino_Engine.Animation
 {
     /// <summary>
     /// How someone moves, as opposed to what they're built like. A few numbers around 1 are all that tell a brute's tread from a cutthroat's scuttle, which is most of how a pack reads from up where the camera is.
@@ -71,6 +71,15 @@ namespace Dino_Engine.Animation
         /// <summary>How far something on four legs rolls its weight over to whichever side has more feet down, as an elephant does, from 0 for nothing at all.</summary>
         public float WeightShift;
 
+        /// <summary>How much of its time on the ground a foot spends in front of the hips. A runner pushes off behind, and lands a little ahead; something heavy walks over its legs, landing as far in front as it leaves behind.</summary>
+        public float LandAhead = 0.3f;
+
+        /// <summary>
+        /// How far the hips may come down to make a stride, as a share of the leg, before the legs go quicker instead of longer: 0 for no limit. Legs built nearly straight, a giant's
+        /// columns, can only reach a little way either side of where they stand, and a stride longer than that leaves the foot short of where it was planted, dragged along.
+        /// </summary>
+        public float StrideDip;
+
         public static readonly MotionStyle Hero = new MotionStyle { Lean = 1.15f, Crouch = 0.02f };
 
         public static readonly MotionStyle Villager = new MotionStyle { Cadence = 0.92f, Lean = 0.6f, ArmSwing = 0.75f, Bounce = 0.8f };
@@ -107,10 +116,10 @@ namespace Dino_Engine.Animation
         public static readonly MotionStyle Stalker = new MotionStyle { Cadence = 0.98f, Stance = 0.45f, Bounce = 0.85f, Sway = 0.9f, Lean = 1.05f, Twist = 0.85f, Liveliness = 1.1f, Give = 0.9f, TailSway = 1.05f, TailStiff = 0.25f, ToeIn = 0.08f, Gape = 0.9f, Pant = 0.5f };
 
         /// <summary>Huge and unhurried, every step taken in full, the tail swinging long behind it. What it has hold of it doesn't let go of to look about.</summary>
-        public static readonly MotionStyle Tyrant = new MotionStyle { Cadence = 0.84f, Stance = 0.5f, Bounce = 0.7f, Sway = 1.1f, Lean = 0.8f, Twist = 0.8f, Liveliness = 0.7f, Give = 0.38f, TailSway = 1.1f, TailStiff = 0.1f, ToeIn = 0.1f, Gape = 0.95f, Pant = 0.15f, Variety = 0.05f };
+        public static readonly MotionStyle Tyrant = new MotionStyle { Cadence = 0.84f, Stance = 0.5f, Bounce = 0.7f, Sway = 1.1f, Lean = 0.8f, Twist = 0.8f, Liveliness = 0.7f, Give = 0.38f, TailSway = 1.1f, TailStiff = 0.1f, ToeIn = 0.1f, Gape = 0.95f, Pant = 0.15f, Variety = 0.05f, LandAhead = 0.4f, StrideDip = 0.1f };
 
         /// <summary>On four legs with its head down and its weight in front, too heavy to gallop.</summary>
-        public static readonly MotionStyle Horned = new MotionStyle { Cadence = 0.86f, Bounce = 0.65f, Sway = 1.3f, Lean = 0.7f, Give = 0.45f, TailSway = 0.6f, TailStiff = 0.3f, Gape = 0.45f, HeadLow = 0.22f, Gallop = 0f };
+        public static readonly MotionStyle Horned = new MotionStyle { Cadence = 0.86f, Bounce = 0.65f, Sway = 1.3f, Lean = 0.7f, Give = 0.45f, TailSway = 0.6f, TailStiff = 0.3f, Gape = 0.45f, HeadLow = 0.22f, Gallop = 0f, LandAhead = 0.42f, StrideDip = 0.08f };
 
         /// <summary>Bones with nothing to hold them up but what raised them: stiff, jerky and slow to look round.</summary>
         public static readonly MotionStyle Bones = new MotionStyle { Cadence = 0.92f, Stance = 0.5f, Bounce = 0.45f, Sway = 1.3f, Lean = 0.55f, Twist = 0.5f, Liveliness = 0.25f, Give = 1.2f, TailSway = 0.55f, TailStiff = 0.45f, ToeIn = 0.04f, Gape = 1.1f, Variety = 0.16f };
@@ -119,7 +128,7 @@ namespace Dino_Engine.Animation
         /// A long-necked giant: long slow strides that never hurry, the weight rolling from side to side over the feet that are down, as an elephant's does, the tail swinging long behind, and nothing
         /// a blow could do to it that it would show.
         /// </summary>
-        public static readonly MotionStyle Giant = new MotionStyle { Cadence = 0.8f, Stance = 1f, Bounce = 0.4f, Sway = 0.6f, Lean = 0.45f, Twist = 0.5f, Liveliness = 0.55f, Give = 0.15f, TailSway = 0.75f, TailStiff = 0.12f, Gape = 0.45f, Gallop = 0f, WeightShift = 1f, Variety = 0.06f };
+        public static readonly MotionStyle Giant = new MotionStyle { Cadence = 0.8f, Stance = 1f, Bounce = 0.4f, Sway = 0.6f, Lean = 0.45f, Twist = 0.5f, Liveliness = 0.55f, Give = 0.15f, TailSway = 0.75f, TailStiff = 0.12f, Gape = 0.45f, Gallop = 0f, WeightShift = 1f, Variety = 0.06f, LandAhead = 0.46f, StrideDip = 0.05f };
 
         /// <summary>What's rotting on its feet: head hung, weight rolling from side to side, the tail dragging along behind.</summary>
         public static readonly MotionStyle Rotting = new MotionStyle { Cadence = 0.8f, Stance = 0.65f, Bounce = 0.5f, Sway = 2f, Lean = 0.45f, Twist = 0.6f, Liveliness = 0.3f, Give = 1.1f, TailSway = 0.5f, TailStiff = 0f, ToeIn = 0f, Gape = 0.9f, HeadLow = 0.18f, Crouch = 0.04f, Variety = 0.18f, Gallop = 0f };
@@ -159,6 +168,8 @@ namespace Dino_Engine.Animation
                 HeadLow = HeadLow,
                 Gallop = Gallop,
                 WeightShift = WeightShift,
+                LandAhead = LandAhead,
+                StrideDip = StrideDip,
             };
         }
     }

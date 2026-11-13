@@ -7,7 +7,7 @@ namespace Dino_Engine.ECS.Components
     /// <summary>
     /// Every bone there is, whoever it's on. Meshes hold these by number, and what isn't on anything in particular is on 0, so a new bone goes on the end and nothing has to move. An animal uses the
     /// same ones, with its arms as forelegs. A dinosaur uses them all: a jaw, a neck in two, a tail in five and toes of their own, and a long-necked giant a neck in five. On anyone who has none of
-    /// those they sit where the bone they'd continue does, with nothing on them, so a person is posed exactly as before. The shaders take 32 (u_Bones[32]).
+    /// those they sit where the bone they'd continue does, with nothing on them, so a person is posed exactly as before. The shaders take 48 (u_Bones[48]).
     /// </summary>
     public enum BoneType
     {
@@ -27,6 +27,11 @@ namespace Dino_Engine.ECS.Components
         Tail1, Tail2, Tail3,
         ToeL, ToeR,
         Neck1, Neck2, Neck3,    // Between Neck and NeckTop, on a neck long enough to curve: a sauropod's.
+        // The second and third pairs of legs of what walks on eight, between its forelegs (the arms' bones, as on anything on four) and its hind legs.
+        SecondUpperL, SecondLowerL, SecondFootL,
+        SecondUpperR, SecondLowerR, SecondFootR,
+        ThirdUpperL, ThirdLowerL, ThirdFootL,
+        ThirdUpperR, ThirdLowerR, ThirdFootR,
         Count
     }
 

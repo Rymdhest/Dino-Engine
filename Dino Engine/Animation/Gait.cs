@@ -1,4 +1,4 @@
-using OpenTK.Mathematics;
+﻿using OpenTK.Mathematics;
 
 namespace Dino_Engine.Animation
 {
@@ -94,10 +94,12 @@ namespace Dino_Engine.Animation
         private const float WalkDuty = 0.64f;
         private const float RunDuty = 0.33f;
         private const float GallopDuty = 0.27f;
+        private const float ScuttleWalkDuty = 0.62f;    // On eight legs, four are down at once in a walk, and a little less of the time at a run.
+        private const float ScuttleRunDuty = 0.46f;
         private const float WalkLift = 0.1f;        // Of a leg.
         private const float RunLift = 0.22f;
-        private const float LandAhead = 0.3f;       // How much of its stand a foot does in front of the hips. Most of it is behind them, pushing off.
         private const float FarthestAhead = 0.62f;  // Of a leg.
+        private const float NarrowestStance = 0.15f;    // Of a leg: however little a leg reaches, a stride is never shorter than this.
         private const float ShortestStand = 0.05f;
         private const float StepTime = 0.24f;       // For a step that isn't part of going anywhere, for legs as long as a person's.
         private const float DriftAllowed = 0.34f;   // Of a leg, before a foot standing still steps back under the body.
@@ -119,10 +121,14 @@ namespace Dino_Engine.Animation
         private readonly Vector2[] _slots;
         private readonly float[] _triggers;
         private readonly bool _quadruped;
+        private readonly bool _arachnid;
         private readonly IGround _noGround = new FlatGround();
         private bool _started;
         private float _settling;
         private float _speed;
+
+        // The longest a foot's time on the ground can sweep, in metres at a scale of one, for legs that can't reach far either side of where they stand (MotionStyle.StrideDip), or 0 for no limit.
+        private readonly float _widest;
 
         public readonly Foot[] Feet;
 
@@ -148,13 +154,30 @@ namespace Dino_Engine.Animation
             _rig = rig;
             _style = style;
             _quadruped = rig.Plan == BodyPlan.Quadruped;
+            _arachnid = rig.Plan == BodyPlan.Arachnid;
             Feet = new Foot[rig.Legs.Length];
             _slots = new Vector2[rig.Legs.Length];
             _triggers = new float[rig.Legs.Length];
             for (int i = 0; i < rig.Legs.Length; i++)
             {
-                Vector3 hip = rig.Pivots[(int)rig.Legs[i].Upper];
+                // A foot stands under its hip, but for what walks on eight, whose feet stand far out round it where its legs reach, as it was built.
+                Vector3 hip = rig.Pivots[(int)(_arachnid ? rig.Legs[i].End : rig.Legs[i].Upper)];
                 _slots[i] = new Vector2(hip.X, hip.Z);
+            }
+
+            // A leg reaches only so far either side of its hip with the hips let down by StrideDip, and a stance can't sweep further than the leg that reaches least, landing ahead and leaving
+            // behind in the shares the style says.
+            if (style.StrideDip > 0f)
+            {
+                float lead = MathF.Max(style.LandAhead, 1f - style.LandAhead);
+                float widest = float.MaxValue;
+                foreach (Limb limb in rig.Legs)
+                {
+                    float height = rig.Pivots[(int)limb.Upper].Y - rig.AnkleHeight - style.StrideDip * rig.LegLength;
+                    float length = limb.Length * Reach.Comfortable;
+                    widest = MathF.Min(widest, MathF.Sqrt(MathF.Max(length * length - height * height, 0f)) / lead);
+                }
+                _widest = MathF.Max(widest, NarrowestStance * rig.LegLength);
             }
         }
 
@@ -209,10 +232,13 @@ namespace Dino_Engine.Animation
             if (wasMoving && !Moving) _settling = SettleFor;
             _settling = MathF.Max(_settling - deltaTime, 0f);
 
-            Duty = _quadruped ? Lerp(WalkDuty, Lerp(RunDuty, GallopDuty, _style.Gallop), Run) : Lerp(WalkDuty, RunDuty, Run);
+            Duty = _arachnid ? Lerp(ScuttleWalkDuty, ScuttleRunDuty, Run) : _quadruped ? Lerp(WalkDuty, Lerp(RunDuty, GallopDuty, _style.Gallop), Run) : Lerp(WalkDuty, RunDuty, Run);
             ReadTriggers();
 
             float stepsASecond = CadenceAt(pace) * MathF.Sqrt(Rig.Gravity / leg) * _style.Cadence;
+
+            // Legs that can't reach far go quicker rather than longer, so that a foot's time on the ground never sweeps further than they reach.
+            if (_widest > 0f) stepsASecond = MathF.Max(stepsASecond, 2f * speed * Duty / (_widest * scale));
             Rate = Spring.Damp(Rate, stepsASecond * 0.5f, 0.05f, deltaTime);
 
             if (Moving)
@@ -366,12 +392,13 @@ namespace Dino_Engine.Animation
         private Vector3 Landing(int i, in GaitInput input, float leg, float left, IGround ground)
         {
             float standing = Moving ? Duty / MathF.Max(Rate, 0.05f) : 0f;
-            Vector2 ahead = input.Velocity.Xz * (standing * LandAhead);
+            float landAhead = _style.LandAhead;
+            Vector2 ahead = input.Velocity.Xz * (standing * landAhead);
             float most = FarthestAhead * leg;
             if (ahead.LengthSquared > most * most) ahead *= most / ahead.Length;
 
             Vector2 hips = input.Position.Xz + input.Velocity.Xz * left;
-            float yaw = input.Yaw + input.TurnRate * (left + standing * LandAhead);
+            float yaw = input.Yaw + input.TurnRate * (left + standing * landAhead);
             Vector3 spot = KeptOff(Spot(i, new Vector3(hips.X, input.Position.Y, hips.Y), yaw, input) + new Vector3(ahead.X, 0f, ahead.Y), input);
             spot.Y = ground.HeightAt(spot.X, spot.Z);
             return spot;
@@ -399,7 +426,7 @@ namespace Dino_Engine.Animation
             float narrowing = 1f - 0.55f * Run * Smooth(0.5f, 3f, _speed);
             float width = slot.X * _style.Stance * (1f + input.Spread) * narrowing;
             float forward = slot.Y;
-            if (!_quadruped)
+            if (_rig.Plan == BodyPlan.Biped)
             {
                 bool leading = _rig.Legs[i].Side < 0f;
                 forward += (Moving ? 0f : (leading ? 0.1f : -0.1f) * (1f + input.Spread * 2f)) + (leading ? input.LeadForward : -input.LeadForward * 0.3f);
@@ -453,6 +480,20 @@ namespace Dino_Engine.Animation
         // Two legs are always half a cycle apart. Four go from a walk, one at a time round the body, through a trot in diagonal pairs, to a gallop, pair after pair with one a little ahead.
         private void ReadTriggers()
         {
+            if (_arachnid)
+            {
+                // Eight legs go in two sets of four, each the other's opposite, a front and a third leg on one side with a second and a hind on the other, as a spider walks: so there are always
+                // four down in a box round the body. Within a set the hind legs go a little first and the front last, a wave running forward. Legs are hind, fore, second and third, a pair each.
+                _triggers[0] = 0.5f;            // Hind left, with the right side's front and third.
+                _triggers[1] = 0f;
+                _triggers[2] = 0.0f + Metachrony * 3f;
+                _triggers[3] = 0.5f + Metachrony * 3f;
+                _triggers[4] = 0.5f + Metachrony * 2f;
+                _triggers[5] = 0.0f + Metachrony * 2f;
+                _triggers[6] = 0.0f + Metachrony;
+                _triggers[7] = 0.5f + Metachrony;
+                return;
+            }
             if (!_quadruped)
             {
                 _triggers[0] = 0f;
@@ -468,6 +509,8 @@ namespace Dino_Engine.Animation
             _triggers[2] = Lerp(Lerp(0.25f, 0.5f, trot), 0.5f, gallop);
             _triggers[3] = Lerp(Lerp(0.75f, 1f, trot), 0.6f, gallop);
         }
+
+        private const float Metachrony = 0.035f;   // Of a cycle, between one pair of eight legs and the next pair forward within a set of four.
 
         private static float CadenceAt(float pace)
         {

@@ -1,4 +1,4 @@
-using Dino_Engine.Animation;
+﻿using Dino_Engine.Animation;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.Modelling.Procedural.Flora;
 using Dino_Engine.World;
@@ -531,6 +531,7 @@ namespace Dino_Engine.Wildlife
         public Vector2 Middle;              // Of its feet, on the ground: what it turns about.
         public float Yaw;
         public float Speed;
+        public float YawRate;               // Radians a second it's turning at, which gathers and settles (Herd.Turning) rather than starting and stopping at once.
         public GiantDoing Doing = GiantDoing.Standing;
 
         // What its body is told.
@@ -615,6 +616,9 @@ namespace Dino_Engine.Wildlife
         private const float TurnOnSpot = 0.22f;         // And turning round where it stands.
         private const float SpeedUp = 0.5f;             // Metres a second, each second.
         private const float SlowDown = 0.8f;
+        private const float SpeedHalt = 2.5f;           // And how quickly it stops for someone by a foot: quickly, but never at once, as a body that size stopped dead swung forward over its feet.
+        private const float TurnEase = 0.3f;            // Radians a second, each second, that a turn gathers and settles by, at a scale of one: a body forty metres long that started and stopped turning at once swung its hips across.
+        private const float TurnHalt = 1.6f;            // And how quickly it stops turning for someone by a foot or its tail.
         private const float Ahead = 9f;                 // Metres ahead along its way that it steers for.
         private const float Arrived = 1.2f;
         private const float RegardReach = 30f;          // Metres within which someone's worth a look.
@@ -811,6 +815,7 @@ namespace Dino_Engine.Wildlife
         private void Stand(Giant giant, float deltaTime)
         {
             Slow(giant, deltaTime);
+            Unturn(giant, deltaTime);
             giant.Left -= deltaTime;
 
             // Now and then it looks at something: one of the others, or off over the land.
@@ -865,6 +870,7 @@ namespace Dino_Engine.Wildlife
         private void Crop(Giant giant, float deltaTime)
         {
             Slow(giant, deltaTime);
+            Unturn(giant, deltaTime);
             giant.Left += deltaTime;
             giant.Reaching = 1f;
 
@@ -933,11 +939,14 @@ namespace Dino_Engine.Wildlife
 
             // Turning swings every foot round, and it won't while anyone's close to one: it only follows them with its head.
             float off = Spring.Shortest(MathF.Atan2(way.X, way.Y) - giant.Yaw);
-            if (MathF.Abs(off) > 1.3f && !AnyUnderFoot(giant, people, 2f) && !ByTail(giant, people))
+            bool clear = !AnyUnderFoot(giant, people, 2f) && !ByTail(giant, people);
+            if (MathF.Abs(off) > 1.3f && clear)
             {
-                float yaw = giant.Yaw + Math.Clamp(off, -1f, 1f) * TurnOnSpot * deltaTime / MathF.Sqrt(giant.Shape.Scale);
+                float yaw = giant.Yaw + Turning(giant, Math.Clamp(off, -1f, 1f) * TurnOnSpot / MathF.Sqrt(giant.Shape.Scale), deltaTime);
                 if (Allowed(giant, giant.Middle, yaw)) giant.Yaw = yaw;
+                else giant.YawRate = 0f;
             }
+            else Unturn(giant, deltaTime, !clear);
 
             if (giant.Left > 0f) return;
             giant.Looking = false;
@@ -961,6 +970,7 @@ namespace Dino_Engine.Wildlife
         private void Call(Giant giant, float deltaTime)
         {
             Slow(giant, deltaTime);
+            Unturn(giant, deltaTime);
             giant.Left -= deltaTime;
             Vector3 root = giant.NeckRootAt(Ground(giant.Root));
             Vector2 forward = giant.Forward;
@@ -1184,21 +1194,21 @@ namespace Dino_Engine.Wildlife
             float wanted = MathF.Atan2(toward.X, toward.Y);
             float off = Spring.Shortest(wanted - giant.Yaw);
             float scale = MathF.Sqrt(giant.Shape.Scale);
-            float turn = TurnRate / scale * deltaTime * (0.5f + 0.5f * Math.Clamp(giant.Speed / giant.Cruise, 0f, 1f));
+            float most = TurnRate / scale * (0.5f + 0.5f * Math.Clamp(giant.Speed / giant.Cruise, 0f, 1f));
 
             // Slow for a sharp turn and to come to a stop where it's going, and stop altogether for another giant or anyone in the way. With anyone close to a foot it doesn't so much as
-            // turn, as turning swings every foot round.
+            // turn, as turning swings every foot round: it stops turning, and stops, as quickly as something that size can without lurching.
             float pace = giant.Cruise * (1f - 0.75f * Gait.Smooth(0.35f, 1.3f, MathF.Abs(off))) * Math.Clamp(left / (8f * scale), 0.25f, 1f);
+            bool halt = false, stop = false;
             foreach (Vector2 who in people)
             {
                 if (!UnderFoot(giant, who, 1.4f)) continue;
                 pace = 0f;
-                turn = 0f;
-                giant.Speed = 0f;
+                halt = stop = true;
             }
 
             // Anyone by its tail, which a turn would sweep across them, it walks on past before it turns, as the tail only follows it straight.
-            if (MathF.Abs(off) > 0.02f && ByTail(giant, people)) turn = 0f;
+            if (MathF.Abs(off) > 0.02f && ByTail(giant, people)) halt = true;
             if (Blocked(giant, people))
             {
                 pace = 0f;
@@ -1213,17 +1223,18 @@ namespace Dino_Engine.Wildlife
             }
             else giant.Waited = 0f;
 
-            float change = (pace > giant.Speed ? SpeedUp : SlowDown) * deltaTime;
+            float change = (stop ? SpeedHalt : pace > giant.Speed ? SpeedUp : SlowDown) * deltaTime;
             giant.Speed += Math.Clamp(pace - giant.Speed, -change, change);
 
             // Every step and every turn is onto ground it can stand on, or, for one that finds itself somewhere tight, onto ground with more room than where it is.
-            float yaw = giant.Yaw + Math.Clamp(off, -turn, turn);
+            float yaw = giant.Yaw + Turning(giant, halt ? 0f : Toward(giant, off, most), deltaTime, halt);
             Vector2 next = giant.Middle + new Vector2(MathF.Sin(yaw), MathF.Cos(yaw)) * giant.Speed * deltaTime;
             if (!Allowed(giant, next, yaw))
             {
                 // Something's in the way the path didn't know about, or a corner was cut too fine: think again from here.
                 Report?.Invoke($"giant {Members.IndexOf(giant)} can't step on at {giant.Middle.X:0},{giant.Middle.Y:0}, slack {Land.Slack(giant.Shape, next, yaw):0.00}");
                 giant.Speed = 0f;
+                giant.YawRate = 0f;
                 ChooseNext(giant);
                 return;
             }
@@ -1281,7 +1292,8 @@ namespace Dino_Engine.Wildlife
             float speed = giant.Speed + Math.Clamp(pace - giant.Speed, -change, change);
             Vector2 next = giant.Middle + way * MathF.Min(speed * deltaTime, distance);
             float yaw = giant.Yaw;
-            if (turning && !moving) yaw += MathF.Sign(turnLeft) * MathF.Min(TurnOnSpot / MathF.Sqrt(giant.Shape.Scale) * deltaTime, MathF.Abs(turnLeft));
+            if (turning && !moving) yaw += Settling(giant, turnLeft, TurnOnSpot / MathF.Sqrt(giant.Shape.Scale), deltaTime);
+            else giant.YawRate = 0f;
 
             // and whether it's one to wait with: for anyone on the move close by a foot, as they could go anywhere, and for anyone standing still that it would take a foot nearer.
             bool hold = false;
@@ -1295,12 +1307,14 @@ namespace Dino_Engine.Wildlife
             if (hold)
             {
                 giant.Speed = 0f;
+                giant.YawRate = 0f;
                 return;
             }
             giant.Speed = speed;
             if (!Land.CanStand(giant.Shape, next, yaw, giant.ShuffleGive))
             {
                 giant.Speed = 0f;
+                giant.YawRate = 0f;
                 ChooseNext(giant);
                 return;
             }
@@ -1503,6 +1517,7 @@ namespace Dino_Engine.Wildlife
             // Turning on the spot swings every foot round, and the tail round further, and it won't while anyone's close to either. Kept waiting long enough, it thinks again.
             if (AnyUnderFoot(giant, people, 2f) || ByTail(giant, people))
             {
+                giant.YawRate = 0f;
                 giant.Waited += deltaTime;
                 if (giant.Waited <= TurnWait) return;
                 giant.Waited = 0f;
@@ -1518,13 +1533,13 @@ namespace Dino_Engine.Wildlife
             {
                 if (giant.TurnWay == 0f) giant.TurnWay = MathF.Sign(off);
                 float left = giant.TurnWay == MathF.Sign(off) ? MathF.Abs(off) : MathF.Tau - MathF.Abs(off);
-                float turn = TurnOnSpot / MathF.Sqrt(giant.Shape.Scale) * deltaTime;
-                float yaw = giant.Yaw + giant.TurnWay * MathF.Min(turn, left);
+                float yaw = giant.Yaw + Settling(giant, giant.TurnWay * left, TurnOnSpot / MathF.Sqrt(giant.Shape.Scale), deltaTime);
                 if (Allowed(giant, giant.Middle, yaw))
                 {
                     giant.Yaw = yaw;
                     return;
                 }
+                giant.YawRate = 0f;
                 if (!giant.TurnLong)
                 {
                     giant.TurnLong = true;
@@ -1538,6 +1553,7 @@ namespace Dino_Engine.Wildlife
             }
             giant.TurnLong = false;
             giant.TurnWay = 0f;
+            giant.YawRate = 0f;
 
             if (giant.After == GiantDoing.Browsing && giant.HasTree)
             {
@@ -1554,6 +1570,43 @@ namespace Dino_Engine.Wildlife
             giant.Speed = MathF.Max(giant.Speed - SlowDown * deltaTime, 0f);
             if (giant.Speed <= 0f) return;
             giant.Middle += giant.Forward * giant.Speed * deltaTime;
+        }
+
+        // How far it turns this moment, going for a rate of turn it wants: the rate gathers and settles by TurnEase, or stops by TurnHalt for someone in the way.
+        private static float Turning(Giant giant, float wanted, float deltaTime, bool halt = false)
+        {
+            float ease = (halt ? TurnHalt : TurnEase) / MathF.Sqrt(giant.Shape.Scale) * deltaTime;
+            giant.YawRate += Math.Clamp(wanted - giant.YawRate, -ease, ease);
+            return giant.YawRate * deltaTime;
+        }
+
+        // The rate to turn at to come round by an angle, at most this fast, and slowing so as to settle on it rather than stop at it.
+        private static float Toward(Giant giant, float off, float most)
+        {
+            float ease = TurnEase / MathF.Sqrt(giant.Shape.Scale);
+            return MathF.Sign(off) * MathF.Min(most, MathF.Sqrt(2f * ease * MathF.Abs(off)));
+        }
+
+        // A turn by an angle on the spot, gathering and settling, and never past it.
+        private static float Settling(Giant giant, float off, float most, float deltaTime)
+        {
+            float step = Turning(giant, Toward(giant, off, most), deltaTime);
+            if (MathF.Sign(step) == MathF.Sign(off) && MathF.Abs(step) > MathF.Abs(off))
+            {
+                step = off;
+                giant.YawRate = 0f;
+            }
+            return step;
+        }
+
+        // Whatever turn it was in, let go of over a moment, onto ground it can stand on, as nothing that size stops turning at once.
+        private void Unturn(Giant giant, float deltaTime, bool halt = false)
+        {
+            if (giant.YawRate == 0f) return;
+            float yaw = giant.Yaw + Turning(giant, 0f, deltaTime, halt);
+            if (MathF.Abs(giant.YawRate) < 1e-3f) giant.YawRate = 0f;
+            if (Allowed(giant, giant.Middle, yaw)) giant.Yaw = yaw;
+            else giant.YawRate = 0f;
         }
 
         // Another giant close in front, or anyone at all in the way of where it's putting its feet next.

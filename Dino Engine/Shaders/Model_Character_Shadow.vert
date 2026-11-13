@@ -1,4 +1,4 @@
-#version 330
+﻿#version 330
 
 layout(location = 0) in vec3 position;
 layout(location = 4) in vec2 uv;
@@ -7,7 +7,7 @@ layout(location = 6) in vec2 boneIndices;
 layout(location = 7) in vec2 boneWeights;
 
 uniform mat4 modelViewProjectionMatrix;
-uniform mat4 u_Bones[32];
+uniform mat4 u_Bones[48];
 
 out float textureIndex;
 out vec2 fragUV;

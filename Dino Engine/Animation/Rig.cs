@@ -1,4 +1,4 @@
-using Dino_Engine.ECS.Components;
+﻿using Dino_Engine.ECS.Components;
 using OpenTK.Mathematics;
 
 namespace Dino_Engine.Animation
@@ -8,6 +8,7 @@ namespace Dino_Engine.Animation
     {
         Biped,
         Quadruped,
+        Arachnid,   // On eight, a spider's way: the body slung low between knees that stand higher than it.
     }
 
     /// <summary>
@@ -186,6 +187,12 @@ namespace Dino_Engine.Animation
                 pivots[(int)BoneType.Neck3] = pivots[(int)BoneType.Neck];
             }
 
+            // The middle legs of what walks on eight sit inside the chest on anything with fewer, with nothing hung from them.
+            if (plan != BodyPlan.Arachnid)
+            {
+                for (int bone = (int)BoneType.SecondUpperL; bone <= (int)BoneType.ThirdFootR; bone++) pivots[bone] = pivots[(int)BoneType.Chest];
+            }
+
             Parents = new int[BoneCount];
             Array.Fill(Parents, -1);
             void Join(BoneType child, BoneType parent) => Parents[(int)child] = (int)parent;
@@ -220,6 +227,20 @@ namespace Dino_Engine.Animation
             Join(BoneType.TailTip, BoneType.Tail3);
             Join(BoneType.ToeL, BoneType.FootL);
             Join(BoneType.ToeR, BoneType.FootR);
+            Join(BoneType.SecondUpperL, BoneType.Chest);
+            Join(BoneType.SecondLowerL, BoneType.SecondUpperL);
+            Join(BoneType.SecondFootL, BoneType.SecondLowerL);
+            Join(BoneType.SecondUpperR, BoneType.Chest);
+            Join(BoneType.SecondLowerR, BoneType.SecondUpperR);
+            Join(BoneType.SecondFootR, BoneType.SecondLowerR);
+            // The third pair hangs from the hips of what walks on eight, and on anything else from the chest it sits inside, so that it goes nowhere the chest doesn't.
+            BoneType third = plan == BodyPlan.Arachnid ? BoneType.Pelvis : BoneType.Chest;
+            Join(BoneType.ThirdUpperL, third);
+            Join(BoneType.ThirdLowerL, BoneType.ThirdUpperL);
+            Join(BoneType.ThirdFootL, BoneType.ThirdLowerL);
+            Join(BoneType.ThirdUpperR, third);
+            Join(BoneType.ThirdLowerR, BoneType.ThirdUpperR);
+            Join(BoneType.ThirdFootR, BoneType.ThirdLowerR);
 
             InverseBind = new Matrix4[BoneCount];
             for (int i = 0; i < BoneCount; i++) InverseBind[i] = Matrix4.CreateTranslation(-pivots[i]);
@@ -229,7 +250,32 @@ namespace Dino_Engine.Animation
             Limb hindLeft = new Limb(pivots, BoneType.Pelvis, BoneType.UpperLegL, BoneType.LowerLegL, BoneType.FootL, 1f, Vector3.UnitZ, knees);
             Limb hindRight = new Limb(pivots, BoneType.Pelvis, BoneType.UpperLegR, BoneType.LowerLegR, BoneType.FootR, -1f, Vector3.UnitZ, knees);
 
-            if (plan == BodyPlan.Biped)
+            if (plan == BodyPlan.Arachnid)
+            {
+                // Eight legs, hind pair first and forelegs next, as on four, then the two pairs between. Each knee goes up and out, as a spider's does, high over the body it carries.
+                Limb Leg(BoneType parent, BoneType upper, BoneType lower, BoneType end, float side)
+                {
+                    Vector3 up = new Vector3(side * 0.5f, 1f, 0f).Normalized();
+                    return new Limb(pivots, parent, upper, lower, end, side, up, up);
+                }
+                Legs = new[]
+                {
+                    Leg(BoneType.Pelvis, BoneType.UpperLegL, BoneType.LowerLegL, BoneType.FootL, 1f),
+                    Leg(BoneType.Pelvis, BoneType.UpperLegR, BoneType.LowerLegR, BoneType.FootR, -1f),
+                    Leg(BoneType.Chest, BoneType.UpperArmL, BoneType.LowerArmL, BoneType.HandL, 1f),
+                    Leg(BoneType.Chest, BoneType.UpperArmR, BoneType.LowerArmR, BoneType.HandR, -1f),
+                    Leg(BoneType.Chest, BoneType.SecondUpperL, BoneType.SecondLowerL, BoneType.SecondFootL, 1f),
+                    Leg(BoneType.Chest, BoneType.SecondUpperR, BoneType.SecondLowerR, BoneType.SecondFootR, -1f),
+                    Leg(BoneType.Pelvis, BoneType.ThirdUpperL, BoneType.ThirdLowerL, BoneType.ThirdFootL, 1f),
+                    Leg(BoneType.Pelvis, BoneType.ThirdUpperR, BoneType.ThirdLowerR, BoneType.ThirdFootR, -1f),
+                };
+                Arms = Array.Empty<Limb>();
+
+                // Forelegs hang from the chest, as on four, and nowhere near a collarbone.
+                Parents[(int)BoneType.UpperArmL] = (int)BoneType.Chest;
+                Parents[(int)BoneType.UpperArmR] = (int)BoneType.Chest;
+            }
+            else if (plan == BodyPlan.Biped)
             {
                 Legs = new[] { hindLeft, hindRight };
 
@@ -385,6 +431,9 @@ namespace Dino_Engine.Animation
     {
         private const float Softness = 0.05f;   // The last share of a limb's length is approached and not reached.
         private const float LeastFolded = 0.06f;
+
+        /// <summary>How far a limb can be asked to reach, as a share of its length, and still put its end within a centimetre or two of where it's asked: past this it eases short.</summary>
+        public const float Comfortable = 0.965f;
 
         /// <param name="root">Where the limb leaves the body.</param>
         /// <param name="target">Where its end is wanted.</param>

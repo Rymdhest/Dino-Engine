@@ -233,6 +233,26 @@ namespace Dino_AnimLab
                 Check("Turning on the spot takes a step or two", steps >= 1 && off < 0.3f, $"{steps} steps, feet {off:0.00} rad from where they should be");
             }
 
+            // A gait can't let a foot slide, but a leg that can't reach where its foot was planted draws it short, hanging and dragged along: a giant's legs, built nearly straight, left their
+            // feet a tenth of a leg short at a walk. And a body that size jolting at every step is the first thing anyone sees of it.
+            foreach (Body body in Body.All)
+            {
+                if (!body.Rig.Saurian && body.Rig.Plan != BodyPlan.Quadruped) continue;
+                bool heavy = body.Style.StrideDip > 0f;
+                float worstMiss = 0f, worstJolt = 0f;
+                foreach (float pace in new[] { 0.12f, 0.2f, 0.3f })
+                {
+                    foreach (float scale in new[] { 1f, 1.5f })
+                    {
+                        (float miss, _, float jolt) = FeetProbe.Measure(body, pace, 0.08f, 10f, scale);
+                        worstMiss = MathF.Max(worstMiss, miss);
+                        worstJolt = MathF.Max(worstJolt, jolt);
+                    }
+                }
+                Check($"{body.Name}: a walking foot is where the leg puts it", worstMiss < 0.03f, $"{worstMiss * 100f:0.0}% of a leg short at worst");
+                if (heavy) Check($"{body.Name}: walks without a jolt", worstJolt < 1.2f, $"{worstJolt:0.0} g at worst");
+            }
+
             {
                 CharacterAnimator animator = Body.Named("bare").NewAnimator();
                 var flat = new FlatGround();

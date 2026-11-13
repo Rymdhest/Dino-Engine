@@ -1,4 +1,4 @@
-using Dino_Engine.Animation;
+﻿using Dino_Engine.Animation;
 using Dino_Engine.Modelling.Model;
 using Dino_Engine.Modelling.Procedural.Character;
 using Dino_Engine.Modelling.Procedural.Gear;
@@ -120,6 +120,7 @@ namespace Dino_AnimLab
         public float Warmup = 1f;
         public Func<float, (Vector3 position, float yaw)> Path = _ => (Vector3.Zero, 0f);
         public Func<float, ActionInput>? Action;
+        public Func<float, Vector3>? ReachFor;     // Where a long neck reaches, from where the body stands, for a giant browsing.
         public float Alert;
         public bool Dazed;
         public float DiesAt = -1f;
@@ -168,6 +169,8 @@ namespace Dino_AnimLab
                 "strafe" => new Script { Length = 1.4f, Path = t => (new Vector3(t * 7f, 0f, 0f), 0f) },
                 "back" => new Script { Length = 1.4f, Path = t => (new Vector3(0f, 0f, -t * 6f), 0f) },
                 "slope" => new Script { Length = 2.4f, Ground = new Slope(), Path = t => { float z = t * 6f; return (new Vector3(0f, new Slope().HeightAt(0f, z), z), 0f); } },
+                "browse-low" => new Script { Length = 6f, Warmup = 4f, ReachFor = t => new Vector3(MathF.Sin(t * 0.4f) * 4f, 1.5f, 16f) },
+                "browse-high" => new Script { Length = 6f, Warmup = 4f, ReachFor = t => new Vector3(MathF.Sin(t * 0.4f) * 5f, 26f, 12f) },
                 "die" => new Script { Length = 1.6f, Warmup = 0.4f, DiesAt = 0.5f, Push = new Vector3(0f, 1f, 2f) },
                 "shove" => new Script { Length = 1.8f, Warmup = 0.4f, DiesAt = 0.5f, Push = new Vector3(0f, 6f, 13f) },
                 "launch" => new Script { Length = 3f, Warmup = 0.4f, DiesAt = 0.5f, Push = new Vector3(0f, 17f, 30f) },

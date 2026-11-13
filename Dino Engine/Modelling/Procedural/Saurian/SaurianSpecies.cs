@@ -1,4 +1,4 @@
-using Dino_Engine.World;
+﻿using Dino_Engine.World;
 using OpenTK.Mathematics;
 
 namespace Dino_Engine.Modelling.Procedural.Saurian
@@ -280,7 +280,7 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
             Id = "giant", Name = "Giant", Form = SaurianForm.Sauropod, Free = true,
             // From Taylor's and Paul's skeletals: the hip joint at about a sixth of the length, the shoulder a quarter higher, and the tail a little shorter than the neck. The head is half as big
             // again as the skull says, as it's what the animal's face is read from, from up where the camera is.
-            Length = R(37f, 41f), Hip = R(0.174f, 0.184f), Withers = R(0.2f, 0.28f), Skull = R(0.058f, 0.064f), Neck = R(0.36f, 0.39f), Trunk = R(0.19f, 0.21f),
+            Length = R(37f, 41f), Hip = R(0.174f, 0.184f), Withers = R(0.2f, 0.28f), Skull = R(0.058f, 0.064f), Neck = R(0.36f, 0.39f), Trunk = R(0.165f, 0.18f),
             Girth = R(0.062f, 0.068f), Breadth = R(0.98f, 1.06f), Belly = R(0.08f, 0.14f), NeckRise = R(1f, 1.12f), NeckGirth = R(0.5f, 0.56f), TailRoot = R(0.6f, 0.68f), TailRod = 0f, TailDroop = R(0.2f, 0.28f),
             LegBones = new Vector3(0.53f, 0.33f, 0.14f), Crouch = R(0.02f, 0.06f), Thigh = R(0.46f, 0.52f), Shin = R(0.34f, 0.4f), Toe = R(0.5f, 0.65f),
             ArmGirth = R(0.4f, 0.46f), Fingers = 1, Claw = R(0.05f, 0.07f),

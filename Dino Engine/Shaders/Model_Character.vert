@@ -1,4 +1,4 @@
-#version 420
+﻿#version 420
 #include globals.glsl
 
 layout(location = 0) in vec3 position;
@@ -19,7 +19,7 @@ out float textureIndex;
 
 uniform mat4 modelMatrix;
 uniform mat4 normalModelViewMatrix;
-uniform mat4 u_Bones[32];
+uniform mat4 u_Bones[48];
 
 void main() {
     // 1. Calculate combined weight and normalize

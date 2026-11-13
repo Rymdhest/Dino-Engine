@@ -167,7 +167,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
                 _characterShader.loadUniformVector4f("hitFlash", instance.Flash);
                 _characterShader.loadUniformVector4f("characterSight", instance.Sight);
 
-                // Every bone a rig has (Rig.BoneCount), into uniform mat4 u_Bones[32], which leaves room for a few more.
+                // Every bone a rig has (Rig.BoneCount, 43 with the legs of what walks on eight), into uniform mat4 u_Bones[48], which leaves room for a few more.
                 _characterShader.loadUniformMatrix4fArray("u_Bones", instance.SkinningMatrices);
 
                 GL.DrawElements(PrimitiveType.Triangles, glmodel.getVertexCount(), DrawElementsType.UnsignedInt, 0);
