@@ -93,7 +93,7 @@ namespace Dino_Engine.Modelling.Procedural.Character
                     root - way * length * 0.12f,
                 };
                 int first = mesh.Positions.Count;
-                mesh.Sheet(outline, root + way * length * 0.36f + cup * 0.3f, facing, length * 0.045f, body.Hide.Ears, body.Hide.Ears * 0.9f, GearMaterials.Leather, _ => BoneType.Head);
+                mesh.Sheet(outline, root + way * length * 0.36f + cup * 0.3f, facing, length * 0.045f, body.Hide.Ears, body.Hide.Ears * 0.9f, GearMaterials.Hide, _ => BoneType.Head);
                 Furred(mesh, first, 1f);
             }
         }
@@ -111,9 +111,9 @@ namespace Dino_Engine.Modelling.Procedural.Character
             Vector3 tipFrom = Vector3.Lerp(middle, end, 0.72f);
 
             int first = mesh.Positions.Count;
-            mesh.Tube(new[] { root, Vector3.Lerp(root, middle, 0.45f), middle + (middle - root).Normalized() * bush * 0.3f }, new[] { body.W(0.034f), bush * 0.78f, bush * 0.96f }, 8, upper, GearMaterials.Leather, BoneType.TailBase);
-            mesh.Tube(new[] { middle - down * bush * 0.3f, Vector3.Lerp(middle, end, 0.35f), tipFrom }, new[] { bush * 0.96f, bush, bush * 0.82f }, 8, lower, GearMaterials.Leather, BoneType.TailTip);
-            mesh.Tube(new[] { tipFrom, Vector3.Lerp(tipFrom, end, 0.55f), end }, new[] { bush * 0.82f, bush * 0.55f, body.W(0.01f) }, 8, body.Hide.TailTip, GearMaterials.Leather, BoneType.TailTip);
+            mesh.Tube(new[] { root, Vector3.Lerp(root, middle, 0.45f), middle + (middle - root).Normalized() * bush * 0.3f }, new[] { body.W(0.034f), bush * 0.78f, bush * 0.96f }, 8, upper, GearMaterials.Hide, BoneType.TailBase);
+            mesh.Tube(new[] { middle - down * bush * 0.3f, Vector3.Lerp(middle, end, 0.35f), tipFrom }, new[] { bush * 0.96f, bush, bush * 0.82f }, 8, lower, GearMaterials.Hide, BoneType.TailTip);
+            mesh.Tube(new[] { tipFrom, Vector3.Lerp(tipFrom, end, 0.55f), end }, new[] { bush * 0.82f, bush * 0.55f, body.W(0.01f) }, 8, body.Hide.TailTip, GearMaterials.Hide, BoneType.TailTip);
             Furred(mesh, first, 1f);
         }
 
@@ -139,7 +139,7 @@ namespace Dino_Engine.Modelling.Procedural.Character
                 Vector3 root = start + Vector3.UnitY * (flesh.Exit(start, Vector3.UnitY, body.W(0.2f)) - length * 0.15f);
                 Vector3 lean = new Vector3(x * 9f + random.Range(-0.1f, 0.1f), 0.55f, -0.83f + random.Range(-0.12f, 0.12f)).Normalized();
                 int first = mesh.Positions.Count;
-                mesh.Spike(root, lean, length, length * 0.2f, -Vector3.UnitZ, 0.3f, 4, dark * random.Range(0.85f, 1.1f), GearMaterials.Leather, dress.BodyHang(root), 0.45f, Vector3.UnitX);
+                mesh.Spike(root, lean, length, length * 0.2f, -Vector3.UnitZ, 0.3f, 4, dark * random.Range(0.85f, 1.1f), GearMaterials.Hide, dress.BodyHang(root), 0.45f, Vector3.UnitX);
                 Furred(mesh, first, 0.6f);
             }
         }

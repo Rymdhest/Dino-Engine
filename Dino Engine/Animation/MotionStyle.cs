@@ -102,7 +102,8 @@
 
         public static readonly MotionStyle Boar = new MotionStyle { Cadence = 1.35f, Bounce = 0.7f, Sway = 1.3f, Give = 0.8f };
 
-        public static readonly MotionStyle Bear = new MotionStyle { Cadence = 0.78f, Bounce = 1.1f, Sway = 2f, Give = 0.45f };
+        // A bear's legs are columns, as a giant's are, so it steps quicker rather than longer, and rolls its weight from side to side as it goes.
+        public static readonly MotionStyle Bear = new MotionStyle { Cadence = 0.85f, Bounce = 1f, Sway = 2f, Give = 0.45f, LandAhead = 0.42f, StrideDip = 0.16f };
 
         // Dinosaurs. A trackway's feet fall near its middle line, so all of them stand narrow, and sway only a little over each foot.
 

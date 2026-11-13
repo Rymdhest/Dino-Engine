@@ -98,7 +98,7 @@ namespace Dino_Engine.Modelling.Procedural.Character
                     root - way * length * 0.12f,
                 };
                 int first = mesh.Positions.Count;
-                mesh.Sheet(outline, root + way * length * 0.36f + cup * 0.3f, facing, length * 0.045f, colour, colour * 0.9f, GearMaterials.Leather, _ => BoneType.Head);
+                mesh.Sheet(outline, root + way * length * 0.36f + cup * 0.3f, facing, length * 0.045f, colour, colour * 0.9f, GearMaterials.Hide, _ => BoneType.Head);
                 Furred(mesh, first, 1f);
             }
         }
@@ -124,7 +124,7 @@ namespace Dino_Engine.Modelling.Procedural.Character
                 Vector3 from3 = new Vector3(x, inside, z);
                 Vector3 root = from3 + Vector3.UnitY * (flesh.Exit(from3, Vector3.UnitY, body.W(0.2f)) - length * 0.12f);
                 Vector3 lean = new Vector3(x * 8f + random.Range(-0.12f, 0.12f), 0.62f, -0.78f + random.Range(-0.15f, 0.15f)).Normalized();
-                mesh.Spike(root, lean, length, length * 0.17f, -Vector3.UnitZ, 0.3f, 4, dark * random.Range(0.85f, 1.1f), GearMaterials.Leather, dress.BodyHang(root), 0.45f, Vector3.UnitX);
+                mesh.Spike(root, lean, length, length * 0.17f, -Vector3.UnitZ, 0.3f, 4, dark * random.Range(0.85f, 1.1f), GearMaterials.Hide, dress.BodyHang(root), 0.45f, Vector3.UnitX);
             }
         }
 
@@ -165,11 +165,11 @@ namespace Dino_Engine.Modelling.Procedural.Character
             Vector3 dark = Vector3.Lerp(body.Hide.Back, body.Hide.Legs, 0.5f);
 
             int first = mesh.Positions.Count;
-            mesh.Tube(new[] { root, Vector3.Lerp(root, middle, 0.5f), middle + (middle - root) * 0.06f }, new[] { thick * 1.3f, thick, thick * 0.85f }, 6, dark, GearMaterials.Leather, BoneType.TailBase);
+            mesh.Tube(new[] { root, Vector3.Lerp(root, middle, 0.5f), middle + (middle - root) * 0.06f }, new[] { thick * 1.3f, thick, thick * 0.85f }, 6, dark, GearMaterials.Hide, BoneType.TailBase);
             Vector3 tuftFrom = Vector3.Lerp(middle, end, 0.55f);
             Vector3 down = (end - middle).Normalized();
             mesh.Tube(new[] { middle - down * thick, tuftFrom, Vector3.Lerp(tuftFrom, end, 0.5f), end + down * thick }, new[] { thick * 0.85f, thick * 0.75f, thick * 1.5f, thick * 0.4f }, 6,
-                dark * 0.85f, GearMaterials.Leather, BoneType.TailTip, Vector3.UnitX, 0.55f);
+                dark * 0.85f, GearMaterials.Hide, BoneType.TailTip, Vector3.UnitX, 0.55f);
             Furred(mesh, first, 1f);
         }
     }

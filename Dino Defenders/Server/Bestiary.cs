@@ -160,7 +160,7 @@ namespace Dino_Defenders.Server
         public static readonly EnemyKind Bear = new EnemyKind
         {
             Id = "bear", Name = "Cave Bear", Books = new[] { Shelf.Maul, Shelf.Bite }, MoveSpeed = 6.6f, Health = 3f, Damage = 1.5f,
-            Mods = new[] { More(Stat.Armour, 50f), Inc(Stat.AilmentTaken, -30f) }, Look = "bear",
+            Mods = new[] { More(Stat.Armour, 50f), Inc(Stat.AilmentTaken, -30f) }, Look = "bear", Variants = 4,
         };
 
         // The ones who come to the land's powers with nothing yet but a blade and a good opinion of themselves.

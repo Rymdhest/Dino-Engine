@@ -128,8 +128,8 @@ namespace Dino_Engine.Rendering.Shells
         private static readonly ShellStyle Bear = Wolf with
         {
             Name = "bear fur",
-            Length = 0.12f,
-            ClumpSize = 0.16f,
+            Length = 0.16f,
+            ClumpSize = 0.15f,
             Carpet = 0.28f,
             HeightVariety = 0.4f,
             Shape = 0.75f,

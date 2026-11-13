@@ -60,6 +60,13 @@ namespace Dino_AnimLab
             Dino_Engine.Modelling.Procedural.Saurian.SaurianSkin.Report = Console.WriteLine;
             foreach (string key in options.Text("dino", "dino:raptor.0,dino:tyrant.0,dino:raptor.bones.0").Split(','))
             {
+                if (Dino_Engine.Modelling.Procedural.Character.BearSpec.Parse(key) is Dino_Engine.Modelling.Procedural.Character.BearSpec bear)
+                {
+                    var timing = System.Diagnostics.Stopwatch.StartNew();
+                    var grown = Dino_Engine.Modelling.Procedural.Character.BearForge.Make(bear, out var built);
+                    Console.WriteLine($"{key}: {timing.Elapsed.TotalMilliseconds:0} ms, {grown.faces.Count} triangles, {built.Withers:0.00} m at the withers, {built.Length:0.00} m long, build {built.Build:0.00}, coat {built.Coat}, mesh {Fingerprint(grown):x16}");
+                    continue;
+                }
                 if (Dino_Engine.Modelling.Procedural.Character.WolfSpec.Parse(key) is Dino_Engine.Modelling.Procedural.Character.WolfSpec wolf)
                 {
                     var timing = System.Diagnostics.Stopwatch.StartNew();

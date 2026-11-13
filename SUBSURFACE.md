@@ -33,7 +33,7 @@ much of that it does and what kind, and the light passes take it from there, so 
   under a little snow and makes a lot of it frost, both going to nothing where one gives way to the other, so there's no line where the kind changes.
 - Living things are drawn in materials of their own, appended to the catalogue so no other layer moved: `skin`, a person's, flat as the flat material
   people were drawn in before, and `hide`, a beast's or a dinosaur's, leather's grain and colour with light getting in under it. `GearMaterials.Skin` and
-  `GearMaterials.Hide` are what generators use (`HumanoidGenerator`, `BeastGenerator`, `SaurianPaint`, and the dinosaurs' crests, frills, toes and digits in
+  `GearMaterials.Hide` are what generators use (`HumanoidGenerator`, the boars', wolves' and bears' dressers on `QuadrupedDress`, `SaurianPaint`, and the dinosaurs' crests, frills, toes and digits in
   `SaurianParts`); leather that's worn, a harness, a strap, stays leather, horn and spines stay leather, and an eye or a tusk is `GearMaterials.Plain`.
 - A kind can't be averaged and an amount can, so the MSAA resolve (`Msaa_Resolve_GBuffer.frag`) averages a pixel's amounts under whichever kind scatters most
   among its samples. It doesn't make a pixel of mixed kinds an edge pixel: tried, it made every blade over cobbles with moss in their joints, or over earth with

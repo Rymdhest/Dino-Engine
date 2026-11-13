@@ -53,7 +53,12 @@ namespace Dino_AnimLab
             return Outfit.Hold(null, new[] { (new GearSpec(41, kind, kind == GearKind.Bow ? 0f : 1f, kind == GearKind.Bow ? 1f : 0f, 0f, form, 0, GearTheme.None), -1f) });
         }
 
-        private static Body Beast(string name, BeastLook look, MotionStyle style) => new Body(name, BeastGenerator.RigOf(look), style, Carry.Nothing, false, () => BeastGenerator.Generate(look));
+        /// <summary>A cave bear, by the name the game gives its model.</summary>
+        public static Body Bear(string name, string key)
+        {
+            BearSpec spec = BearSpec.Parse(key) ?? throw new ArgumentException($"No bear called {key}.");
+            return new Body(name, BearForge.RigOf(spec), MotionStyle.Bear, Carry.Nothing, false, () => BearForge.Make(spec));
+        }
 
         /// <summary>A wolf or a dire wolf, by the name the game gives its model.</summary>
         public static Body Wolf(string name, string key)
@@ -98,7 +103,7 @@ namespace Dino_AnimLab
             Wolf("wolf", "wolf0"),
             Wolf("direwolf", "direwolf0"),
             Boar("boar", "boar0"),
-            Beast("bear", new BeastLook { Height = 2.3f, Length = 3.9f, Girth = 1.25f, Skull = 0.62f, Muzzle = 0.44f, Tail = 0f, Ears = 0.17f, Hump = 0.34f, Neck = 0.8f, Coat = new Vector3(0.34f, 0.2f, 0.1f), Belly = new Vector3(0.42f, 0.27f, 0.15f) }, MotionStyle.Bear),
+            Bear("bear", "bear0"),
             Dino("raptor", "dino:raptor.0", MotionStyle.Raptor),
             Dino("skitter", "dino:skitter.0", MotionStyle.Scurrier),
             Dino("spitter", "dino:spitter.0", MotionStyle.Stalker),
@@ -127,6 +132,7 @@ namespace Dino_AnimLab
             if (found != null) return found;
             if (BoarSpec.Parse(name) != null) return Boar(name, name);
             if (WolfSpec.Parse(name) != null) return Wolf(name, name);
+            if (BearSpec.Parse(name) != null) return Bear(name, name);
             if (SaurianSpec.Parse(name) is SaurianSpec spec) return Dino(name, name, StyleOf(spec));
             return All[0];
         }

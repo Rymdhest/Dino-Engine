@@ -212,7 +212,7 @@ namespace Dino_Defenders.Client
             if (key == "revenant") return (key, () => HumanoidGenerator.Generate(RevenantLook));
             if (BoarSpec.Parse(key) is BoarSpec boar) return (boar.Key, () => BoarForge.Make(boar));
             if (WolfSpec.Parse(key) is WolfSpec wolf) return (wolf.Key, () => WolfForge.Make(wolf));
-            if (BeastOf(key) is BeastLook beast) return (key, () => BeastGenerator.Generate(beast));
+            if (BearSpec.Parse(key) is BearSpec bear) return (bear.Key, () => BearForge.Make(bear));
             if (key.StartsWith("robed:")) return (key, () => HumanoidGenerator.Generate(RobedLook(key.Substring(6))));
             if (key.StartsWith("acolyte:")) return (key, () => HumanoidGenerator.Generate(AcolyteLook(key.Substring(8))));
             if (key.StartsWith("cutthroat") && int.TryParse(key.AsSpan(9), out int cutthroat)) return (key, () => HumanoidGenerator.Generate(CutthroatLook(cutthroat)));
@@ -267,11 +267,8 @@ namespace Dino_Defenders.Client
             return GearDisplay.Lying(GearForge.Make(spec), gear).Build(bones: false);
         }
 
-        /// <summary>The animal a server means by <paramref name="key"/>, if it means one built of tubes. Those stand on a rig of their own.</summary>
-        public static BeastLook? BeastOf(string key) => Beasts.GetValueOrDefault(key);
-
-        /// <summary>Whether a server means one of the land's own animals, a wolf, a bear or a boar, which are heard and hit as animals are.</summary>
-        public static bool IsBeast(string key) => Beasts.ContainsKey(key) || BoarSpec.Parse(key) != null || WolfSpec.Parse(key) != null;
+        /// <summary>Whether a server means one of the land's own animals, a wolf, a bear or a boar, which are heard and hit as animals are. Each stands on a rig of its own.</summary>
+        public static bool IsBeast(string key) => BoarSpec.Parse(key) != null || WolfSpec.Parse(key) != null || BearSpec.Parse(key) != null;
 
         /// <summary>The joints of an animal, shared by everyone of its kind. A dinosaur's are its own, as each is grown from its seed.</summary>
         public static Rig RigOf(string key)
@@ -283,7 +280,8 @@ namespace Dino_Defenders.Client
                     rig = SaurianSpec.Parse(key) is SaurianSpec dinosaur ? SaurianForge.RigOf(dinosaur)
                         : BoarSpec.Parse(key) is BoarSpec boar ? BoarForge.RigOf(boar)
                         : WolfSpec.Parse(key) is WolfSpec wolf ? WolfForge.RigOf(wolf)
-                        : BeastGenerator.RigOf(Beasts[key]);
+                        : BearSpec.Parse(key) is BearSpec bear ? BearForge.RigOf(bear)
+                        : throw new ArgumentException($"No animal called {key}.");
                     Rigs.Add(key, rig);
                 }
                 return rig;
@@ -326,7 +324,7 @@ namespace Dino_Defenders.Client
             if (SaurianSpec.Parse(key) is SaurianSpec dinosaur) return new Bearing(RigOf(key), SaurianForge.StyleOf(dinosaur), Carry.Nothing, false);
             if (BoarSpec.Parse(key) != null) return new Bearing(RigOf(key), MotionStyle.Boar, Carry.Nothing, false);
             if (WolfSpec.Parse(key) != null) return new Bearing(RigOf(key), MotionStyle.Hound, Carry.Nothing, false);
-            if (BeastOf(key) != null) return new Bearing(RigOf(key), MotionStyle.Bear, Carry.Nothing, false);
+            if (BearSpec.Parse(key) != null) return new Bearing(RigOf(key), MotionStyle.Bear, Carry.Nothing, false);
 
             Rig person = Rig.Humanoid;
             if (key == ReichPrefix + "marksman") return new Bearing(person, MotionStyle.Armoured, Carry.Bow, false);
@@ -359,16 +357,6 @@ namespace Dino_Defenders.Client
             }
             return new Bearing(person, MotionStyle.Villager, Carry.Nothing, false);
         }
-
-        private static readonly Dictionary<string, BeastLook> Beasts = new()
-        {
-            ["bear"] = new BeastLook
-            {
-                Height = 2.3f, Length = 3.9f, Girth = 1.25f, Skull = 0.62f, Muzzle = 0.44f, Tail = 0f, Ears = 0.17f, Hump = 0.34f, Neck = 0.8f,
-                Coat = new Vector3(0.34f, 0.2f, 0.1f), Belly = new Vector3(0.42f, 0.27f, 0.15f),
-                Fur = Dino_Engine.Rendering.Shells.ShellStyles.BearFur,
-            },
-        };
 
         // What each power's servants wear. Deep colours, as anything pale goes white under the sun.
         private static Vector3 RobeOf(string element) => element switch

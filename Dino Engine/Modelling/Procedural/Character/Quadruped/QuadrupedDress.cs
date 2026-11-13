@@ -196,15 +196,23 @@ namespace Dino_Engine.Modelling.Procedural.Character
         private Hang LegHang(SaurianPart part, Vector3 p)
         {
             LegJoints(part, out Vector3 top, out Vector3 middle, out Vector3 bottom, out BoneType upper, out BoneType lower, out BoneType end);
-
-            // The foot is all the foot's, and just above it shares with what's above.
-            if (p.Y < bottom.Y) return new Hang(end, lower, 1f - 0.5f * Smooth(bottom.Y - W(0.008f), bottom.Y, p.Y));
+            if (FootHang(p, bottom, lower, end) is Hang foot) return foot;
             float a = Segment(p, top, middle, out float ta);
             float b = Segment(p, middle, bottom, out float tb);
             if (a <= b) return ta > 0.8f ? new Hang(upper, lower, 1f - 0.5f * Smooth(0.8f, 1f, ta)) : new Hang(upper);
             if (tb < 0.2f) return new Hang(lower, upper, 0.5f + 0.5f * Smooth(0f, 0.2f, tb));
             if (tb > 0.88f) return new Hang(lower, end, 1f - 0.5f * Smooth(0.88f, 1f, tb));
             return new Hang(lower);
+        }
+
+        /// <summary>
+        /// The bones a point on a foot hangs from, or nothing if it isn't on the foot, given where the foot's bone turns. A hoof or a paw is everything below that, and just above it shares with
+        /// what's above; an animal that stands on its soles says otherwise.
+        /// </summary>
+        protected virtual Hang? FootHang(Vector3 p, Vector3 pivot, BoneType lower, BoneType foot)
+        {
+            if (p.Y >= pivot.Y) return null;
+            return new Hang(foot, lower, 1f - 0.5f * Smooth(pivot.Y - W(0.008f), pivot.Y, p.Y));
         }
 
         // ---- How a texture lies.

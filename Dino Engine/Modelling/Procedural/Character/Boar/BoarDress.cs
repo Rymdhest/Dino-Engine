@@ -48,11 +48,16 @@ namespace Dino_Engine.Modelling.Procedural.Character
         public override Vector3 Colour(Vector3 p, Vector3 normal, SaurianPart part, out int material, out float glow)
         {
             glow = 1f;
-            material = GearMaterials.Leather;
+            material = GearMaterials.Hide;
             BoarHide hide = _body.Hide;
             if (IsLeg(part))
             {
-                if (p.Y < _body.AnkleHeight + _body.W(0.003f)) return hide.Hoof * (0.9f + 0.2f * Noise(p, _body.W(0.03f), 21u));
+                // A hoof is horn, which lets no light in: leather, as horn and spines are (SUBSURFACE.md).
+                if (p.Y < _body.AnkleHeight + _body.W(0.003f))
+                {
+                    material = GearMaterials.Leather;
+                    return hide.Hoof * (0.9f + 0.2f * Noise(p, _body.W(0.03f), 21u));
+                }
                 float dark = 1f - Smooth(_body.W(0.22f), _body.Brisket + _body.W(0.06f), p.Y);
                 return Vector3.Lerp(Coat(p), hide.Legs, dark);
             }

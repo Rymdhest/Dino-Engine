@@ -45,7 +45,7 @@ namespace Dino_Engine.Modelling.Procedural.Character
         public override Vector3 Colour(Vector3 p, Vector3 normal, SaurianPart part, out int material, out float glow)
         {
             glow = 1f;
-            material = GearMaterials.Leather;
+            material = GearMaterials.Hide;
             WolfHide hide = _body.Hide;
             if (IsLeg(part))
             {
