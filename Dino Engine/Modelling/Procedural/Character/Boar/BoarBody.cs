@@ -240,6 +240,23 @@ namespace Dino_Engine.Modelling.Procedural.Character
             return Trunk[^1];
         }
 
+        /// <summary>What its skin needs to know of it (<see cref="QuadrupedDress"/>): the line of it from the rump through the trunk to the head and the snout, and where its bones take over.</summary>
+        public QuadrupedFrame Frame()
+        {
+            var line = new List<Vector3> { new Vector3(0f, Trunk[0].Middle, RumpBack) };
+            foreach (BoarStation station in Trunk) line.Add(new Vector3(0f, station.Middle, station.Z));
+            line.Add(Atlas);
+            line.Add(SnoutTip);
+            float spacing = ForeZ - HindZ;
+            return new QuadrupedFrame
+            {
+                Withers = Withers, Breadth = Breadth, Line = line.ToArray(),
+                SpineFrom = new Vector3(0f, Hip.Y, HindZ + spacing * 0.3f), ChestFrom = new Vector3(0f, Shoulder.Y, ForeZ - spacing * 0.25f), NeckRoot = NeckRoot, Atlas = Atlas,
+                HeadForward = HeadForward, HeadUp = HeadUp, HeadLength = HeadLength,
+                Shoulder = Shoulder, Carpus = Carpus, ForeCoronet = ForeCoronet, Hip = Hip, Hock = Hock, HindCoronet = HindCoronet,
+            };
+        }
+
         /// <summary>
         /// Where its joints are, on the same bones as people and every other animal, so everything that moves a character moves it. The forelegs are the arms: they hang from the chest, and bend
         /// forward at the knee as a hoofed animal's do, and the hind legs bend back at the hock. Built standing, as it is, which is where a skin bends best from.

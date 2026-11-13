@@ -60,11 +60,18 @@ namespace Dino_AnimLab
             Dino_Engine.Modelling.Procedural.Saurian.SaurianSkin.Report = Console.WriteLine;
             foreach (string key in options.Text("dino", "dino:raptor.0,dino:tyrant.0,dino:raptor.bones.0").Split(','))
             {
+                if (Dino_Engine.Modelling.Procedural.Character.WolfSpec.Parse(key) is Dino_Engine.Modelling.Procedural.Character.WolfSpec wolf)
+                {
+                    var timing = System.Diagnostics.Stopwatch.StartNew();
+                    var grown = Dino_Engine.Modelling.Procedural.Character.WolfForge.Make(wolf, out var built);
+                    Console.WriteLine($"{key}: {timing.Elapsed.TotalMilliseconds:0} ms, {grown.faces.Count} triangles, {built.Withers:0.00} m at the withers, {built.Length:0.00} m long, build {built.Build:0.00}, coat {built.Coat}, mesh {Fingerprint(grown):x16}");
+                    continue;
+                }
                 if (Dino_Engine.Modelling.Procedural.Character.BoarSpec.Parse(key) is Dino_Engine.Modelling.Procedural.Character.BoarSpec boar)
                 {
                     var timing = System.Diagnostics.Stopwatch.StartNew();
                     var grown = Dino_Engine.Modelling.Procedural.Character.BoarForge.Make(boar, out var built);
-                    Console.WriteLine($"{key}: {timing.Elapsed.TotalMilliseconds:0} ms, {grown.faces.Count} triangles, {built.Withers:0.00} m at the withers, {built.Length:0.00} m long, age {built.Age:0.00}, tusks {built.Tusks:0.00} m, coat {built.Coat}");
+                    Console.WriteLine($"{key}: {timing.Elapsed.TotalMilliseconds:0} ms, {grown.faces.Count} triangles, {built.Withers:0.00} m at the withers, {built.Length:0.00} m long, age {built.Age:0.00}, tusks {built.Tusks:0.00} m, coat {built.Coat}, mesh {Fingerprint(grown):x16}");
                     continue;
                 }
                 var spec = Dino_Engine.Modelling.Procedural.Saurian.SaurianSpec.Parse(key);
@@ -78,6 +85,53 @@ namespace Dino_AnimLab
                 Console.WriteLine($"{key}: {watch.Elapsed.TotalMilliseconds:0} ms, {mesh.faces.Count} triangles");
             }
             return 0;
+        }
+
+        /// <summary>
+        /// A number that changes if anything about a mesh does, its vertices, how they hang, their colours and coats and the triangles between them, for saying that a change to how
+        /// something is grown left it exactly as it was.
+        /// </summary>
+        private static ulong Fingerprint(Dino_Engine.Modelling.Model.Mesh mesh)
+        {
+            ulong hash = 0xCBF29CE484222325UL;
+            void Add(float value)
+            {
+                hash ^= (uint)BitConverter.SingleToInt32Bits(value);
+                hash *= 0x100000001B3UL;
+            }
+            void Point(Vector3 v)
+            {
+                Add(v.X);
+                Add(v.Y);
+                Add(v.Z);
+            }
+            foreach (var vertex in mesh.meshVertices)
+            {
+                Point(vertex.position);
+                Point(vertex.normal);
+                Add(vertex.boneIndices.X);
+                Add(vertex.boneIndices.Y);
+                Add(vertex.BoneWeights.X);
+                Add(vertex.BoneWeights.Y);
+                Add(vertex.colour.Red);
+                Add(vertex.colour.Green);
+                Add(vertex.colour.Blue);
+                Add(vertex.colour.Alpha);
+                Add(vertex.Shell);
+                Add(vertex.materialTextureIndex);
+                if (vertex.UVs is { Length: > 0 })
+                {
+                    Add(vertex.UVs[0].X);
+                    Add(vertex.UVs[0].Y);
+                }
+            }
+            foreach (var face in mesh.faces)
+            {
+                Point(face.A.position);
+                Point(face.B.position);
+                Point(face.C.position);
+            }
+            return hash;
         }
 
         /// <summary>Every kind asked for, a few of each, standing still after a moment to settle, so that what's different between them can be seen at once.</summary>

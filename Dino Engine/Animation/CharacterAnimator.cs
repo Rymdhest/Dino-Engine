@@ -215,6 +215,7 @@ namespace Dino_Engine.Animation
             Array.Fill(_support, 1f);
             _bearing = new Vector3[rig.Legs.Length];
             _clock = (seed & 1023) * 0.37f;
+            _tailSwingAxis = TailSwingAxis(rig);
 
             Array.Copy(rig.Pivots, _joints, Rig.BoneCount);
             Array.Fill(_rotations, Quaternion.Identity);
@@ -1227,19 +1228,33 @@ namespace Dino_Engine.Animation
 
         private float _tailSwing;
         private float _tailSwingSpeed;
+        private readonly Vector3 _tailSwingAxis;
 
-        // A tail is carried along behind everything else and does nothing of its own.
+        private const float TailLift = 0.7f;    // How far a tail comes up, in radians, at a run, as a wolf carries its tail out behind it and a boar's goes up.
+
+        // A tail swings from side to side about the line square to the way it was built hanging and to the body's side: up for one held out behind, and forward for one hanging down, so a
+        // tail that hangs swings rather than turning about its own length, as it did when every tail swung about up.
+        private static Vector3 TailSwingAxis(Rig rig)
+        {
+            Vector3 hangs = rig.Pivots[(int)BoneType.TailTip] - rig.Pivots[(int)BoneType.TailBase];
+            if (hangs.LengthSquared < 1e-8f) return Vector3.UnitY;
+            Vector3 axis = Vector3.Cross(Vector3.UnitX, hangs.Normalized());
+            return axis.LengthSquared > 1e-6f ? axis.Normalized() : Vector3.UnitY;
+        }
+
+        // A tail is carried along behind everything else and does nothing of its own: it hangs as it was built while its owner stands, swings from side to side, out as its owner turns, and
+        // comes up as it goes faster. It once drooped as it went faster and lifted standing still, which its pitch's sign had the wrong way round, and a hanging tail turned about itself.
         private void PoseTail(Quaternion pelvis, float speed, float life)
         {
             float wanted = -_turnRate * 0.15f + MathF.Sin(_clock * 2.3f) * 0.08f * _style.Liveliness;
             Spring.Step(ref _tailSwing, ref _tailSwingSpeed, wanted, 0.12f, life);
-            float droop = 0.25f - Gait.Smooth(2f, 10f, speed) * 0.5f;
+            float lift = Gait.Smooth(2f, 10f, speed) * TailLift;
 
-            _rotations[(int)BoneType.TailBase] = pelvis * Frames.Yaw(_tailSwing) * Frames.Pitch(droop * 0.5f);
+            _rotations[(int)BoneType.TailBase] = pelvis * Quaternion.FromAxisAngle(_tailSwingAxis, _tailSwing) * Frames.Pitch(lift * 0.6f);
             _rotations[(int)BoneType.Tail1] = _rotations[(int)BoneType.TailBase];
             _rotations[(int)BoneType.Tail2] = _rotations[(int)BoneType.TailBase];
             _rotations[(int)BoneType.Tail3] = _rotations[(int)BoneType.TailBase];
-            _rotations[(int)BoneType.TailTip] = _rotations[(int)BoneType.TailBase] * Frames.Yaw(_tailSwing * 1.3f) * Frames.Pitch(droop * 0.5f);
+            _rotations[(int)BoneType.TailTip] = _rotations[(int)BoneType.TailBase] * Quaternion.FromAxisAngle(_tailSwingAxis, _tailSwing * 1.3f) * Frames.Pitch(lift * 0.4f);
             Chain(BoneType.TailBase, BoneType.Pelvis);
             Chain(BoneType.Tail1, BoneType.TailBase);
             Chain(BoneType.Tail2, BoneType.Tail1);

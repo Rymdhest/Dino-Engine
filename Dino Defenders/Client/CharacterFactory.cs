@@ -211,6 +211,7 @@ namespace Dino_Defenders.Client
             if (key == "warlord") return (key, () => HumanoidGenerator.Generate(WarlordLook));
             if (key == "revenant") return (key, () => HumanoidGenerator.Generate(RevenantLook));
             if (BoarSpec.Parse(key) is BoarSpec boar) return (boar.Key, () => BoarForge.Make(boar));
+            if (WolfSpec.Parse(key) is WolfSpec wolf) return (wolf.Key, () => WolfForge.Make(wolf));
             if (BeastOf(key) is BeastLook beast) return (key, () => BeastGenerator.Generate(beast));
             if (key.StartsWith("robed:")) return (key, () => HumanoidGenerator.Generate(RobedLook(key.Substring(6))));
             if (key.StartsWith("acolyte:")) return (key, () => HumanoidGenerator.Generate(AcolyteLook(key.Substring(8))));
@@ -270,7 +271,7 @@ namespace Dino_Defenders.Client
         public static BeastLook? BeastOf(string key) => Beasts.GetValueOrDefault(key);
 
         /// <summary>Whether a server means one of the land's own animals, a wolf, a bear or a boar, which are heard and hit as animals are.</summary>
-        public static bool IsBeast(string key) => Beasts.ContainsKey(key) || BoarSpec.Parse(key) != null;
+        public static bool IsBeast(string key) => Beasts.ContainsKey(key) || BoarSpec.Parse(key) != null || WolfSpec.Parse(key) != null;
 
         /// <summary>The joints of an animal, shared by everyone of its kind. A dinosaur's are its own, as each is grown from its seed.</summary>
         public static Rig RigOf(string key)
@@ -279,7 +280,10 @@ namespace Dino_Defenders.Client
             {
                 if (!Rigs.TryGetValue(key, out Rig? rig))
                 {
-                    rig = SaurianSpec.Parse(key) is SaurianSpec dinosaur ? SaurianForge.RigOf(dinosaur) : BoarSpec.Parse(key) is BoarSpec boar ? BoarForge.RigOf(boar) : BeastGenerator.RigOf(Beasts[key]);
+                    rig = SaurianSpec.Parse(key) is SaurianSpec dinosaur ? SaurianForge.RigOf(dinosaur)
+                        : BoarSpec.Parse(key) is BoarSpec boar ? BoarForge.RigOf(boar)
+                        : WolfSpec.Parse(key) is WolfSpec wolf ? WolfForge.RigOf(wolf)
+                        : BeastGenerator.RigOf(Beasts[key]);
                     Rigs.Add(key, rig);
                 }
                 return rig;
@@ -321,11 +325,8 @@ namespace Dino_Defenders.Client
         {
             if (SaurianSpec.Parse(key) is SaurianSpec dinosaur) return new Bearing(RigOf(key), SaurianForge.StyleOf(dinosaur), Carry.Nothing, false);
             if (BoarSpec.Parse(key) != null) return new Bearing(RigOf(key), MotionStyle.Boar, Carry.Nothing, false);
-            if (BeastOf(key) != null)
-            {
-                MotionStyle moves = key == "bear" ? MotionStyle.Bear : MotionStyle.Hound;
-                return new Bearing(RigOf(key), moves, Carry.Nothing, false);
-            }
+            if (WolfSpec.Parse(key) != null) return new Bearing(RigOf(key), MotionStyle.Hound, Carry.Nothing, false);
+            if (BeastOf(key) != null) return new Bearing(RigOf(key), MotionStyle.Bear, Carry.Nothing, false);
 
             Rig person = Rig.Humanoid;
             if (key == ReichPrefix + "marksman") return new Bearing(person, MotionStyle.Armoured, Carry.Bow, false);
@@ -361,13 +362,6 @@ namespace Dino_Defenders.Client
 
         private static readonly Dictionary<string, BeastLook> Beasts = new()
         {
-            ["wolf"] = new BeastLook(),
-            ["direwolf"] = new BeastLook
-            {
-                Height = 2.3f, Length = 4f, Girth = 0.72f, Skull = 0.46f, Muzzle = 0.66f, Tail = 1.6f, Ears = 0.3f, Hump = 0.14f, Neck = 0.95f,
-                Coat = new Vector3(0.17f, 0.16f, 0.2f), Belly = new Vector3(0.26f, 0.24f, 0.28f),
-                Fur = Dino_Engine.Rendering.Shells.ShellStyles.DireFur,
-            },
             ["bear"] = new BeastLook
             {
                 Height = 2.3f, Length = 3.9f, Girth = 1.25f, Skull = 0.62f, Muzzle = 0.44f, Tail = 0f, Ears = 0.17f, Hump = 0.34f, Neck = 0.8f,

@@ -88,8 +88,8 @@ namespace Dino_Engine.Rendering.Shells
             Name = "wolf fur",
             Growth = ShellGrowth.Fur,
             Mask = ShellMask.Vertex,
-            Length = 0.07f,
-            ClumpSize = 0.11f,
+            Length = 0.11f,
+            ClumpSize = 0.12f,
             ClumpWidth = 0.5f,
             ClumpFill = 1f,
             Carpet = 0.3f,
@@ -117,8 +117,8 @@ namespace Dino_Engine.Rendering.Shells
         private static readonly ShellStyle Dire = Wolf with
         {
             Name = "dire wolf fur",
-            Length = 0.095f,
-            ClumpSize = 0.13f,
+            Length = 0.14f,
+            ClumpSize = 0.15f,
             Fringe = 0.34f,
             Lean = 0.6f,
             Droop = 0.3f,

@@ -142,13 +142,13 @@ namespace Dino_Defenders.Server
         public static readonly EnemyKind Wolf = new EnemyKind
         {
             Id = "wolf", Name = "Wolf", Books = new[] { Shelf.Bite }, MoveSpeed = 9.2f, Health = 0.42f, Damage = 0.38f, AggroRadius = 24f,
-            Mods = new[] { Inc(Stat.AttackSpeed, 20f), Resist(Tags.Cold, 20f) }, Look = "wolf",
+            Mods = new[] { Inc(Stat.AttackSpeed, 20f), Resist(Tags.Cold, 20f) }, Look = "wolf", Variants = 6,
         };
 
         public static readonly EnemyKind DireWolf = new EnemyKind
         {
             Id = "dire-wolf", Name = "Dire Wolf", Books = new[] { Shelf.Bite }, MoveSpeed = 9.2f, Health = 1.9f, Damage = 1.2f, AggroRadius = 24f,
-            Mods = new[] { Inc(Stat.AttackSpeed, 20f), Resist(Tags.Cold, 30f) }, Look = "direwolf",
+            Mods = new[] { Inc(Stat.AttackSpeed, 20f), Resist(Tags.Cold, 30f) }, Look = "direwolf", Variants = 4,
         };
 
         public static readonly EnemyKind Boar = new EnemyKind
