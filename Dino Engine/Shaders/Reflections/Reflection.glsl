@@ -3,6 +3,8 @@
 
 // What the reflection passes share (ScreenSpaceReflectionRenderer). After Stachowiak's stochastic screen-space reflections (SIGGRAPH 2015) and AMD's FidelityFX SSSR.
 
+#include Lighting/SubsurfaceKinds.glsl
+
 const float REFLECT_PI = 3.14159265359;
 // Past this a surface's reflection is only the sky's average, and costs a ray for nothing it can show.
 const float REFLECT_MAX_ROUGHNESS = 0.72;
@@ -10,11 +12,12 @@ const float REFLECT_MAX_ROUGHNESS = 0.72;
 const float REFLECT_MIRROR_ROUGHNESS = 0.09;
 
 // Whether a surface gets rays of its own, and the reflection pass's attention. Thin, translucent things (blades, leaves) are too fine to reflect anything but the sky, and rays off them would only
-// sparkle. Whatever this turns down reflects the sky in the ambient pass, so every pass that asks must ask of the same stored values. Translucency is stored as what gets through, less what the
-// thickness takes (gBufferUtil.glsl's transmittance), which is a third or so of what a leaf or a blade says of itself: anything that lets a tenth through is thin.
-bool reflectionWanted(float roughness, float translucency)
+// sparkle. Whatever this turns down reflects the sky in the ambient pass, so every pass that asks must ask of the same stored values: the G-buffer's roughness and its subsurface channel, as stored
+// (gAlbedo.a, Lighting/SubsurfaceKinds.glsl). A thin thing's amount is what gets through, less what the thickness takes (gBufferUtil.glsl's transmittance), a third or so of what a leaf or a blade
+// says of itself: anything that lets a tenth through is thin. Snow and ice go by the same tenth, as snow is rough and ice reflects the sky; skin's light under it is no reason it shouldn't shine.
+bool reflectionWanted(float roughness, float subsurface)
 {
-    return roughness < REFLECT_MAX_ROUGHNESS && translucency < 0.1;
+    return roughness < REFLECT_MAX_ROUGHNESS && (subsurfaceKind(subsurface) == SSS_FLESH || subsurfaceAmount(subsurface) < 0.1);
 }
 
 float reflectionD(float NdotH, float alpha2)

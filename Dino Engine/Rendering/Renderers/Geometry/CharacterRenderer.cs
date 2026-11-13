@@ -32,6 +32,8 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
     {
         private ShaderProgram _characterShader = new ShaderProgram("Model_Character.vert", "Model.frag", new[] { "CHARACTER" });
         private ShaderProgram _characterShadowShader = new ShaderProgram("Model_Character_Shadow.vert", "Shadow.frag");
+        // Skin and hide alone, for how thick they are along the sun (FleshDepth, SUBSURFACE.md).
+        private ShaderProgram _characterFleshShader = new ShaderProgram("Model_Character_Shadow.vert", "Shadow_Flesh.frag");
         private ShaderProgram _spectralShader = new ShaderProgram("Spectral.vert", "Spectral.frag");
         private readonly List<(glModel Model, CharacterInstanceData Instance)> _spectral = new();
 
@@ -58,6 +60,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         {
             _spectralShader.cleanUp();
             _characterShadowShader.cleanUp();
+            _characterFleshShader.cleanUp();
             _characterShader.cleanUp();
         }
 
@@ -122,6 +125,8 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
             GL.CullFace(CullFaceMode.Front);
 
+            _characterFleshShader.bind();
+            _characterFleshShader.loadUniformInt("numberOfMaterials", renderEngine.textureGenerator.loadedMaterialTextures);
             _characterShadowShader.bind();
             _characterShadowShader.loadUniformInt("numberOfMaterials", renderEngine.textureGenerator.loadedMaterialTextures);
 
@@ -299,6 +304,8 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             {
                 shadow.shadowFrameBuffer.bind();
             }
+            ShaderProgram program = shadow.fleshOnly ? _characterFleshShader : _characterShadowShader;
+            program.bind();
             for (int i = 0; i < command.instances.Count; i++)
             {
                 GL.PolygonOffset(shadow.polygonOffsetModel, shadow.polygonOffsetModel * 10.1f);
@@ -317,8 +324,8 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
                 CharacterInstanceData instance = command.instances[i];
                 Matrix4 transformationMatrix = instance.ModelMatrix;
 
-                _characterShadowShader.loadUniformMatrix4f("modelViewProjectionMatrix", transformationMatrix * shadow.lightViewMatrix * shadow.shadowProjectionMatrix);
-                _characterShadowShader.loadUniformMatrix4fArray("u_Bones", instance.SkinningMatrices);
+                program.loadUniformMatrix4f("modelViewProjectionMatrix", transformationMatrix * shadow.lightViewMatrix * shadow.shadowProjectionMatrix);
+                program.loadUniformMatrix4fArray("u_Bones", instance.SkinningMatrices);
 
                 // Light casts no shadow: only a ghost's bones do.
                 GL.DrawElements(PrimitiveType.Triangles, glmodel.SolidIndexCount, DrawElementsType.UnsignedInt, 0);

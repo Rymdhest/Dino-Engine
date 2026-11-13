@@ -127,7 +127,7 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
                 foreach (Vector3 p in outline) centre += p;
                 centre /= outline.Count;
                 Vector3 normal = Vector3.Cross(head.Up, head.Forward);
-                mesh.Sheet(outline, centre, normal, head.Length * 0.012f, body.Coat.Display, Vector3.Lerp(body.Coat.Display, body.Coat.Pattern, 0.5f), GearMaterials.Leather, _ => BoneType.Head);
+                mesh.Sheet(outline, centre, normal, head.Length * 0.012f, body.Coat.Display, Vector3.Lerp(body.Coat.Display, body.Coat.Pattern, 0.5f), GearMaterials.Hide, _ => BoneType.Head);
             }
         }
 
@@ -159,7 +159,7 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
             Vector3 centre = head.ToBody(root + back * reach * 0.35f);
             Vector3 normal = (head.ToBody(Vector3.Cross(side, back)) - head.ToBody(Vector3.Zero)).Normalized();
             outline.Add(head.ToBody(root - back * reach * 0.05f));
-            mesh.Sheet(outline, centre, normal, head.Length * 0.03f, body.Coat.Display, body.Coat.Horn, GearMaterials.Leather, _ => BoneType.Head);
+            mesh.Sheet(outline, centre, normal, head.Length * 0.03f, body.Coat.Display, body.Coat.Horn, GearMaterials.Hide, _ => BoneType.Head);
 
             // Spikes off its edge, or the small bony knobs that edge every frill.
             int points = head.FrillSpikes > head.Length * 0.03f ? head.FrillPoints : 13;
@@ -235,7 +235,7 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
                         Vector3 up = (way * 0.55f + Vector3.UnitY * 0.83f).Normalized();
                         float toe = leg.ToeLength * 0.5f;
                         Vector3 end = start + up * toe;
-                        mesh.Tube(new[] { start, start + up * toe * 0.5f, end }, new[] { radius * 1.05f, radius * 0.95f, radius * 0.8f }, 6, skin, GearMaterials.Leather, toeBone);
+                        mesh.Tube(new[] { start, start + up * toe * 0.5f, end }, new[] { radius * 1.05f, radius * 0.95f, radius * 0.8f }, 6, skin, GearMaterials.Hide, toeBone);
                         float sickleLength = leg.ToeLength * 0.62f * sickle;
                         if (sickleLength >= Smallest) mesh.Spike(end, way * 0.6f + Vector3.UnitY * 0.5f, sickleLength, radius * 0.95f, -Vector3.UnitY + way * 0.3f, 0.75f, 6, claw, GearMaterials.Bone, toeBone, 0.55f, Vector3.Cross(way, Vector3.UnitY));
                         continue;
@@ -268,7 +268,7 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
                 float knuckle = i % 2 == 0 ? 1.12f : 0.94f;
                 radii.Add(radius * (1f - 0.35f * t) * knuckle);
             }
-            mesh.Tube(path, radii, 6, skin, GearMaterials.Leather, hang, Vector3.UnitY, 0.78f);
+            mesh.Tube(path, radii, 6, skin, GearMaterials.Hide, hang, Vector3.UnitY, 0.78f);
 
             float clawLength = length - flesh + radius * 0.5f;
             if (clawLength < Smallest * 0.7f) return;

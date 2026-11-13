@@ -701,14 +701,19 @@ void main() {
     // Nor under a hall's floor (Halls.glsl), which would be under the ground: it's after every derivative this takes, as a quad that's lost a fragment has none.
     if (underHallFloor(fragWorldPos)) discard;
 
-    gAlbedo.a = transmittance(look.subSurface, look.height);
+    // What light does under the ground (SUBSURFACE.md): the winning material says, moss and turf as a canopy, snow and ice as frost. Frost's amount is how far light
+    // goes in it; anything thin's is what gets through, less what its relief's thickness takes.
+    int scatterKind = rock ? SSS_SHEET : max(materialSubsurfaceKind(winningMat, numberOfMaterials), SSS_SHEET);
+    float scatter = rock ? 0.0 : scatterKind >= SSS_FLESH ? look.subSurface : transmittance(look.subSurface, look.height);
     vec3 worldNormal = look.normal;
 
     // The hollows of the ground are in the grass map's alpha (TerrainSurface), for the rain to fill, and a road's ruts fill first.
     float roughness = look.roughness;
     vec3 albedo = gAlbedo.rgb;
     float hollow = max(tintGrass.a, gRutWater * 0.8);
-    weatherWetten(fragWorldPos, N, weatherPorosity(winningMat, numberOfMaterials), look.metalic, hollow, look.height, albedo, roughness, worldNormal);
+    float snowed = weatherWetten(fragWorldPos, N, weatherPorosity(winningMat, numberOfMaterials), look.metalic, hollow, look.height, albedo, roughness, worldNormal);
+    // Settled snow scatters as snow, and covers what's under it.
+    gAlbedo.a = encodeSubsurfaceUnderSnow(scatterKind, scatter, snowed);
     // Snow is walked through and glitters after the weather has had its say, as what settled is what's trodden.
     vec2 hitXZ = winningUV * textureTileSize;
     if (gTrailing && !rock) TreadSnow(hitXZ, N, materialDepth, albedo, roughness, worldNormal, look.ambient);

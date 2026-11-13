@@ -19,6 +19,9 @@ namespace Dino_Engine.Textures
         /// <summary>How much water it takes in, 0 to 1 (Weather/Wetness.glsl): sand and cloth drink it up and darken, stone takes a little and shines, metal takes none.</summary>
         public float Porosity { get; }
 
+        /// <summary>What light does under its surface, as a leaf, skin or snow does (SUBSURFACE.md). How much it does is in its recipe, texel by texel.</summary>
+        public SubsurfaceKind Scatter { get; }
+
         /// <summary>Its layer in the material arrays.</summary>
         public int Index { get; internal set; } = -1;
 
@@ -28,12 +31,13 @@ namespace Dino_Engine.Textures
         /// <summary>Texture repeats per metre for a mesh that wants it at its natural size.</summary>
         public float TilesPerMetre => 1f / TileMetres;
 
-        internal MaterialSpec(string name, float tileMetres, float reliefMetres, float porosity)
+        internal MaterialSpec(string name, float tileMetres, float reliefMetres, float porosity, SubsurfaceKind scatter)
         {
             Name = name;
             TileMetres = tileMetres;
             ReliefMetres = reliefMetres;
             Porosity = porosity;
+            Scatter = scatter;
         }
     }
 
@@ -51,22 +55,22 @@ namespace Dino_Engine.Textures
         public static readonly MaterialSpec FlatGlow = Add("flat-glow", 1f, 0f, 0f);
         public static readonly MaterialSpec Mirror = Add("mirror", 1f, 0f, 0f);
         public static readonly MaterialSpec Gem = Add("gem", 1f, 0f, 0f);
-        public static readonly MaterialSpec Wax = Add("wax", 1f, 0.002f, 0.04f);
-        public static readonly MaterialSpec Grain = Add("grain", 1f, 0f, 0.7f);
-        public static readonly MaterialSpec FoliageWhite = Add("foliage-white", 1f, 0f, 0.12f);
+        public static readonly MaterialSpec Wax = Add("wax", 1f, 0.002f, 0.04f, SubsurfaceKind.Flesh);
+        public static readonly MaterialSpec Grain = Add("grain", 1f, 0f, 0.7f, SubsurfaceKind.Canopy);
+        public static readonly MaterialSpec FoliageWhite = Add("foliage-white", 1f, 0f, 0.12f, SubsurfaceKind.Canopy);
 
         // The ground (TerrainSurface's palette), seen from 33 m up at 67 degrees: nothing finer than a few centimetres reads.
         public static readonly MaterialSpec Soil = Add("soil", 3f, 0.05f, 0.8f);
-        public static readonly MaterialSpec Grass = Add("grass", 3f, 0.045f, 0.35f);
-        public static readonly MaterialSpec GrassySoil = Add("grassy-soil", 3f, 0.05f, 0.7f);
+        public static readonly MaterialSpec Grass = Add("grass", 3f, 0.045f, 0.35f, SubsurfaceKind.Canopy);
+        public static readonly MaterialSpec GrassySoil = Add("grassy-soil", 3f, 0.05f, 0.7f, SubsurfaceKind.Canopy);
         public static readonly MaterialSpec Sand = Add("sand", 2.4f, 0.03f, 0.9f);
         public static readonly MaterialSpec SandDunes = Add("sand-dunes", 8f, 0.12f, 0.85f);
         public static readonly MaterialSpec CrackedDesert = Add("cracked-earth", 4f, 0.06f, 0.85f);
         public static readonly MaterialSpec CrackedLava = Add("ash", 4f, 0.08f, 0.6f);
-        public static readonly MaterialSpec Snow = Add("snow", 5f, 0.07f, 0f);
-        public static readonly MaterialSpec Ice = Add("ice", 6f, 0.012f, 0f);
+        public static readonly MaterialSpec Snow = Add("snow", 5f, 0.07f, 0f, SubsurfaceKind.Frost);
+        public static readonly MaterialSpec Ice = Add("ice", 6f, 0.012f, 0f, SubsurfaceKind.Frost);
         public static readonly MaterialSpec Mud = Add("mud", 3f, 0.05f, 0.4f);
-        public static readonly MaterialSpec Moss = Add("moss", 2.4f, 0.04f, 0.7f);
+        public static readonly MaterialSpec Moss = Add("moss", 2.4f, 0.04f, 0.7f, SubsurfaceKind.Canopy);
         public static readonly MaterialSpec Gravel = Add("gravel", 1.6f, 0.05f, 0.5f);
         public static readonly MaterialSpec Pebbles = Add("pebbles", 2.4f, 0.09f, 0.5f);
         public static readonly MaterialSpec Cobble = Add("cobble", 3.2f, 0.15f, 0.42f);
@@ -121,12 +125,18 @@ namespace Dino_Engine.Textures
 
         // More of the ground, each a biome's own (TerrainSurface's palette): a conifer wood's floor of needles, the red earth of the hot dry country and the leaf litter of a broadleaf wood.
         // Last, so that adding them moved no other material's layer.
-        public static readonly MaterialSpec Needles = Add("needles", 3f, 0.05f, 0.75f);
+        public static readonly MaterialSpec Needles = Add("needles", 3f, 0.05f, 0.75f, SubsurfaceKind.Canopy);
         public static readonly MaterialSpec RedEarth = Add("red-earth", 3.5f, 0.05f, 0.8f);
-        public static readonly MaterialSpec Litter = Add("litter", 3f, 0.05f, 0.75f);
+        public static readonly MaterialSpec Litter = Add("litter", 3f, 0.05f, 0.75f, SubsurfaceKind.Canopy);
 
         // Curved clay tiles in rows down a roof, as the cypress hills build (BuildingStyle.Tiled): deep enough for each course's end to throw its shadow on the next.
         public static readonly MaterialSpec RoofTiles = Add("roof-tiles", 2.4f, 0.09f, 0.4f);
+
+        // What's alive: skin and hide, which carry light a way through themselves and let it out red wherever they're thin, a crest, an ear, the web of a foot (SUBSURFACE.md).
+        // Skin is a person's, as flat as the flat material people were drawn in before, their tone in their vertices; hide is a beast's or a dinosaur's, grained as leather
+        // is and the same colour, so it looks as it did. Last, so that adding them moved no other material's layer.
+        public static readonly MaterialSpec Skin = Add("skin", 1f, 0f, 0.3f, SubsurfaceKind.Flesh);
+        public static readonly MaterialSpec Hide = Add("hide", 1f, 0.005f, 0.45f, SubsurfaceKind.Flesh);
 
         public static IReadOnlyList<MaterialSpec> All => _all;
 
@@ -138,9 +148,9 @@ namespace Dino_Engine.Textures
         /// <summary>Texture repeats per metre for the material in a layer, or 1 for anything that isn't a tiling material.</summary>
         public static float TilesPerMetre(int index) => Of(index)?.TilesPerMetre ?? 1f;
 
-        private static MaterialSpec Add(string name, float tileMetres, float reliefMetres, float porosity)
+        private static MaterialSpec Add(string name, float tileMetres, float reliefMetres, float porosity, SubsurfaceKind scatter = SubsurfaceKind.Sheet)
         {
-            var spec = new MaterialSpec(name, tileMetres, reliefMetres, porosity) { Index = _all.Count };
+            var spec = new MaterialSpec(name, tileMetres, reliefMetres, porosity, scatter) { Index = _all.Count };
             _all.Add(spec);
             return spec;
         }

@@ -1285,7 +1285,7 @@ namespace Dino_Defenders.Server
         private static HitBody BodyOf(Actor actor)
         {
             if (actor.Body.StartsWith("skeleton") || actor.Body.StartsWith("dino:") && actor.Body.Contains(".bones")) return HitBody.Bone;
-            if (actor.Body is "wolf" or "direwolf" or "boar" or "bear" || actor.Body.StartsWith("dino:")) return HitBody.Beast;
+            if (actor.Body is "wolf" or "direwolf" or "bear" || actor.Body.StartsWith("boar") || actor.Body.StartsWith("dino:")) return HitBody.Beast;
             return actor.Body is "warlord" or "revenant" or "reich:legionary" ? HitBody.Armour : HitBody.Flesh;
         }
 

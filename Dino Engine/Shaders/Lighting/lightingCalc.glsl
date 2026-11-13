@@ -1,11 +1,26 @@
 // How surfaces answer light, shared by the deferred light passes, the fog and the water. Colours are radiance: a white
 // surface lit head-on by a light of colour c shines at c / pi.
 
+#include Lighting/SubsurfaceKinds.glsl
+
 const float LIGHT_PI = 3.14159265359;
 const float LIGHT_SOURCE_RADIUS = 0.4;      // Metres: how close a local light behaves as a point. Keeps it finite up close.
 const float MIN_ROUGHNESS = 0.045;          // Below this the highlight is narrower than half floats can hold.
-const float TRANSMISSION_GAIN = 1.2;        // How much brighter a backlit leaf reads than the same leaf lit from the front.
 const float WATER_SHEEN = 0.09;             // What a film of water adds to a surface's reflectance. See surfaceF0.
+
+// How each kind of subsurface scattering behaves (SUBSURFACE.md), as SubsurfaceProfiles uploads it from SubsurfaceSettings, four rows to a kind in the order of the
+// SSS_ kinds (Lighting/SubsurfaceKinds.glsl):
+//   0  rgb  metres light goes through flesh or frost before it's down to a third, at an amount of 1      w  how far light let through wraps round to the side facing it
+//   1  rgb  the colour light comes out in: of a thin thing a multiple of its own, of flesh or frost its own w  how much of the surface's own hue is in flesh's or frost's
+//   2  x    how much of a light gets through       y  of the light from all round       z  of what leaves pass among themselves  w  how saturated a thin thing's light is
+//   3  rgb  how far flesh's or frost's own diffuse light wraps past where the light stops, at an amount of 1, each colour as far as it gets under the surface
+// sssSwitches: x 1 with subsurface scattering on and 0 with it off, y 1 with the sun through flesh measured in a map of flesh alone (FleshDepth), z the debug picture,
+// 0 for none (Ambient_Light.frag).
+layout(std140, binding = 14) uniform SubsurfaceData
+{
+    vec4 sssProfile[16];
+    vec4 sssSwitches;
+};
 
 float DistributionGGX(vec3 N, vec3 H, float roughness)
 {
@@ -89,8 +104,111 @@ struct Surface
     vec3 view;              // Towards the camera.
     float roughness;
     float metallic;
-    float translucency;     // How much light gets through, what it loses on the way already taken off (transmittance in gBufferUtil.glsl): 0 for anything solid.
+    int scatterKind;        // What light does once it's in under the surface (SSS_ in Lighting/SubsurfaceKinds.glsl).
+    float scatter;          // How much: for a sheet or a canopy what gets through, for flesh or frost how far light goes in it, 0 to 1. 0 for anything solid.
 };
+
+// ---------------------------------------------------------------- Subsurface scattering (SUBSURFACE.md)
+
+// A kind's four rows. Each is read at an index known where it's written, and the right one chosen: read by a kind that differs from pixel to pixel, every row was a load
+// of its own for every pixel, and for every lamp at every pixel, which made the point lights a tenth of a millisecond slower.
+struct SssProfile
+{
+    vec4 reach;     // rgb metres, w back wrap
+    vec4 colour;    // rgb colour, w hue
+    vec4 gains;     // x direct, y ambient, z fill, w saturation
+    vec4 wrap;      // rgb diffuse wrap
+};
+
+SssProfile sssProfileOf(int kind)
+{
+    SssProfile p;
+    p.reach = kind == SSS_CANOPY ? sssProfile[4] : kind == SSS_FLESH ? sssProfile[8] : kind == SSS_FROST ? sssProfile[12] : sssProfile[0];
+    p.colour = kind == SSS_CANOPY ? sssProfile[5] : kind == SSS_FLESH ? sssProfile[9] : kind == SSS_FROST ? sssProfile[13] : sssProfile[1];
+    p.gains = kind == SSS_CANOPY ? sssProfile[6] : kind == SSS_FLESH ? sssProfile[10] : kind == SSS_FROST ? sssProfile[14] : sssProfile[2];
+    p.wrap = kind == SSS_CANOPY ? sssProfile[7] : kind == SSS_FLESH ? sssProfile[11] : kind == SSS_FROST ? sssProfile[15] : sssProfile[3];
+    return p;
+}
+
+// The colour a thin thing lets light through in: its own, deeper, as what crosses a leaf has been through more of it than what bounces off, times its kind's.
+vec3 sssThinColour(vec3 albedo, SssProfile p)
+{
+    float luma = dot(albedo, vec3(0.2126, 0.7152, 0.0722));
+    return max(mix(vec3(luma), albedo, p.gains.w), vec3(0.0)) * p.colour.rgb;
+}
+
+// The colour light comes out of flesh or frost in, before what its thickness takes: its kind's own, blood's or ice's, with something of the surface's hue in it.
+vec3 sssThickColour(vec3 albedo, SssProfile p)
+{
+    float luma = max(dot(albedo, vec3(0.2126, 0.7152, 0.0722)), 0.02);
+    return p.colour.rgb * mix(vec3(1.0), min(albedo / luma, vec3(3.0)), p.colour.w);
+}
+
+// How a canopy passes light on, 1 straight through: leaves turned every way, each letting through what falls on its back as a Lambertian sheet does, send it on
+// mostly the way it was going, a third as much sideways and almost none back (the area scattering phase function of a uniform spread of bi-Lambertian leaves:
+// Ross 1981, Shultis and Myneni 1988). That's what a crown's light depends on, as a card's normal is the crown's and says nothing of its leaves. cosine is between
+// the way the light travels and the way to the eye. Exactly it's (sin b + (3 - b) cos b) / 3 for the angle b between them, whose odd part is (1 - pi / 6) cos b and whose even
+// part a quartic follows to within 0.002, so it costs a few multiplications rather than an acos and a sin for every light at every leaf.
+float sssCanopyPhase(float cosine)
+{
+    float c = clamp(cosine, -1.0, 1.0);
+    return 0.3336 + c * (0.4764 + c * (0.161 + 0.0269 * c * c));
+}
+
+// How much of a light falling on the far side of a thin thing comes out of the side facing the eye: a Lambertian sheet's back, wrapped a little as light that's
+// crossed it is spread, and giving the same over a whole sphere of light as an unwrapped one.
+float sssBackLit(vec3 N, vec3 L, float wrap)
+{
+    return clamp((wrap - dot(N, L)) / ((1.0 + wrap) * (1.0 + wrap)), 0.0, 1.0);
+}
+
+// Diffuse light that goes on past the terminator, as light that's got in under a surface comes out a little way on, each colour as far as it gets there (wrap, 0
+// for Lambert). It's eased in with no edge where it starts, and gives what an unwrapped one does over a sphere of light: what reaches past the terminator is taken
+// from the lit side.
+vec3 sssWrappedDiffuse(float NdotL, vec3 wrap)
+{
+    vec3 lit = pow(clamp((NdotL + wrap) / (1.0 + wrap), 0.0, 1.0), 1.0 + wrap);
+    return lit * (2.0 + wrap) / (2.0 + 2.0 * wrap);
+}
+
+// What a thin thing, a sheet or a canopy, lets through to the eye from a light, for every unit of light reaching it.
+vec3 sssThinLight(Surface s, SssProfile p, vec3 L)
+{
+    vec3 colour = sssThinColour(s.albedo, p) * (s.scatter * p.gains.x / LIGHT_PI);
+    if (s.scatterKind == SSS_CANOPY) return colour * (sssCanopyPhase(-dot(s.view, L)) + p.gains.z);
+    return colour * sssBackLit(s.normal, L, p.reach.w);
+}
+
+// What snow and ice send back of what gets into them, before it's gone deep: a half-space of bright grains, each scattering once and mostly on the way the light was
+// going (Lommel and Seeliger's law, with the canopy's forward-leaning phase), so a snowfield shines brighter looking towards the sun than away from it, and brightest
+// where the light comes in low. Its own colour, cooled. For every unit of light reaching it.
+vec3 sssFrostLight(Surface s, SssProfile p, vec3 L)
+{
+    float lit = max(dot(s.normal, L), 0.0);
+    float law = lit / max(lit + max(dot(s.normal, s.view), 0.0), 1e-3);
+    return sssThinColour(s.albedo, p) * (s.scatter * p.gains.x * sssCanopyPhase(-dot(s.view, L)) * law / LIGHT_PI);
+}
+
+// What flesh lets out towards the eye of a light that went in on its far side, given what of it got here (per colour, measured in the flesh map, with how squarely it went
+// in): its kind's colour, and the same every way, as light is that comes out from under a surface. For every unit of light falling on it.
+vec3 sssThickLight(Surface s, SssProfile p, vec3 throughThickness)
+{
+    return sssThickColour(s.albedo, p) * throughThickness * (p.gains.x * sssSwitches.x / LIGHT_PI);
+}
+
+// What a thin thing lets through of the light from all round it: what reaches its back from the half of the world behind it (behind, as radiance, like the sky and
+// ground's), for each unit of its occlusion.
+vec3 sssAmbientThin(Surface s, vec3 behind)
+{
+    SssProfile p = sssProfileOf(s.scatterKind);
+    return sssThinColour(s.albedo, p) * behind * (s.scatter * p.gains.y * sssSwitches.x);
+}
+
+// Per metre and per colour, how fast light that's gone into flesh or frost dies away: one over how far each colour gets, which the amount scales.
+vec3 sssExtinction(Surface s, SssProfile p)
+{
+    return 1.0 / max(p.reach.rgb * s.scatter, vec3(1e-4));
+}
 
 // The light a surface sends to the camera from one light, whose highlight is spread as if the light were `spread` wide: that much is added to the lobe's
 // alpha squared, so the light given back stays the same and only goes further round. A point light has none. L points towards the light; radiance is
@@ -110,14 +228,18 @@ vec3 lightSurfaceSpread(Surface s, vec3 L, vec3 radiance, float spread)
     float G = GeometrySmith(N, V, L, roughness);
     vec3 specular = (NDF * G * F) / max(4.0 * max(dot(N, V), 0.0) * NdotL, 0.0001);
     vec3 diffuse = (1.0 - F) * (1.0 - s.metallic) * s.albedo / LIGHT_PI;
-    vec3 reflected = (diffuse + specular) * NdotL;
 
-    // Thin things let light through, most of all seen against it. What comes out has lost the colours the leaf absorbs.
-    float backLit = dot(V, normalize(N - L)) * 0.5 + 0.5;
-    vec3 tint = max(mix(vec3(dot(s.albedo, vec3(0.2126, 0.7152, 0.0722))), s.albedo, 1.2), vec3(0.0));
-    vec3 transmitted = tint * (s.translucency * pow(backLit, 1.9) * TRANSMISSION_GAIN / LIGHT_PI);
-
-    return (reflected + transmitted) * radiance;
+    // What gets in under the surface: flesh and frost carry it on past the terminator, snow and ice send it on forwards, and a thin thing lets it through to its other
+    // side. What gets through flesh from a light on its far side is the sun's alone, as only the sun has a map of flesh to say how thick it is (Ambient_Light.frag).
+    vec3 diffuseShape = vec3(NdotL);
+    vec3 transmitted = vec3(0.0);
+    if (s.scatter > 0.0 && sssSwitches.x > 0.0)
+    {
+        SssProfile p = sssProfileOf(s.scatterKind);
+        if (s.scatterKind >= SSS_FLESH) diffuseShape = sssWrappedDiffuse(dot(N, L), p.wrap.rgb * s.scatter);
+        transmitted = s.scatterKind == SSS_FROST ? sssFrostLight(s, p, L) : s.scatterKind == SSS_FLESH ? vec3(0.0) : sssThinLight(s, p, L);
+    }
+    return (diffuse * diffuseShape + specular * NdotL + transmitted) * radiance;
 }
 
 vec3 lightSurface(Surface s, vec3 L, vec3 radiance)

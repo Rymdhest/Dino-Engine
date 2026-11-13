@@ -14,6 +14,9 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
         public bool isCubeMap;
         public int cubemapFaceIndex; // Crucial for mapping to correct cubemap face dynamically during deferred queue execution
 
+        /// <summary>Whether only skin and hide are drawn into it, for how thick flesh is along the sun (<see cref="FleshDepth"/>, SUBSURFACE.md).</summary>
+        public bool fleshOnly;
+
         // Constructor for standard 2D Shadow Maps (Spotlights/Directional)
         public Shadow(Vector2i resolution, Matrix4 lightProjectionMatrix, float projectionSize, float polygonOffsetModel, float polygonOffsetTerrain)
         {

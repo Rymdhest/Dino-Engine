@@ -44,8 +44,9 @@ uniform int giDebug;
 
 // The light gathered around this pixel, from the four texels about it, each by how near it is and how close its depth is to this one's,
 // so that light never runs across the edge of what's in front. Returns the irradiance for a world-space normal, and in w how much of
-// it GI has an answer for; `reflected` is the light coming along a direction, as blurred as the roughest surfaces see it.
-vec4 giIrradiance(vec3 normal, float viewZ, vec3 direction, out vec3 reflected)
+// it GI has an answer for; `reflected` is the light coming along a direction, as blurred as the roughest surfaces see it, and `behind` the
+// irradiance from the half of the world the surface turns its back on, for what a thin thing lets through.
+vec4 giIrradiance(vec3 normal, float viewZ, vec3 direction, out vec3 reflected, out vec3 behind)
 {
     vec2 at = gl_FragCoord.xy * 0.5 - 0.25;
     ivec2 low = ivec2(floor(at));
@@ -71,13 +72,16 @@ vec4 giIrradiance(vec3 normal, float viewZ, vec3 direction, out vec3 reflected)
     if (known <= 1e-6)
     {
         reflected = vec3(0.0);
+        behind = vec3(0.0);
         return vec4(0.0);
     }
     red /= known;
     green /= known;
     blue /= known;
     vec3 a = vec3(red.x, green.x, blue.x);
-    vec3 irradiance = max(a + vec3(dot(red.yzw, normal), dot(green.yzw, normal), dot(blue.yzw, normal)), vec3(0.0));
+    vec3 facing = vec3(dot(red.yzw, normal), dot(green.yzw, normal), dot(blue.yzw, normal));
+    vec3 irradiance = max(a + facing, vec3(0.0));
+    behind = max(a - facing, vec3(0.0));
     reflected = max(a / LIGHT_PI + (1.5 / LIGHT_PI) * vec3(dot(red.yzw, direction), dot(green.yzw, direction), dot(blue.yzw, direction)), vec3(0.0));
     return vec4(irradiance, clamp(known / total, 0.0, 1.0));
 }
@@ -95,20 +99,25 @@ void main(void)
     vec3 worldReflection = viewToWorld * reflect(-s.view, s.normal);
 
     vec3 surrounding = mix(groundLight, skyLight, worldNormal.y * 0.5 + 0.5);
+    // And what reaches its back, for a thin thing to let through.
+    vec3 behind = mix(groundLight, skyLight, 0.5 - worldNormal.y * 0.5);
     vec3 environment = skyEnvironment(worldReflection, roughness, groundLight);
     // The flat sky and ground only stand in for what global illumination doesn't answer, and in a hall's room little of either comes in.
     float shelter = hallShelter((invViewMatrix * vec4(g.position, 1.0)).xyz);
     surrounding *= shelter;
+    behind *= shelter;
     environment *= shelter;
     float gathered = 0.0;
     vec3 giLight = vec3(0.0);
     if (giMix > 0.0)
     {
         vec3 reflected;
-        vec4 gi = giIrradiance(worldNormal, g.position.z, worldReflection, reflected);
+        vec3 giBehind;
+        vec4 gi = giIrradiance(worldNormal, g.position.z, worldReflection, reflected, giBehind);
         gathered = giMix * gi.w;
         giLight = gi.rgb / LIGHT_PI * giStrength;
         surrounding = mix(surrounding, giLight, gathered);
+        behind = mix(behind, giBehind / LIGHT_PI * giStrength, gathered);
         environment = mix(environment, reflected * giStrength, gathered);
     }
 
@@ -120,11 +129,23 @@ void main(void)
     vec3 diffuse = s.albedo * (1.0 - s.metallic) * (1.0 - specular);
 
     vec3 ambient = diffuse * surrounding * g.ambient;
-    if (!reflectionWanted(s.roughness, s.translucency))
+    // A leaf, a blade or a cloth lets through what lights its back: in the shade and under cloud it's most of what makes it glow (SUBSURFACE.md).
+    if (s.scatter > 0.0 && s.scatterKind <= SSS_CANOPY) ambient += sssAmbientThin(s, behind) * g.ambient;
+    if (!reflectionWanted(s.roughness, g.albedo.a))
     {
         ambient += specular * environment * specularOcclusion(NdotV, g.ambient, roughness);
     }
     vec3 colour = ambient + decodeEmission(s.albedo, g.materials.g) * emissionScale;
+
+    // --render sssdebug=1: what each surface says of light under it (SUBSURFACE.md), as bright as how much: sheets blue, canopies green, flesh red, frost cyan. 2: nothing
+    // here, for Flesh_Light.frag to draw what of the sun gets through flesh over.
+    if (sssSwitches.z > 0.5)
+    {
+        vec3 kindColour = s.scatterKind == SSS_SHEET ? vec3(0.1, 0.25, 1.0) : s.scatterKind == SSS_CANOPY ? vec3(0.1, 1.0, 0.15) : s.scatterKind == SSS_FLESH ? vec3(1.0, 0.12, 0.08) : vec3(0.1, 0.9, 1.0);
+        vec3 shown = kindColour * (0.15 + 0.85 * s.scatter) * step(1e-3, s.scatter) + vec3(0.02);
+        out_Colour = vec4(sssSwitches.z > 1.5 ? vec3(0.02) : shown, 1.0);
+        return;
+    }
 
     // --render gidebug=3: the light GI gives each surface, on white and with nothing else; 4: where it has an answer (green) and not (red).
     if (giDebug == 3 || giDebug == 5)

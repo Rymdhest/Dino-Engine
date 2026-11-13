@@ -74,21 +74,29 @@ namespace Dino_Engine.Textures
             if (spec == MaterialCatalog.RedEarth) return RedEarth(c);
             if (spec == MaterialCatalog.Litter) return LeafLitter(c);
             if (spec == MaterialCatalog.RoofTiles) return RoofTiles(c);
+            if (spec == MaterialCatalog.Skin) return Skin(c);
+            if (spec == MaterialCatalog.Hide) return Hide(c);
 
             throw new InvalidOperationException($"No recipe for {spec.Name}.");
         }
 
         // ---------------------------------------------------------------- Plain
 
-        private static Surface Flat(Canvas c) => new Surface { Albedo = Grey(255), Roughness = 0.5f };
+        // A colour and nothing else, letting light through as a thin sheet does, as it always has: the far land behind the main menu, candles' wax and what's dark in a
+        // doorway were all judged so (SUBSURFACE.md).
+        private static Surface Flat(Canvas c) => new Surface { Albedo = Grey(255), Roughness = 0.5f, Subsurface = 1f };
 
-        private static Surface FlatGlow(Canvas c) => new Surface { Albedo = Grey(255), Roughness = 1f, Emission = 0.5f };
+        // What glows lets light through as a thin sheet does: a lantern's panes are lit by the lamp inside them, which nothing else would show.
+        private static Surface FlatGlow(Canvas c) => new Surface { Albedo = Grey(255), Roughness = 1f, Emission = 0.5f, Subsurface = 1f };
 
         private static Surface Mirror(Canvas c) => new Surface { Albedo = Grey(255), Roughness = 0.08f, Metallic = 1f };
 
-        private static Surface Gem(Canvas c) => new Surface { Albedo = Grey(255), Roughness = 0.08f, Metallic = 0.2f, Subsurface = 0.5f };
+        private static Surface Gem(Canvas c) => new Surface { Albedo = Grey(255), Roughness = 0.08f, Metallic = 0.2f, Subsurface = 1f };
 
-        private static Surface FoliageWhite(Canvas c) => new Surface { Albedo = Grey(255), Roughness = 0.9f, Subsurface = 0.5f };
+        private static Surface FoliageWhite(Canvas c) => new Surface { Albedo = Grey(255), Roughness = 0.9f, Subsurface = 1f };
+
+        // A person's skin: the flat material people were drawn in, their tone in their vertices, with light getting in under it as far as skin lets it (SUBSURFACE.md).
+        private static Surface Skin(Canvas c) => Flat(c) with { Subsurface = 1f };
 
         // Tallow, a little uneven where it's run.
         private static Surface Wax(Canvas c)
@@ -106,7 +114,7 @@ namespace Dino_Engine.Textures
         private static Surface GrainSurface(Canvas c)
         {
             Field speckle = c.Noise(8f, octaves: 6);
-            return new Surface { Albedo = Rgb(255, 10, 25) * Field.Lerp(0.85f, 1f, speckle), Roughness = 0.4f, Subsurface = 0.8f };
+            return new Surface { Albedo = Rgb(255, 10, 25) * Field.Lerp(0.85f, 1f, speckle), Roughness = 0.4f, Subsurface = 1f };
         }
 
         // ---------------------------------------------------------------- Shared pieces

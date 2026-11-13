@@ -9,9 +9,14 @@
 // only covers part of a pixel and water, fog and depth of field want what lies behind it there, and is flagged for
 // MsaaRenderer to mark in the stencil buffer, where the passes that shade from the G-buffer run once per sample. A field
 // is nearly all thin detail, so telling these two apart is the difference between shading a field once and four times.
+// The subsurface channel (gAlbedo.a) is two numbers in one (Lighting/SubsurfaceKinds.glsl): what kind of scattering, which can't be averaged, and how much, which
+// can. A pixel's samples of different kinds don't make it an edge pixel: most such pixels are a blade over cobbles with moss in their joints, or over earth with
+// straw in it, which made the light passes shade whole fields and road edges four times over for a difference less than a pixel wide. They're averaged under
+// whichever kind scatters most among them.
 
 #include Globals.glsl
 #include AntiAliasing/Msaa.glsl
+#include Lighting/SubsurfaceKinds.glsl
 
 uniform sampler2DMS gAlbedoSamples;
 uniform sampler2DMS gNormalSamples;
@@ -49,6 +54,10 @@ void main(void)
     vec3 normal0 = normal.xyz * 2.0 - 1.0;
     float emission0 = materials.g;
 
+    // How much each kind scatters, among the samples.
+    vec4 byKind = vec4(0.0);
+    byKind[subsurfaceKind(albedo.a)] += subsurfaceAmount(albedo.a);
+
     int farthest = 0;
     float farthestDepth = depth0;
     bool edge = false;
@@ -61,11 +70,14 @@ void main(void)
             farthest = i;
         }
 
+        vec4 sampleAlbedo = texelFetch(gAlbedoSamples, pixel, i);
         vec4 sampleNormal = texelFetch(gNormalSamples, pixel, i);
         vec4 sampleMaterials = texelFetch(gMaterialsSamples, pixel, i);
-        albedo += texelFetch(gAlbedoSamples, pixel, i);
+        albedo += sampleAlbedo;
         normal += sampleNormal;
         materials += sampleMaterials;
+
+        byKind[subsurfaceKind(sampleAlbedo.a)] += subsurfaceAmount(sampleAlbedo.a);
 
         float sampleViewDepth = viewDepth(depth);
         edge = edge
@@ -83,7 +95,9 @@ void main(void)
     else
     {
         float share = 1.0 / float(count);
-        gAlbedo = albedo * share;
+        int kind = SSS_SHEET;
+        for (int k = SSS_CANOPY; k <= SSS_FROST; k++) kind = byKind[k] > byKind[kind] ? k : kind;
+        gAlbedo = vec4(albedo.rgb * share, encodeSubsurface(kind, (byKind.x + byKind.y + byKind.z + byKind.w) * share));
         gNormal = normal * share;
         gMaterials = materials * share;
     }

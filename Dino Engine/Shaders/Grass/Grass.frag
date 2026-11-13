@@ -104,8 +104,8 @@ void main()
     float alpha = roughness * roughness;    // GGX alpha as lightingCalc.glsl squares it
     roughness = sqrt(sqrt(min(alpha * alpha + kernel, 1.0)));
 
-    // Thin blades let more light through towards the tip.
-    gAlbedo = vec4(colour, transmittance(translucency, thickness));
+    // Thin blades let more light through towards the tip, and a field of them lets it through as a canopy does (SUBSURFACE.md).
+    gAlbedo = vec4(colour, encodeSubsurface(SSS_CANOPY, transmittance(translucency, thickness)));
     gNormal = vec4(compressNormal(normal), ao);
     // Roughness, emission, metallic, and the sun let through by a relief, which a blade has none of.
     gMaterials = vec4(roughness, 0.0, 0.0, 1.0);

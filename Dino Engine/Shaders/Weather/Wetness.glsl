@@ -71,14 +71,15 @@ float weatherFilterRoughness(float roughness, vec3 normal)
 }
 
 // Makes a surface wet, as far as the weather here has. `geometryNormal` is the surface's own, `normal` what the G-buffer will hold, both in world space. `hollow` is how much of a dip this
-// is, 0..1, and `relief` how high the material stands at this point, 0..1: water finds the low places first.
-void weatherWetten(vec3 worldPosition, vec3 geometryNormal, float porosity, float metallic, float hollow, float relief,
-                   inout vec3 albedo, inout float roughness, inout vec3 normal)
+// is, 0..1, and `relief` how high the material stands at this point, 0..1: water finds the low places first. Returns how much snow has settled on it, 0..1, for what light does under it
+// (Lighting/SubsurfaceKinds.glsl's encodeSubsurfaceUnderSnow), which whatever doesn't care leaves.
+float weatherWetten(vec3 worldPosition, vec3 geometryNormal, float porosity, float metallic, float hollow, float relief,
+                    inout vec3 albedo, inout float roughness, inout vec3 normal)
 {
-    if (weatherKind.w < 0.5) return;
+    if (weatherKind.w < 0.5) return 0.0;
 
     vec4 here = weatherSurfaceAt(worldPosition.xz);
-    if (here.x + here.y + here.z + here.w < 0.004) return;
+    if (here.x + here.y + here.z + here.w < 0.004) return 0.0;
 
     float reach = rainReach(worldPosition, geometryNormal);
     // What's turned to the rain catches it; what's turned from it stays dry, however hard it comes down.
@@ -161,6 +162,7 @@ void weatherWetten(vec3 worldPosition, vec3 geometryNormal, float porosity, floa
     albedo = mix(albedo, vec3(0.82, 0.85, 0.9), settled);
     roughness = mix(roughness, 0.72, settled);
     normal = normalize(mix(normal, geometryNormal, settled * 0.7));
+    return settled;
 }
 
 #endif

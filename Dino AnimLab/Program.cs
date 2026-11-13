@@ -54,12 +54,19 @@ namespace Dino_AnimLab
             return (MathF.Max(size.Z, size.Y) * 1.15f, new Vector3(0f, (min.Y + max.Y) * 0.5f, (min.Z + max.Z) * 0.5f));
         }
 
-        /// <summary>Grows each dinosaur named on one thread and says where the time went, which is what a loading screen waits for.</summary>
+        /// <summary>Grows each dinosaur or boar named on one thread and says where the time went, which is what a loading screen waits for.</summary>
         private static int Grow(Options options)
         {
             Dino_Engine.Modelling.Procedural.Saurian.SaurianSkin.Report = Console.WriteLine;
             foreach (string key in options.Text("dino", "dino:raptor.0,dino:tyrant.0,dino:raptor.bones.0").Split(','))
             {
+                if (Dino_Engine.Modelling.Procedural.Character.BoarSpec.Parse(key) is Dino_Engine.Modelling.Procedural.Character.BoarSpec boar)
+                {
+                    var timing = System.Diagnostics.Stopwatch.StartNew();
+                    var grown = Dino_Engine.Modelling.Procedural.Character.BoarForge.Make(boar, out var built);
+                    Console.WriteLine($"{key}: {timing.Elapsed.TotalMilliseconds:0} ms, {grown.faces.Count} triangles, {built.Withers:0.00} m at the withers, {built.Length:0.00} m long, age {built.Age:0.00}, tusks {built.Tusks:0.00} m");
+                    continue;
+                }
                 var spec = Dino_Engine.Modelling.Procedural.Saurian.SaurianSpec.Parse(key);
                 if (spec == null)
                 {

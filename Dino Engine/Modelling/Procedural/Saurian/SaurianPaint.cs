@@ -83,7 +83,7 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
 
         public Vector3 Hide(Vector3 p, Vector3 normal, SaurianPart part, out int material)
         {
-            material = GearMaterials.Leather;
+            material = GearMaterials.Hide;
             SaurianCoat c = _coat;
             float scale = _body.Length;
 

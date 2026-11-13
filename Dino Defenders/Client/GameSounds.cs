@@ -208,7 +208,7 @@ namespace Dino_Defenders.Client
         {
             string model = entity.Has<VisualComponent>() ? entity.Get<VisualComponent>().Model : "";
             if (SaurianSpec.Parse(model) is SaurianSpec dinosaur) return dinosaur.Condition == SaurianCondition.Bones ? HitBody.Bone : HitBody.Beast;
-            return model.StartsWith("skeleton") ? HitBody.Bone : model is "warlord" or "revenant" or "reich:legionary" ? HitBody.Armour : CharacterFactory.BeastOf(model) != null ? HitBody.Beast : HitBody.Flesh;
+            return model.StartsWith("skeleton") ? HitBody.Bone : model is "warlord" or "revenant" or "reich:legionary" ? HitBody.Armour : CharacterFactory.IsBeast(model) ? HitBody.Beast : HitBody.Flesh;
         }
 
         // What a dinosaur says, by what it is and what's been done to it. Bones have no throat, and what's rotting only hisses.
@@ -481,7 +481,7 @@ namespace Dino_Defenders.Client
                     string model = entity.Get<VisualComponent>().Model;
                     if (model.EndsWith("True") || model.EndsWith(":bow") || model == "reich:marksman") Audio.Play(Archery.Draw, position);
                     else if (GameSounds.DinosaurVoice(model, Roars(model, action.Sign) ? GameSounds.DinosaurMoment.Notices : GameSounds.DinosaurMoment.Strikes) is SoundDefinition strikes) Audio.Play(strikes, position);
-                    else if (CharacterFactory.BeastOf(model) != null) Audio.Play(Voices.BeastSnarl, position);
+                    else if (CharacterFactory.IsBeast(model)) Audio.Play(Voices.BeastSnarl, position);
                     else Audio.Play(model is "warlord" or "revenant" ? Blades.HeavySwing : Blades.Swing, position);
                 }
             }
@@ -511,14 +511,14 @@ namespace Dino_Defenders.Client
                         if (model.StartsWith("skeleton") || dies == Voices.DeadDeath) Audio.Play(Voices.DeadDeath, position);
                         else
                         {
-                            Audio.Play(dies ?? (model == "warlord" ? Voices.WarlordDeath : CharacterFactory.BeastOf(model) != null ? Voices.BeastDeath : Voices.OutlawDeath), position);
+                            Audio.Play(dies ?? (model == "warlord" ? Voices.WarlordDeath : CharacterFactory.IsBeast(model) ? Voices.BeastDeath : Voices.OutlawDeath), position);
                             bool drowned = GameSession.Current?.World.WaterDepthAt(position.Xz) > 0.2f;
                             sounds.After(FallDelay, drowned ? Splashes.Body : Impacts.BodyFall, position);
                         }
                     }
                     else if (enemy.State == EnemyState.Chasing && was is EnemyState.Idle or EnemyState.Returning)
                     {
-                        Audio.Play(GameSounds.DinosaurVoice(model, GameSounds.DinosaurMoment.Notices) ?? (model == "warlord" ? Voices.WarlordRoar : model.StartsWith("skeleton") || model == "revenant" ? Voices.DeadMoan : CharacterFactory.BeastOf(model) != null ? Voices.BeastSnarl : Voices.OutlawShout), position);
+                        Audio.Play(GameSounds.DinosaurVoice(model, GameSounds.DinosaurMoment.Notices) ?? (model == "warlord" ? Voices.WarlordRoar : model.StartsWith("skeleton") || model == "revenant" ? Voices.DeadMoan : CharacterFactory.IsBeast(model) ? Voices.BeastSnarl : Voices.OutlawShout), position);
                     }
                 }
             }

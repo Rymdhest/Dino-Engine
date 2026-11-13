@@ -209,7 +209,7 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
                 glow = 1f;
                 SaurianHead head = Body.Head;
                 Vector3 local = head.ToHead(p);
-                material = GearMaterials.Leather;
+                material = GearMaterials.Hide;
                 SaurianCoat coat = _paint.Coat;
                 if (head.Lip(local.Z) - local.Y < head.Length * 0.01f && Vector3.Dot(normal, head.Up) > 0.5f) return coat.Mouth;
 

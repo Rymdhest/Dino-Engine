@@ -224,7 +224,8 @@ void main()
     shine = hitFlash.a * HIT_SHINE;
 #endif
 
-    gAlbedo = vec4(albedo, transmittance(through, 0.0));
+    // Moss and fur are masses of strands turned every way, and let light through as a canopy does (SUBSURFACE.md).
+    gAlbedo = vec4(albedo, encodeSubsurface(SSS_CANOPY, transmittance(through, 0.0)));
     gNormal = vec4(compressNormal(normalize(mat3(viewMatrix) * normal)), ambient);
     gMaterials = vec4(roughness, encodeEmission(shine), 0.0, sunThrough);
 }

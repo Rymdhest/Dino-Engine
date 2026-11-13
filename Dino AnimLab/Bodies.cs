@@ -55,6 +55,13 @@ namespace Dino_AnimLab
 
         private static Body Beast(string name, BeastLook look, MotionStyle style) => new Body(name, BeastGenerator.RigOf(look), style, Carry.Nothing, false, () => BeastGenerator.Generate(look));
 
+        /// <summary>A wild boar, by the name the game gives its model.</summary>
+        public static Body Boar(string name, string key)
+        {
+            BoarSpec spec = BoarSpec.Parse(key) ?? throw new ArgumentException($"No boar called {key}.");
+            return new Body(name, BoarForge.RigOf(spec), MotionStyle.Boar, Carry.Nothing, false, () => BoarForge.Make(spec));
+        }
+
         /// <summary>A dinosaur, by the name the game gives its model.</summary>
         public static Body Dino(string name, string key, MotionStyle style)
         {
@@ -82,7 +89,7 @@ namespace Dino_AnimLab
             new Body("hover-bow", Rig.Humanoid, MotionStyle.Hero, Carry.Bow, false, () => Hovering(GearKind.Bow)),
             new Body("risen-shield", Rig.Humanoid, MotionStyle.Dead, Carry.Sword, true, () => Risen(GearKind.OffHand)),
             Beast("wolf", new BeastLook(), MotionStyle.Hound),
-            Beast("boar", new BeastLook { Height = 1.35f, Length = 2.9f, Girth = 0.82f, Skull = 0.46f, Muzzle = 0.56f, Tail = 0.4f, Ears = 0.16f, Tusks = 0.36f, Hump = 0.28f, Neck = 0.42f, Coat = new Vector3(0.42f, 0.24f, 0.13f), Belly = new Vector3(0.5f, 0.34f, 0.22f) }, MotionStyle.Boar),
+            Boar("boar", "boar0"),
             Beast("bear", new BeastLook { Height = 2.3f, Length = 3.9f, Girth = 1.25f, Skull = 0.62f, Muzzle = 0.44f, Tail = 0f, Ears = 0.17f, Hump = 0.34f, Neck = 0.8f, Coat = new Vector3(0.34f, 0.2f, 0.1f), Belly = new Vector3(0.42f, 0.27f, 0.15f) }, MotionStyle.Bear),
             Dino("raptor", "dino:raptor.0", MotionStyle.Raptor),
             Dino("skitter", "dino:skitter.0", MotionStyle.Scurrier),
@@ -110,6 +117,7 @@ namespace Dino_AnimLab
         {
             Body? found = All.FirstOrDefault(body => body.Name == name);
             if (found != null) return found;
+            if (BoarSpec.Parse(name) != null) return Boar(name, name);
             if (SaurianSpec.Parse(name) is SaurianSpec spec) return Dino(name, name, StyleOf(spec));
             return All[0];
         }

@@ -39,8 +39,8 @@ namespace Dino_Engine.Modelling.Procedural.Character
         private const float ShoulderWidth = 0.34f;
         private const float Ankle = 0.08f;
 
-        private static VertexMaterial Fur(Vector3 colour) => new VertexMaterial(GearMaterials.Leather, new Colour(colour)) { Shell = 1f };
-        private static VertexMaterial Flat(Vector3 colour) => new VertexMaterial(GearMaterials.Skin, new Colour(colour));
+        private static VertexMaterial Fur(Vector3 colour) => new VertexMaterial(GearMaterials.Hide, new Colour(colour)) { Shell = 1f };
+        private static VertexMaterial Flat(Vector3 colour) => new VertexMaterial(GearMaterials.Plain, new Colour(colour));
 
         private static float FrontZ(BeastLook look) => look.Length * 0.42f;
         private static float BackZ(BeastLook look) => -look.Length * 0.42f;

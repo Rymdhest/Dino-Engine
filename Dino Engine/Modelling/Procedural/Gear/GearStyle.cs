@@ -18,8 +18,10 @@ namespace Dino_Engine.Modelling.Procedural.Gear
         public static int Bone = 6;
         public static int Gem = 7;
         public static int Glow = 8;
-        public static int Skin = 9;
+        public static int Skin = 9;         // A person's: white, with light getting in under it (SUBSURFACE.md).
         public static int Straw = 10;
+        public static int Hide = 11;        // A living beast's or dinosaur's: leather's grain and colour, with light getting in under it.
+        public static int Plain = 12;       // A colour and nothing else: an eye, a tusk.
 
         // Leather, cloth and bone are each a colour of their own, which the shader multiplies into whatever's drawn on them. Wood and straw are patterned in theirs, and the rest are white.
         public static readonly Vector3 LeatherAlbedo = new Vector3(112f, 76f, 50f) / 255f;
@@ -27,7 +29,7 @@ namespace Dino_Engine.Modelling.Procedural.Gear
         public static Vector3 BoneAlbedo => Material.BONE.Colour.ToVector3();
 
         /// <summary>What a material does to the colour drawn on it. A colour meant as an albedo divides by this, and a picture drawn with no textures multiplies by it to show what the game will.</summary>
-        public static Vector3 AlbedoOf(int material) => material == Leather ? LeatherAlbedo : material == Cloth ? ClothAlbedo : material == Bone ? BoneAlbedo : Vector3.One;
+        public static Vector3 AlbedoOf(int material) => material == Leather || material == Hide ? LeatherAlbedo : material == Cloth ? ClothAlbedo : material == Bone ? BoneAlbedo : Vector3.One;
     }
 
     /// <summary>

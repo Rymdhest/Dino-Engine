@@ -18,6 +18,9 @@ namespace Dino_FloraLab
         private static readonly Vector3 GroundColour = new Vector3(0.2f, 0.2f, 0.13f) * 0.55f;
         private static readonly Vector3 Grass = new Vector3(0.1f, 0.15f, 0.06f);
 
+        // How a canopy lets light through, as the game's settings start (SUBSURFACE.md): read from the same place, so the two can't drift apart.
+        private static readonly Dino_Engine.Rendering.Renderers.Lighting.SubsurfaceProfile Canopy = new Dino_Engine.Rendering.Renderers.Lighting.SubsurfaceSettings().Canopy;
+
         public readonly int Width;
         public readonly int Height;
 
@@ -239,7 +242,8 @@ namespace Dino_FloraLab
                         float nx = texel[4], ny = -texel[5];
                         float nz = MathF.Sqrt(MathF.Max(1f - nx * nx - ny * ny, 0f));
                         normal = (tangent * nx + bitangent * ny + normal * nz).Normalized();
-                        translucency = texel[6];
+                        // What gets through, less what the card's thickness takes, as the game stores it (gBufferUtil.glsl's transmittance).
+                        translucency = texel[6] / (MathF.Pow(texel[9] * 2f, 3f) + 1f);
                         ambient = texel[7];
                     }
                     else
@@ -262,13 +266,18 @@ namespace Dino_FloraLab
             float facing = MathF.Max(Vector3.Dot(normal, Sun), 0f);
             Vector3 diffuse = albedo / MathF.PI * SunColour * (facing * shadow);
 
-            // As lightSurface: thin things let light through, most of all seen against it.
-            float backLit = Vector3.Dot(view, (normal - Sun).Normalized()) * 0.5f + 0.5f;
-            Vector3 transmitted = albedo * (translucency * MathF.Pow(backLit, 1.9f) * 1.2f / MathF.PI) * SunColour * shadow;
+            // As lightSurface does for a canopy: what leaves let through goes on mostly the way the light was going, whatever a card's normal says (sssCanopyPhase), with a
+            // little passed among the leaves, in the leaf's own colour deepened and warmed; and what reaches its back from the sky and ground comes through as well.
+            float cosine = Math.Clamp(-Vector3.Dot(view, Sun), -1f, 1f);
+            float phase = 0.3336f + cosine * (0.4764f + cosine * (0.161f + 0.0269f * cosine * cosine));
+            float luma = Vector3.Dot(albedo, new Vector3(0.2126f, 0.7152f, 0.0722f));
+            Vector3 deep = Vector3.ComponentMax(Vector3.Lerp(new Vector3(luma), albedo, Canopy.Saturation), Vector3.Zero) * Canopy.Colour * translucency;
+            Vector3 transmitted = deep * ((phase + Canopy.Fill) * Canopy.Direct / MathF.PI) * SunColour * shadow;
 
             float up = normal.Y * 0.5f + 0.5f;
             Vector3 hemisphere = Vector3.Lerp(GroundColour, SkyColour, up);
-            return diffuse + transmitted + albedo * hemisphere * ambient * 0.8f;
+            Vector3 behind = Vector3.Lerp(GroundColour, SkyColour, 1f - up);
+            return diffuse + transmitted + (albedo * hemisphere + deep * Canopy.Ambient * behind) * ambient * 0.8f;
         }
 
         // As HDR_Mapper.frag: one ACES fit, and then the display's curve.

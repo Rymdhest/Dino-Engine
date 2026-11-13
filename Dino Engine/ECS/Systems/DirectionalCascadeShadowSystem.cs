@@ -25,6 +25,10 @@ namespace Dino_Engine.ECS.Systems
         private readonly List<(glModel model, Matrix4 matrix, Vector3 centre, float radius)> _casters = new();
         private readonly Dictionary<Shadow, Dictionary<glModel, List<Matrix4>>> _batches = new(ShadowViews.Instance);
         private readonly Dictionary<glModel, List<CharacterInstanceData>> _characters = new(); // Added for characters
+        private readonly Dictionary<glModel, List<CharacterInstanceData>> _flesh = new();   // Those near enough the hero for how thick their flesh is to be seen (FleshDepth).
+
+        // How far from the middle of the flesh map a character may stand and still be drawn into it: half the map, and as far again as the biggest body reaches.
+        private const float FleshReach = FleshDepth.Size * 0.5f + 20f;
         private readonly List<ImposterInstanceData> _imposters = new();
 
         private readonly List<Entity> _visibleChunks = new();
@@ -175,6 +179,9 @@ namespace Dino_Engine.ECS.Systems
                 imposterCommand = new ImposterRenderCommand { instances = _imposters.ToArray() };
             }
 
+            // Flesh alone, from the sun, round the hero, with no offset: how far the sun goes through skin and hide to where it's seen coming out (FleshDepth, SUBSURFACE.md).
+            SubmitFlesh(direction, cameraPos, forward);
+
             // A shadow is only worth drawing if it lands on something the camera sees: the sun's maps are read for nothing else. It goes no
             // further than the lowest ground around, and the lit passes only ever ask about what's in view.
             var quadtreeComp = world.GetComponent<TerrainQuadTreeSingleton>(world.GetSingleton<TerrainQuadTreeSingleton>());
@@ -302,6 +309,38 @@ namespace Dino_Engine.ECS.Systems
                 if (list.Count > 0) commands.Add(new ModelRenderCommand(model, list));
             }
             return commands;
+        }
+
+        private void SubmitFlesh(Vector3 direction, Vector3 cameraPos, Vector3 forward)
+        {
+            var subsurface = Engine.RenderEngine.Subsurface;
+            if (!subsurface.On || !subsurface.Thickness)
+            {
+                FleshDepth.Skip();
+                return;
+            }
+            Vector4 focus = Engine.RenderEngine.context.focusPoint;
+            Vector3 centre = focus.W > 0f ? focus.Xyz : cameraPos + forward * 33f;
+            Shadow map = FleshDepth.Aim(direction, centre);
+
+            foreach (var (model, list) in _flesh)
+            {
+                if (list.Count == 0) _flesh.Remove(model);
+                else list.Clear();
+            }
+            foreach (var (model, instances) in _characters)
+            {
+                foreach (CharacterInstanceData instance in instances)
+                {
+                    if ((instance.ModelMatrix.ExtractTranslation().Xz - centre.Xz).LengthSquared > FleshReach * FleshReach) continue;
+                    if (!_flesh.TryGetValue(model, out var near)) _flesh[model] = near = new List<CharacterInstanceData>();
+                    near.Add(instance);
+                }
+            }
+            foreach (var (model, near) in _flesh)
+            {
+                if (near.Count > 0) Engine.RenderEngine._characterRenderer.SubmitShadowCommand(new CharacterRenderCommand(model, near), map);
+            }
         }
 
         private static float LowestGround(ECSWorld world, TerrainQuadTreeSingleton terrain)

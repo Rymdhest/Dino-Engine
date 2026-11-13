@@ -103,6 +103,30 @@ namespace Dino_Engine.GUI.Debug
             light.Content.Add(LightingSlider("Kept maps", 0f, 48f, "0", () => lighting.StillShadowedPointLights, v => lighting.StillShadowedPointLights = (int)v, step: 1f));
             light.Content.Add(LightingSlider("Distance", 10f, 120f, "0 m", () => lighting.ShadowDistance, v => lighting.ShadowDistance = v, step: 1f));
 
+            // ---------------------------------------------------------------- subsurface scattering (SUBSURFACE.md)
+            var scatter = window.Content.Add(new Foldout("Subsurface scattering"));
+            SubsurfaceSettings sss = Engine.RenderEngine.Subsurface;
+            scatter.Content.Add(DebugUi.Muted("Light getting in under a surface and out again: through leaves, blades and cloth, round and through flesh, into snow.", wrap: true));
+            scatter.Content.Add(new Checkbox("On").Bind(() => sss.On, value => sss.On = value));
+            scatter.Content.Add(new Checkbox("Sun through thin flesh (shadow map)").Bind(() => sss.Thickness, value => sss.Thickness = value));
+            scatter.Content.Add(DebugUi.Heading("Leaves, blades, moss, fur"));
+            scatter.Content.Add(LightingSlider("Through", 0f, 4f, "0.00", () => sss.Canopy.Direct, v => sss.Canopy.Direct = v));
+            scatter.Content.Add(LightingSlider("Sky through", 0f, 4f, "0.00", () => sss.Canopy.Ambient, v => sss.Canopy.Ambient = v));
+            scatter.Content.Add(LightingSlider("Among leaves", 0f, 1f, "0.00", () => sss.Canopy.Fill, v => sss.Canopy.Fill = v));
+            scatter.Content.Add(LightingSlider("Deepening", 1f, 2f, "0.00", () => sss.Canopy.Saturation, v => sss.Canopy.Saturation = v));
+            scatter.Content.Add(DebugUi.Heading("Cloth, petals"));
+            scatter.Content.Add(LightingSlider("Through", 0f, 4f, "0.00", () => sss.Sheet.Direct, v => sss.Sheet.Direct = v));
+            scatter.Content.Add(LightingSlider("Sky through", 0f, 4f, "0.00", () => sss.Sheet.Ambient, v => sss.Sheet.Ambient = v));
+            scatter.Content.Add(LightingSlider("Deepening", 1f, 2f, "0.00", () => sss.Sheet.Saturation, v => sss.Sheet.Saturation = v));
+            scatter.Content.Add(DebugUi.Heading("Skin and hide"));
+            scatter.Content.Add(LightingSlider("Through", 0f, 4f, "0.00", () => sss.Flesh.Direct, v => sss.Flesh.Direct = v));
+            scatter.Content.Add(LightingSlider("Red reach", 0.002f, 0.2f, "0.000 m", () => sss.Flesh.Reach.X, v => sss.Flesh.Reach *= v / MathF.Max(sss.Flesh.Reach.X, 1e-4f)));
+            scatter.Content.Add(LightingSlider("Red wrap", 0f, 0.6f, "0.00", () => sss.Flesh.Wrap.X, v => sss.Flesh.Wrap *= v / MathF.Max(sss.Flesh.Wrap.X, 1e-4f)));
+            scatter.Content.Add(LightingSlider("Own hue", 0f, 1f, "0.00", () => sss.Flesh.Hue, v => sss.Flesh.Hue = v));
+            scatter.Content.Add(DebugUi.Heading("Snow and ice"));
+            scatter.Content.Add(LightingSlider("Forward", 0f, 8f, "0.00", () => sss.Frost.Direct, v => sss.Frost.Direct = v));
+            scatter.Content.Add(LightingSlider("Blue wrap", 0f, 0.6f, "0.00", () => sss.Frost.Wrap.Z, v => sss.Frost.Wrap *= v / MathF.Max(sss.Frost.Wrap.Z, 1e-4f)));
+
             // ---------------------------------------------------------------- wind
             var wind = window.Content.Add(new Foldout("Wind"));
             wind.Content.Add(WindSlider("Speed", 0f, 30f, "0.0 m/s", w => w.Speed, (ref WindSingleton w, float v) => w.Speed = v));

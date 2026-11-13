@@ -55,13 +55,14 @@ void main() {
 	float roughness = material.roughness;
 	mat3 viewToWorld = mat3(invViewMatrix);
 	vec3 worldNormal = viewToWorld * normal;
-	weatherWetten(fragWorldPos, worldNormal, WEATHER_FOLIAGE_POROSITY, material.metalic, 0.0, material.height, albedo, roughness, worldNormal);
+	float snowed = weatherWetten(fragWorldPos, worldNormal, WEATHER_FOLIAGE_POROSITY, material.metalic, 0.0, material.height, albedo, roughness, worldNormal);
 	normal = mat3(viewMatrix) * worldNormal;
 
 	gAlbedo.rgb = albedo;
 	gNormal.xyz = compressNormal(normal);
 
-    gAlbedo.a = transmittance(material.subSurface, material.height);
+    // A tree far off is all crown, and lets light through as one (SUBSURFACE.md).
+    gAlbedo.a = encodeSubsurfaceUnderSnow(SSS_CANOPY, transmittance(material.subSurface, material.height), snowed);
     gNormal.a = material.ambient;
 	gMaterials.r = roughness;
 	gMaterials.g = encodeEmission(material.emission * EMISSION_GAIN);

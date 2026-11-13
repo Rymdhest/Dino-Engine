@@ -22,6 +22,8 @@ layout (location = 1) out vec4 outNormal;
 
 #include textureUtil.glsl
 #include Surface/SurfaceFrame.glsl
+#include Surface/MaterialTable.glsl
+#include Lighting/SubsurfaceKinds.glsl
 
 const vec3 KEY = normalize(vec3(-0.55, 0.7, 0.55));
 const vec3 FILL = normalize(vec3(0.75, 0.05, 0.45));
@@ -56,11 +58,15 @@ void main() {
 	float overbright = max(max(fragColor.r, max(fragColor.g, fragColor.b)), 1.0);
 	vec3 albedo = material.albedo * fragColor / overbright;
 
+	// Skin and hide take light in under them (SUBSURFACE.md): the key's edge goes soft, and the rim light from behind comes through where a body is thinnest, its edge,
+	// warm with blood. Nothing carried is either, so an icon is as it was; it's the hero, and anything alive drawn here.
+	float flesh = materialSubsurfaceKind(textureIndex, numberOfMaterials) == SSS_FLESH ? material.subSurface : 0.0;
+
 	vec3 lit;
 	if (material.emission > 0.0) {
 		lit = fragColor;
 	} else {
-		float key = stepped(dot(N, KEY));
+		float key = stepped(dot(N, KEY) + 0.12 * flesh);
 		float fill = 0.5 + 0.5 * dot(N, FILL);
 		float rim = pow(1.0 - clamp(N.z, 0.0, 1.0), 2.6) * smoothstep(-0.2, 0.5, dot(N, RIM));
 
@@ -79,6 +85,12 @@ void main() {
 		vec3 metal = albedo * (sheen * 0.8 + 0.06) + albedo * highlight * 1.1;
 		vec3 plain = diffuse + sheen * fresnel * gloss * 0.6 + vec3(highlight * gloss * 0.3);
 		lit = mix(plain, metal, material.metalic) + vec3(0.85, 0.9, 1.0) * rim * (0.16 + 0.4 * material.metalic);
+		if (flesh > 0.0) {
+			float luma = max(dot(albedo, vec3(0.2126, 0.7152, 0.0722)), 0.02);
+			vec3 blood = vec3(1.0, 0.42, 0.28) * mix(vec3(1.0), min(albedo / luma, vec3(3.0)), 0.3);
+			float through = pow(1.0 - clamp(N.z, 0.0, 1.0), 1.6) * smoothstep(-0.4, 0.4, dot(N, RIM));
+			lit += blood * (luma * through * 0.9 * flesh);
+		}
 	}
 
 	outColour = vec4(lit, 1.0);

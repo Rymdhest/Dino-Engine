@@ -100,9 +100,10 @@ namespace Dino_Engine.Textures.Synthesis
             GL.CopyImageSubData(from.Texture, ImageTarget.Texture2D, 0, 0, 0, 0, to.Texture, ImageTarget.Texture2D, 0, 0, 0, 0, from.Size, from.Size, 1);
         }
 
+        // A colour with an alpha, made a pass of its own even when both are constant: a constant paint has no alpha of its own, and Materialise gives it 1. Returning the
+        // colour alone there once made every material whose roughness, emission, metal and subsurface were all constants wholly translucent, whatever its recipe said.
         private static Paint WithAlpha(Canvas canvas, Paint colour, Field alpha)
         {
-            if (colour.IsConstant && alpha.IsConstant) return colour;
             Operand[] operands = { colour.Operand, alpha.Operand, Operand.None };
             return new Paint(new PassNode(canvas, g => g.Op, operands, shader =>
             {

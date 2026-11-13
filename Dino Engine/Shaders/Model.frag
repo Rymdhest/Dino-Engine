@@ -148,7 +148,11 @@ void main() {
     gl_SampleMask[0] = coverage;
 #endif
 
-    gAlbedo.a = transmittance(material.subSurface, material.height);
+    // What light does under the surface (SUBSURFACE.md): a card is leaves, a canopy; a material says what it is. A thin thing's amount is what gets through it, less
+    // what its thickness takes; flesh's and frost's is how far light goes in them.
+    int scatterKind = card ? SSS_CANOPY : max(materialSubsurfaceKind(textureIndex, numberOfMaterials), SSS_SHEET);
+    float scatter = scatterKind >= SSS_FLESH ? material.subSurface : transmittance(material.subSurface, material.height);
+    float snowed = 0.0;
     gNormal.a = material.ambient;
 
     vec3 normal = surfaceNormal(frame, normalize(material.normal), card ? smoothNormal : facing);
@@ -164,15 +168,18 @@ void main() {
 		vec3 geometryNormal = normalize(viewToWorld * (card ? smoothNormal : facing));
 		vec3 worldNormal = viewToWorld * normal;
 		vec3 albedo = gAlbedo.rgb;
-		weatherWetten(worldPosition, geometryNormal, weatherPorosity(textureIndex, numberOfMaterials), material.metalic, 0.0, material.height, albedo, roughness, worldNormal);
+		snowed = weatherWetten(worldPosition, geometryNormal, weatherPorosity(textureIndex, numberOfMaterials), material.metalic, 0.0, material.height, albedo, roughness, worldNormal);
 		gAlbedo.rgb = albedo;
 		normal = mat3(viewMatrix) * worldNormal;
 	}
+	// Settled snow scatters as snow, and covers what's under it.
+	gAlbedo.a = encodeSubsurfaceUnderSnow(scatterKind, scatter, snowed);
 	// The face of a cut: flat, facing up, a little darker than what it's cut through, as a section is.
 	if (cap)
 	{
 		normal = normalize(mat3(viewMatrix) * vec3(0.0, 1.0, 0.0));
 		gAlbedo.rgb *= 0.62;
+		gAlbedo.a = encodeSubsurface(SSS_SHEET, 0.0);
 		roughness = 0.92;
 		material.emission = 0.0;
 		sunThrough = 1.0;

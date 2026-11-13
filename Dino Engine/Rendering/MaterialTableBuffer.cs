@@ -5,7 +5,8 @@ namespace Dino_Engine.Rendering
 {
     /// <summary>
     /// What every shader that reads a tiling material needs to know of it besides its textures (Shaders/Surface/MaterialTable.glsl): its relief over its tile's
-    /// width, which its normal map was made with and its parallax marches to, and the metres a tile spans. Bound once, for good, as nothing else uses its binding.
+    /// width, which its normal map was made with and its parallax marches to, the metres a tile spans, and the kind of subsurface scattering it does
+    /// (<see cref="MaterialSpec.Scatter"/>). Bound once, for good, as nothing else uses its binding.
     /// </summary>
     public static class MaterialTableBuffer
     {
@@ -22,6 +23,7 @@ namespace Dino_Engine.Rendering
             {
                 data[spec.Index * 4] = spec.ReliefRatio;
                 data[spec.Index * 4 + 1] = spec.TileMetres;
+                data[spec.Index * 4 + 2] = (float)spec.Scatter;
             }
             if (_buffer == 0) _buffer = GL.GenBuffer();
             GL.BindBuffer(BufferTarget.UniformBuffer, _buffer);

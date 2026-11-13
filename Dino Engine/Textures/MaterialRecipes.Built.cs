@@ -154,7 +154,7 @@ namespace Dino_Engine.Textures
             straw = straw * Field.Lerp(1f, Field.Lerp(0.6f, 1.2f, butts.Smooth(0.1f, 0.35f)), band);
             Field moss = Patches(c, 5f, 0.08f, 0.08f) * lay.Smooth(0.65f, 0.9f);
             straw = Paint.Lerp(straw, Rgb(56, 64, 30), moss * 0.5f);
-            return new Surface(straw, 0.96f, height) { Subsurface = 0.12f };
+            return new Surface(straw, 0.96f, height) { Subsurface = 1f };
         }
 
         // Riven wooden shingles in courses down the roof, each thickest at its butt, split along its grain, weathered silver-brown.

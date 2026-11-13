@@ -23,7 +23,7 @@ struct GBufferSample
 {
     float depth;        // 1 where nothing was drawn
     vec3 position;      // view space
-    vec4 albedo;        // rgb albedo, a subsurface (light let through)
+    vec4 albedo;        // rgb albedo, a its subsurface scattering, kind and amount (Lighting/SubsurfaceKinds.glsl)
     vec3 normal;        // view space
     float ambient;      // the material's ambient occlusion and the screen-space occlusion together
     vec4 materials;     // roughness, emission, metallic, and how much of the sun the surface's own relief lets through (Surface/Relief.glsl)
@@ -66,7 +66,8 @@ Surface surfaceOf(GBufferSample g)
     s.view = normalize(-g.position);
     s.roughness = g.materials.r;
     s.metallic = g.materials.b;
-    s.translucency = g.albedo.a;
+    s.scatterKind = subsurfaceKind(g.albedo.a);
+    s.scatter = subsurfaceAmount(g.albedo.a);
     return s;
 }
 

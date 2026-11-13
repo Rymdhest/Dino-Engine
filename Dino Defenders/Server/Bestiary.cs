@@ -154,7 +154,7 @@ namespace Dino_Defenders.Server
         public static readonly EnemyKind Boar = new EnemyKind
         {
             Id = "boar", Name = "Wild Boar", Books = new[] { Shelf.Bite }, MoveSpeed = 8f, Health = 0.8f, Damage = 0.75f, AggroRadius = 17f,
-            Mods = new[] { More(Stat.Armour, 40f), Flat(Stat.PhysicalReduction, 8f) }, Look = "boar",
+            Mods = new[] { More(Stat.Armour, 40f), Flat(Stat.PhysicalReduction, 8f) }, Look = "boar", Variants = 6,
         };
 
         public static readonly EnemyKind Bear = new EnemyKind

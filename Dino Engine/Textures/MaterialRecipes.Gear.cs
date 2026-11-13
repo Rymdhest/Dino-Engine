@@ -43,6 +43,10 @@ namespace Dino_Engine.Textures
             return new Surface(colour, Field.Lerp(0.72f, 0.5f, rubbed), height);
         }
 
+        // A living hide, a beast's or a dinosaur's: leather's grain and colour, as they were drawn in leather before, with light getting in under it. Thicker than a
+        // person's skin, so it goes a little less far (SUBSURFACE.md).
+        private static Surface Hide(Canvas c) => Leather(c) with { Subsurface = 0.8f };
+
         // Plain-woven homespun, the threads uneven.
         private static Surface Cloth(Canvas c)
         {
@@ -51,7 +55,8 @@ namespace Dino_Engine.Textures
             Field fuzz = c.Noise(260f, octaves: 2);
             Field height = weave.Height * 0.85f + (slubs - 0.5f) * 0.1f + (fuzz - 0.5f) * 0.05f;
             Paint colour = (Paint)GearMaterials.ClothAlbedo * Field.Lerp(0.9f, 1.1f, slubs) * Field.Lerp(0.95f, 1.05f, fuzz);
-            return new Surface(colour, 0.96f, height) { Subsurface = 0.3f };
+            // Thin cloth lets light through, and against the sun a banner glows.
+            return new Surface(colour, 0.96f, height) { Subsurface = 1f };
         }
 
         // Old bone: fine pores, the lines it grew in, yellowed in patches.
@@ -62,7 +67,7 @@ namespace Dino_Engine.Textures
             Field growth = c.Noise(new Vector2(3f, 30f), octaves: 4);
             Field height = 0.8f + (growth - 0.5f) * 0.15f - pore * 0.3f;
             Paint colour = (Paint)GearMaterials.BoneAlbedo * Field.Lerp(0.88f, 1.12f, c.Noise(5f, octaves: 4)) * Field.Lerp(0.96f, 1.04f, growth);
-            return new Surface(colour, 0.9f, height) { Subsurface = 0.15f };
+            return new Surface(colour, 0.9f, height) { Subsurface = 1f };
         }
     }
 }

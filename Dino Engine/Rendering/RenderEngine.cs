@@ -142,6 +142,8 @@ namespace Dino_Engine.Rendering
         public AntiAliasingSettings AntiAliasing { get; } = new AntiAliasingSettings();
         /// <summary>Lighting and exposure settings, read each frame.</summary>
         public LightingSettings Lighting { get; } = new LightingSettings();
+        /// <summary>How light gets in under surfaces and out again, leaves, skin and snow, read each frame (SUBSURFACE.md).</summary>
+        public SubsurfaceSettings Subsurface { get; } = new SubsurfaceSettings();
         /// <summary>How reflections are traced, read each frame.</summary>
         public ReflectionSettings Reflections { get; } = new ReflectionSettings();
         /// <summary>How light bounces, read each frame (GI.md).</summary>
@@ -390,6 +392,9 @@ namespace Dino_Engine.Rendering
         }
         private void LightPass()
         {
+            // How each kind of surface lets light in under it, for every pass that lights one.
+            SubsurfaceProfiles.Upload(Subsurface);
+
             // Bounced light first: the ambient pass reads what it gathers, and the occlusion only has the contact left to do while it's on.
             _globalIllumination.RenderPass(this);
             _sSAORenderer.RenderPass(this);
@@ -507,6 +512,8 @@ namespace Dino_Engine.Rendering
             _gBuffer.cleanUp();
             _simpleShader.cleanUp();
             Shells?.CleanUp();
+            SubsurfaceProfiles.CleanUp();
+            FleshDepth.CleanUp();
 
             GL.DeleteBuffer(globalsUBO);
         }

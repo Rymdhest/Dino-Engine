@@ -20,6 +20,9 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
         // Per pixel, and per sample for the edge pixels (MsaaRenderer.DrawSplit).
         private readonly ShaderProgram _shader = new ShaderProgram("Simple.vert", "Ambient_Light.frag");
         private readonly ShaderProgram _sampleShader = new ShaderProgram("Simple.vert", "Ambient_Light.frag", new[] { "PER_SAMPLE" });
+        // The sun through flesh, added on characters alone (Flesh_Light.frag, SUBSURFACE.md), likewise.
+        private readonly ShaderProgram _fleshShader = new ShaderProgram("Simple.vert", "Flesh_Light.frag");
+        private readonly ShaderProgram _fleshSampleShader = new ShaderProgram("Simple.vert", "Flesh_Light.frag", new[] { "PER_SAMPLE" });
 
         private const int SkyMapUnit = 10;
         private const int GatheredUnit = 11;    // What global illumination gathered (GlobalIlluminationRenderer.BindGathered).
@@ -42,6 +45,18 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
                 shader.loadUniformInt("ambientOcclusion", MsaaRenderer.AmbientOcclusionUnit);
                 shader.loadUniformInt("skyMap", SkyMapUnit);
                 shader.loadUniformInt("giGathered", GatheredUnit);
+                DirectionalLightRenderer.LinkShadows(shader);
+                shader.unBind();
+            }
+            foreach (ShaderProgram shader in new[] { _fleshShader, _fleshSampleShader })
+            {
+                shader.bind();
+                shader.loadUniformInt("gAlbedo", 0);
+                shader.loadUniformInt("gNormal", 1);
+                shader.loadUniformInt("gMaterials", 2);
+                shader.loadUniformInt("gDepth", 3);
+                shader.loadUniformInt("ambientOcclusion", MsaaRenderer.AmbientOcclusionUnit);
+                shader.loadUniformInt("fleshDepthMap", FleshDepth.Unit);
                 DirectionalLightRenderer.LinkShadows(shader);
                 shader.unBind();
             }
@@ -98,13 +113,56 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
                 renderEngine.ScreenQuadRenderer.Render(clearColor: false, blend: false);
             });
 
+            // The sun through thin flesh, measured in a map of flesh alone from it (FleshDepth), while its own shadows are still bound to say what stood in the way.
+            if (sunUp && FleshDepth.Drawn) DrawFlesh(sun, renderEngine);
+
             if (sunUp) directional.ReleaseShadows(sun);
+        }
+
+        /// <summary>
+        /// Adds what of the sun gets through flesh, on characters alone: where the characters' stencil bit is set, per pixel where a pixel's samples agree and per sample on the
+        /// edge pixels, as <see cref="MsaaRenderer.DrawSplit"/> would. Kept out of the ambient pass, so that nothing but a character carries what it reads and works out.
+        /// </summary>
+        private void DrawFlesh(DirectionallightRenderCommand sun, RenderEngine renderEngine)
+        {
+            FleshDepth.Bind();
+            GL.Enable(EnableCap.Blend);
+            GL.BlendFunc(BlendingFactor.One, BlendingFactor.One);
+            GL.BlendEquation(BlendEquationMode.FuncAdd);
+            GL.Enable(EnableCap.StencilTest);
+            GL.StencilMask(0);
+            GL.StencilOp(StencilOp.Keep, StencilOp.Keep, StencilOp.Keep);
+            const int Both = MsaaRenderer.EdgeStencilBit | MsaaRenderer.CharacterStencilBit;
+            Vector3 towardsSun = DirectionalLightRenderer.ViewSpaceDirection(sun, renderEngine).Normalized();
+            Matrix4 fleshSpace = FleshDepth.ViewSpaceMatrix(renderEngine);
+
+            void Draw(ShaderProgram shader, int reference)
+            {
+                shader.bind();
+                GL.StencilFunc(StencilFunction.Equal, reference, Both);
+                shader.loadUniformVector3f("sunDirectionViewSpace", towardsSun);
+                shader.loadUniformVector3f("sunColour", sun.colour);
+                shader.loadUniformMatrix4f("fleshSpaceMatrix", fleshSpace);
+                DirectionalLightRenderer.LoadShadows(shader, sun, renderEngine);
+                renderEngine.ScreenQuadRenderer.Render(clearColor: false, blend: true);
+            }
+            Draw(_fleshShader, MsaaRenderer.CharacterStencilBit);
+            if (renderEngine.Msaa.Samples > 1) Draw(_fleshSampleShader, Both);
+
+            GL.StencilMask(0xFF);
+            GL.Disable(EnableCap.StencilTest);
+            GL.Disable(EnableCap.Blend);
+            FleshDepth.Release();
+            // Used: next frame's flesh has to be drawn into it again before it's read, so a world with no sun to draw it never reads an old one.
+            FleshDepth.Skip();
         }
 
         public override void CleanUp()
         {
             _shader.cleanUp();
             _sampleShader.cleanUp();
+            _fleshShader.cleanUp();
+            _fleshSampleShader.cleanUp();
         }
     }
 }

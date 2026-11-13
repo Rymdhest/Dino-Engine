@@ -154,7 +154,7 @@ namespace Dino_Engine.Textures
             Field height = ripple * 0.62f + c.Noise(5f, octaves: 4) * 0.28f + grains * 0.08f;
             Paint colour = c.Ramp(ripple, (0f, Rgb(118, 96, 64)), (0.6f, Rgb(150, 125, 86)), (1f, Rgb(170, 146, 104)));
             colour = colour * Field.Lerp(0.9f, 1.07f, grains);
-            return new Surface(colour, 0.95f, height) { Subsurface = 0.15f };
+            return new Surface(colour, 0.95f, height) { Subsurface = 1f };
         }
 
         // Dunes seen close: long sharp-crested ridges with ripples running over them, the lee sides shadowed.
@@ -165,7 +165,7 @@ namespace Dino_Engine.Textures
             Field ripples = phase.Smooth(0f, 0.75f) * (1f - phase.Smooth(0.75f, 1f));
             Field height = ridges * 0.75f + ripples * 0.18f + c.Noise(60f, octaves: 3) * 0.07f;
             Paint colour = c.Ramp(height, (0.1f, Rgb(126, 100, 66)), (0.55f, Rgb(152, 126, 86)), (0.95f, Rgb(176, 150, 108)));
-            return new Surface(colour, 0.94f, height) { Subsurface = 0.15f };
+            return new Surface(colour, 0.94f, height) { Subsurface = 1f };
         }
 
         // Mud dried into plates that curl up at their edges, with deep cracks between and finer ones across the bigger plates.
@@ -345,7 +345,8 @@ namespace Dino_Engine.Textures
             Field grain = c.Noise(40f, octaves: 6, gain: 0.55f);
             Field height = (faces.Height + grain * 0.22f).Normalize();
             Paint colour = c.Ramp(faces.Id, (0f, RockDark), (1f, RockPale)) * Field.Lerp(0.8f, 1.05f, height);
-            return new Surface(colour, 0.88f, height);
+            // Dressed stone lets a little light in under it, as pale limestone does: the Haven's square and its gate have always been lit so. Bedrock (Cliff) doesn't.
+            return new Surface(colour, 0.88f, height) { Subsurface = 1f };
         }
 
         // The floor of a conifer wood: needles shed year on year lying every way over dark soft duff, the newest rust-coloured on top of the grey of older ones, a cone here and there, a

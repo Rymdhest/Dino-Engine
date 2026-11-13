@@ -105,6 +105,8 @@ namespace Dino_Engine.Textures
         public static int redEarth = MaterialCatalog.RedEarth.Index;
         public static int litter = MaterialCatalog.Litter.Index;
         public static int roofTiles = MaterialCatalog.RoofTiles.Index;
+        public static int skin = MaterialCatalog.Skin.Index;
+        public static int hide = MaterialCatalog.Hide.Index;
 
         public List<MaterialMapsTextures> preparedTextures = new List<MaterialMapsTextures>();
 
@@ -298,8 +300,10 @@ namespace Dino_Engine.Textures
             GearMaterials.Bone = bone;
             GearMaterials.Gem = gem;
             GearMaterials.Glow = flatGlow;
-            GearMaterials.Skin = flat;
+            GearMaterials.Skin = skin;
             GearMaterials.Straw = thatch;
+            GearMaterials.Hide = hide;
+            GearMaterials.Plain = flat;
         }
 
         private static void BindFenceMaterials()

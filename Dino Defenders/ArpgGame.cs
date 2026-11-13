@@ -448,7 +448,7 @@ namespace Dino_Defenders
                     render_.AntiAliasing.Samples = int.Parse(parts[1]);
                     continue;
                 }
-                if (parts.Length != 2 || !(render_.Lighting.Set(parts[0], parts[1]) || render_.Reflections.Set(parts[0], parts[1]) || render_.GlobalIllumination.Set(parts[0], parts[1]) || render_.Shells.Settings.Set(parts[0], parts[1]))) Console.WriteLine($"No render setting '{setting}'.");
+                if (parts.Length != 2 || !(render_.Lighting.Set(parts[0], parts[1]) || render_.Reflections.Set(parts[0], parts[1]) || render_.GlobalIllumination.Set(parts[0], parts[1]) || render_.Shells.Settings.Set(parts[0], parts[1]) || render_.Subsurface.Set(parts[0], parts[1]))) Console.WriteLine($"No render setting '{setting}'.");
             }
         }
 
