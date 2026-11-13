@@ -1,4 +1,4 @@
-using Dino_Engine.ECS.Components;
+﻿using Dino_Engine.ECS.Components;
 using Dino_Engine.Modelling.Model;
 using Dino_Engine.Modelling.Procedural.Gear;
 using Dino_Engine.Util;
@@ -24,6 +24,7 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
         public readonly List<Vector2> Uvs = new();
         public readonly List<Vector3> Colours = new();
         public readonly List<float> Glows = new();
+        public readonly List<float> Shells = new();    // How much of the coat grows on each, 0 for none (Vertex.Shell).
         public readonly List<int> Materials = new();
         public readonly List<Hang> Hangs = new();
         public readonly List<int> Indices = new();
@@ -31,8 +32,15 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
         public int VertexCount => Positions.Count;
         public int TriangleCount => Indices.Count / 3;
 
-        public int Vertex(Vector3 position, Vector3 normal, Vector3 tangent, Vector2 uv, Vector3 colour, int material, Hang hang, float glow = 1f)
+        /// <summary>Where the triangles that are light rather than anything solid begin, a ghost's flesh, or -1 for none (Mesh.SpectralFrom).</summary>
+        public int SpectralFrom { get; private set; } = -1;
+
+        /// <summary>Everything added from here on is light, drawn after the lights and casting nothing (glModel.SpectralIndexCount).</summary>
+        public void BeginSpectral() => SpectralFrom = Indices.Count;
+
+        public int Vertex(Vector3 position, Vector3 normal, Vector3 tangent, Vector2 uv, Vector3 colour, int material, Hang hang, float glow = 1f, float shell = 0f)
         {
+            Shells.Add(shell);
             Positions.Add(position);
             Normals.Add(normal);
             Tangents.Add(tangent);
@@ -236,7 +244,7 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
                 Hang hang = Hangs[i];
                 float share = Math.Clamp(hang.Share, 0f, 1f);
                 vertices.Add(new Vertex(Positions[i], Materials[i], new Colour(c.X, c.Y, c.Z, Glows[i]),
-                    new Vector2((int)hang.First, (int)hang.Second), new Vector2(share, 1f - share), Uvs[i]));
+                    new Vector2((int)hang.First, (int)hang.Second), new Vector2(share, 1f - share), Uvs[i]) { Shell = Shells[i] });
             }
 
             var mesh = new Mesh(vertices, Indices);
@@ -253,6 +261,7 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
             mesh.finishedNormals = true;
             mesh.finishedBaking = true;
             mesh.isUsingBones = true;
+            mesh.SpectralFrom = SpectralFrom >= 0 && SpectralFrom < Indices.Count ? SpectralFrom : -1;
             return mesh;
         }
     }

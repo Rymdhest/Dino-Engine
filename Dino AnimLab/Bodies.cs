@@ -94,6 +94,15 @@ namespace Dino_AnimLab
             Dino("ripper", "dino:ripper.0", MotionStyle.Raptor),
             Dino("wader", "dino:wader.0", MotionStyle.Stalker),
             Dino("spikeback", "dino:spikeback.0", MotionStyle.Horned),
+            Dino("weaver", "dino:weaver.0", MotionStyle.Weaver),
+            Dino("shagback", "dino:shagback.0", MotionStyle.Tyrant),
+            Dino("reaper", "dino:reaper.0", MotionStyle.Stalker),
+            Dino("strider", "dino:strider.0", MotionStyle.Scurrier),
+            Dino("clubtail", "dino:clubtail.0", MotionStyle.Horned),
+            Dino("domehead", "dino:domehead.0", MotionStyle.Stalker),
+            Dino("ghost-tyrant", "dino:tyrant.ghost.0", MotionStyle.Ghost),
+            Dino("ghost-weaver", "dino:weaver.ghost.0", MotionStyle.Ghost),
+            Dino("bone-weaver", "dino:weaver.bones.0", MotionStyle.Bones),
         };
 
         /// <summary>A body by name, or any dinosaur by its model's name.</summary>

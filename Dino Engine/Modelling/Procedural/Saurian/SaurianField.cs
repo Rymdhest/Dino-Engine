@@ -1,4 +1,4 @@
-using OpenTK.Mathematics;
+﻿using OpenTK.Mathematics;
 
 namespace Dino_Engine.Modelling.Procedural.Saurian
 {
@@ -9,6 +9,7 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
         Head,
         LegL, LegR, ForeL, ForeR,
         ArmL, ArmR,
+        SecondL, SecondR, ThirdL, ThirdR,  // The middle legs of what walks on eight.
     }
 
     /// <summary>
@@ -51,7 +52,7 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
         public bool Jaw;                // Whether this is the jaw's field rather than the rest of the body's.
         public float Gap;               // Between skull and jaw, so that their surfaces never touch.
 
-        private const int PartCount = 8;
+        public const int PartCount = 12;
 
         public void Cone(SaurianPart part, Vector3 a, Vector3 b, float ra, float rb, float blend, float squash = 1f, Vector3? up = null, bool inHead = false, bool carve = false)
         {

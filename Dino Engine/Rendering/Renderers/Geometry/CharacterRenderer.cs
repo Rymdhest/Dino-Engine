@@ -32,6 +32,8 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
     {
         private ShaderProgram _characterShader = new ShaderProgram("Model_Character.vert", "Model.frag", new[] { "CHARACTER" });
         private ShaderProgram _characterShadowShader = new ShaderProgram("Model_Character_Shadow.vert", "Shadow.frag");
+        private ShaderProgram _spectralShader = new ShaderProgram("Spectral.vert", "Spectral.frag");
+        private readonly List<(glModel Model, CharacterInstanceData Instance)> _spectral = new();
 
         public CharacterRenderer() : base("Character")
         {
@@ -54,6 +56,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
         public override void CleanUp()
         {
+            _spectralShader.cleanUp();
             _characterShadowShader.cleanUp();
             _characterShader.cleanUp();
         }
@@ -170,8 +173,59 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
                 // Every bone a rig has (Rig.BoneCount, 43 with the legs of what walks on eight), into uniform mat4 u_Bones[48], which leaves room for a few more.
                 _characterShader.loadUniformMatrix4fArray("u_Bones", instance.SkinningMatrices);
 
-                GL.DrawElements(PrimitiveType.Triangles, glmodel.getVertexCount(), DrawElementsType.UnsignedInt, 0);
+                // Only what's solid: a ghost's light comes after the lights (SpectralPass), which keeps it, as this frame's commands are gone by then.
+                GL.DrawElements(PrimitiveType.Triangles, glmodel.SolidIndexCount, DrawElementsType.UnsignedInt, 0);
+                if (glmodel.SpectralIndexCount > 0) _spectral.Add((glmodel, instance));
             }
+        }
+
+        /// <summary>
+        /// What's light and not flesh, a ghost's skin round its bones (glModel.SpectralIndexCount): over the lit scene, before the reflections, so wet ground shows it, and under the fog. It
+        /// adds and takes nothing away, so nothing it's in front of needs sorting, and it's tested against the depth of everything solid but writes none, so a wall hides it and its own bones
+        /// are seen through it. Brightest where it's seen edge on and thinning to a wisp at its feet (Spectral.frag), and black with emission off, as anything that gives off light is.
+        /// </summary>
+        public void SpectralPass(RenderEngine renderEngine)
+        {
+            if (_spectral.Count == 0) return;
+
+            Core.Engine.PerformanceMonitor.startGPUTask("Spectral");
+            renderEngine.Msaa.SceneBuffer.bind();
+            GL.Enable(EnableCap.DepthTest);
+            GL.DepthFunc(DepthFunction.Lequal);
+            GL.DepthMask(false);
+            GL.Disable(EnableCap.StencilTest);
+            GL.Enable(EnableCap.Blend);
+            GL.BlendFunc(BlendingFactor.One, BlendingFactor.One);
+            GL.BlendEquation(BlendEquationMode.FuncAdd);
+            GL.Enable(EnableCap.CullFace);
+            GL.CullFace(CullFaceMode.Back);
+
+            _spectralShader.bind();
+            var lighting = renderEngine.Lighting;
+            _spectralShader.loadUniformFloat("emissionScale", lighting.Emission ? lighting.EmissionScale : 0f);
+            foreach ((glModel model, CharacterInstanceData instance) in _spectral)
+            {
+                GL.BindVertexArray(model.getVAOID());
+                GL.EnableVertexAttribArray(0);
+                GL.EnableVertexAttribArray(1);
+                GL.EnableVertexAttribArray(2);
+                GL.EnableVertexAttribArray(6);
+                GL.EnableVertexAttribArray(7);
+                _spectralShader.loadUniformMatrix4f("modelMatrix", instance.ModelMatrix);
+                _spectralShader.loadUniformMatrix4fArray("u_Bones", instance.SkinningMatrices);
+                _spectralShader.loadUniformVector4f("hitFlash", instance.Flash);
+                _spectralShader.loadUniformVector4f("characterSight", instance.Sight);
+                GL.DrawElements(PrimitiveType.Triangles, model.SpectralIndexCount, DrawElementsType.UnsignedInt, (IntPtr)(model.SolidIndexCount * sizeof(int)));
+            }
+            _spectral.Clear();
+
+            for (int i = 0; i < 8; i++) GL.DisableVertexAttribArray(i);
+            GL.BindVertexArray(0);
+            GL.Disable(EnableCap.CullFace);
+            GL.Disable(EnableCap.Blend);
+            GL.DepthMask(true);
+            GL.DepthFunc(DepthFunction.Less);
+            Core.Engine.PerformanceMonitor.finishGPUTask("Spectral");
         }
 
         internal override bool WantsShells(RenderEngine renderEngine)
@@ -266,7 +320,8 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
                 _characterShadowShader.loadUniformMatrix4f("modelViewProjectionMatrix", transformationMatrix * shadow.lightViewMatrix * shadow.shadowProjectionMatrix);
                 _characterShadowShader.loadUniformMatrix4fArray("u_Bones", instance.SkinningMatrices);
 
-                GL.DrawElements(PrimitiveType.Triangles, glmodel.getVertexCount(), DrawElementsType.UnsignedInt, 0);
+                // Light casts no shadow: only a ghost's bones do.
+                GL.DrawElements(PrimitiveType.Triangles, glmodel.SolidIndexCount, DrawElementsType.UnsignedInt, 0);
             }
         }
     }

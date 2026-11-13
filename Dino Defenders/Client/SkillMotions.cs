@@ -1,4 +1,4 @@
-using Dino_Defenders.Books;
+﻿using Dino_Defenders.Books;
 using Dino_Defenders.Progression;
 using Dino_Engine.Animation;
 
@@ -17,7 +17,20 @@ namespace Dino_Defenders.Client
         }
 
         /// <summary>What a dinosaur does for a page, which is also what it's heard doing.</summary>
-        public static Gesture Saurian(PageSign sign, BodyPlan plan) => plan == BodyPlan.Biped ? Theropod(sign) : Horned(sign);
+        public static Gesture Saurian(PageSign sign, BodyPlan plan) => plan switch
+        {
+            BodyPlan.Biped => Theropod(sign),
+            BodyPlan.Arachnid => Arachnid(sign),
+            _ => Horned(sign),
+        };
+
+        // On eight legs it bites and spits, with its forelegs up, and anything round it is a rearing threat: nothing that size leaps.
+        private static Gesture Arachnid(PageSign sign) => sign.Form switch
+        {
+            PageForm.Strike or PageForm.Leap => Gestures.Chomp,
+            PageForm.Bolt => Gestures.Spit,
+            _ => Gestures.Roar,
+        };
 
         // On two legs everything is done with the mouth or the tail, and what's done to oneself or called down is a roar, as is anything round it that takes long enough to look heavy.
         private static Gesture Theropod(PageSign sign) => sign.Form switch

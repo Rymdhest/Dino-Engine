@@ -1,4 +1,4 @@
-using Dino_Defenders.Gameplay;
+﻿using Dino_Defenders.Gameplay;
 using Dino_Defenders.Progression;
 using Dino_Defenders.Books;
 using Dino_Defenders.Stats;
@@ -216,19 +216,22 @@ namespace Dino_Defenders.Client
         {
             if (SaurianSpec.Parse(model) is not SaurianSpec dinosaur) return null;
             if (dinosaur.Condition == SaurianCondition.Bones) return moment == DinosaurMoment.Dies ? Voices.DeadDeath : Voices.DeadMoan;
-            if (dinosaur.Condition == SaurianCondition.Rotting && moment != DinosaurMoment.Dies) return dinosaur.Species == "tyrant" && moment == DinosaurMoment.Notices ? Saurians.TyrantRoar : Saurians.RotHiss;
+            if (dinosaur.Condition == SaurianCondition.Rotting && moment != DinosaurMoment.Dies) return dinosaur.Species is "tyrant" or "shagback" && moment == DinosaurMoment.Notices ? Saurians.TyrantRoar : Saurians.RotHiss;
+
+            // A ghost has its kind's voice while it hunts, as it's what's left of the animal, and nothing of one when it goes.
+            if (dinosaur.Condition == SaurianCondition.Ghost && moment == DinosaurMoment.Dies) return Voices.DeadDeath;
             return (dinosaur.Species, moment) switch
             {
-                ("tyrant", DinosaurMoment.Notices) => Saurians.TyrantRoar,
-                ("tyrant", DinosaurMoment.Strikes) => Saurians.TyrantGrowl,
-                ("tyrant", _) => Saurians.TyrantDeath,
-                ("raptor" or "ripper", DinosaurMoment.Dies) => Saurians.RaptorDeath,
-                ("raptor" or "ripper", _) => Saurians.RaptorCall,
+                ("tyrant" or "shagback", DinosaurMoment.Notices) => Saurians.TyrantRoar,
+                ("tyrant" or "shagback", DinosaurMoment.Strikes) => Saurians.TyrantGrowl,
+                ("tyrant" or "shagback", _) => Saurians.TyrantDeath,
+                ("raptor" or "ripper" or "strider", DinosaurMoment.Dies) => Saurians.RaptorDeath,
+                ("raptor" or "ripper" or "strider", _) => Saurians.RaptorCall,
                 ("skitter", _) => Saurians.Chirp,
-                ("spitter", DinosaurMoment.Dies) => Saurians.RaptorDeath,
-                ("spitter", _) => Saurians.Hiss,
-                ("hornback" or "spikeback", DinosaurMoment.Dies) => Saurians.Death,
-                ("hornback" or "spikeback", _) => Saurians.Bellow,
+                ("spitter" or "weaver", DinosaurMoment.Dies) => Saurians.RaptorDeath,
+                ("spitter" or "weaver", _) => Saurians.Hiss,
+                ("hornback" or "spikeback" or "clubtail" or "domehead", DinosaurMoment.Dies) => Saurians.Death,
+                ("hornback" or "spikeback" or "clubtail" or "domehead", _) => Saurians.Bellow,
                 (_, DinosaurMoment.Dies) => Saurians.Death,
                 _ => Saurians.Growl,
             };
@@ -486,7 +489,7 @@ namespace Dino_Defenders.Client
 
         // A dinosaur seen roaring is heard roaring, and whatever else it does sounds like what it does it with.
         private static bool Roars(string model, int sign) => SaurianSpec.Parse(model) is SaurianSpec dinosaur
-            && SkillMotions.Saurian(PageSign.Read(sign), SaurianForge.SpeciesOf(dinosaur).Form == SaurianForm.Theropod ? BodyPlan.Biped : BodyPlan.Quadruped) == Gestures.Roar;
+            && SkillMotions.Saurian(PageSign.Read(sign), SaurianForge.PlanOf(SaurianForge.SpeciesOf(dinosaur))) == Gestures.Roar;
 
         private void Enemies(ECSWorld world, GameSounds sounds)
         {

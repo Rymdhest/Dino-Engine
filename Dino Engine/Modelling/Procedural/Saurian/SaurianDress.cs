@@ -1,4 +1,4 @@
-using Dino_Engine.ECS.Components;
+﻿using Dino_Engine.ECS.Components;
 using Dino_Engine.Modelling.Procedural.Gear;
 using OpenTK.Mathematics;
 
@@ -103,6 +103,10 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
                 case SaurianPart.LegR:
                 case SaurianPart.ForeL:
                 case SaurianPart.ForeR:
+                case SaurianPart.SecondL:
+                case SaurianPart.SecondR:
+                case SaurianPart.ThirdL:
+                case SaurianPart.ThirdR:
                     return Joined(p, LegHang(LegOf(part), p), parts[(int)part], parts[(int)SaurianPart.Body]);
                 case SaurianPart.ArmL:
                 case SaurianPart.ArmR:
@@ -142,13 +146,14 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
         // them from bones metres apart and tore the skin open as the neck moved: so a giant's goes by every stretch near it, softly.
         private float AlongOf(Vector3 p) => Body.Sauropod ? Body.Axis.Soft(p, Body.ChestDepth * 0.12f) : Body.Axis.Nearest(p, out _);
 
-        private SaurianLeg LegOf(SaurianPart part) => part switch
+        protected SaurianLeg LegOf(SaurianPart part)
         {
-            SaurianPart.LegL => Body.Legs[0],
-            SaurianPart.LegR => Body.Legs[1],
-            SaurianPart.ForeL => Body.Legs[2],
-            _ => Body.Legs[3],
-        };
+            foreach (SaurianLeg leg in Body.Legs)
+            {
+                if (SaurianSculpt.LegPart(leg) == part) return leg;
+            }
+            return Body.Legs[0];
+        }
 
         // Where a limb meets the body, its skin is shared with whatever bone the body is there, by how close the body's surface is.
         private Hang Joined(Vector3 p, Hang limb, float limbDistance, float bodyDistance)
@@ -169,11 +174,13 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
 
         private Hang LegHang(SaurianLeg leg, Vector3 p)
         {
-            bool left = leg.Side > 0f;
-            BoneType upper = leg.Front ? (left ? BoneType.UpperArmL : BoneType.UpperArmR) : (left ? BoneType.UpperLegL : BoneType.UpperLegR);
-            BoneType lower = leg.Front ? (left ? BoneType.LowerArmL : BoneType.LowerArmR) : (left ? BoneType.LowerLegL : BoneType.LowerLegR);
-            BoneType foot = leg.Front ? (left ? BoneType.HandL : BoneType.HandR) : (left ? BoneType.FootL : BoneType.FootR);
-            BoneType toe = leg.Front ? foot : (left ? BoneType.ToeL : BoneType.ToeR);
+            int index = Math.Max(Body.IndexOf(leg), 0);
+            BoneType upper = SaurianBody.LegUppers[index];
+            BoneType lower = SaurianBody.LegLowers[index];
+            BoneType foot = SaurianBody.LegEnds[index];
+
+            // Only hind feet have toes of their own, and nothing on eight legs has any.
+            BoneType toe = index < 2 && !Body.Arachnid ? (index == 0 ? BoneType.ToeL : BoneType.ToeR) : foot;
 
             float thigh = Segment(p, leg.Hip, leg.Knee, out float tThigh);
             float shin = Segment(p, leg.Knee, leg.Ankle, out float tShin);
@@ -296,6 +303,45 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
         {
             glow = 1f;
             return _paint.Hide(p, normal, part, out material);
+        }
+
+        /// <summary>
+        /// Where its coat grows (SHELLS.md): over the body, a little less underneath, down the legs as far as its kind has it and no further, so the shins and feet stay scaled, and over the
+        /// back of the head as far as its kind has it, so the snout and the jaws are bare. A mane is only along the top of the neck and back.
+        /// </summary>
+        public virtual float Shell(Vector3 p, Vector3 normal, SaurianPart part)
+        {
+            SaurianSpecies species = Body.Species;
+            if (species.Coat == 0) return 0f;
+            if (part == SaurianPart.Head)
+            {
+                SaurianHead head = Body.Head;
+                Vector3 local = head.ToHead(p);
+                float forward = local.Z / MathF.Max(head.Length, 1e-3f);
+                float top = (local.Y - head.Lip(local.Z)) / MathF.Max(head.DepthAt(local.Z) * 1.24f, 1e-3f);
+                return (1f - Smooth(species.CoatHead * 0.6f, species.CoatHead, forward)) * Smooth(0.3f, 0.65f, top);
+            }
+            if (SaurianSculpt.IsLeg(part)) return 1f - Smooth(species.CoatLegs - 0.08f, species.CoatLegs + 0.04f, DownLeg(LegOf(part), p));
+            if (part is SaurianPart.ArmL or SaurianPart.ArmR) return species.CoatMane ? 0f : 1f;
+
+            float along = Body.Axis.Nearest(p, out _);
+            Vector3 centre = Body.Axis.At(along);
+            float height = (p.Y - centre.Y) / MathF.Max(Body.Axis.DeepAt(along), 1e-3f);
+            if (species.CoatMane) return Smooth(0.35f, 0.7f, height) * Smooth(Body.HipAt * 0.35f, Body.HipAt * 0.6f, along) * (1f - Smooth(Body.HeadAt - Body.Head.Length * 0.1f, Body.HeadAt, along));
+            return MathHelper.Lerp(species.CoatBelly, 1f, Smooth(-0.7f, 0.15f, height)) * Smooth(0f, Body.HipAt * 0.12f, along);
+        }
+
+        // How far down a leg a point is, from its hip (0) to the ball of its foot (1), by the length of each bone.
+        private static float DownLeg(SaurianLeg leg, Vector3 p)
+        {
+            float femur = (leg.Knee - leg.Hip).Length, tibia = (leg.Ankle - leg.Knee).Length, meta = (leg.Ball - leg.Ankle).Length;
+            float total = MathF.Max(femur + tibia + meta, 1e-3f);
+            float thigh = Segment(p, leg.Hip, leg.Knee, out float a);
+            float shin = Segment(p, leg.Knee, leg.Ankle, out float b);
+            float foot = Segment(p, leg.Ankle, leg.Ball, out float c);
+            if (thigh <= shin && thigh <= foot) return femur * a / total;
+            if (shin <= foot) return (femur + tibia * b) / total;
+            return (femur + tibia + meta * c) / total;
         }
 
         /// <summary>

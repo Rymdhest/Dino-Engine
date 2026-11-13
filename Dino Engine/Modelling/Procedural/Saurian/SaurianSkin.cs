@@ -1,4 +1,4 @@
-using Dino_Engine.Modelling.Procedural.Rock;
+﻿using Dino_Engine.Modelling.Procedural.Rock;
 using OpenTK.Mathematics;
 
 namespace Dino_Engine.Modelling.Procedural.Saurian
@@ -21,6 +21,9 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
 
         /// <summary>The same, knowing how far each piece of the body is, for a dresser that blends one piece's colour into the next where they meet.</summary>
         Vector3 Colour(Vector3 p, Vector3 normal, SaurianPart part, ReadOnlySpan<float> parts, out int material, out float glow) => Colour(p, normal, part, out material, out glow);
+
+        /// <summary>How much of the body's coat grows at a point, from nothing to all of it (SHELLS.md): feathers, down, a shaggy coat or hair.</summary>
+        float Shell(Vector3 p, Vector3 normal, SaurianPart part) => 0f;
     }
 
     /// <summary>
@@ -59,7 +62,8 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
             var colours = new Vector3[count];
             var materials = new int[count];
             var glows = new float[count];
-            Span<float> distances = stackalloc float[8];
+            var shells = new float[count];
+            Span<float> distances = stackalloc float[SaurianField.PartCount];
             for (int i = 0; i < count; i++)
             {
                 Vector3 p = points[i];
@@ -68,6 +72,7 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
                 normals[i] = field.Normal(p, cell * 0.5f);
                 hangs[i] = dress.Hang(p, parts[i], distances);
                 colours[i] = dress.Colour(p, normals[i], parts[i], distances, out materials[i], out glows[i]);
+                shells[i] = dress.Shell(p, normals[i], parts[i]);
             }
 
             // One mapping to a triangle, the one most of its corners go by, and a corner that wraps round is unwrapped to where the first one is.
@@ -110,7 +115,7 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
                     if (!made.TryGetValue((corner[k], chosen, wrap), out int index))
                     {
                         int p = corner[k];
-                        index = mesh.Vertex(points[p], normals[p], dress.Tangent(points[p], normals[p], chosen), uv, colours[p], materials[p], hangs[p], glows[p]);
+                        index = mesh.Vertex(points[p], normals[p], dress.Tangent(points[p], normals[p], chosen), uv, colours[p], materials[p], hangs[p], glows[p], shells[p]);
                         made[(p, chosen, wrap)] = index;
                     }
                     corner[k] = index;

@@ -1,4 +1,4 @@
-using Dino_Defenders.Client;
+﻿using Dino_Defenders.Client;
 using Dino_Defenders.Gameplay;
 using Dino_Defenders.Net;
 using Dino_Defenders.Progression;
@@ -464,6 +464,7 @@ namespace Dino_Defenders
             SystemRegistry.InsertBefore<GravitySystem>(new MusicDirectorSystem());
             SystemRegistry.InsertAfter<GhostPresentationSystem>(new CharacterSoundSystem(() => _effects?.Sounds));
             SystemRegistry.InsertAfter<GhostPresentationSystem>(new PropLightSystem());
+            SystemRegistry.InsertAfter<GhostPresentationSystem>(new TreadSystem());
             SystemRegistry.InsertBefore<ModelRenderSystem>(new WildlifeSystem());
             Nature.Off = _options.NoLife;
             TerrainChunkSystem.Skins = _options.Skin;

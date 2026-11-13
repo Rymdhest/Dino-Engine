@@ -1,4 +1,4 @@
-using Dino_Engine.World;
+﻿using Dino_Engine.World;
 using Dino_Engine.World.Content;
 using OpenTK.Mathematics;
 
@@ -119,7 +119,7 @@ namespace Dino_Defenders.Progression
         };
 
         /// <summary>Every kind of tyrant there is, as a land's boss: bred, raised from bones by the Ossuary, or rotting where it stands.</summary>
-        public static readonly string[] TyrantKinds = { "tyrant", "bone-tyrant", "rotting-tyrant" };
+        public static readonly string[] TyrantKinds = { "tyrant", "bone-tyrant", "rotting-tyrant", "ghost-tyrant" };
 
         private static readonly string[] Closings =
         {
@@ -156,7 +156,7 @@ namespace Dino_Defenders.Progression
         public static string BossKindOf(int seed)
         {
             float roll = new WorldRandom((ulong)(uint)seed).Fork("boss").Float();
-            return roll < 0.7f ? TyrantKinds[0] : roll < 0.85f ? TyrantKinds[1] : TyrantKinds[2];
+            return roll < 0.7f ? TyrantKinds[0] : roll < 0.8f ? TyrantKinds[1] : roll < 0.9f ? TyrantKinds[2] : TyrantKinds[3];
         }
 
         /// <summary>Who holds a land, from its seed alone, so that the map table can tell of it before it's grown. The chronicle written once it is says the same.</summary>
@@ -175,6 +175,7 @@ namespace Dino_Defenders.Progression
         {
             "bone-tyrant" => "bone tyrant",
             "rotting-tyrant" => "rotting tyrant",
+            "ghost-tyrant" => "ghost tyrant",
             _ => "tyrant",
         };
 
@@ -246,6 +247,7 @@ namespace Dino_Defenders.Progression
                 {
                     "bone-tyrant" => $"Put {chronicle.Beast}, the Ossuary's bone tyrant, back in the ground at {keep.Name}",
                     "rotting-tyrant" => $"End {chronicle.Beast}, {chronicle.Commander}'s rotting tyrant, at {keep.Name}",
+                    "ghost-tyrant" => $"Lay {chronicle.Beast}, the Ossuary's ghost tyrant, to rest at {keep.Name}",
                     _ => $"Bring down {chronicle.Beast}, {chronicle.Commander}'s tyrant, at {keep.Name}",
                 },
                 Goal = twin != null ? 2 : 1,

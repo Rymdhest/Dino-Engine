@@ -19,6 +19,9 @@ namespace Dino_Engine.Modelling.Model
 
         /// <summary>What grows on it as shells (<see cref="Rendering.Shells.ShellStyles"/>), 0 for nothing; each vertex's <see cref="Vertex.Shell"/> says how much.</summary>
         public byte ShellStyle = 0;
+
+        /// <summary>Where in its indices what's drawn as light rather than as something solid begins, a ghost's flesh round its bones, or -1 for none: see glModel.SpectralIndexCount.</summary>
+        public int SpectralFrom = -1;
         public Mesh()
         {
             meshVertices = new List<MeshVertex>();

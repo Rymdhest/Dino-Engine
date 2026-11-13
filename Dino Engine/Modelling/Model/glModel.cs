@@ -80,6 +80,13 @@ public class glModel
     /// <summary>How many of its indices, from the first, are of triangles anything can grow on: the loader puts those first, and the shells draw nothing else.</summary>
     public int ShellIndexCount { get; private set; }
 
+    /// <summary>
+    /// How many of its indices are something solid, drawn in the geometry pass and the shadows, and how many after them are light, drawn over the lit scene and casting nothing: a ghost's
+    /// flesh round its bones (CharacterRenderer.SpectralPass). Everything is solid on anything else.
+    /// </summary>
+    public int SolidIndexCount => SpectralIndexCount > 0 ? vertexCount - SpectralIndexCount : vertexCount;
+    public int SpectralIndexCount { get; set; }
+
     public void SetShellData(int buffer, int indexCount)
     {
         Own(buffer);

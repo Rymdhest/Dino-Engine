@@ -213,10 +213,12 @@ namespace Dino_Engine.Animation
                 return;
             }
 
-            // Whatever has happened, a foot that's been left a long way behind isn't on the end of this leg any more.
+            // Whatever has happened, a foot that's been left a long way behind isn't on the end of this leg any more. How far that is goes by how far the leg reaches, as well as how high the
+            // hips are: what walks on eight stands its feet further out than its hips are high, and was put back on its feet every frame.
             for (int i = 0; i < Feet.Length; i++)
             {
-                if ((Feet[i].At.Xz - HipOf(i, input).Xz).LengthSquared > LostAfter * LostAfter * leg * leg)
+                float lost = LostAfter * MathF.Max(leg, _rig.Legs[i].Length * scale);
+                if ((Feet[i].At.Xz - HipOf(i, input).Xz).LengthSquared > lost * lost)
                 {
                     Stand(input, ground);
                     return;

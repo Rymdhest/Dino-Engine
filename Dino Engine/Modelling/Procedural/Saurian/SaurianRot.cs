@@ -1,4 +1,4 @@
-using Dino_Engine.ECS.Components;
+﻿using Dino_Engine.ECS.Components;
 using Dino_Engine.Modelling.Procedural.Flora;
 using Dino_Engine.Modelling.Procedural.Gear;
 using OpenTK.Mathematics;
@@ -16,6 +16,9 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
     public static class SaurianRot
     {
         private static readonly Vector3 Glow = new Vector3(0.55f, 0.85f, 0.12f);
+
+        /// <summary>The sick light in its eyes.</summary>
+        public static Vector3 EyeGlow => Glow;
         private static readonly Vector3 Raw = new Vector3(0.22f, 0.04f, 0.04f);
         private static readonly Vector3 Deep = new Vector3(0.07f, 0.012f, 0.015f);
         private static readonly Vector3 Iron = new Vector3(0.09f, 0.09f, 0.1f);

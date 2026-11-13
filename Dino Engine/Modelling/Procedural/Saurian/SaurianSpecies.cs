@@ -9,6 +9,7 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
         Theropod,   // On two legs, a beam balanced on the hips, with a mouth to fight with.
         Horned,     // On four, with a beak, horns and a frill, and the weight all in front.
         Sauropod,   // On four pillars, higher at the shoulder than the hip, with a neck longer than the body in front of the tail, held up as a giraffe's is.
+        Arachnid,   // On eight legs whose knees stand over its back, a narrow waist between its body and a swollen abdomen: what the Amber Institute grew from more than one animal.
     }
 
     /// <summary>What's been done to one, which is a body of its own.</summary>
@@ -17,6 +18,7 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
         Living,     // Grown from blood in amber, as the Reich grows them.
         Rotting,    // Raised before the blood took, and kept going by iron and bile.
         Bones,      // Dug out of the ground and raised as it lay there.
+        Ghost,      // Called up where its bones were too far gone to stand: the cold light alone, round what's left of them, wearing the shape it had.
     }
 
     /// <summary>Patterns a hide can carry. Every one of them is something living animals wear, and countershading and a banded tail are what Sinosauropteryx is known to have had.</summary>
@@ -30,6 +32,8 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
         Mask = 8,       // A dark stripe through the eye, from snout to ear.
         Saddles = 16,   // A few big dark patches along the back.
         Mottle = 32,    // Fine broken colour all over.
+        Chevrons = 64,  // A row of arrowheads down the top of the back, as a spider's abdomen has.
+        Ringed = 128,   // Rings round the legs, as a tarantula's.
     }
 
     /// <summary>One colour scheme a species can wear. Colours are albedos under a sun of about 13, so all of them are deep: anything pale goes white.</summary>
@@ -57,6 +61,12 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
 
         /// <summary>Never had by the Reich or raised by the Ossuary, so never in harness, rotting or bones: <see cref="SaurianSpec.Parse"/> refuses to name one that way.</summary>
         public bool Free;
+
+        /// <summary>Seen big and close, as a giant is under the hero and a tyrant over them, so its skin is put exactly on its surface wherever it's been simplified (SaurianSkin.Settle).</summary>
+        public bool Close;
+
+        /// <summary>Kept by a commander, so what the Reich puts on it is a war-beast's regalia and not a working harness (SaurianRegalia).</summary>
+        public bool Regalia;
 
         // ---- Size and proportion.
         public FloatRange Length;           // Snout to tail tip.
@@ -120,6 +130,23 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
         public float ScuteChance;                                      // A row of low spines down the back.
         public FloatRange Scutes = new FloatRange(0.006f, 0.01f);
         public float ScuteSpacing = 2.6f;                              // How far apart they stand, in their own lengths: close on what fights with them.
+        public FloatRange Armour;                                      // Plates of bone over the back, as an ankylosaur's, as a share of length. Nothing by default.
+        public FloatRange Club;                                        // A club of bone at the end of the tail, as a share of length. Nothing by default.
+        public FloatRange Dome;                                        // A dome of bone over the back of the skull, as a pachycephalosaur's, as a share of the skull. Nothing by default.
+
+        // ---- On eight legs.
+        public FloatRange Span;                                        // How far out from its middle its feet stand, as a share of length.
+        public FloatRange Knee;                                        // How high its knees stand, as a share of length.
+        public FloatRange Abdomen;                                     // Half the depth of its abdomen, as a share of length.
+        public FloatRange Fangs;                                       // How long the fangs at the front of its jaw are, as a share of the skull. Nothing by default.
+        public int EyePairs = 1;                                       // Eyes: a pair, or more on what was grown from more than one animal.
+
+        // ---- What grows out of the hide as shells (SHELLS.md): feathers, down, a shaggy coat or hair.
+        public byte Coat;                                              // Its style (ShellStyles), or nothing.
+        public float CoatLegs = 0.4f;                                  // How far down a leg it goes, as a share of the leg from the hip: 0.4 is the thigh.
+        public float CoatHead = 0.3f;                                  // How far forward over the head, as a share of the skull from its back.
+        public float CoatBelly = 0.6f;                                 // How much of it there is underneath.
+        public bool CoatMane;                                          // Only along the top of the neck and back, as a mane.
 
         public Hide[] Hides = Array.Empty<Hide>();
 
@@ -226,24 +253,27 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
         /// </summary>
         public static readonly SaurianSpecies Tyrant = new SaurianSpecies
         {
-            Id = "tyrant", Name = "Tyrant", Form = SaurianForm.Theropod,
-            // From Hartman's skeletal: the hip joint at under a quarter of its length, the shoulders lower than the hips, a short neck that climbs steeply to put the skull level with the hips, and a
-            // keel of belly ribs hanging between the legs and the arms.
-            Length = R(14.2f, 15.4f), Hip = R(0.232f, 0.245f), Skull = R(0.112f, 0.122f), Neck = R(0.088f, 0.098f), Trunk = R(0.22f, 0.24f), NeckRise = R(0.8f, 0.95f),
-            Girth = R(0.074f, 0.08f), Breadth = R(0.72f, 0.8f), Belly = R(0.16f, 0.24f), BackSlope = R(-0.16f, -0.1f), NeckGirth = R(0.5f, 0.56f), TailRoot = R(0.74f, 0.82f), TailRod = 0f,
-            LegBones = new Vector3(0.42f, 0.37f, 0.21f), Crouch = R(0.18f, 0.24f), Thigh = R(0.62f, 0.68f), Shin = R(0.38f, 0.44f), Toe = R(0.3f, 0.36f),
+            Id = "tyrant", Name = "Tyrant", Form = SaurianForm.Theropod, Close = true, Regalia = true,
+            // From Hartman's skeletal of Sue: the hip joint at nearly a third of its length, the shoulders lower than the hips, a short neck that climbs steeply to put the skull level with the hips, and a
+            // keel of belly ribs hanging between the legs and the arms. Grown to what a commander's war-beast should be: twice a person's height at the hip, before the Reich's own pride in it is
+            // added to that (Bestiary.Tyrant), with the widest, deepest head there is, hornlets in front of its eyes as Daspletosaurus had, and its skin as fine as a giant's.
+            Length = R(16.4f, 17.6f), Hip = R(0.272f, 0.288f), Skull = R(0.118f, 0.128f), Neck = R(0.088f, 0.098f), Trunk = R(0.22f, 0.24f), NeckRise = R(0.8f, 0.95f),
+            Girth = R(0.076f, 0.082f), Breadth = R(0.74f, 0.82f), Belly = R(0.18f, 0.26f), BackSlope = R(-0.16f, -0.1f), NeckGirth = R(0.52f, 0.58f), TailRoot = R(0.76f, 0.84f), TailRod = 0f,
+            LegBones = new Vector3(0.42f, 0.37f, 0.21f), Crouch = R(0.24f, 0.3f), Thigh = R(0.64f, 0.7f), Shin = R(0.38f, 0.44f), Toe = R(0.3f, 0.36f),
             Arm = R(0.42f, 0.48f), Fingers = 2, Claw = R(0.12f, 0.15f), ArmGirth = R(0.11f, 0.13f),
-            SkullDepth = R(0.48f, 0.54f), SkullWidth = R(0.56f, 0.64f), Snout = R(0.36f, 0.42f), SnoutDepth = R(0.5f, 0.56f), Profile = R(0.02f, 0.05f),
-            Brow = R(0.05f, 0.08f), Eye = R(0.045f, 0.052f), Teeth = new IntRange(12, 13), Tooth = R(0.085f, 0.1f), Lips = 0.3f, Jowls = R(0.05f, 0.08f),
-            ScuteChance = 0.3f, Scutes = R(0.004f, 0.007f),
+            SkullDepth = R(0.5f, 0.56f), SkullWidth = R(0.58f, 0.66f), Snout = R(0.38f, 0.44f), SnoutDepth = R(0.52f, 0.58f), Profile = R(0.03f, 0.06f),
+            Brow = R(0.06f, 0.09f), BrowHorns = R(0.07f, 0.1f), Eye = R(0.046f, 0.052f), Teeth = new IntRange(12, 13), Tooth = R(0.09f, 0.105f), Lips = 0.28f, Jowls = R(0.06f, 0.09f),
+            ScuteChance = 1f, Scutes = R(0.005f, 0.008f), ScuteSpacing = 2.2f,
+            // Bronze-eyed and forward-looking, as a hunter that big has every reason to be.
+            Eyes = new[] { V(0.42f, 0.26f, 0.03f), V(0.36f, 0.14f, 0.02f), V(0.4f, 0.32f, 0.06f) },
             Hides = new[]
             {
-                new Hide { Back = V(0.12f, 0.1f, 0.07f), Belly = V(0.3f, 0.25f, 0.17f), Pattern = V(0.04f, 0.03f, 0.022f), Display = V(0.36f, 0.08f, 0.04f), Patterns = HidePattern.Stripes | HidePattern.Mottle },
-                new Hide { Back = V(0.09f, 0.1f, 0.06f), Belly = V(0.27f, 0.26f, 0.17f), Pattern = V(0.03f, 0.035f, 0.02f), Display = V(0.38f, 0.28f, 0.05f), Patterns = HidePattern.Saddles | HidePattern.Mottle },
-                new Hide { Back = V(0.08f, 0.075f, 0.075f), Belly = V(0.24f, 0.21f, 0.18f), Pattern = V(0.025f, 0.022f, 0.022f), Display = V(0.3f, 0.06f, 0.06f), Patterns = HidePattern.Stripes | HidePattern.Bands },
-                new Hide { Back = V(0.18f, 0.11f, 0.06f), Belly = V(0.36f, 0.27f, 0.16f), Pattern = V(0.06f, 0.035f, 0.02f), Display = V(0.26f, 0.06f, 0.03f), Patterns = HidePattern.Saddles | HidePattern.Mask },
+                new Hide { Back = V(0.07f, 0.06f, 0.05f), Belly = V(0.24f, 0.2f, 0.14f), Pattern = V(0.025f, 0.02f, 0.016f), Display = V(0.36f, 0.08f, 0.04f), Patterns = HidePattern.Stripes | HidePattern.Mottle },
+                new Hide { Back = V(0.08f, 0.085f, 0.055f), Belly = V(0.25f, 0.24f, 0.16f), Pattern = V(0.025f, 0.03f, 0.018f), Display = V(0.38f, 0.28f, 0.05f), Patterns = HidePattern.Saddles | HidePattern.Mottle },
+                new Hide { Back = V(0.065f, 0.062f, 0.064f), Belly = V(0.22f, 0.2f, 0.17f), Pattern = V(0.02f, 0.018f, 0.018f), Display = V(0.3f, 0.06f, 0.06f), Patterns = HidePattern.Stripes | HidePattern.Bands },
+                new Hide { Back = V(0.14f, 0.085f, 0.05f), Belly = V(0.32f, 0.24f, 0.15f), Pattern = V(0.045f, 0.028f, 0.016f), Display = V(0.26f, 0.06f, 0.03f), Patterns = HidePattern.Saddles | HidePattern.Mask },
             },
-            Budget = 15000,
+            Budget = 30000,
         };
 
         /// <summary>
@@ -371,7 +401,150 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
             Budget = 9000,
         };
 
-        public static readonly SaurianSpecies[] All = { Raptor, Skitter, Spitter, Ravager, Tyrant, Hornback, Giant, Ripper, Wader, Spikeback };
+        /// <summary>
+        /// The Amber Institute's worst idea: a hunter grown from blood that wasn't all one animal's, on eight long legs whose knees stand over its back, with a narrow waist, a swollen ringed
+        /// abdomen, eight eyes and a pair of fangs under a raptor's snout. Grown to climb what a raptor can't and wait where nothing's looked, and lost from its pens into the deep woods.
+        /// </summary>
+        public static readonly SaurianSpecies Weaver = new SaurianSpecies
+        {
+            Id = "weaver", Name = "Weaver", Form = SaurianForm.Arachnid,
+            Length = R(6.2f, 7.2f), Hip = R(0.17f, 0.2f), Skull = R(0.19f, 0.21f), Neck = R(0.07f, 0.09f), Trunk = R(0.24f, 0.27f),
+            NeckRise = R(0.4f, 0.6f), BackSlope = R(-0.02f, 0.04f), NeckGirth = R(0.56f, 0.64f),
+            Girth = R(0.075f, 0.085f), Breadth = R(1.35f, 1.55f), Abdomen = R(0.125f, 0.15f),
+            Span = R(0.6f, 0.7f), Knee = R(0.5f, 0.58f), Thigh = R(0.36f, 0.42f), Shin = R(0.24f, 0.28f),
+            SkullDepth = R(0.38f, 0.44f), SkullWidth = R(0.44f, 0.52f), Snout = R(0.36f, 0.42f), SnoutDepth = R(0.42f, 0.5f), Profile = R(-0.03f, 0.02f), BrowHorns = R(0.1f, 0.16f),
+            Brow = R(0.05f, 0.07f), Eye = R(0.095f, 0.11f), EyePairs = 4, Teeth = new IntRange(9, 11), Tooth = R(0.055f, 0.07f), Lips = 0.15f, Jowls = R(0.03f, 0.05f), Fangs = R(0.34f, 0.42f),
+            ScuteChance = 0.5f, Scutes = R(0.012f, 0.018f), ScuteSpacing = 1.8f,
+            Coat = Dino_Engine.Rendering.Shells.ShellStyles.SpiderHair, CoatLegs = 0.86f, CoatHead = 0.2f, CoatBelly = 0.8f,
+            // Dark and glassy, with a red or amber light in them when they catch it.
+            Eyes = new[] { V(0.3f, 0.04f, 0.03f), V(0.34f, 0.2f, 0.02f), V(0.05f, 0.05f, 0.06f) },
+            Hides = new[]
+            {
+                new Hide { Back = V(0.06f, 0.045f, 0.035f), Belly = V(0.14f, 0.1f, 0.07f), Pattern = V(0.02f, 0.015f, 0.012f), Display = V(0.42f, 0.2f, 0.04f), Patterns = HidePattern.Ringed | HidePattern.Chevrons | HidePattern.Mottle },
+                new Hide { Back = V(0.05f, 0.06f, 0.05f), Belly = V(0.12f, 0.13f, 0.1f), Pattern = V(0.015f, 0.02f, 0.015f), Display = V(0.38f, 0.32f, 0.05f), Patterns = HidePattern.Ringed | HidePattern.Chevrons },
+                new Hide { Back = V(0.08f, 0.06f, 0.07f), Belly = V(0.16f, 0.12f, 0.12f), Pattern = V(0.02f, 0.015f, 0.02f), Display = V(0.08f, 0.24f, 0.3f), Patterns = HidePattern.Ringed | HidePattern.Chevrons | HidePattern.Spots },
+            },
+            Budget = 9000,
+        };
+
+        /// <summary>
+        /// The Institute's answer to the snow, after Yutyrannus: a tyrant's kin two thirds its size, grown with a coat of long filaments over its neck, back and flanks, as Yutyrannus is known to
+        /// have had, and the hot blood the Institute gives everything. The Reich drives them where its cold-blooded beasts die, and some got away into the high pines.
+        /// </summary>
+        public static readonly SaurianSpecies Shagback = new SaurianSpecies
+        {
+            Id = "shagback", Name = "Shagback", Form = SaurianForm.Theropod,
+            Length = R(10.5f, 11.8f), Hip = R(0.26f, 0.275f), Skull = R(0.11f, 0.12f), Neck = R(0.1f, 0.11f), Trunk = R(0.22f, 0.24f), NeckRise = R(0.75f, 0.9f),
+            Girth = R(0.074f, 0.08f), Breadth = R(0.76f, 0.84f), Belly = R(0.18f, 0.24f), BackSlope = R(-0.14f, -0.08f), NeckGirth = R(0.54f, 0.6f), TailRoot = R(0.74f, 0.82f), TailRod = 0f,
+            LegBones = new Vector3(0.41f, 0.38f, 0.21f), Crouch = R(0.24f, 0.3f), Thigh = R(0.64f, 0.7f), Shin = R(0.36f, 0.42f), Toe = R(0.32f, 0.38f),
+            Arm = R(0.52f, 0.6f), Fingers = 3, Claw = R(0.13f, 0.16f), ArmGirth = R(0.12f, 0.14f),
+            SkullDepth = R(0.44f, 0.5f), SkullWidth = R(0.46f, 0.54f), Snout = R(0.36f, 0.42f), SnoutDepth = R(0.5f, 0.56f), Profile = R(0.02f, 0.05f),
+            Brow = R(0.05f, 0.07f), Eye = R(0.05f, 0.056f), Teeth = new IntRange(11, 13), Tooth = R(0.08f, 0.095f), Lips = 0.35f, Jowls = R(0.05f, 0.07f),
+            Coat = Dino_Engine.Rendering.Shells.ShellStyles.Shag, CoatLegs = 0.42f, CoatHead = 0.55f, CoatBelly = 0.75f,
+            Hides = new[]
+            {
+                new Hide { Back = V(0.11f, 0.11f, 0.12f), Belly = V(0.3f, 0.29f, 0.28f), Pattern = V(0.035f, 0.035f, 0.04f), Display = V(0.36f, 0.12f, 0.05f), Patterns = HidePattern.Saddles | HidePattern.Mottle },
+                new Hide { Back = V(0.14f, 0.1f, 0.07f), Belly = V(0.34f, 0.28f, 0.2f), Pattern = V(0.045f, 0.03f, 0.02f), Display = V(0.32f, 0.26f, 0.08f), Patterns = HidePattern.Stripes | HidePattern.Mask },
+                new Hide { Back = V(0.06f, 0.055f, 0.05f), Belly = V(0.24f, 0.22f, 0.2f), Pattern = V(0.02f, 0.018f, 0.016f), Display = V(0.12f, 0.2f, 0.3f), Patterns = HidePattern.Bands | HidePattern.Mottle },
+            },
+            Budget = 12000,
+        };
+
+        /// <summary>
+        /// The reaper, after Therizinosaurus: a small beaked head on a long neck held upright, a deep body, feathers all over, and arms as long as it is tall with a claw like a scythe on each
+        /// hand. The Institute grew a grazer into something the Reich could use, and it uses them on fields and on whoever's in them.
+        /// </summary>
+        public static readonly SaurianSpecies Reaper = new SaurianSpecies
+        {
+            Id = "reaper", Name = "Reaper", Form = SaurianForm.Theropod,
+            Length = R(10f, 11.2f), Hip = R(0.3f, 0.32f), Skull = R(0.058f, 0.066f), Neck = R(0.21f, 0.24f), Trunk = R(0.27f, 0.3f), NeckRise = R(1.05f, 1.2f), BackSlope = R(0.05f, 0.14f),
+            Girth = R(0.085f, 0.095f), Breadth = R(0.82f, 0.92f), Belly = R(0.36f, 0.5f), NeckGirth = R(0.42f, 0.5f), TailRoot = R(0.6f, 0.7f), TailRod = 0.2f, TailDroop = R(0.04f, 0.12f),
+            LegBones = new Vector3(0.4f, 0.38f, 0.22f), Crouch = R(0.2f, 0.26f), Thigh = R(0.62f, 0.7f), Shin = R(0.34f, 0.4f), Toe = R(0.3f, 0.36f),
+            Arm = R(1.75f, 2f), Fingers = 3, Claw = R(0.52f, 0.64f), ArmGirth = R(0.16f, 0.2f),
+            SkullDepth = R(0.34f, 0.4f), SkullWidth = R(0.32f, 0.38f), Snout = R(0.3f, 0.36f), SnoutDepth = R(0.4f, 0.48f), Profile = R(-0.02f, 0.02f),
+            Brow = R(0.02f, 0.03f), Eye = R(0.1f, 0.12f), Teeth = new IntRange(0, 0), Lips = 1f, Beak = R(0.06f, 0.1f),
+            Coat = Dino_Engine.Rendering.Shells.ShellStyles.Plumage, CoatLegs = 0.5f, CoatHead = 0.5f, CoatBelly = 0.85f,
+            Eyes = new[] { V(0.3f, 0.2f, 0.04f), V(0.22f, 0.08f, 0.03f) },
+            Hides = new[]
+            {
+                new Hide { Back = V(0.16f, 0.07f, 0.04f), Belly = V(0.3f, 0.2f, 0.12f), Pattern = V(0.03f, 0.02f, 0.015f), Display = V(0.4f, 0.3f, 0.06f), Patterns = HidePattern.Stripes | HidePattern.Mask },
+                new Hide { Back = V(0.04f, 0.045f, 0.06f), Belly = V(0.18f, 0.18f, 0.2f), Pattern = V(0.015f, 0.015f, 0.02f), Display = V(0.08f, 0.18f, 0.36f), Patterns = HidePattern.Bands | HidePattern.Mottle },
+                new Hide { Back = V(0.2f, 0.16f, 0.1f), Belly = V(0.36f, 0.31f, 0.22f), Pattern = V(0.06f, 0.045f, 0.03f), Display = V(0.38f, 0.1f, 0.05f), Patterns = HidePattern.Stripes | HidePattern.Spots },
+            },
+            Budget = 10000,
+        };
+
+        /// <summary>
+        /// The strider, after Gallimimus: an ostrich of a dinosaur, all legs, neck and tail, with a small toothless beak and great eyes, feathered over everything but its shins. Broods that got
+        /// out run the open country in flocks, faster than anything, and take whatever they can catch.
+        /// </summary>
+        public static readonly SaurianSpecies Strider = new SaurianSpecies
+        {
+            Id = "strider", Name = "Strider", Form = SaurianForm.Theropod,
+            Length = R(7.8f, 8.8f), Hip = R(0.27f, 0.29f), Skull = R(0.062f, 0.07f), Neck = R(0.2f, 0.22f), Trunk = R(0.17f, 0.19f), NeckRise = R(0.95f, 1.15f),
+            Girth = R(0.055f, 0.062f), Breadth = R(0.76f, 0.86f), Belly = R(0.12f, 0.2f), TailRoot = R(0.6f, 0.7f), TailRod = 0.4f,
+            LegBones = new Vector3(0.32f, 0.4f, 0.28f), Crouch = R(0.38f, 0.46f), Thigh = R(0.6f, 0.68f), Shin = R(0.3f, 0.35f), Toe = R(0.32f, 0.38f),
+            Arm = R(0.72f, 0.84f), Fingers = 3, Claw = R(0.1f, 0.13f),
+            SkullDepth = R(0.3f, 0.36f), SkullWidth = R(0.28f, 0.34f), Snout = R(0.22f, 0.28f), SnoutDepth = R(0.3f, 0.36f), Profile = R(-0.03f, 0f),
+            Brow = R(0.01f, 0.02f), Eye = R(0.13f, 0.15f), Teeth = new IntRange(0, 0), Lips = 1f, Beak = R(0.04f, 0.07f),
+            Coat = Dino_Engine.Rendering.Shells.ShellStyles.Plumage, CoatLegs = 0.36f, CoatHead = 0.4f, CoatBelly = 0.8f,
+            Eyes = new[] { V(0.34f, 0.2f, 0.04f), V(0.12f, 0.08f, 0.04f) },
+            Hides = new[]
+            {
+                new Hide { Back = V(0.2f, 0.14f, 0.07f), Belly = V(0.36f, 0.31f, 0.21f), Pattern = V(0.05f, 0.035f, 0.02f), Display = V(0.08f, 0.2f, 0.32f), Patterns = HidePattern.Mask | HidePattern.Bands },
+                new Hide { Back = V(0.12f, 0.12f, 0.12f), Belly = V(0.32f, 0.31f, 0.29f), Pattern = V(0.03f, 0.03f, 0.03f), Display = V(0.38f, 0.1f, 0.05f), Patterns = HidePattern.Stripes | HidePattern.Mask },
+                new Hide { Back = V(0.22f, 0.1f, 0.05f), Belly = V(0.36f, 0.26f, 0.16f), Pattern = V(0.06f, 0.03f, 0.015f), Display = V(0.36f, 0.3f, 0.05f), Patterns = HidePattern.Saddles | HidePattern.Bands },
+            },
+            Budget = 7000,
+        };
+
+        /// <summary>
+        /// The clubtail, after Ankylosaurus: low and broad as a cart, its back a shell of bone plates with spikes along its flanks and horns at the corners of its skull, and a club of bone on the
+        /// end of a tail stiffened to swing it. The Reich drives them into lines of spears, which break.
+        /// </summary>
+        public static readonly SaurianSpecies Clubtail = new SaurianSpecies
+        {
+            Id = "clubtail", Name = "Clubtail", Form = SaurianForm.Horned,
+            Length = R(9f, 10.2f), Hip = R(0.2f, 0.22f), Skull = R(0.09f, 0.1f), Neck = R(0.05f, 0.06f), Trunk = R(0.34f, 0.38f),
+            Girth = R(0.1f, 0.11f), Breadth = R(1.4f, 1.6f), Belly = R(0.1f, 0.16f), BackSlope = R(-0.04f, 0.02f), NeckRise = R(-0.05f, 0.1f), NeckGirth = R(0.6f, 0.68f),
+            TailRoot = R(0.55f, 0.62f), TailRod = 0.6f, TailDroop = R(-0.02f, 0.04f),
+            LegBones = new Vector3(0.44f, 0.36f, 0.2f), Crouch = R(0.14f, 0.2f), Thigh = R(0.5f, 0.58f), Shin = R(0.3f, 0.35f), Toe = R(0.24f, 0.3f),
+            Arm = R(0.7f, 0.8f), Fingers = 5, Claw = R(0.04f, 0.06f), ArmGirth = R(0.28f, 0.34f),
+            SkullDepth = R(0.36f, 0.42f), SkullWidth = R(0.6f, 0.7f), Snout = R(0.5f, 0.6f), SnoutDepth = R(0.45f, 0.52f), Profile = R(0f, 0.03f),
+            Brow = R(0.04f, 0.06f), Eye = R(0.045f, 0.055f), Teeth = new IntRange(0, 0), Lips = 1f, Beak = R(0.04f, 0.07f),
+            Armour = R(0.05f, 0.06f), Club = R(0.075f, 0.09f),
+            Hides = new[]
+            {
+                new Hide { Back = V(0.12f, 0.11f, 0.07f), Belly = V(0.28f, 0.25f, 0.17f), Pattern = V(0.04f, 0.035f, 0.022f), Display = V(0.36f, 0.22f, 0.05f), Patterns = HidePattern.Mottle | HidePattern.Bands },
+                new Hide { Back = V(0.09f, 0.095f, 0.09f), Belly = V(0.26f, 0.26f, 0.22f), Pattern = V(0.03f, 0.03f, 0.03f), Display = V(0.32f, 0.1f, 0.05f), Patterns = HidePattern.Saddles | HidePattern.Mottle },
+                new Hide { Back = V(0.18f, 0.13f, 0.06f), Belly = V(0.34f, 0.28f, 0.16f), Pattern = V(0.06f, 0.04f, 0.02f), Display = V(0.1f, 0.2f, 0.3f), Patterns = HidePattern.Spots | HidePattern.Bands },
+            },
+            Budget = 10000,
+        };
+
+        /// <summary>
+        /// The domehead, after Pachycephalosaurus: a grazer on two legs with a skull grown into a dome of bone, ringed with knobs, which it lowers and runs at whatever's in its way. Herds that
+        /// got out of the pens keep to the open hills, and don't let anyone near them.
+        /// </summary>
+        public static readonly SaurianSpecies Domehead = new SaurianSpecies
+        {
+            Id = "domehead", Name = "Domehead", Form = SaurianForm.Theropod,
+            Length = R(7.2f, 8.2f), Hip = R(0.25f, 0.27f), Skull = R(0.1f, 0.11f), Neck = R(0.1f, 0.12f), Trunk = R(0.22f, 0.24f), NeckRise = R(0.6f, 0.75f),
+            Girth = R(0.07f, 0.078f), Breadth = R(0.8f, 0.9f), Belly = R(0.2f, 0.28f), TailRoot = R(0.65f, 0.75f), TailRod = 0.7f,
+            LegBones = new Vector3(0.38f, 0.38f, 0.24f), Crouch = R(0.28f, 0.34f), Thigh = R(0.6f, 0.68f), Shin = R(0.32f, 0.38f), Toe = R(0.3f, 0.36f),
+            Arm = R(0.45f, 0.55f), Fingers = 4, Claw = R(0.08f, 0.1f),
+            SkullDepth = R(0.42f, 0.5f), SkullWidth = R(0.42f, 0.5f), Snout = R(0.32f, 0.38f), SnoutDepth = R(0.4f, 0.46f), Profile = R(0.02f, 0.05f),
+            Brow = R(0.03f, 0.05f), Eye = R(0.065f, 0.075f), Teeth = new IntRange(0, 0), Lips = 1f, Beak = R(0.02f, 0.04f), Dome = R(0.5f, 0.62f),
+            Hides = new[]
+            {
+                new Hide { Back = V(0.16f, 0.12f, 0.07f), Belly = V(0.34f, 0.29f, 0.19f), Pattern = V(0.05f, 0.035f, 0.02f), Display = V(0.4f, 0.12f, 0.05f), Patterns = HidePattern.Stripes | HidePattern.Bands },
+                new Hide { Back = V(0.1f, 0.12f, 0.08f), Belly = V(0.3f, 0.3f, 0.21f), Pattern = V(0.03f, 0.04f, 0.025f), Display = V(0.38f, 0.32f, 0.06f), Patterns = HidePattern.Spots | HidePattern.Mottle },
+                new Hide { Back = V(0.13f, 0.1f, 0.1f), Belly = V(0.31f, 0.27f, 0.25f), Pattern = V(0.04f, 0.03f, 0.03f), Display = V(0.1f, 0.22f, 0.34f), Patterns = HidePattern.Saddles | HidePattern.Bands },
+            },
+            Budget = 6500,
+        };
+
+        public static readonly SaurianSpecies[] All = { Raptor, Skitter, Spitter, Ravager, Tyrant, Hornback, Giant, Ripper, Wader, Spikeback, Weaver, Shagback, Reaper, Strider, Clubtail, Domehead };
 
         public static SaurianSpecies? Find(string id) => Array.Find(All, species => species.Id == id);
     }

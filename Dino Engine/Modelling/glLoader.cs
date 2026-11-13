@@ -19,7 +19,9 @@ public class glLoader
         {
             indices[i] = vindices[i].index;
         }
-        float[]? shells = mesh.ShellStyle != 0 ? ShellData(mesh) : null;
+        // A ghost's light is drawn on its own after its solid part (glModel.SpectralIndexCount), so nothing may reorder its triangles across where that begins: it grows nothing.
+        bool spectral = mesh.SpectralFrom >= 0 && mesh.SpectralFrom < indices.Length;
+        float[]? shells = mesh.ShellStyle != 0 && !spectral ? ShellData(mesh) : null;
         int shellIndices = shells != null ? ShellsFirst(indices, shells, mesh.getAllNormalsArray(), mesh.ShellStyle, -0.35f) : 0;
         glModel model;
         if (mesh.isUsingBones)
@@ -31,6 +33,7 @@ public class glLoader
         }
 
         model.box = mesh.createAABB();
+        if (spectral) model.SpectralIndexCount = indices.Length - mesh.SpectralFrom;
         if (mesh.joints != null) LoadPlant(model, mesh);
         if (mesh.getAllEdgesArray() is float[] edges) LoadEdges(model, edges);
         if (shells != null && shellIndices > 0)

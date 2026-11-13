@@ -403,8 +403,9 @@ namespace Dino_Engine.Rendering
             _directionalLightRenderer.RenderPass(this);
             _pointLightRenderer.RenderPass(this);
             _spotLightRenderer.RenderPass(this);
-            // The ways' own light, in floats, before the reflections, so that wet ground shows them.
+            // The ways' own light, in floats, before the reflections, so that wet ground shows them, and the light ghosts are made of, likewise.
             _wayRenderer.LightPass(this);
+            _characterRenderer.SpectralPass(this);
             _screenSpaceReflectionRenderer.RenderPass(this);
             _globalIllumination.DrawDebug(this);
         }

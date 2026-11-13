@@ -130,6 +130,15 @@
         /// </summary>
         public static readonly MotionStyle Giant = new MotionStyle { Cadence = 0.8f, Stance = 1f, Bounce = 0.4f, Sway = 0.6f, Lean = 0.45f, Twist = 0.5f, Liveliness = 0.55f, Give = 0.15f, TailSway = 0.75f, TailStiff = 0.12f, Gape = 0.45f, Gallop = 0f, WeightShift = 1f, Variety = 0.06f, LandAhead = 0.46f, StrideDip = 0.05f };
 
+        /// <summary>Eight legs that hardly stop, the body carried level and low between them, quick and then still, and its forelegs up whenever it's roused.</summary>
+        public static readonly MotionStyle Weaver = new MotionStyle { Cadence = 1.15f, Bounce = 0.8f, Sway = 0.5f, Lean = 0.6f, Twist = 0.5f, Liveliness = 1.3f, Give = 1.1f, TailSway = 0.35f, TailStiff = 0.85f, Gape = 0.7f, Pant = 0.3f, HeadLow = 0.1f, Gallop = 0f, Variety = 0.1f };
+
+        /// <summary>
+        /// What the Ossuary called up in light: it goes as if it weighed nothing, gliding rather than striding, hardly rising and falling, its tail streaming behind it like smoke, and a blow
+        /// goes through it more than it moves it.
+        /// </summary>
+        public static readonly MotionStyle Ghost = new MotionStyle { Cadence = 0.82f, Stance = 0.6f, Bounce = 0.25f, Sway = 0.6f, Lean = 0.55f, Twist = 0.6f, Liveliness = 0.45f, Give = 0.5f, TailSway = 1.2f, TailStiff = 0f, ToeIn = 0.05f, Gape = 1.05f, Pant = 0f, HeadLow = 0.06f, Variety = 0.12f, LandAhead = 0.4f };
+
         /// <summary>What's rotting on its feet: head hung, weight rolling from side to side, the tail dragging along behind.</summary>
         public static readonly MotionStyle Rotting = new MotionStyle { Cadence = 0.8f, Stance = 0.65f, Bounce = 0.5f, Sway = 2f, Lean = 0.45f, Twist = 0.6f, Liveliness = 0.3f, Give = 1.1f, TailSway = 0.5f, TailStiff = 0f, ToeIn = 0f, Gape = 0.9f, HeadLow = 0.18f, Crouch = 0.04f, Variety = 0.18f, Gallop = 0f };
 

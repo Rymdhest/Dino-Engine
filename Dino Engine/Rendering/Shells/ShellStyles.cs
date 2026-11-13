@@ -1,4 +1,4 @@
-using OpenTK.Mathematics;
+﻿using OpenTK.Mathematics;
 
 namespace Dino_Engine.Rendering.Shells
 {
@@ -17,6 +17,10 @@ namespace Dino_Engine.Rendering.Shells
         public const byte BearFur = 6;
         public const byte Bristles = 7;
         public const byte RabbitFur = 8;
+        public const byte Plumage = 9;
+        public const byte Shag = 10;
+        public const byte SpiderHair = 11;
+        public const byte Down = 12;
 
         /// <summary>The most there can be, which the GPU's table is sized for (Shells/ShellStyle.glsl's SHELL_STYLES).</summary>
         public const int Most = 16;
@@ -184,8 +188,94 @@ namespace Dino_Engine.Rendering.Shells
             FadeTo = 85f,
         };
 
+        // A feathered dinosaur's coat: filaments, as the fossils show, laid long and close back along the body, in locks that shingle over each other, with the colour of the hide under them.
+        // Seen from where the camera is, it's what makes a feathered thing read as feathered at all: its outline goes soft.
+        private static readonly ShellStyle Feathers = Wolf with
+        {
+            Name = "plumage",
+            Length = 0.13f,
+            ClumpSize = 0.16f,
+            Carpet = 0.36f,
+            HeightVariety = 0.35f,
+            Shape = 0.85f,
+            Stretch = 3.2f,
+            Fringe = 0.3f,
+            StrandSize = 0.014f,
+            Variety = 0.16f,
+            Crease = 0.55f,
+            RootShade = 0.55f,
+            TipTint = new Vector3(1.1f, 1.08f, 1.0f),
+            Translucency = 0.25f,
+            Roughness = 0.8f,
+            Porosity = 0.6f,
+            Lean = 0.75f,
+            Droop = 0.25f,
+            Sway = 0.1f,
+            MostShells = 12,
+        };
+
+        // The long shaggy coat of what the Institute bred for the snow, hanging off the neck and back and flanks, as Yutyrannus's filaments were twenty centimetres long.
+        private static readonly ShellStyle Shaggy = Feathers with
+        {
+            Name = "shag",
+            Length = 0.22f,
+            ClumpSize = 0.22f,
+            Carpet = 0.3f,
+            HeightVariety = 0.4f,
+            Stretch = 3f,
+            Fringe = 0.32f,
+            StrandSize = 0.016f,
+            Variety = 0.18f,
+            Lean = 0.6f,
+            Droop = 0.45f,
+            Sway = 0.14f,
+            MostShells = 16,
+            FadeFrom = 90f,
+            FadeTo = 120f,
+        };
+
+        // Bristles on what walks on eight: stiff hairs standing off its legs and abdomen in rows, pale at their tips, as a tarantula's are, and a soft fuzz under them.
+        private static readonly ShellStyle Bristle = Wolf with
+        {
+            Name = "spider hair",
+            Length = 0.06f,
+            ClumpSize = 0.07f,
+            ClumpWidth = 0.42f,
+            ClumpFill = 0.9f,
+            Carpet = 0.3f,
+            HeightVariety = 0.5f,
+            Shape = 1.25f,
+            Stretch = 2.2f,
+            Fringe = 0.45f,
+            StrandSize = 0.009f,
+            Variety = 0.2f,
+            Crease = 0.5f,
+            RootShade = 0.6f,
+            TipTint = new Vector3(1.3f, 1.24f, 1.12f),
+            Lean = 0.35f,
+            Droop = 0.1f,
+            Sway = 0.05f,
+            MostShells = 10,
+        };
+
+        // Short down over what's small and quick, as young theropods are known to have had: a soft edge, not a coat.
+        private static readonly ShellStyle Fuzz = Feathers with
+        {
+            Name = "down",
+            Length = 0.06f,
+            ClumpSize = 0.08f,
+            Carpet = 0.42f,
+            HeightVariety = 0.3f,
+            Stretch = 2.2f,
+            Fringe = 0.38f,
+            StrandSize = 0.009f,
+            Lean = 0.55f,
+            Droop = 0.15f,
+            MostShells = 8,
+        };
+
         /// <summary>Every style by its number. Index 0 is none, and is never drawn.</summary>
-        public static readonly ShellStyle?[] All = { null, StoneMoss, ForestMoss, TrunkMoss, Wolf, Dire, Bear, Boar, Rabbit };
+        public static readonly ShellStyle?[] All = { null, StoneMoss, ForestMoss, TrunkMoss, Wolf, Dire, Bear, Boar, Rabbit, Feathers, Shaggy, Bristle, Fuzz };
 
         public static ShellStyle? Of(byte style) => style < All.Length ? All[style] : null;
 

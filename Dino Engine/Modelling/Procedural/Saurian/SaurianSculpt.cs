@@ -1,4 +1,4 @@
-using OpenTK.Mathematics;
+﻿using OpenTK.Mathematics;
 
 namespace Dino_Engine.Modelling.Procedural.Saurian
 {
@@ -6,17 +6,19 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
     /// Builds a body's flesh as a field: rounded cones down the line of the body, a belly that hangs below it, muscle on the thighs and calves where it bulges, and a head shaped from ellipsoids along the
     /// skull. What's built here is the shape, and the skin is grown from it.
     /// </summary>
-    public static class SaurianSculpt
+    public static partial class SaurianSculpt
     {
         /// <summary>Everything but the jaw.</summary>
         public static SaurianField Flesh(SaurianBody body)
         {
             var field = new SaurianField { Head = body.Head };
             Line(field, body);
-            Trunk(field, body);
+            if (body.Arachnid) ArachnidBody(field, body);
+            else Trunk(field, body);
             for (int i = 0; i < body.Legs.Length; i++)
             {
                 if (body.Sauropod) Pillar(field, body.Legs[i], LegPart(body.Legs[i]));
+                else if (body.Arachnid) JointedLeg(field, body.Legs[i], LegPart(body.Legs[i]));
                 else Leg(field, body.Legs[i], LegPart(body.Legs[i]));
             }
             foreach (SaurianArm arm in body.Arms) Arm(field, arm);
@@ -51,7 +53,15 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
             return field;
         }
 
-        public static SaurianPart LegPart(SaurianLeg leg) => leg.Front ? (leg.Side > 0f ? SaurianPart.ForeL : SaurianPart.ForeR) : (leg.Side > 0f ? SaurianPart.LegL : SaurianPart.LegR);
+        public static SaurianPart LegPart(SaurianLeg leg) => leg.Pair switch
+        {
+            2 => leg.Side > 0f ? SaurianPart.SecondL : SaurianPart.SecondR,
+            3 => leg.Side > 0f ? SaurianPart.ThirdL : SaurianPart.ThirdR,
+            _ => leg.Front ? (leg.Side > 0f ? SaurianPart.ForeL : SaurianPart.ForeR) : (leg.Side > 0f ? SaurianPart.LegL : SaurianPart.LegR),
+        };
+
+        /// <summary>Whether a part is a leg, of any pair.</summary>
+        public static bool IsLeg(SaurianPart part) => part is SaurianPart.LegL or SaurianPart.LegR or SaurianPart.ForeL or SaurianPart.ForeR or SaurianPart.SecondL or SaurianPart.SecondR or SaurianPart.ThirdL or SaurianPart.ThirdR;
 
         // Down the line of the body, as rounded cones squashed to be deeper than they're wide, as far as the back of the skull and a little into it.
         private static void Line(SaurianField field, SaurianBody body)
@@ -182,6 +192,14 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
                 float z = at * length;
                 float depth = head.DepthAt(z);
                 field.Ellipsoid(SaurianPart.Head, new Vector3(0f, head.Lip(z) + depth * 0.24f, z), new Vector3(head.WidthAt(z), depth, reach * length), length * 0.12f, inHead: true);
+            }
+
+            // A dome of bone over the back of the skull, standing up out of it, as a pachycephalosaur's: in the skull as much as in the flesh.
+            if (head.Dome > 0f)
+            {
+                float z = length * 0.22f;
+                float roof = head.Lip(z) + head.DepthAt(z) * 1.24f;
+                field.Ellipsoid(SaurianPart.Head, new Vector3(0f, roof - head.Dome * 0.25f, z), new Vector3(head.WidthAt(z) * 0.62f, head.Dome * 1.05f, length * 0.24f), length * 0.07f, inHead: true);
             }
 
             // A Roman nose stands up along the snout, and a dished one goes in.

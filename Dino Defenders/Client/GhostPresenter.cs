@@ -1,4 +1,4 @@
-using Dino_Defenders.Gameplay;
+﻿using Dino_Defenders.Gameplay;
 using Dino_Defenders.Progression;
 using Dino_Defenders.Server;
 using Dino_Defenders.Books;
@@ -147,12 +147,27 @@ namespace Dino_Defenders.Client
                 components.Add(new VelocityComponent());
                 components.Add(new FixToTerrainHeightComponent());
 
-                // What a turret's weapon is held by has no feet, to part the grass or make a sound.
+                // What a turret's weapon is held by has no feet, to part the grass or make a sound. Anything as big as a tyrant carries its body high over the grass, as a giant does, so only
+                // its feet press it, each where it lands, and each is felt there too, as a ring through the grass round it (Treads).
                 if (!MinionLooks.Hovers(visual.Value.Model))
                 {
-                    components.Add(new PlantContactComponent(2.7f * scale));
+                    float hips = bearing.Rig.HipHeight * scale;
+                    if (bearing.Rig.Saurian && hips >= Treads.FeltFrom)
+                    {
+                        components.Add(new PlantContactComponent(Treads.FootMarkFor(hips) / Treads.FootShare) { feetOnly = true });
+                        components.Add(new TreadComponent(Treads.ReachFor(hips), hips / 7f));
+                    }
+                    else components.Add(new PlantContactComponent(2.7f * scale));
                     components.Add(new WaterDisturberComponent(0.42f * scale));
                     components.Add(new FootfallComponent());
+                }
+
+                // A ghost gives off wisps of its cold light all over, and the light shines on what's round it (SaurianSpectral, Haunts).
+                if (Dino_Engine.Modelling.Procedural.Saurian.SaurianSpec.Parse(visual.Value.Model) is { Condition: Dino_Engine.Modelling.Procedural.Saurian.SaurianCondition.Ghost })
+                {
+                    Vector3 size = _characters.Resolve(visual.Value.Model).Size;
+                    if (size.X > 1e6f) size = new Vector3(2f, 4f, 6f);
+                    components.Add(new ParticleEffectComponent(Dino_Engine.Particles.Content.Haunts.Ghost, EffectShape.Body(Math.Clamp(0.24f * MathF.Max(size.X, size.Z), 0.4f, 5f) * scale, Math.Clamp(size.Y * 0.85f, 0.5f, 16f) * scale)));
                 }
                 components.Add(new GhostMotionComponent());
                 components.Add(new NetMovedTag());

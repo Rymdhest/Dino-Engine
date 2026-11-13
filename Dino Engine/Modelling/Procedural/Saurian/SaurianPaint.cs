@@ -1,4 +1,4 @@
-using Dino_Engine.Modelling.Procedural.Flora;
+﻿using Dino_Engine.Modelling.Procedural.Flora;
 using Dino_Engine.Modelling.Procedural.Gear;
 using OpenTK.Mathematics;
 
@@ -38,6 +38,47 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
             Vector3 centre = _body.Axis.At(along);
             float deep = MathF.Max(_body.Axis.DeepAt(along), 1e-3f);
             return Math.Clamp((p.Y - centre.Y) / deep, -1.5f, 1.5f);
+        }
+
+        private Vector3 Arachnid(Vector3 p, Vector3 normal, SaurianPart part, Vector3 colour, float along, float h)
+        {
+            SaurianCoat c = _coat;
+            if (SaurianSculpt.IsLeg(part) && (c.Patterns & HidePattern.Ringed) != 0)
+            {
+                SaurianLeg? leg = null;
+                foreach (SaurianLeg each in _body.Legs) if (SaurianSculpt.LegPart(each) == part) leg = each;
+                if (leg != null)
+                {
+                    // How far out along the leg, in its own length: dark at the knee and the ankle, and a pale band between.
+                    float femur = (leg.Knee - leg.Hip).Length, tibia = (leg.Ankle - leg.Knee).Length;
+                    float down = Down(p, leg.Hip, leg.Knee, out float a) <= Down(p, leg.Knee, leg.Ankle, out float b) ? femur * a : femur + tibia * b;
+                    float joint = MathF.Min(MathF.Abs(down - femur), MathF.Abs(down - femur - tibia)) / MathF.Max(femur, 1e-3f);
+                    float band = 0.5f + 0.5f * MathF.Cos(down / MathF.Max(femur * 0.5f, 1e-3f) * MathF.Tau);
+                    colour = Vector3.Lerp(colour, c.Display * 0.8f + c.Belly * 0.2f, Smooth(0.6f, 0.9f, band) * 0.75f * c.Contrast);
+                    colour = Vector3.Lerp(colour, c.Pattern, (1f - Smooth(0.04f, 0.1f, joint)) * 0.85f);
+                }
+            }
+            if (part == SaurianPart.Body && along < _body.HipAt && (c.Patterns & HidePattern.Chevrons) != 0)
+            {
+                // Arrowheads pointing forward down the middle of the back of the abdomen.
+                Vector3 centre = _body.Axis.At(along);
+                Vector3 way = _body.Axis.Way(along);
+                Vector3 across = Vector3.Cross(Vector3.UnitY, way);
+                float wide = MathF.Max(_body.Axis.WideAt(along), 1e-3f);
+                float side = MathF.Abs(Vector3.Dot(p - centre, across)) / wide;
+                float period = _body.HipAt * 0.16f;
+                float wave = along / period - side * 1.4f;
+                float mark = Smooth(0.55f, 0.75f, 0.5f + 0.5f * MathF.Sin(wave * MathF.Tau)) * Smooth(0.15f, 0.55f, h) * (1f - Smooth(0.55f, 0.85f, side));
+                colour = Vector3.Lerp(colour, c.Display, mark * 0.9f * c.Contrast);
+            }
+            return colour;
+        }
+
+        private static float Down(Vector3 p, Vector3 a, Vector3 b, out float t)
+        {
+            Vector3 ab = b - a;
+            t = Math.Clamp(Vector3.Dot(p - a, ab) / MathF.Max(ab.LengthSquared, 1e-9f), 0f, 1f);
+            return (a + ab * t - p).Length;
         }
 
         public Vector3 Hide(Vector3 p, Vector3 normal, SaurianPart part, out int material)
@@ -146,11 +187,28 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
                 colour *= 1f - 0.4f * ring;
             }
 
+            // A beak is horn, and a dome is what's shown off.
+            if (part == SaurianPart.Head && !_body.Head.Sauropod && (_body.Head.Beak > 0f || _body.Head.Dome > 0f))
+            {
+                SaurianHead head = _body.Head;
+                Vector3 local = head.ToHead(p);
+                if (head.Beak > 0f) colour = Vector3.Lerp(colour, c.Horn * 0.8f, Smooth(head.Length * 0.8f, head.Length * 0.9f, local.Z));
+                if (head.Dome > 0f)
+                {
+                    float roof = head.Lip(local.Z) + head.DepthAt(local.Z) * 1.24f;
+                    float near = MathF.Exp(-MathF.Pow((local.Z - head.Length * 0.22f) / (head.Length * 0.22f), 2f));
+                    colour = Vector3.Lerp(colour, Vector3.Lerp(c.Display, c.Horn, 0.35f), near * Smooth(roof - head.Dome * 0.2f, roof + head.Dome * 0.4f, local.Y) * 0.8f);
+                }
+            }
+
             // A throat that's shown off.
             if (onNeck && _body.Head.Throat > 0f && h < -0.2f && along > _body.NeckTopAt - (_body.HeadAt - _body.NeckTopAt) * 0.4f)
             {
                 colour = Vector3.Lerp(colour, c.Display, Smooth(-0.2f, -0.6f, h) * 0.9f);
             }
+
+            // What walks on eight has its legs ringed, a band at every joint and between, and a row of arrowheads down the top of its abdomen.
+            if (_body.Arachnid) colour = Arachnid(p, normal, part, colour, along, h);
 
             // Feet are darker, and so is everything near the ground.
             if (part is not SaurianPart.Body and not SaurianPart.Head)

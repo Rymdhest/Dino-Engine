@@ -1,4 +1,4 @@
-using Dino_Engine.ECS.Components;
+﻿using Dino_Engine.ECS.Components;
 using Dino_Engine.Modelling.Procedural.Gear;
 using OpenTK.Mathematics;
 
@@ -8,7 +8,7 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
     /// The small hard parts that go on a skin: teeth, eyes, toes and claws, fingers, horns, a frill, crests and quills. Each hangs from one bone, as each is a solid thing. Anything that would be smaller
     /// than a pixel from the game's camera isn't made at all: a body is paid for in triangles thousands of times over.
     /// </summary>
-    public static class SaurianParts
+    public static partial class SaurianParts
     {
         private const float Smallest = 0.045f;     // Metres. About a pixel and a half from where the camera is.
         private static readonly Vector3 Tooth = new Vector3(0.6f, 0.55f, 0.44f);
@@ -190,6 +190,11 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
             foreach (SaurianLeg leg in body.Legs)
             {
                 bool left = leg.Side > 0f;
+                if (body.Arachnid)
+                {
+                    LegClaw(mesh, body, leg, claw);
+                    continue;
+                }
                 if (body.Sauropod)
                 {
                     PillarFoot(mesh, leg, claw, leg.Front ? (left ? BoneType.HandL : BoneType.HandR) : (left ? BoneType.ToeL : BoneType.ToeR));

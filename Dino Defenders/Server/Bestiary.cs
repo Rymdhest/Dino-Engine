@@ -1,4 +1,4 @@
-using Dino_Defenders.Books;
+﻿using Dino_Defenders.Books;
 using Dino_Defenders.Gameplay;
 using Dino_Defenders.Progression;
 using Dino_Defenders.Stats;
@@ -276,11 +276,14 @@ namespace Dino_Defenders.Server
             Mods = Hide.Append(More(Stat.Armour, 60f)).Append(Flat(Stat.PhysicalReduction, 8f)).ToArray(), Look = "dino:hornback.reich.", Variants = 4, Scale = 0.85f, Bulk = 2.1f,
         };
 
-        /// <summary>A commander's war-beast, and what holds a land for the Reich. Tyrants are only ever met as what a land's freedom depends on.</summary>
+        /// <summary>
+        /// A commander's war-beast, and what holds a land for the Reich: the greatest hunter there is, grown to twice a person's height at the hip and dressed in the Reich's regalia. Tyrants are
+        /// only ever met as what a land's freedom depends on, and it fights like it: a roar that stops whoever hears it, a tail that clears the ground round it, a stamp, and jaws that go through iron.
+        /// </summary>
         public static readonly EnemyKind Tyrant = new EnemyKind
         {
-            Id = "tyrant", Name = "Tyrant", Books = new[] { Shelf.Roar, Shelf.TailSweep, Shelf.Stomp, Shelf.CrushingJaws }, MoveSpeed = 6.6f, Health = 1.35f, Damage = 1.15f, AggroRadius = 30f, LeashRadius = 120f,
-            Mods = Hide.Append(More(Stat.Armour, 80f)).Append(Inc(Stat.AilmentTaken, -50f)).ToArray(), Look = "dino:tyrant.reich.", Scale = 0.9f, Bulk = 1.7f,
+            Id = "tyrant", Name = "Tyrant", Books = new[] { Shelf.Roar, Shelf.TailSweep, Shelf.Stomp, Shelf.CrushingJaws }, MoveSpeed = 7f, Health = 1.5f, Damage = 1.25f, AggroRadius = 32f, LeashRadius = 120f,
+            Mods = Hide.Append(More(Stat.Armour, 80f)).Append(Inc(Stat.AilmentTaken, -50f)).ToArray(), Look = "dino:tyrant.reich.", Scale = 0.95f, Bulk = 1.7f,
         };
 
         /// <summary>A tyrant the Ossuary raised straight out of the rock it lay in, with nothing on its bones but the light that moves them.</summary>
@@ -356,6 +359,120 @@ namespace Dino_Defenders.Server
             Mods = Hide.Append(More(Stat.Armour, 60f)).Append(Inc(Stat.AilmentTaken, -20f)).ToArray(), Look = "dino:spikeback.reich.", Variants = 3, Scale = 0.85f, Bulk = 1.9f,
         };
 
+        // What the Ossuary called up in light: cold to the touch and colder to be touched by, no blood to lose, hard to land a blow on, and nothing for venom to work on. Storms go through it.
+        private static readonly Mod[] Spectral = { Resist(Tags.Cold, 50f), Resist(Tags.Poison, 60f), Resist(Tags.Lightning, -25f), Inc(Stat.Evasion, 60f), GainAs(DamageType.Physical, DamageType.Cold, 40f), Flat(Stat.AilmentAvoid, 100f, Tags.Bleed) };
+
+        /// <summary>The Institute's eight-legged hunter, lost from its pens into the deep woods, where it waits for whatever comes under it and spits before it bites.</summary>
+        public static readonly EnemyKind Weaver = new EnemyKind
+        {
+            Id = "weaver", Name = "Weaver", Books = new[] { Shelf.VenomSpit, Shelf.HungryBite }, MoveSpeed = 9.4f, Health = 0.75f, Damage = 0.62f, AggroRadius = 26f,
+            Mods = new[] { Resist(Tags.Poison, 60f), Chance(Tags.Venom, 30f), Inc(Stat.AttackSpeed, 15f) }, Look = "dino:weaver.", Variants = 3, Bulk = 1.6f,
+        };
+
+        /// <summary>The Institute's answer to the snow: a tyrant's kin in a shaggy coat, driven by the Reich where its cold-blooded beasts die.</summary>
+        public static readonly EnemyKind Shagback = new EnemyKind
+        {
+            Id = "shagback", Name = "Shagback", Books = new[] { Shelf.Stomp, Shelf.CrushingJaws }, MoveSpeed = 7.4f, Health = 2.6f, Damage = 1.35f, AggroRadius = 26f,
+            Mods = new[] { Resist(Tags.Cold, 50f), Resist(Tags.Poison, 15f), More(Stat.Armour, 30f), Inc(Stat.AilmentTaken, -20f) }, Look = "dino:shagback.reich.", Variants = 3, Scale = 0.85f, Bulk = 1.9f,
+        };
+
+        /// <summary>Shagbacks that got away into the high pines, where nothing else that big can live.</summary>
+        public static readonly EnemyKind WildShagback = new EnemyKind
+        {
+            Id = "wild-shagback", Name = "Wild Shagback", Books = new[] { Shelf.Stomp, Shelf.CrushingJaws }, MoveSpeed = 7.6f, Health = 2.4f, Damage = 1.35f, AggroRadius = 26f,
+            Mods = new[] { Resist(Tags.Cold, 50f), Resist(Tags.Poison, 15f), More(Stat.Armour, 20f) }, Look = "dino:shagback.", Variants = 3, Scale = 0.85f, Bulk = 1.9f,
+        };
+
+        /// <summary>A grazer the Institute grew into a war-beast: arms as long as it is tall, with a scythe for a claw on each, which the Reich sets on lines of spears.</summary>
+        public static readonly EnemyKind Reaper = new EnemyKind
+        {
+            Id = "reaper", Name = "Reaper", Books = new[] { Shelf.CrushingJaws, Shelf.RakingBite }, MoveSpeed = 7.6f, Health = 2.2f, Damage = 1.4f, AggroRadius = 24f,
+            Mods = Hide.Append(Inc(Stat.AttackSpeed, 10f)).Append(Flat(Stat.CritChance, 8f)).ToArray(), Look = "dino:reaper.reich.", Variants = 3, Scale = 0.9f, Bulk = 1.7f,
+        };
+
+        /// <summary>Flocks of long-legged runners, out of the pens and faster than anything in the open country, that take whatever they can catch and are gone.</summary>
+        public static readonly EnemyKind Strider = new EnemyKind
+        {
+            Id = "strider", Name = "Strider", Books = new[] { Shelf.HungryBite }, MoveSpeed = 9.9f, Health = 0.4f, Damage = 0.36f, AggroRadius = 28f,
+            Mods = new[] { Inc(Stat.Evasion, 50f), Inc(Stat.AttackSpeed, 20f) }, Look = "dino:strider.", Variants = 3, Bulk = 1.1f,
+        };
+
+        /// <summary>Low and broad as a cart, its back a shell of bone and its tail a club. The Reich drives them into lines of spears, which break.</summary>
+        public static readonly EnemyKind Clubtail = new EnemyKind
+        {
+            Id = "clubtail", Name = "Clubtail", Books = new[] { Shelf.TailSweep, Shelf.Gore }, MoveSpeed = 6.4f, Health = 3.2f, Damage = 1.4f, AggroRadius = 20f,
+            Mods = Hide.Append(More(Stat.Armour, 90f)).Append(Flat(Stat.PhysicalReduction, 12f)).Append(Inc(Stat.AilmentTaken, -25f)).ToArray(), Look = "dino:clubtail.reich.", Variants = 3, Scale = 0.85f, Bulk = 2.2f,
+        };
+
+        /// <summary>A grazer on two legs with a dome of bone for a skull, which it lowers and runs at whatever's in its way. Herds of them got out, and keep to the open hills.</summary>
+        public static readonly EnemyKind Domehead = new EnemyKind
+        {
+            Id = "domehead", Name = "Domehead", Books = new[] { Shelf.Gore, Shelf.Bite }, MoveSpeed = 8.6f, Health = 1.2f, Damage = 0.9f, AggroRadius = 22f,
+            Mods = new[] { More(Stat.Armour, 30f), Inc(Stat.AilmentTaken, -15f) }, Look = "dino:domehead.", Variants = 3, Bulk = 1.3f,
+        };
+
+        /// <summary>What the Ossuary called up where a raptor's bones were too far gone to stand: its light alone, round what's left of them, still hunting.</summary>
+        public static readonly EnemyKind GhostRaptor = new EnemyKind
+        {
+            Id = "ghost-raptor", Name = "Ghost Raptor", Books = new[] { Shelf.RakingBite }, MoveSpeed = 9f, Health = 0.45f, Damage = 0.45f, AggroRadius = 24f,
+            Mods = Spectral, Look = "dino:raptor.ghost.", Variants = 3, Bulk = 1.2f,
+        };
+
+        public static readonly EnemyKind GhostRavager = new EnemyKind
+        {
+            Id = "ghost-ravager", Name = "Ghost Ravager", Books = new[] { Shelf.Stomp, Shelf.RakingBite }, MoveSpeed = 7.2f, Health = 2f, Damage = 1.3f, AggroRadius = 26f,
+            Mods = Spectral.Append(More(Stat.Armour, 20f)).ToArray(), Look = "dino:ravager.ghost.", Variants = 2, Scale = 0.85f, Bulk = 1.8f,
+        };
+
+        public static readonly EnemyKind GhostRipper = new EnemyKind
+        {
+            Id = "ghost-ripper", Name = "Ghost Ripper", Books = new[] { Shelf.TailSweep, Shelf.RakingBite }, MoveSpeed = 8.6f, Health = 1.2f, Damage = 0.95f, AggroRadius = 26f,
+            Mods = Spectral, Look = "dino:ripper.ghost.", Variants = 2, Scale = 0.9f, Bulk = 1.7f,
+        };
+
+        public static readonly EnemyKind GhostWeaver = new EnemyKind
+        {
+            Id = "ghost-weaver", Name = "Ghost Weaver", Books = new[] { Shelf.HungryBite }, MoveSpeed = 9f, Health = 0.6f, Damage = 0.55f, AggroRadius = 24f,
+            Mods = Spectral, Look = "dino:weaver.ghost.", Variants = 2, Bulk = 1.6f,
+        };
+
+        /// <summary>A tyrant the Ossuary called back in light where its bones lay too broken to raise: what holds a land now and then, and the coldest thing in it.</summary>
+        public static readonly EnemyKind GhostTyrant = new EnemyKind
+        {
+            Id = "ghost-tyrant", Name = "Ghost Tyrant", Books = new[] { Shelf.Roar, Shelf.TailSweep, Shelf.Stomp, Shelf.CrushingJaws }, MoveSpeed = 6.8f, Health = 1.3f, Damage = 1.25f, AggroRadius = 30f, LeashRadius = 120f,
+            Mods = Spectral.Append(Inc(Stat.AilmentTaken, -50f)).ToArray(), Look = "dino:tyrant.ghost.", Scale = 0.95f, Bulk = 1.6f,
+        };
+
+        public static readonly EnemyKind BoneHornback = new EnemyKind
+        {
+            Id = "bone-hornback", Name = "Bone Hornback", Books = new[] { Shelf.Gore, Shelf.Stomp }, MoveSpeed = 6.2f, Health = 2.6f, Damage = 1.3f,
+            Mods = Undead.Append(More(Stat.Armour, 50f)).ToArray(), Look = "dino:hornback.bones.", Variants = 2, Scale = 0.85f, Bulk = 2f,
+        };
+
+        public static readonly EnemyKind BoneSpikeback = new EnemyKind
+        {
+            Id = "bone-spikeback", Name = "Bone Spikeback", Books = new[] { Shelf.TailSweep, Shelf.Stomp }, MoveSpeed = 6.2f, Health = 2.4f, Damage = 1.25f,
+            Mods = Undead.Append(More(Stat.Armour, 40f)).ToArray(), Look = "dino:spikeback.bones.", Variants = 2, Scale = 0.85f, Bulk = 1.8f,
+        };
+
+        public static readonly EnemyKind BoneWeaver = new EnemyKind
+        {
+            Id = "bone-weaver", Name = "Bone Weaver", Books = new[] { Shelf.HungryBite }, MoveSpeed = 8.4f, Health = 0.65f, Damage = 0.55f,
+            Mods = Undead, Look = "dino:weaver.bones.", Variants = 2, Bulk = 1.5f,
+        };
+
+        public static readonly EnemyKind RottingRavager = new EnemyKind
+        {
+            Id = "rotting-ravager", Name = "Rotting Ravager", Books = new[] { Shelf.Stomp, Shelf.RakingBite }, MoveSpeed = 6.2f, Health = 2.5f, Damage = 1.25f,
+            Mods = Rot.Append(More(Stat.Armour, 20f)).ToArray(), Look = "dino:ravager.rot.", Variants = 2, Scale = 0.85f, Bulk = 1.9f,
+        };
+
+        public static readonly EnemyKind RottingShagback = new EnemyKind
+        {
+            Id = "rotting-shagback", Name = "Rotting Shagback", Books = new[] { Shelf.Stomp, Shelf.CrushingJaws }, MoveSpeed = 6f, Health = 2.6f, Damage = 1.25f,
+            Mods = Rot.Append(More(Stat.Armour, 20f)).ToArray(), Look = "dino:shagback.rot.", Variants = 2, Scale = 0.85f, Bulk = 1.9f,
+        };
+
         /// <summary>The Reich's soldiers: greycoats in iron helms, who march behind the beasts.</summary>
         public static readonly EnemyKind Legionary = new EnemyKind
         {
@@ -417,6 +534,8 @@ namespace Dino_Defenders.Server
             WarRaptor, Raptor, Skitter, Spitter, FeralSpitter, Ravager, WildRavager, Hornback, Tyrant, BoneTyrant, RottingTyrant, BoneRaptor, BoneRavager, RottingRaptor, RottingHornback,
             Legionary, Marksman, Wrangler,
             WarRipper, Ripper, Wader, RottingWader, Spikeback,
+            Weaver, Shagback, WildShagback, Reaper, Strider, Clubtail, Domehead,
+            GhostRaptor, GhostRavager, GhostRipper, GhostWeaver, GhostTyrant, BoneHornback, BoneSpikeback, BoneWeaver, RottingRavager, RottingShagback,
         };
 
         public static EnemyKind? Minion(string? id) => id switch

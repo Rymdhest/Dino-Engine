@@ -1,4 +1,4 @@
-using Dino_Engine.Animation;
+﻿using Dino_Engine.Animation;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.Modelling.Model;
 using Dino_Engine.Modelling.Procedural.Gear;
@@ -33,6 +33,7 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
                 {
                     case "rot": condition = SaurianCondition.Rotting; break;
                     case "bones": condition = SaurianCondition.Bones; break;
+                    case "ghost": condition = SaurianCondition.Ghost; break;
                     case "reich": harnessed = true; break;
                     default: int.TryParse(words[i], out variant); break;
                 }
@@ -64,18 +65,29 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
         {
             SaurianCondition.Bones => MotionStyle.Bones,
             SaurianCondition.Rotting => MotionStyle.Rotting,
+            SaurianCondition.Ghost => MotionStyle.Ghost,
             _ => spec.Species switch
             {
                 "raptor" or "ripper" => MotionStyle.Raptor,
-                "skitter" => MotionStyle.Scurrier,
-                "tyrant" => MotionStyle.Tyrant,
-                "hornback" or "spikeback" => MotionStyle.Horned,
+                "skitter" or "strider" => MotionStyle.Scurrier,
+                "tyrant" or "shagback" => MotionStyle.Tyrant,
+                "hornback" or "spikeback" or "clubtail" => MotionStyle.Horned,
+                "reaper" or "domehead" => MotionStyle.Stalker,
                 "giant" => MotionStyle.Giant,
+                "weaver" => MotionStyle.Weaver,
                 _ => MotionStyle.Stalker,
             },
         };
 
         public static SaurianSpecies SpeciesOf(SaurianSpec spec) => SaurianCatalog.Find(spec.Species) ?? SaurianCatalog.Raptor;
+
+        /// <summary>Which way of being built a kind moves as, which is what its rig says too.</summary>
+        public static BodyPlan PlanOf(SaurianSpecies species) => species.Form switch
+        {
+            SaurianForm.Theropod => BodyPlan.Biped,
+            SaurianForm.Arachnid => BodyPlan.Arachnid,
+            _ => BodyPlan.Quadruped,
+        };
 
         public static Mesh Make(SaurianSpec spec) => Make(spec, out _);
 
@@ -91,12 +103,19 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
                 case SaurianCondition.Rotting:
                     Flesh(mesh, body, rotting: true);
                     break;
+                case SaurianCondition.Ghost:
+                    SaurianSpectral.Build(mesh, body);
+                    break;
                 default:
                     Flesh(mesh, body, rotting: false);
                     break;
             }
-            if (spec.Harnessed && spec.Condition != SaurianCondition.Bones) SaurianHarness.Fit(mesh, body);
-            return mesh.Build();
+            if (spec.Harnessed && spec.Condition is SaurianCondition.Living or SaurianCondition.Rotting) SaurianHarness.Fit(mesh, body);
+            Mesh built = mesh.Build();
+
+            // A coat grows on what's alive, and on what's rotting, in what's left of it. Bones have none.
+            if (body.Species.Coat != 0 && spec.Condition is SaurianCondition.Living or SaurianCondition.Rotting) built.ShellStyle = body.Species.Coat;
+            return built;
         }
 
         private static void Flesh(SaurianMesh mesh, SaurianBody body, bool rotting)
@@ -109,7 +128,7 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
 
             SaurianField flesh = SaurianSculpt.Flesh(body);
             if (rotting) SaurianRot.Wound(flesh, body);
-            bool close = body.Sauropod;     // Seen from a few metres away, and its head bigger on the screen than any hunter's.
+            bool close = body.Sauropod || species.Close;     // Seen from a few metres away, as a giant is, or as big on the screen as a tyrant over the hero.
             SaurianSkin.Grow(mesh, flesh, cell, species.Budget, longest, dress, close);
 
             SaurianField jaw = SaurianSculpt.Jaw(body);
@@ -117,8 +136,10 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
 
             float scale = 1f;
             SaurianParts.Teeth(mesh, body, scale);
+            SaurianParts.Fangs(mesh, body);
             if (rotting) SaurianRot.Eyes(mesh, body);
             else SaurianParts.Eyes(mesh, body, body.Coat.Eye, 1f, GearMaterials.Gem);
+            if (body.Species.EyePairs > 1) SaurianParts.MoreEyes(mesh, body, rotting ? SaurianRot.EyeGlow : body.Coat.Eye, rotting ? 2.4f : 1f, rotting ? GearMaterials.Glow : GearMaterials.Gem);
             SaurianParts.Horns(mesh, body);
             SaurianParts.Crests(mesh, body);
             SaurianParts.Frill(mesh, body);
@@ -126,12 +147,15 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
             SaurianParts.Hands(mesh, body);
             if (!rotting) SaurianParts.Quills(mesh, body, dress);
             SaurianParts.Scutes(mesh, body, dress);
+            SaurianParts.Armour(mesh, body, dress);
+            SaurianParts.Club(mesh, body);
+            SaurianParts.Dome(mesh, body);
             if (rotting) SaurianRot.Bare(mesh, body, dress);
         }
 
         // How fine to sample a body so that its surface comes out at about three times what it's allowed to keep, which is plenty for the decimator to choose from and no more: surface nets make about
         // two triangles for each cell the surface crosses. A thick animal has far more surface than a slender one of the same length, so this goes by its surface and not its length.
-        private static float CellFor(SaurianBody body, int budget)
+        internal static float CellFor(SaurianBody body, int budget)
         {
             float area = 0f;
             SaurianAxis axis = body.Axis;

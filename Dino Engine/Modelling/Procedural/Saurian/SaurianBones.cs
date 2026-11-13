@@ -1,4 +1,4 @@
-using Dino_Engine.ECS.Components;
+﻿using Dino_Engine.ECS.Components;
 using Dino_Engine.Modelling.Procedural.Gear;
 using OpenTK.Mathematics;
 
@@ -15,12 +15,14 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
         private const float Smallest = 0.045f;     // Metres. About a pixel and a half from where the camera is.
         private static readonly Vector3 Light = new Vector3(0.3f, 0.95f, 0.85f);
 
-        public static void Build(SaurianMesh mesh, SaurianBody body)
+        /// <param name="ghost">Whether these are what a ghost holds together (SaurianSpectral): bone gone pale and cold, and its light the ghost's blue rather than the skeletons' green.</param>
+        public static void Build(SaurianMesh mesh, SaurianBody body, bool ghost = false)
         {
             Genes genes = body.Genes.Part("bones");
 
-            // Some come out of the ground bleached, and some as dark as the rock they lay in.
-            Vector3 bone = Vector3.Lerp(new Vector3(0.42f, 0.37f, 0.28f), new Vector3(0.2f, 0.15f, 0.1f), MathF.Pow(genes.Unit("fossil"), 1.6f));
+            // Some come out of the ground bleached, and some as dark as the rock they lay in. What a ghost holds is pale and cold, as it's lit from round it.
+            Vector3 bone = ghost ? new Vector3(0.3f, 0.36f, 0.42f) : Vector3.Lerp(new Vector3(0.42f, 0.37f, 0.28f), new Vector3(0.2f, 0.15f, 0.1f), MathF.Pow(genes.Unit("fossil"), 1.6f));
+            Vector3 light = ghost ? SaurianSpectral.Light : Light;
             Vector3 dark = bone * 0.55f;
             var dress = new SaurianDress(body, new SaurianPaint(body));
             Bare(body, bone);
@@ -33,12 +35,16 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
             SaurianParts.Teeth(mesh, ExposedTeeth(body), 1f);
             SaurianParts.Horns(mesh, body);
             SaurianParts.Frill(mesh, body);
+            SaurianParts.Armour(mesh, body, dress);
+            SaurianParts.Club(mesh, body);
+            SaurianParts.Dome(mesh, body);
 
             // The light that keeps it going, in the eyes and in the chest, which shows through the ribs from above.
-            SaurianParts.Eyes(mesh, body, Light, 3.2f, GearMaterials.Glow);
-            float heart = body.Axis.DeepAt(body.SpineAt + (body.ChestAt - body.SpineAt) * 0.5f) * 0.28f;
+            SaurianParts.Eyes(mesh, body, light, ghost ? 4f : 3.2f, GearMaterials.Glow);
+            if (body.Species.EyePairs > 1) SaurianParts.MoreEyes(mesh, body, light, ghost ? 3.2f : 2.6f, GearMaterials.Glow);
+            float heart = body.Axis.DeepAt(body.SpineAt + (body.ChestAt - body.SpineAt) * 0.5f) * (ghost ? 0.34f : 0.28f);
             Vector3 chest = body.Axis.At(body.SpineAt + (body.ChestAt - body.SpineAt) * 0.5f);
-            mesh.Ball(chest, new Vector3(heart), 2, Light, GearMaterials.Glow, dress.Along(body.SpineAt + (body.ChestAt - body.SpineAt) * 0.5f), 2.4f);
+            mesh.Ball(chest, new Vector3(heart), 2, light, GearMaterials.Glow, dress.Along(body.SpineAt + (body.ChestAt - body.SpineAt) * 0.5f), ghost ? 3.2f : 2.4f);
         }
 
         // A skull shows every tooth: there's nothing to hide them behind.
@@ -276,6 +282,13 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
             float deep = axis.DeepAt(body.HipAt);
             float femur = (body.Legs[0].Knee - body.Legs[0].Hip).Length;
 
+            // What walks on eight has a knob of bone at the root of each leg, round the edge of the body, and no girdle but that.
+            if (body.Arachnid)
+            {
+                foreach (SaurianLeg leg in body.Legs) mesh.Ball(leg.Hip, new Vector3(leg.HipRadius * 1.15f), 1, bone, GearMaterials.Bone, leg.Pair <= 2 ? BoneType.Chest : BoneType.Pelvis);
+                return;
+            }
+
             foreach (SaurianLeg leg in body.Legs)
             {
                 if (leg.Front) continue;
@@ -324,11 +337,11 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
         {
             foreach (SaurianLeg leg in body.Legs)
             {
-                bool left = leg.Side > 0f;
-                BoneType upper = leg.Front ? (left ? BoneType.UpperArmL : BoneType.UpperArmR) : (left ? BoneType.UpperLegL : BoneType.UpperLegR);
-                BoneType lower = leg.Front ? (left ? BoneType.LowerArmL : BoneType.LowerArmR) : (left ? BoneType.LowerLegL : BoneType.LowerLegR);
-                BoneType foot = leg.Front ? (left ? BoneType.HandL : BoneType.HandR) : (left ? BoneType.FootL : BoneType.FootR);
-                float thick = (leg.Knee - leg.Hip).Length * 0.07f;
+                int index = body.IndexOf(leg);
+                BoneType upper = SaurianBody.LegUppers[index];
+                BoneType lower = SaurianBody.LegLowers[index];
+                BoneType foot = SaurianBody.LegEnds[index];
+                float thick = (leg.Knee - leg.Hip).Length * (body.Arachnid ? 0.05f : 0.07f);
 
                 LongBone(mesh, leg.Hip, leg.Knee, thick, bone, upper);
                 Vector3 behind = new Vector3(leg.Side * thick * 0.9f, 0f, -thick * 0.6f);

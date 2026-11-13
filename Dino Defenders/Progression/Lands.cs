@@ -1,4 +1,4 @@
-using Dino_Defenders.Stats;
+﻿using Dino_Defenders.Stats;
 using Dino_Defenders.Tooltips;
 using Dino_Engine.World;
 using Dino_Engine.World.Content;
@@ -313,15 +313,17 @@ namespace Dino_Defenders.Progression
             var offers = new List<LandOffer>(Choices);
             if (IsBossLevel(level))
             {
-                // Each is a different kind of arena holding a different kind of tyrant, so that the choice is where to fight and what.
-                string[] kinds = Chronicle.TyrantKinds;
+                // Each is a different kind of arena holding a different kind of tyrant, so that the choice is where to fight and what: three of the kinds of tyrant there are.
+                var kinds = new List<string>(Chronicle.TyrantKinds);
                 var kindsOfArena = new List<WorldArchetype>(ArenaCatalog.All);
                 for (int i = 0; i < Choices; i++)
                 {
                     WorldRandom one = random.Fork(i);
                     WorldArchetype arena = kindsOfArena[one.Fork("arena").Int(kindsOfArena.Count)];
                     if (kindsOfArena.Count > 1) kindsOfArena.Remove(arena);
-                    int seed = SeedFor(one.Fork("seed"), kinds[i % kinds.Length]);
+                    string kind = kinds[one.Fork("tyrant").Int(kinds.Count)];
+                    if (kinds.Count > 1) kinds.Remove(kind);
+                    int seed = SeedFor(one.Fork("seed"), kind);
                     var request = new WorldRequest(seed, arena.Id, level);
                     offers.Add(new LandOffer(request, Roll(level, one.Fork("terms")), WorldPlan.Create(request), Chronicle.HeraldOf(seed)));
                 }

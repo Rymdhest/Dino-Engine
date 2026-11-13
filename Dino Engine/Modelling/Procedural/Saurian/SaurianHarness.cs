@@ -1,4 +1,4 @@
-using Dino_Engine.ECS.Components;
+﻿using Dino_Engine.ECS.Components;
 using Dino_Engine.Modelling.Procedural.Gear;
 using OpenTK.Mathematics;
 
@@ -18,6 +18,12 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
 
         public static void Fit(SaurianMesh mesh, SaurianBody body)
         {
+            // A commander's own beast wears the Reich's regalia, and not a working harness.
+            if (body.Species.Regalia && !body.OnFour)
+            {
+                SaurianRegalia.Fit(mesh, body);
+                return;
+            }
             var dress = new SaurianDress(body, new SaurianPaint(body));
             SaurianAxis axis = body.Axis;
             bool big = body.Length >= 10f;
@@ -119,7 +125,7 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
         }
 
         // A plate on the back between the shoulders and the hips, carrying a pole, and the Reich's pennant flying from it.
-        private static void Standard(SaurianMesh mesh, SaurianBody body, SaurianDress dress)
+        internal static void Standard(SaurianMesh mesh, SaurianBody body, SaurianDress dress)
         {
             SaurianAxis axis = body.Axis;
             float at = body.HipAt + (body.ChestAt - body.HipAt) * 0.55f;

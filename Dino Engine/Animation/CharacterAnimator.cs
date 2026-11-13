@@ -1117,8 +1117,9 @@ namespace Dino_Engine.Animation
 
         // ---- Eight legs.
 
-        private const float StrikeRaise = 0.9f;     // Of a leg, how high a foreleg comes up off where it stands to strike or threaten,
-        private const float StrikeReach = 0.55f;    // and how far forward.
+        private const float StrikeRaise = 1.7f;     // Of a leg, how high a foreleg comes up off where it stands to strike or threaten,
+        private const float StrikeReach = 0.6f;     // how far forward,
+        private const float StrikeSpread = 0.45f;   // and how far out to its side, as a threat is made as wide as it can be.
 
         // What walks on eight hangs its body between knees that stand higher than it, as a spider does. The body is carried level at whatever height its feet allow, front and back each by their
         // own four legs, and rocks a little as each set of four comes down; it turns where it's going, and keeps its head on what it means to bite. Its forelegs come up off the ground to strike
@@ -1144,7 +1145,7 @@ namespace Dino_Engine.Animation
             float hipWanted = MathF.Min(GirdleAllows(0, 2, BoneType.Pelvis, 0f, hipStand, leg), GirdleAllows(6, 8, BoneType.Pelvis, 0f, hipStand, leg));
             Spring.Step(ref _hipHeight, ref _hipHeightSpeed, hipWanted, heightHalfLife, life);
             float chestStand = chestRest.Y + front - sink;
-            float chestWanted = MathF.Min(GirdleAllows(2, 4, BoneType.Chest, 0f, chestStand, leg), GirdleAllows(4, 6, BoneType.Chest, 0f, chestStand, leg)) + body.Rise * leg * weight * 0.35f;
+            float chestWanted = MathF.Min(GirdleAllows(2, 4, BoneType.Chest, 0f, chestStand, leg), GirdleAllows(4, 6, BoneType.Chest, 0f, chestStand, leg)) + body.Rise * leg * weight * 0.6f;
             Spring.Step(ref _foreHeight, ref _foreHeightSpeed, chestWanted, heightHalfLife, life);
             float slope = MathF.Atan2(_foreHeight - _hipHeight - (chestRest.Y - pelvisRest.Y), length);
 
@@ -1184,17 +1185,19 @@ namespace Dino_Engine.Animation
             Chain(BoneType.Chest, BoneType.Spine);
 
             PoseSaurianHead(input, gesture, chestSmooth, 0f, life, deltaTime, transition, _dazed * 0.2f);
-            PoseSaurianTail(pelvisSmooth, pitch * 0.4f + 0.04f * _alert, body.Tail * weight, life);
+            // The abdomen keeps itself level as the body tips under it, so that rearing up on its hind legs lifts it clear rather than driving it into the ground behind.
+            PoseSaurianTail(pelvisSmooth, -pitch * 3f + 0.1f * _alert, body.Tail * weight, life);
 
             // The forelegs come up to strike, and to threaten whatever it's watching, and the second pair a little with them: lifted up and forward from where they stand, which the feet
             // themselves never leave, so that they're back on the very spot when it's over.
             float raise = MathF.Max(body.Rise, 0f) * weight + MathF.Max(body.Head, 0f) * weight * 0.7f + _alert * 0.1f;
             if (raise <= 0f) return;
             Vector3 lift = new Vector3(0f, StrikeRaise * leg, StrikeReach * leg) * raise;
-            _ankles[2] += lift;
-            _ankles[3] += lift;
-            _ankles[4] += lift * 0.3f;
-            _ankles[5] += lift * 0.3f;
+            Vector3 spread = new Vector3(StrikeSpread * leg * raise, 0f, 0f);
+            _ankles[2] += lift + spread;
+            _ankles[3] += lift - spread;
+            _ankles[4] += lift * 0.35f + spread * 0.5f;
+            _ankles[5] += lift * 0.35f - spread * 0.5f;
         }
 
         private float _tailSwing;

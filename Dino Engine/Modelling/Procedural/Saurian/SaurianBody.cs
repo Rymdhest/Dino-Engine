@@ -150,6 +150,7 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
     public sealed class SaurianLeg
     {
         public float Side;
+        public int Pair;        // Which pair, from the front, on what walks on eight; 0 on anything else.
         public Vector3 Hip, Knee, Ankle, Ball;
         public float HipRadius, KneeRadius, AnkleRadius, BallRadius;
         public float ToeLength;
@@ -178,6 +179,7 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
         public int Teeth;
         public float Tooth, Lips;
         public float Beak, NoseHorn, Frill, FrillSpikes;
+        public float Dome;              // How high a dome of bone stands over the back of the skull, in metres.
         public int FrillPoints;
         public float EyeAt;             // How far along it the eyes are.
 
@@ -261,7 +263,7 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
     /// <summary>
     /// One dinosaur's body: every measurement of it, drawn from its species and a seed. The rig and the skin are both made from this, so the bones are always where the flesh is. Nothing here touches a GPU.
     /// </summary>
-    public sealed class SaurianBody
+    public sealed partial class SaurianBody
     {
         public readonly SaurianSpecies Species;
         public readonly Genes Genes;
@@ -287,6 +289,8 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
 
         public float Quills;            // How long the mane is, or 0 for none.
         public float Scutes;
+        public float Armour;            // How big the plates over its back are, or 0 for none.
+        public float Club;              // How big the club at the end of its tail is, or 0 for none.
         public bool Feathered => Quills > 0f;
 
         /// <summary>In the Reich's harness, which comes with its paint.</summary>
@@ -300,19 +304,27 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
         /// <summary>A long-necked giant on four pillars.</summary>
         public bool Sauropod => Species.Form == SaurianForm.Sauropod;
 
+        /// <summary>On eight legs, with a narrow waist and a swollen abdomen.</summary>
+        public bool Arachnid => Species.Form == SaurianForm.Arachnid;
+
         public SaurianBody(SaurianSpecies species, ulong seed)
         {
             Species = species;
             Genes = new Genes(seed);
             Genes shape = Genes.Part("shape");
             Length = shape.Range("length", species.Length);
-            Legs = new SaurianLeg[OnFour ? 4 : 2];
+            Legs = new SaurianLeg[Arachnid ? 8 : OnFour ? 4 : 2];
             Arms = OnFour ? Array.Empty<SaurianArm>() : new SaurianArm[2];
 
             if (Sauropod)
             {
                 BuildSauropodAxis(shape);
                 BuildPillars(shape);
+            }
+            else if (Arachnid)
+            {
+                BuildArachnidAxis(shape);
+                BuildArachnidLegs(shape);
             }
             else
             {
@@ -326,6 +338,8 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
             Genes hide = Genes.Part("hide");
             Quills = hide.Chance("quills", species.QuillChance) ? hide.Range("quill length", species.Quills) * Length : 0f;
             Scutes = hide.Chance("scutes", species.ScuteChance) ? hide.Range("scute size", species.Scutes) * Length : 0f;
+            Armour = species.Armour.Max > 0f ? hide.Range("armour", species.Armour) * Length : 0f;
+            Club = species.Club.Max > 0f ? hide.Range("club", species.Club) * Length : 0f;
         }
 
         // ---- The line of the body.
@@ -774,10 +788,11 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
                 Frill = g.Range("frill", s.Frill) * length,
                 FrillSpikes = g.Range("frill spikes", s.FrillSpikes) * length,
                 FrillPoints = g.Count("frill points", s.FrillPoints.Min, s.FrillPoints.Max),
-                EyeAt = OnFour ? 0.38f : g.Range("eye at", 0.24f, 0.3f),
+                EyeAt = OnFour && !Arachnid ? 0.38f : g.Range("eye at", 0.24f, 0.3f),
             };
             Head.TipWidth = Head.BackWidth * g.Range("snout", s.Snout);
             Head.TipDepth = Head.BackDepth * g.Range("snout depth", s.SnoutDepth);
+            if (s.Dome.Max > 0f) Head.Dome = g.Range("dome", s.Dome) * length;
 
             // A sauropod's head is a long low snout under a dome over the nostrils, with the eyes set back under the dome and the corner of the mouth far back too.
             if (Sauropod)
@@ -829,6 +844,14 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
 
         // ---- The rig, from the same numbers.
 
+        // Each leg's bones, in the order Legs has them: hind pair, forelegs (an arm's bones, as on anything on four), and the two pairs of what walks on eight between.
+        public static readonly BoneType[] LegUppers = { BoneType.UpperLegL, BoneType.UpperLegR, BoneType.UpperArmL, BoneType.UpperArmR, BoneType.SecondUpperL, BoneType.SecondUpperR, BoneType.ThirdUpperL, BoneType.ThirdUpperR };
+        public static readonly BoneType[] LegLowers = { BoneType.LowerLegL, BoneType.LowerLegR, BoneType.LowerArmL, BoneType.LowerArmR, BoneType.SecondLowerL, BoneType.SecondLowerR, BoneType.ThirdLowerL, BoneType.ThirdLowerR };
+        public static readonly BoneType[] LegEnds = { BoneType.FootL, BoneType.FootR, BoneType.HandL, BoneType.HandR, BoneType.SecondFootL, BoneType.SecondFootR, BoneType.ThirdFootL, BoneType.ThirdFootR };
+
+        /// <summary>Which of <see cref="Legs"/> this is.</summary>
+        public int IndexOf(SaurianLeg leg) => Array.IndexOf(Legs, leg);
+
         /// <summary>Where this body's joints are, and what it adds to a person's rig.</summary>
         public Rig BuildRig()
         {
@@ -851,16 +874,14 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
             Set(BoneType.Tail3, Axis.At(Tail3At));
             Set(BoneType.TailTip, Axis.At(TipAt));
 
-            BoneType[] upper = { BoneType.UpperLegL, BoneType.UpperLegR, BoneType.UpperArmL, BoneType.UpperArmR };
-            BoneType[] lower = { BoneType.LowerLegL, BoneType.LowerLegR, BoneType.LowerArmL, BoneType.LowerArmR };
-            BoneType[] end = { BoneType.FootL, BoneType.FootR, BoneType.HandL, BoneType.HandR };
+            BoneType[] upper = LegUppers, lower = LegLowers, end = LegEnds;
             for (int i = 0; i < Legs.Length; i++)
             {
                 SaurianLeg leg = Legs[i];
                 Set(upper[i], leg.Hip);
                 Set(lower[i], leg.Knee);
                 Set(end[i], leg.Ankle);
-                if (!leg.Front) Set(i == 0 ? BoneType.ToeL : BoneType.ToeR, leg.Ball);
+                if (!leg.Front && i < 2) Set(i == 0 ? BoneType.ToeL : BoneType.ToeR, leg.Ball);
             }
 
             if (OnFour)
@@ -888,7 +909,7 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
                 TailEnd = Axis.At(0f),
                 ToeLength = Legs[0].ToeLength,
                 Neck = Sauropod ? SaurianFrame.LongNeck : SaurianFrame.ShortNeck,
-                FootRoll = Sauropod ? 0.18f : 1f,
+                FootRoll = Sauropod ? 0.18f : Arachnid ? 0f : 1f,
                 Mouth = Head.ToBody(new Vector3(0f, Head.Lip(Head.Length * 0.9f), Head.Length * 0.9f)) - Head.Origin,
             };
             float[] thick = frame.Thickness;
@@ -930,7 +951,7 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
             SaurianLeg hind = Legs[0];
             float ankle = hind.Ankle.Y;
             float forward = MathF.Max(hind.Ball.Z - hind.Ankle.Z, ankle * 0.1f);
-            return new Rig(OnFour ? BodyPlan.Quadruped : BodyPlan.Biped, pivots, ankle, forward, forward * 0.3f, frame);
+            return new Rig(Arachnid ? BodyPlan.Arachnid : OnFour ? BodyPlan.Quadruped : BodyPlan.Biped, pivots, ankle, forward, forward * 0.3f, frame);
         }
     }
 }
