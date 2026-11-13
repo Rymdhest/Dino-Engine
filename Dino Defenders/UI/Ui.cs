@@ -31,6 +31,8 @@ namespace Dino_Defenders.UI
         public static readonly Colour Barrier = GuiColors.Rgba(180, 220, 240);
         public static readonly Colour Experience = GuiColors.Rgba(196, 158, 80);
         public static readonly Colour Good = GuiColors.Rgba(126, 190, 118);
+        /// <summary>What's rolled on something, the same whatever its rarity: only a card's name and edge say how rare it is.</summary>
+        public static readonly Colour Affix = GuiColors.Rgba(238, 226, 150);    // A pale butter yellow: warm like the words that mean something (TermInk), but lighter and less orange, so they still stand out in it.
 
         private static FontFace? _face;
 

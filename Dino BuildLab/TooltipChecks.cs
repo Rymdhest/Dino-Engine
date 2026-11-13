@@ -246,6 +246,15 @@ namespace Dino_BuildLab
             report.Check("Every capitalised word in every sentence is a defined term", unknown.Count == 0, string.Join(" | ", unknown.Take(40).Select(pair => $"'{pair.Key}' in {pair.Value}")));
             report.Check("And no term is written without its capital, as then nothing explains it", lower.Count == 0, string.Join(" | ", lower.Take(40).Select(pair => $"'{pair.Key}' in {pair.Value}")));
 
+            // "more" and "less" are multipliers, after a percentage, in every sentence and not only those made from a modifier: something added is signed, as flat is. Sentences written outside
+            // ModText (a book's room, a sentence's effects, omens, orders) once said "Holds 1 more Page" and "Pierces 2 more Enemies", which no check read.
+            var counted = new List<string>();
+            foreach ((string where, string text) in EverySentence().Distinct())
+            {
+                if (Regex.IsMatch(text, @"(?<![\p{L}])(\d[\d,.]*|one|two|three|four|five|an?|any)\s+(more|less|fewer)\b", RegexOptions.IgnoreCase)) counted.Add($"{where}: {text}");
+            }
+            report.Check("More and less only ever follow a percentage, as they multiply: what's added is signed", counted.Count == 0, string.Join(" | ", counted.Take(12)));
+
             var marked = new List<TermMark>();
             Lexicon.Find("20% increased Attack Speed and 10% more Fire Damage over Time", marked);
             report.Check("The longest form wins", marked.Any(m => m.Term.Name == "Attack Speed") && marked.All(m => m.Term.Name != "Attack") && marked.Any(m => m.Term.Name == "Damage over Time"));

@@ -448,7 +448,7 @@ namespace Dino_Defenders
                     render_.AntiAliasing.Samples = int.Parse(parts[1]);
                     continue;
                 }
-                if (parts.Length != 2 || !(render_.Lighting.Set(parts[0], parts[1]) || render_.Reflections.Set(parts[0], parts[1]) || render_.GlobalIllumination.Set(parts[0], parts[1]))) Console.WriteLine($"No render setting '{setting}'.");
+                if (parts.Length != 2 || !(render_.Lighting.Set(parts[0], parts[1]) || render_.Reflections.Set(parts[0], parts[1]) || render_.GlobalIllumination.Set(parts[0], parts[1]) || render_.Shells.Settings.Set(parts[0], parts[1]))) Console.WriteLine($"No render setting '{setting}'.");
             }
         }
 
@@ -646,6 +646,8 @@ namespace Dino_Defenders
             }
             FinishLoading();
             FinishTitleLoading();
+            // The menu's picture is settled (MENU.md): nothing grows on it that didn't when it was.
+            Dino_Engine.Core.Engine.RenderEngine.Shells.Held = _title != null;
             UpdateMenu();
             _giants?.Update(Dino_Engine.Core.Engine.Delta);
             FollowHero();

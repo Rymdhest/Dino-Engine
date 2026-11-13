@@ -24,6 +24,9 @@ namespace Dino_Engine.Modelling.Procedural.Character
         public Vector3 Coat = new Vector3(0.46f, 0.44f, 0.42f);
         public Vector3 Belly = new Vector3(0.62f, 0.58f, 0.52f);
         public Vector3 Nose = new Vector3(0.03f, 0.03f, 0.03f);
+
+        /// <summary>The coat that grows on it as shells (<see cref="Rendering.Shells.ShellStyles"/>, SHELLS.md): everything but the nose, the eyes and the tusks.</summary>
+        public byte Fur = Rendering.Shells.ShellStyles.WolfFur;
     }
 
     /// <summary>
@@ -36,7 +39,7 @@ namespace Dino_Engine.Modelling.Procedural.Character
         private const float ShoulderWidth = 0.34f;
         private const float Ankle = 0.08f;
 
-        private static VertexMaterial Fur(Vector3 colour) => new VertexMaterial(GearMaterials.Leather, new Colour(colour));
+        private static VertexMaterial Fur(Vector3 colour) => new VertexMaterial(GearMaterials.Leather, new Colour(colour)) { Shell = 1f };
         private static VertexMaterial Flat(Vector3 colour) => new VertexMaterial(GearMaterials.Skin, new Colour(colour));
 
         private static float FrontZ(BeastLook look) => look.Length * 0.42f;
@@ -146,6 +149,7 @@ namespace Dino_Engine.Modelling.Procedural.Character
             }
 
             body.isUsingBones = true;
+            body.ShellStyle = look.Fur;
             return Spread(body, look);
         }
 

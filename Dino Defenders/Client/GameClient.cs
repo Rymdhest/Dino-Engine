@@ -197,12 +197,25 @@ namespace Dino_Defenders.Client
             Render.Advance(seconds);
             if (State == ClientState.Playing)
             {
+                RunDownBuffs((float)seconds);
                 if (Commands.Running) UpdateHero(seconds);
                 else SendCommands();
             }
 
             Ghosts.CreatePending();
             if (Render.Started) Events.Flush(Render.RenderTick);
+        }
+
+        // The server only says how long each buff has left when something about them changes, so the time shown runs down here between. It's only shown: what a buff does goes by which there are and how many stacks, and the server still says when one ends. A world stopped by someone alone stops it too.
+        private void RunDownBuffs(float seconds)
+        {
+            if (Session is { Paused: true } && Alone) return;
+            for (int i = 0; i < Buffs.Count; i++)
+            {
+                ActiveBuff buff = Buffs[i];
+                buff.Left = MathF.Max(buff.Left - seconds, 0f);
+                Buffs[i] = buff;
+            }
         }
 
         private void UpdateHero(double seconds)

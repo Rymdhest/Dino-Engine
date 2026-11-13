@@ -38,6 +38,8 @@ Each part of a modifier has one way of being said, and `check` fails if a senten
 | `Chance` | Rolled for each Hit on each target, and never otherwise |
 | `Recently` | In the last `Rulebook.Recently` seconds |
 | `per 50 Armour, up to 200%` | Counted in whole steps, stopping there. A card adds `(now 40%)` |
+
+These words mean the same in every sentence the game shows, not only those `ModText` makes from a modifier: a book's room, a sentence's effects, an omen, an order, a rule and a definition are held to them too. Something added is signed (`+2 Pages`, `+1 Pierce`), and `more` or `less` beside a count (`Holds 2 more Pages`, `one more trait`) fails `check`, as it reads as a multiplier. Where a line adds to something a stat names, say it through `ModText` (`M.Flat(...).Describe()`) rather than writing it.
 | `8 m`, `0.6 s`, `25%` | Metres, seconds, and a share. Never "nearby", "a moment" or "some" |
 
 A sentence names everything its modifier is narrowed to: every tag in its scope, every condition on who has it and who it's against, and what it's counted per.

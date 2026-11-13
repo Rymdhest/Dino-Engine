@@ -137,7 +137,8 @@ namespace Dino_Engine.GUI.Widgets
             float totalHeight = lines.Count * lineHeight;
             float y = VerticalTextAlignment switch
             {
-                Alignment.Center => content.Y + (content.Height - totalHeight) * 0.5f,
+                // The block's middle line is centred on its capitals, as any single line is (Font.TopFromMiddle).
+                Alignment.Center => content.Y + (content.Height - totalHeight) * 0.5f + (lineHeight * 0.5f + font.TopFromMiddle / scale),
                 Alignment.End => content.Bottom - totalHeight,
                 _ => content.Y,
             };

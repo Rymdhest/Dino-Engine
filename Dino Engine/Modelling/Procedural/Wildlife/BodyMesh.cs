@@ -20,12 +20,18 @@ namespace Dino_Engine.Modelling.Procedural.Wildlife
         public int VertexCount => _vertices.Count;
         public int TriangleCount => _indices.Count / 3;
 
+        /// <summary>How much of <see cref="ShellStyle"/> grows on the corners added from here on, 0 to 1 (SHELLS.md).</summary>
+        public float Shell { get; set; }
+
+        /// <summary>What grows on the body as shells, 0 for nothing (<see cref="Rendering.Shells.ShellStyles"/>).</summary>
+        public byte ShellStyle { get; set; }
+
         /// <summary>Adds a corner, and says which one it is, for <see cref="Triangle"/>.</summary>
         public int Corner(Vector3 position, Vector3 colour, int bone, int next = -1, float share = 0f)
         {
             Vector2 bones = new Vector2(bone, next < 0 ? bone : next);
             Vector2 weights = next < 0 ? new Vector2(1f, 0f) : new Vector2(1f - share, share);
-            _vertices.Add(new Vertex(position, FloraMaterials.Flesh, new Colour(colour), bones, weights, new Vector2(position.X + position.Y, position.Z)));
+            _vertices.Add(new Vertex(position, FloraMaterials.Flesh, new Colour(colour), bones, weights, new Vector2(position.X + position.Y, position.Z)) { Shell = Shell });
             return _vertices.Count - 1;
         }
 
@@ -130,7 +136,7 @@ namespace Dino_Engine.Modelling.Procedural.Wildlife
         /// <summary>The mesh, tied to its bones.</summary>
         public Mesh Build()
         {
-            var mesh = new Mesh(_vertices, _indices) { isUsingBones = true };
+            var mesh = new Mesh(_vertices, _indices) { isUsingBones = true, ShellStyle = ShellStyle };
             mesh.calculateAllNormals();
             return mesh;
         }

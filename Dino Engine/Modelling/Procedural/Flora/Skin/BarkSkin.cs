@@ -126,6 +126,8 @@ namespace Dino_Engine.Modelling.Procedural.Flora
 
             int material = FloraMaterials.Bark(style.Bark.Kind);
             float aroundTiles = MathF.Max(MathF.Round(MathF.Tau * rings[0].Radius / style.Bark.Tile), 1f);
+            // The moss painted into the bark also stands on it as shells (SHELLS.md), as much as was painted.
+            if (style.Bark.Moss > 0f) mesh.ShellStyle = Rendering.Shells.ShellStyles.BarkMoss;
             int previousStart = -1, previousSides = 0;
 
             for (int r = 0; r < rings.Count; r++)
@@ -146,10 +148,11 @@ namespace Dino_Engine.Modelling.Procedural.Flora
                         Position = tip,
                         Normal = ring.Along,
                         Tangent = ring.Side,
-                        Colour = ColourAt(tip, ring.Along, ring.Radius, ring.Share, ring.Light, style),
+                        Colour = ColourAt(tip, ring.Along, ring.Radius, ring.Share, ring.Light, style, out float tipMoss),
                         UV = new Vector2(aroundTiles * 0.5f, ring.Travelled / style.Bark.Tile),
                         Material = material,
                         Joint = joint,
+                        Shell = tipMoss,
                     });
                     for (int i = 0; i < previousSides; i++) mesh.Triangle(previousStart + i, previousStart + i + 1, start);
                     break;
@@ -164,10 +167,11 @@ namespace Dino_Engine.Modelling.Procedural.Flora
                         Position = at,
                         Normal = normal,
                         Tangent = tangent,
-                        Colour = ColourAt(at, normal, ring.Radius, ring.Share, ring.Light, style),
+                        Colour = ColourAt(at, normal, ring.Radius, ring.Share, ring.Light, style, out float moss),
                         UV = new Vector2(aroundTiles * i / sides, ring.Travelled / style.Bark.Tile),
                         Material = material,
                         Joint = joint,
+                        Shell = moss,
                     });
                 }
 
@@ -197,6 +201,7 @@ namespace Dino_Engine.Modelling.Procedural.Flora
                 rim.Colour = heart;
                 rim.UV = new Vector2(i / (float)sides, 0f);
                 rim.Material = material;
+                rim.Shell = 0f;
                 mesh.Add(rim);
             }
             for (int i = 0; i < sides; i++)
@@ -296,9 +301,11 @@ namespace Dino_Engine.Modelling.Procedural.Flora
             return at;
         }
 
-        private static Vector3 ColourAt(Vector3 at, Vector3 normal, float radius, float share, float light, in SkinStyle style)
+        // `moss` is how much of the bark here is under moss, for the shells, which stand only on wood thick enough for a cushion to sit on: a twig is most of a tree's triangles, each bent through its joints for every layer, and moss on it is less than a pixel.
+        private static Vector3 ColourAt(Vector3 at, Vector3 normal, float radius, float share, float light, in SkinStyle style, out float moss)
         {
             BarkForm bark = style.Bark;
+            moss = 0f;
             float young = 1f - MathF.Min(radius / MathF.Max(style.ThickRadius * 0.28f, 0.05f), 1f);
             Vector3 colour = Vector3.Lerp(bark.Colour, bark.YoungColour, young * young);
             if (bark.UpperColour is Vector3 upper)
@@ -317,8 +324,9 @@ namespace Dino_Engine.Modelling.Procedural.Flora
                 float wet = MathF.Exp(-MathF.Max(at.Y, 0f) / MathF.Max(style.TreeHeight * 0.16f, 1f));
                 float faces = Math.Clamp(Vector3.Dot(normal, style.MossAway) * 0.6f + 0.45f, 0f, 1f);
                 float grows = FloraNoise.Fbm(at * 0.9f + new Vector3(9f), style.Seed + 5u, 3);
-                float moss = Smooth(0.42f, 0.62f, grows + (wet * 0.5f + faces * 0.32f - 0.42f) * bark.Moss * 1.8f) * MathF.Min(bark.Moss * 1.6f, 1f);
+                moss = Smooth(0.42f, 0.62f, grows + (wet * 0.5f + faces * 0.32f - 0.42f) * bark.Moss * 1.8f) * MathF.Min(bark.Moss * 1.6f, 1f);
                 colour = Vector3.Lerp(colour, bark.MossColour * (0.7f + 0.6f * grows), moss);
+                moss *= Smooth(0.06f, 0.14f, radius);
             }
 
             // A little darker where it meets the ground, and in the crook of what grew from it.

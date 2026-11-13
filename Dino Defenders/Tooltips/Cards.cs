@@ -15,7 +15,7 @@ namespace Dino_Defenders.Tooltips
         Row,        // A name and a number, the width of the card.
         Cell,       // The same, side by side with the next.
         Text,       // A sentence.
-        Rolled,     // A sentence, in the colour of what it's on.
+        Rolled,     // A sentence rolled on something, in one colour whatever its rarity.
         Dim,        // A sentence that doesn't count at the moment.
         Detail,     // How something was arrived at.
         Lore,
@@ -747,7 +747,7 @@ namespace Dino_Defenders.Tooltips
             }
             card.Cell("Experience", $"{Whole(hero.Experience)} of {Whole(hero.ExperienceToNext)}");
             card.Gap();
-            card.Text($"{Whole(hero.ExperienceToNext - hero.Experience)} more to the next Level");
+            card.Text($"{Whole(hero.ExperienceToNext - hero.Experience)} to go to the next Level");
             return card;
         }
 

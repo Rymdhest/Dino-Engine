@@ -42,8 +42,8 @@ namespace Dino_Defenders.UI
         /// <param name="inks">What it's written in, if it's not on the page itself.</param>
         public static void Mark(GuiContext context, GuiDrawList draw, string text, float size, GuiRect rect, Colour colour, List<HotSpot> spots, IReadOnlyList<Card>? links = null, Inks? inks = null)
         {
-            float height = context.GetFont(Ui.Face, size).LineHeight / context.PixelScale;
-            Ui.Rich(context, draw, text, size, rect.X, rect.Y + (rect.Height - height) * 0.5f, colour, links ?? Array.Empty<Card>(), spots, inks ?? Written);
+            Dino_Engine.GUI.Text.Font font = context.GetFont(Ui.Face, size);
+            Ui.Rich(context, draw, text, size, rect.X, rect.Y + rect.Height * 0.5f + font.TopFromMiddle / context.PixelScale, colour, links ?? Array.Empty<Card>(), spots, inks ?? Written);
         }
     }
 
@@ -597,6 +597,7 @@ namespace Dino_Defenders.UI
         private const float Effect = 30f;          // A buff's or an ailment's square, over the Health bar.
         private const float EffectGap = 4f;
         private const float EffectsAbove = 6f;
+        private const float EffectTime = 13f;      // Under each square, how long it has left.
 
         private static readonly Condition[] Ailments = { Condition.Burning, Condition.Bleeding, Condition.Envenomed, Condition.Chilled, Condition.Frozen, Condition.Shocked, Condition.Hexed, Condition.Stunned };
         private const float HealthHeight = 16f;
@@ -709,7 +710,7 @@ namespace Dino_Defenders.UI
         // What the hero is under, as pictures over the Health bar: buffs from its left end, rimmed in gold, and debuffs from its right end, rimmed in blood, so the two never mix. A debuff is any ailment and any buff that mostly hurts (Harm.IsDebuff). Each side has half the bar, and a full row starts another above it.
         private void DrawEffects(GuiDrawList draw, GameSession session)
         {
-            float bottom = Bounds.Y - PoolsAbove - ManaHeight - PoolGap - HealthHeight - EffectsAbove;
+            float bottom = Bounds.Y - PoolsAbove - ManaHeight - PoolGap - HealthHeight - EffectsAbove - EffectTime;
             int perRow = Math.Max(1, (int)((Bounds.Width * 0.5f) / (Effect + EffectGap)));
             int helping = 0, hurting = 0;
 
@@ -720,6 +721,8 @@ namespace Dino_Defenders.UI
                 TalentIcon icon = TalentIcons.Of(buff.Buff.Mods);
                 float gone = buff.Buff.Duration > 0f ? 1f - Math.Clamp(buff.Left / buff.Buff.Duration, 0f, 1f) : 0f;
                 DrawEffect(draw, place, icon, hurts, gone, buff.Stacks);
+                if (buff.Buff.Duration > 0f && buff.Left > 0f)
+                    Ui.Text(Context!, draw, TimeLeft(buff.Left), 11f, new GuiRect(place.X - EffectGap * 0.5f, place.Bottom + 1f, place.Width + EffectGap, EffectTime - 1f), hurts ? GuiColors.Rgba(240, 150, 130) : Ui.Parchment, Alignment.Center);
                 if (Resting(Context!, place))
                 {
                     ActiveBuff shown = buff;
@@ -740,12 +743,21 @@ namespace Dino_Defenders.UI
             }
         }
 
+        // Tenths in the last few seconds, where they matter, whole seconds up to a minute, then minutes and hours.
+        private static string TimeLeft(float seconds)
+        {
+            if (seconds >= 3600f) return $"{(int)(seconds / 3600f)}h";
+            if (seconds >= 60f) return $"{(int)(seconds / 60f)}m";
+            if (seconds >= 10f) return $"{(int)MathF.Ceiling(seconds)}s";
+            return $"{seconds:0.0}s";
+        }
+
         // Buffs go rightwards from the bar's left end, and what hurts leftwards from its right end.
         private GuiRect EffectPlace(int index, int perRow, float bottom, bool hurts)
         {
             int row = index / perRow, column = index % perRow;
             float x = hurts ? Bounds.Right - Effect - column * (Effect + EffectGap) : Bounds.X + column * (Effect + EffectGap);
-            return new GuiRect(x, bottom - Effect - row * (Effect + EffectGap), Effect, Effect);
+            return new GuiRect(x, bottom - Effect - row * (Effect + EffectGap + EffectTime), Effect, Effect);
         }
 
         // A dark square with the picture in it, rimmed in gold for what helps and in blood for what hurts, darkening from the top as its time runs out.
@@ -775,8 +787,12 @@ namespace Dino_Defenders.UI
             if (gone > 0f) draw.AddRect(new GuiRect(place.X + 1f, place.Y + 1f, place.Width - 2f, (place.Height - 2f) * gone), GuiColors.Rgba(10, 8, 6, 150), 3f);
             if (stacks > 1)
             {
-                var corner = new GuiRect(place.X, place.Bottom - 13f, place.Width - 3f, 12f);
-                Ui.Text(Context!, draw, stacks.ToString(), 11f, corner, Ui.Bright, Alignment.End);
+                // The count on a dark tab in the lower corner, so it reads over any picture.
+                string count = stacks.ToString();
+                float wide = 6f + 6.5f * count.Length;
+                var corner = new GuiRect(place.Right - wide + 3f, place.Bottom - 11f, wide, 13f);
+                draw.AddRect(corner, GuiColors.Rgba(10, 8, 6, 240), 3f, 1f, rim);
+                Ui.Text(Context!, draw, count, 11.5f, corner, Ui.Bright, Alignment.Center);
             }
         }
 
@@ -797,7 +813,7 @@ namespace Dino_Defenders.UI
             var over = new GuiRect(track.X, seal.Y - LevelSeal, track.Width, LevelSeal * 2f);
             if (Resting(Context!, over)) GameUi.Current.Tips.Show(() => Cards.Experience(GameSession.Current?.Hero ?? hero), over, above: true);
 
-            Ui.Text(Context!, draw, hero.Level.ToString(), hero.Level >= 100 ? 10.5f : 12f, new GuiRect(seal.X - LevelSeal, seal.Y - LevelSeal + Crescent.Capitals(Context!, hero.Level >= 100 ? 10.5f : 12f), LevelSeal * 2f, LevelSeal * 2f), Ui.Gold, Alignment.Center);
+            Ui.Text(Context!, draw, hero.Level.ToString(), hero.Level >= 100 ? 10.5f : 12f, new GuiRect(seal.X - LevelSeal, seal.Y - LevelSeal, LevelSeal * 2f, LevelSeal * 2f), Ui.Gold, Alignment.Center);
         }
 
         // As wide as the bar, whatever's on it. They're only drawn, so the mouse goes through them to the world.

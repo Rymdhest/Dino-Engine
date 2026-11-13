@@ -293,7 +293,11 @@ namespace Dino_Defenders.Progression
         }
 
         /// <summary>What it goes by among everything else on the ground: what it was made from, as the rest of its name is only what's rolled on it, and that's on its card. A name that wasn't rolled stays.</summary>
-        public string PlainName() => Unique == null && Lines.Count > 0 && ItemGenerator.BaseOf(this) is { Length: > 0 } made ? made : Name;
+        public string PlainName()
+        {
+            if (IsBook || IsPage || IsSentence && Rarity != Rarity.Unique) return ItemGenerator.FolioBase(this);
+            return Unique == null && Lines.Count > 0 && ItemGenerator.BaseOf(this) is { Length: > 0 } made ? made : Name;
+        }
 
         /// <summary>What this adds to whoever is wearing it. A line whose affix has gone from the game simply does nothing.</summary>
         public IEnumerable<Mod> Mods()
@@ -824,7 +828,9 @@ namespace Dino_Defenders.Progression
             if (item.IsBook || item.IsPage)
             {
                 // A name that was only ever what it was found as says what it now is, and one someone gave it stays.
-                bool found = FolioWords.Concat(OldFolioWords).Any(word => item.Name.StartsWith(word + " ")) || item.Name == FolioAffixes.Name(item, FolioWhat(item));
+                // A Toggle Book found before they were called Aura Books was named for that, and is renamed as well.
+                string rolled = FolioAffixes.Name(item, FolioWhat(item));
+                bool found = FolioWords.Concat(OldFolioWords).Any(word => item.Name.StartsWith(word + " ")) || item.Name == rolled || item.Name == rolled.Replace("Aura Book", "Toggle Book");
                 FolioAffixes.Fix(item);
                 if (found) item.Name = FolioAffixes.Name(item, FolioWhat(item));
                 return;
@@ -958,7 +964,25 @@ namespace Dino_Defenders.Progression
         }
 
         // What a book or a page is, before anything rolled on it: a book by how it goes off and a page by what it does.
-        private static string FolioWhat(Item item) => item.IsPage ? item.Page != null ? PageName(item.Page) : "Page" : item.Mode == BookMode.Active ? "Book" : $"{item.Mode} Book";
+        private static string FolioWhat(Item item) => item.IsPage ? item.Page != null ? PageName(item.Page) : "Page" : BookName(item.Mode);
+
+        /// <summary>What a book is by how it goes off. A Toggle Book is called an Aura Book wherever it's read; the mode keeps its name in saves.</summary>
+        public static string BookName(BookMode mode) => mode switch
+        {
+            BookMode.Trigger => "Trigger Book",
+            BookMode.Toggle => "Aura Book",
+            _ => "Book",
+        };
+
+        /// <summary>
+        /// What a book, a page or a sentence is, with nothing rolled on it named, as gear's base is: "Trigger Book", "Spell Projectile Page", "Turret Page", "Area Sentence". It's what a find on the
+        /// ground is called, so that a crowd of them can be read at a glance. A sentence that only goes on one kind of page is named for that kind.
+        /// </summary>
+        public static string FolioBase(Item item)
+        {
+            if (item.IsSentence) return item.Sentence is Sentence saying && Sentences.Fits(saying) is PageKind kind ? $"{kind} Sentence" : "Sentence";
+            return FolioWhat(item);
+        }
 
         // What a page is called, by what it does.
         private static string PageName(Page page)

@@ -12,6 +12,9 @@ namespace Dino_Engine.Modelling.Procedural.Wildlife
         public Vector3 Scut = new Vector3(0.7f, 0.68f, 0.62f);
         public Vector3 EarTip = new Vector3(0.09f, 0.07f, 0.05f);
         public float Ears = 0.4f;           // Metres long. A hare's are longer, and black at the tip.
+
+        /// <summary>The coat that grows on it as shells, all over but the eyes and ears, which are too fine to carry any (SHELLS.md).</summary>
+        public byte Fur = Rendering.Shells.ShellStyles.RabbitFur;
     }
 
     /// <summary>
@@ -42,7 +45,7 @@ namespace Dino_Engine.Modelling.Procedural.Wildlife
 
         public static Mesh Build(RabbitLook look)
         {
-            var body = new BodyMesh();
+            var body = new BodyMesh { ShellStyle = look.Fur, Shell = 1f };
             Vector3 Coat(float along, float up) => Vector3.Lerp(look.Belly, look.Back, Smooth(-0.35f, 0.3f, up));
 
             // From the rump to the neck: wide at the haunches, drawn in behind the shoulders.
@@ -73,8 +76,10 @@ namespace Dino_Engine.Modelling.Procedural.Wildlife
             for (int side = -1; side <= 1; side += 2)
             {
                 float x = side;
+                body.Shell = 0f;
                 body.Egg(new Vector3(0.088f * x, 0.495f, 0.43f), new Vector3(0.018f, 0.024f, 0.028f), new Vector3(0.012f, 0.01f, 0.01f), Head, 5, 2);
                 Ear(body, look, side > 0 ? EarL : EarR, x);
+                body.Shell = 1f;
 
                 int fore = side > 0 ? ForeL : ForeR;
                 int thigh = side > 0 ? ThighL : ThighR;
@@ -102,7 +107,8 @@ namespace Dino_Engine.Modelling.Procedural.Wildlife
             for (int row = 0; row <= Rows; row++)
             {
                 float t = (float)row / Rows;
-                float wide = 0.062f * MathF.Pow(MathF.Sin(MathF.PI * MathF.Min(0.14f + t * 0.86f, 1f)), 0.7f);
+                // The sine of a whole half turn comes out a hair under nothing, and a power of that isn't a number: the tip was never anywhere, and its triangles were never drawn.
+                float wide = 0.062f * MathF.Pow(MathF.Max(MathF.Sin(MathF.PI * MathF.Min(0.14f + t * 0.86f, 1f)), 0f), 0.7f);
                 Vector3 mid = foot + new Vector3(0.05f * side * t, length * t, -0.09f * t * t);
                 Vector3 colour = Vector3.Lerp(look.Back * 1.3f, look.EarTip, Smooth(0.6f, 0.95f, t));
                 int inner = body.Corner(mid + new Vector3(-wide * side, 0f, 0.012f), colour, bone);

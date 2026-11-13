@@ -214,6 +214,43 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.DrawElementsInstanced(PrimitiveType.Triangles, command.Model.getVertexCount(), DrawElementsType.UnsignedInt, IntPtr.Zero, command.Instances);
         }
 
+        internal override bool WantsShells(RenderEngine renderEngine)
+        {
+            foreach (WildlifeDraw command in geometryCommands)
+            {
+                if (renderEngine.Shells.Draws(command.Model)) return true;
+            }
+            return false;
+        }
+
+        // Fur on what's alive (SHELLS.md): every layer of every one of a shape in one call. What's alive keeps near the hero, so it's as far off as the hero is.
+        internal override void ShellPass(RenderEngine renderEngine)
+        {
+            ShellRenderer shells = renderEngine.Shells;
+            ShaderProgram program = shells.Wildlife;
+            shells.Begin(program, renderEngine);
+            GL.ActiveTexture(TextureUnit.Texture0);
+            GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaAlbedoTextureArray);
+            ShellRenderer.BindWind(renderEngine, touch: false);
+            BindBuffers();
+
+            float distance = (renderEngine.context.focusPoint.Xyz - renderEngine.context.viewPos).Length;
+            foreach (WildlifeDraw command in geometryCommands)
+            {
+                if (!shells.Draws(command.Model)) continue;
+                Rendering.Shells.ShellStyle style = Rendering.Shells.ShellStyles.Of(command.Model.Shell)!;
+                int layers = shells.LayersAt(style, distance, renderEngine);
+                shells.Use(program, command.Model.Shell, layers);
+                program.loadUniformInt("firstBone", command.FirstBone);
+                program.loadUniformInt("bonesEach", command.Bones);
+                program.loadUniformInt("firstTint", command.FirstTint);
+                BindModel(command.Model, true);
+                GL.DrawElementsInstanced(PrimitiveType.Triangles, command.Model.ShellIndexCount, DrawElementsType.UnsignedInt, IntPtr.Zero, command.Instances * layers);
+                ShellRenderer.Count(command.Model.Shell, 1, (long)command.Instances * layers, (long)command.Instances * layers * command.Model.ShellIndexCount / 3);
+            }
+            Unbind();
+        }
+
         internal override void PerformShadowCommand(WildlifeDraw command, Shadow shadow, RenderEngine renderEngine)
         {
             if (shadow.isCubeMap && shadow.cubemapFaceIndex >= 0) shadow.shadowFrameBuffer.bindFace(TextureTarget.TextureCubeMapPositiveX + shadow.cubemapFaceIndex);

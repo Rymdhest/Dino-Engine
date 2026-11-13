@@ -44,6 +44,9 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
         /// <summary>How many point lights have a shadow map at once: the nearest to the hero that can be seen.</summary>
         public int ShadowedPointLights = 4;
 
+        /// <summary>How many point lights have a shadow map at all: the nearest to the hero that can be seen. Past <see cref="ShadowedPointLights"/> a map is drawn once, of what stands, and kept.</summary>
+        public int StillShadowedPointLights = 32;
+
         /// <summary>Metres from the hero past which a point light gives up its shadow map.</summary>
         public float ShadowDistance = 60f;
 
@@ -70,6 +73,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
                 case "bloomthreshold": BloomThreshold = number; break;
                 case "bloomstrength": BloomStrength = number; break;
                 case "shadows": ShadowedPointLights = (int)number; break;
+                case "stillshadows": StillShadowedPointLights = (int)number; break;
                 default: return false;
             }
             return true;

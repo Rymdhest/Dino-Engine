@@ -12,6 +12,9 @@ namespace Dino_Engine.Modelling.Model
         public int materialTextureIndex;
         public Colour colour;
 
+        /// <summary>How much of its model's growth stands on what's made of this, 0 to 1 (<see cref="Vertex.Shell"/>).</summary>
+        public float Shell;
+
         public VertexMaterial(int materialTextureIndex, Colour colour)
         {
             this.materialTextureIndex = materialTextureIndex;

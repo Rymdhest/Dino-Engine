@@ -97,7 +97,7 @@ namespace Dino_Defenders.Tooltips
         public static string Mode(BookMode mode, BookTrigger? when) => mode switch
         {
             BookMode.Trigger => $"Trigger Book: {(when != null ? Waits(when) : "")}",
-            BookMode.Toggle => "Toggle Book: holds Area Pages, every one going at once while it's on",
+            BookMode.Toggle => "Aura Book: holds Area Pages, every one going at once while it's on",
             _ => "",
         };
 
@@ -111,9 +111,10 @@ namespace Dino_Defenders.Tooltips
             PageEffect.Range => $"{N(sentence.GoodBy)}% more Range",
             PageEffect.Cost => $"{N(sentence.GoodBy)}% less Cost",
             PageEffect.UseTime => $"{N(sentence.GoodBy)}% less Use Time",
-            PageEffect.Projectiles => $"{Signed(sentence.GoodBy)} Projectiles",
-            PageEffect.Pierce => $"Pierces {N(sentence.GoodBy)} more Enemies",
-            PageEffect.Chains => $"Chains to {N(sentence.GoodBy)} more Enemies",
+            // What's added to a page is said as the stat it adds to would be, by ModText, so it's signed and named the same as anywhere else.
+            PageEffect.Projectiles => Stats.M.Flat(Stats.Stat.ProjectileCount, sentence.GoodBy).Describe(),
+            PageEffect.Pierce => Stats.M.Flat(Stats.Stat.Pierce, sentence.GoodBy).Describe(),
+            PageEffect.Chains => Stats.M.Flat(Stats.Stat.Chain, sentence.GoodBy).Describe(),
             PageEffect.Stops => "Stops at its target",
             PageEffect.Rides => "Carries you with it, from an Opening Page that starts from you",
             PageEffect.Grounded => "Hitting the ground or anything solid is an Impact",

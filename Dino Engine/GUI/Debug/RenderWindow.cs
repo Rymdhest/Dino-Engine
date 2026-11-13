@@ -100,6 +100,7 @@ namespace Dino_Engine.GUI.Debug
             light.Content.Add(LightingSlider("Strength", 0f, 3f, "0.00", () => lighting.BloomStrength, v => lighting.BloomStrength = v));
             light.Content.Add(DebugUi.Heading("Shadows"));
             light.Content.Add(LightingSlider("Point lights", 0f, 8f, "0", () => lighting.ShadowedPointLights, v => lighting.ShadowedPointLights = (int)v, step: 1f));
+            light.Content.Add(LightingSlider("Kept maps", 0f, 48f, "0", () => lighting.StillShadowedPointLights, v => lighting.StillShadowedPointLights = (int)v, step: 1f));
             light.Content.Add(LightingSlider("Distance", 10f, 120f, "0 m", () => lighting.ShadowDistance, v => lighting.ShadowDistance = v, step: 1f));
 
             // ---------------------------------------------------------------- wind
@@ -348,6 +349,14 @@ namespace Dino_Engine.GUI.Debug
             var giView = new Dropdown(GlobalIlluminationViews, 0);
             giView.SelectionChanged += index => { if (index >= 0) giSettings.Debug = index; };
             gi.Content.Add(DebugUi.LabeledRow("Show", giView));
+
+            // ---------------------------------------------------------------- shells
+            var shellFold = window.Content.Add(new Foldout("Moss and fur (shells)"));
+            var shellSettings = Engine.RenderEngine.Shells.Settings;
+            shellFold.Content.Add(new Checkbox("On").Bind(() => shellSettings.Enabled, value => shellSettings.Enabled = value));
+            shellFold.Content.Add(new Checkbox("On the ground").Bind(() => shellSettings.Ground, value => shellSettings.Ground = value));
+            shellFold.Content.Add(LightingSlider("Layers a pixel", 0.5f, 4f, "0.00", () => shellSettings.LayersPerPixel, v => shellSettings.LayersPerPixel = v));
+            shellFold.Content.Add(LightingSlider("Most layers", 0.25f, 2f, "0.00", () => shellSettings.Most, v => shellSettings.Most = v));
 
             // ---------------------------------------------------------------- camera
             var camera = window.Content.Add(new Foldout("Camera"));

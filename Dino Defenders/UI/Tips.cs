@@ -156,7 +156,7 @@ namespace Dino_Defenders.UI
 
         private static (float size, Colour colour) Style(LineLook look, Colour title, Inks ink) => look switch
         {
-            LineLook.Rolled => (14f, title),
+            LineLook.Rolled => (14f, Ui.Affix),
             LineLook.Dim => (14f, ink.Quiet.MultiplyAlpha(0.72f)),
             LineLook.Detail => (13f, ink.Quiet),
             LineLook.Lore => (13f, ink.Quiet),

@@ -11,6 +11,7 @@
 // Needs Globals.glsl and textureUtil.glsl.
 
 #include Geology.glsl
+#include RockGrowth.glsl
 
 const float ROCK_TILE = 11.3;   // Metres across the texture's grain at the coarser of its two sizes.
 const float ROCK_FINE = 3.7;    // Metres across the same texture over itself. Not a whole number of the first, or they'd beat.
@@ -69,40 +70,7 @@ RockTap rockTap(vec2 uv, vec2 dx, vec2 dy, float material)
 // ---------------------------------------------------------------- Numbers of its own
 // This is included both before and after procedural/fastHash.glsl, so it keeps to hashes of its own.
 
-uint rockMix(uint h)
-{
-    h ^= h >> 16u;
-    h *= 0x7FEB352Du;
-    h ^= h >> 15u;
-    h *= 0x846CA68Bu;
-    h ^= h >> 16u;
-    return h;
-}
-
-// Two mixes are enough to tell neighbours apart, and every rock pixel takes dozens of these.
-uint rockHash(int a, int b, int c)
-{
-    return rockMix(uint(a) * 0x8DA6B343u + rockMix(uint(b) * 0xD8163841u ^ uint(c) * 0xCB1AB31Fu ^ 0x165667B1u));
-}
-
-float rockUnit(uint h)
-{
-    return float(h & 0xFFFFu) * (1.0 / 65535.0);
-}
-
-// Smooth noise, 0..1, for where joints wander and where things gather.
-float rockNoise(vec2 p)
-{
-    vec2 i = floor(p);
-    vec2 f = p - i;
-    vec2 u = f * f * (3.0 - 2.0 * f);
-    ivec2 c = ivec2(i);
-    float a = rockUnit(rockMix(uint(c.x) * 0x8DA6B343u ^ uint(c.y) * 0xD8163841u ^ 0x27D4EB2Fu));
-    float b = rockUnit(rockMix(uint(c.x + 1) * 0x8DA6B343u ^ uint(c.y) * 0xD8163841u ^ 0x27D4EB2Fu));
-    float d = rockUnit(rockMix(uint(c.x) * 0x8DA6B343u ^ uint(c.y + 1) * 0xD8163841u ^ 0x27D4EB2Fu));
-    float e = rockUnit(rockMix(uint(c.x + 1) * 0x8DA6B343u ^ uint(c.y + 1) * 0xD8163841u ^ 0x27D4EB2Fu));
-    return mix(mix(a, b, u.x), mix(d, e, u.x), u.y);
-}
+// rockMix, rockHash, rockUnit and rockNoise are RockGrowth.glsl's, which what grows on rock shares.
 
 // How much of a pixel `pixel` metres across, centred `d` metres from the middle of a line `width` metres wide, the line covers: the exact coverage of a box, so that a line
 // finer than a pixel greys what's under it by as much as it would cover, rather than flickering in and out as the camera moves.
@@ -199,19 +167,16 @@ void rockJointsOfBed(vec3 q, vec3 bedNormal, vec3 along, vec3 across, float thic
 RockBlocks rockBlocks(vec3 p, vec3 n, float pixel)
 {
     RockBlocks r;
-    int kind = int(geologyFace.z + 0.5);
     vec3 bedNormal = normalize(vec3(geologyDip.x, 1.0, geologyDip.y));
     float layerScale = length(vec3(geologyDip.x, 1.0, geologyDip.y));
     vec3 strike = vec3(geologyFrame.x, 0.0, geologyFrame.y);
     vec3 along = normalize(strike - bedNormal * dot(strike, bedNormal));
     vec3 across = cross(bedNormal, along);
 
-    // Partings aren't ruled: a bed's edge goes in and out with what's come off it, and fractures wander across their own planes.
+    // Partings aren't ruled: a bed's edge goes in and out with what's come off it (RockGrowth.glsl's rockLayerAt), and fractures wander across their own planes.
     float a = dot(p, along);
     float c = dot(p, across);
-    // Granite has no beds, only sheets peeling off it, which follow the land far more loosely than a sea floor did.
-    float sheeted = kind == ROCK_GRANITE ? 2.4 : 0.5;
-    float layer = geologyLayerAt(p) + (rockNoise(vec2(a, c) * 0.29 + p.y * 0.07) - 0.5) * sheeted;
+    float layer = rockLayerAt(p);
     vec3 q = p + across * (rockNoise(vec2(a * 0.075, p.y * 0.12) + 11.3) - 0.5) * 1.2
                + along * (rockNoise(vec2(c * 0.075, p.y * 0.12) - 5.9) - 0.5) * 1.2;
 
@@ -220,10 +185,9 @@ RockBlocks rockBlocks(vec3 p, vec3 n, float pixel)
     geologyBedAt(layer, since, until, bed);
     float thick = since + until;
     uint bedHash = rockHash(bed, 17, 3);
-    float hard = geologyToneAt(layer).a;
 
     r.layer = layer;
-    r.soft = 1.0 - smoothstep(0.4, 0.7, hard);
+    r.soft = rockSoftOf(layer);
     r.head = rockAcross(until / layerScale, bedNormal, n);
 
     // The fractures inside a block, thin and mostly dying out, at a fraction of a joint's spacing.
@@ -315,7 +279,7 @@ RockLook rockLook(vec3 position, vec3 normal, vec3 dx, vec3 dy)
     colour *= 1.0 + blocks.laminae * 0.09;
     // Weathering in broad patches, lighter and darker, warmer and cooler, so that no two faces of a mountain are quite the same colour, and the odd crust of lichen on a face.
     float broad = rockNoise(position.xz * 0.06 + position.y * 0.045);
-    float middling = rockNoise(position.xz * 0.19 - position.y * 0.13 + 4.1);
+    float middling = rockMiddling(position);
     float weather = broad * 0.65 + middling * 0.35;
     colour *= mix(0.84, 1.12, weather) * mix(vec3(0.97, 0.99, 1.04), vec3(1.05, 1.0, 0.94), smoothstep(0.25, 0.75, middling));
     float lichen = smoothstep(0.76, 0.86, rockNoise(position.xz * 2.3 + position.y * 1.9)) * smoothstep(0.4, 0.8, broad);
@@ -334,20 +298,15 @@ RockLook rockLook(vec3 position, vec3 normal, vec3 dx, vec3 dy)
     colour *= stains;
     colour = mix(colour, colour * vec3(0.78, 0.66, 0.56), geologyGrain.z * 0.5 * steep * drip * smoothstep(0.5, 0.8, streak));
 
-    // What grows on rock: in the open on whatever faces the sky, and thickest on a soft bed's ledge.
-    float patches = rockNoise(position.xz * 0.43 + position.y * 0.1) * 0.65 + middling * 0.35;
-    float moss = geologyMoss.w * smoothstep(0.25, 0.85, up) * smoothstep(0.62 - 0.35 * geologyMoss.w, 0.86, patches + blocks.soft * 0.12);
+    // What grows on rock and what lies on it (RockGrowth.glsl), which the moss standing on stone as shells shares (SHELLS.md).
+    RockGrowth growth = rockGrowthAt(position, up, blocks.soft, middling);
+    float patches = growth.patches;
+    float moss = growth.moss;
     colour = mix(colour, geologyMoss.rgb * mix(0.75, 1.2, patches), moss * 0.85);
     colour *= 1.0 - 0.5 * blocks.fine;
 
-    // Snow lies on whatever faces the sky where a land has snowfields, drifted into patches, thinnest on edges where the wind takes it and deepest on ledges.
-    float snow = 0.0;
-    if (geologyFace.w > 0.0)
-    {
-        float drifts = rockNoise(position.xz * 0.21 + position.y * 0.11 + 5.3) * 0.7 + patches * 0.3;
-        snow = geologyFace.w * smoothstep(0.5, 0.86, up + (drifts - 0.5) * 0.4 + blocks.soft * 0.1);
-        colour = mix(colour, vec3(0.82, 0.85, 0.9) * mix(0.92, 1.0, drifts), snow);
-    }
+    float snow = growth.snow;
+    if (geologyFace.w > 0.0) colour = mix(colour, vec3(0.82, 0.85, 0.9) * mix(0.92, 1.0, growth.drifts), snow);
 
     RockLook look;
     look.albedo = colour * mix(0.62, 1.0, smoothstep(0.1, 0.62, height));

@@ -17,6 +17,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         private ShaderProgram _instancedModelDepthShader = new ShaderProgram("Model_Instanced.vert", "Model_Depth.frag");
         private ShaderProgram _instancedModelShadowShader = new ShaderProgram("Model_Instanced_shadow.vert", "Shadow.frag");
         private int _instanceVBO;
+        private readonly List<Matrix4> _shellInstances = new();
 
         public InstancedModelRenderer() : base("Model Instanced")
         {
@@ -257,6 +258,83 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
                 DrawElementsType.UnsignedInt,
                 IntPtr.Zero,
                 instanceCount);
+        }
+
+        internal override bool WantsShells(RenderEngine renderEngine)
+        {
+            foreach (ModelRenderCommand command in geometryCommands)
+            {
+                if (renderEngine.Shells.Draws(command.model)) return true;
+            }
+            return false;
+        }
+
+        // Moss on stone, on the rock's skin and on bark (SHELLS.md): every layer of every instance near enough to show any, in one call a model, each instance's
+        // matrix read once for all its layers. The plants bend as their own pass bent them, from the same textures.
+        internal override void ShellPass(RenderEngine renderEngine)
+        {
+            ShellRenderer shells = renderEngine.Shells;
+            ShaderProgram program = shells.Instanced;
+            shells.Begin(program, renderEngine);
+            GL.ActiveTexture(TextureUnit.Texture0);
+            GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaAlbedoTextureArray);
+            BindWindTextures(renderEngine);
+
+            Vector3 camera = renderEngine.context.viewPos;
+            float focusDistance = (renderEngine.context.focusPoint.Xyz - camera).Length;
+            foreach (ModelRenderCommand command in geometryCommands)
+            {
+                glModel model = command.model;
+                if (!shells.Draws(model)) continue;
+                Rendering.Shells.ShellStyle style = Rendering.Shells.ShellStyles.Of(model.Shell)!;
+
+                // Only what's near enough for what grows on it to stand up at all.
+                _shellInstances.Clear();
+                float nearest = float.MaxValue;
+                foreach (Matrix4 matrix in command.matrices)
+                {
+                    model.WorldBounds(matrix, out Vector3 centre, out float radius);
+                    float distance = (centre - camera).Length - radius;
+                    if (distance >= style.FadeTo) continue;
+                    _shellInstances.Add(matrix);
+                    nearest = MathF.Min(nearest, distance);
+                }
+                if (_shellInstances.Count == 0) continue;
+
+                // A big model's bounds reach nearly to the camera, though little of it is: nothing on screen is much nearer than half the way to the hero.
+                int layers = shells.LayersAt(style, MathF.Max(nearest, focusDistance * 0.5f), renderEngine);
+                shells.Use(program, model.Shell, layers);
+                BindPlant(program, model);
+                program.loadUniformVector3f("modelSize", model.Size);
+                program.loadUniformFloat("focusOpens", model.OpensForFocus ? 1f : 0f);
+
+                GL.BindBuffer(BufferTarget.ArrayBuffer, _instanceVBO);
+                Span<Matrix4> matrices = CollectionsMarshal.AsSpan(_shellInstances);
+                GL.BufferData(BufferTarget.ArrayBuffer, matrices.Length * Marshal.SizeOf<Matrix4>(), ref matrices[0], BufferUsageHint.StreamDraw);
+
+                GL.BindVertexArray(model.getVAOID());
+                GL.EnableVertexAttribArray(0);
+                GL.EnableVertexAttribArray(1);
+                GL.EnableVertexAttribArray(2);
+                GL.EnableVertexAttribArray(5);
+                for (int i = 0; i < 4; i++)
+                {
+                    int attribute = 6 + i;
+                    GL.EnableVertexAttribArray(attribute);
+                    GL.VertexAttribPointer(attribute, 4, VertexAttribPointerType.Float, false, sizeof(float) * 16, i * Vector4.SizeInBytes);
+                    // Each instance's matrix holds for all of its layers.
+                    GL.VertexAttribDivisor(attribute, layers);
+                }
+                GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
+
+                GL.DrawElementsInstanced(PrimitiveType.Triangles, model.ShellIndexCount, DrawElementsType.UnsignedInt, IntPtr.Zero, _shellInstances.Count * layers);
+                ShellRenderer.Count(model.Shell, 1, (long)_shellInstances.Count * layers, (long)_shellInstances.Count * layers * model.ShellIndexCount / 3);
+
+                for (int i = 0; i < 4; i++) GL.VertexAttribDivisor(6 + i, 1);
+            }
+
+            for (int i = 0; i < 10; i++) GL.DisableVertexAttribArray(i);
+            GL.BindVertexArray(0);
         }
 
         internal override void PerformShadowCommand(ModelRenderCommand command, Shadow shadow, RenderEngine renderEngine)

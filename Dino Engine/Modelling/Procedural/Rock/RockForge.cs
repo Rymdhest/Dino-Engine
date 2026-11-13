@@ -88,7 +88,15 @@ namespace Dino_Engine.Modelling.Procedural.Rock
             AddRelief(kind, shape, genes, points, triangles);
             SweepUp(points, triangles, form == RockForm.Columns ? SmallestColumn : SmallestPiece);
             Decimator.Reduce(points, triangles, shape.Budget);
-            return Dress(field, shape, points, triangles);
+            FloraMesh mesh = Dress(field, shape, points, triangles);
+            // Moss stands on stone wherever Rock.glsl paints it (SHELLS.md), but for what's too small to hold a cushion.
+            if (form is not (RockForm.Pebble or RockForm.Chip))
+            {
+                mesh.ShellStyle = Rendering.Shells.ShellStyles.RockMoss;
+                // Ground cover tips a stone up to about a quarter turn of a right angle where it's put, which can turn a face a little under level to the sky.
+                mesh.ShellFacing = -0.25f;
+            }
+            return mesh;
         }
 
         private static RockField Design(RockForm form, RockKind kind, Genes genes, in Shape shape)
@@ -771,6 +779,8 @@ namespace Dino_Engine.Modelling.Procedural.Rock
 
             var mesh = new FloraMesh();
             var made = new Dictionary<(int point, Vector3 normal), int>();
+            // Which point each vertex was made from, for the shells (ShellNormals). A vertex is a point and a normal, so there are never more than three to a face.
+            int[] pointOf = System.Buffers.ArrayPool<int>.Shared.Rent(Math.Max(triangles.Count, 1));
             float[] sky = new float[points.Count];
             Array.Fill(sky, -1f);
 
@@ -808,12 +818,49 @@ namespace Dino_Engine.Modelling.Procedural.Rock
                             Joint = -1,
                         });
                         made[(point, key)] = index;
+                        pointOf[index] = point;
                     }
                     corners[i] = index;
                 }
                 mesh.Triangle(corners[0], corners[1], corners[2]);
             }
+            ShellNormals(distance, reach, points, pinned, faceNormals, around, mesh, pointOf);
+            System.Buffers.ArrayPool<int>.Shared.Return(pointOf);
             return mesh;
+        }
+
+        // Which way moss is pushed out of each point (FloraVertex.ShellNormal): every face round it has its say, by area, as one point split into several by a hard
+        // edge has to push all of them the same way or the crease opens. It's as long as it needs to be for the face it leans furthest from to keep the full depth, up to
+        // twice that. A pinned point is shared with the next tile, which can't see these faces, so it goes by the field, as its normal does. Rented, as a tile of the
+        // rock's skin may make nothing for the collector to copy.
+        private static void ShellNormals(Func<Vector3, float> distance, float reach, List<Vector3> points, bool[]? pinned, Vector3[] faceNormals, List<int>[] around, FloraMesh mesh, int[] pointOf)
+        {
+            Vector3[] smooth = System.Buffers.ArrayPool<Vector3>.Shared.Rent(Math.Max(points.Count, 1));
+            float[] least = System.Buffers.ArrayPool<float>.Shared.Rent(Math.Max(points.Count, 1));
+            Array.Fill(least, 1f, 0, points.Count);
+            for (int point = 0; point < points.Count; point++)
+            {
+                if (around[point] == null) continue;
+                Vector3 sum = Vector3.Zero;
+                foreach (int face in around[point]) sum += faceNormals[face];
+                Vector3 normal = sum.LengthSquared > 1e-14f ? sum.Normalized() : Vector3.UnitY;
+                if (pinned != null && pinned[point]) normal = Gradient(distance, points[point], reach * 0.25f, normal);
+                smooth[point] = normal;
+            }
+            for (int v = 0; v < mesh.VertexCount; v++)
+            {
+                int point = pointOf[v];
+                least[point] = MathF.Min(least[point], Vector3.Dot(smooth[point], mesh.Vertices[v].Normal));
+            }
+            for (int v = 0; v < mesh.VertexCount; v++)
+            {
+                int point = pointOf[v];
+                FloraVertex vertex = mesh.Vertices[v];
+                vertex.ShellNormal = smooth[point] / Math.Clamp(least[point], 0.5f, 1f);
+                mesh.Vertices[v] = vertex;
+            }
+            System.Buffers.ArrayPool<Vector3>.Shared.Return(smooth);
+            System.Buffers.ArrayPool<float>.Shared.Return(least);
         }
 
         // How open a point is: the field says how far the nearest rock is, so steps out along the normal that find it nearer than they've come have run into something.

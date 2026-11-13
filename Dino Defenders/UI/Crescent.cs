@@ -170,7 +170,7 @@ namespace Dino_Defenders.UI
             float width = MathF.Max(KeyHeight + 2f, GuiText.MeasureWidth(Context!, key, Ui.Face, KeySize) + 9f);
             var plate = new GuiRect(at.X - width * 0.5f, at.Y + r - KeyHeight * 0.3f, width, KeyHeight);
             draw.AddRect(plate, GuiColors.Rgba(15, 12, 10, 245), KeyHeight * 0.5f, 1f, Ui.Gold.MultiplyAlpha(0.5f));
-            Ui.Text(Context!, draw, key, KeySize, new GuiRect(plate.X, plate.Y + Capitals(Context!, KeySize), plate.Width, plate.Height), Ui.Gold, Alignment.Center);
+            Ui.Text(Context!, draw, key, KeySize, new GuiRect(plate.X, plate.Y, plate.Width, plate.Height), Ui.Gold, Alignment.Center);
         }
 
         // How many talents are waiting, on a gold seal at the hub's upper right, between the two discs nearest it.
@@ -182,28 +182,7 @@ namespace Dino_Defenders.UI
             float r = count.Length > 1 ? 11f : 10f;
             draw.AddCircle(at, r + 1.5f, GuiColors.Rgba(15, 12, 10, 235));
             draw.AddCircle(at, r, Ui.Gold);
-            Ui.Text(Context!, draw, count, 11.5f, new GuiRect(at.X - r, at.Y - r + Capitals(Context!, 11.5f), r * 2f, r * 2f), GuiColors.Rgba(12, 9, 6), Alignment.Center);
-        }
-
-        private static float _capitalHeight = -1f;      // An H's height as a share of the em, in the interface's face.
-
-        /// <summary>
-        /// How far down to move a line of text so that its capitals and figures are centred where it's drawn: a line is centred with its ascent and
-        /// descent, and capitals have neither, so they'd sit high. Worked out from the face's own H.
-        /// </summary>
-        public static float Capitals(GuiContext context, float size)
-        {
-            FontFace face = Ui.Face;
-            if (_capitalHeight < 0f)
-            {
-                float top = 0f;
-                foreach (var contour in face.GetGlyphOutline(face.GetGlyphIndex('H')))
-                    foreach (var point in contour) top = MathF.Max(top, point.Position.Y);
-                _capitalHeight = top > 0f ? top / face.UnitsPerEm : 0.68f;
-            }
-            Font font = context.GetFont(face, size);
-            float capital = _capitalHeight * font.PixelSize;
-            return (font.LineHeight * 0.5f - font.Ascent + capital * 0.5f) / context.PixelScale;
+            Ui.Text(Context!, draw, count, 11.5f, new GuiRect(at.X - r, at.Y - r, r * 2f, r * 2f), GuiColors.Rgba(12, 9, 6), Alignment.Center);
         }
 
         // A stroke along a circle, from one angle to another (degrees up from the right), as short straight pieces.

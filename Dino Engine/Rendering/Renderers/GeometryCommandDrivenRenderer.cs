@@ -32,12 +32,29 @@ namespace Dino_Engine.Rendering.Renderers
             {
                 PerformGeometryCommand(command, renderEngine);
             }
-            geometryCommands.Clear();
 
             FinishGeometry(renderEngine);
             if (trackPerformance) Engine.PerformanceMonitor.finishGPUTask(taskName);
             if (trackPerformance) Engine.PerformanceMonitor.finishCPUTask(taskName+" RENDER");
+
+            // What grows on what was just drawn, from the same commands (ShellRenderer, SHELLS.md).
+            if (geometryCommands.Count > 0 && WantsShells(renderEngine))
+            {
+                string shellTask = Name + " Shells";
+                if (trackPerformance) Engine.PerformanceMonitor.startGPUTask(shellTask);
+                if (trackPerformance) Engine.PerformanceMonitor.startCPUTask(shellTask + " RENDER");
+                ShellPass(renderEngine);
+                if (trackPerformance) Engine.PerformanceMonitor.finishGPUTask(shellTask);
+                if (trackPerformance) Engine.PerformanceMonitor.finishCPUTask(shellTask + " RENDER");
+            }
+            geometryCommands.Clear();
         }
+
+        /// <summary>Whether anything this renderer drew this frame has something growing on it to draw as shells.</summary>
+        internal virtual bool WantsShells(RenderEngine renderEngine) => false;
+
+        /// <summary>Draws what grows on this frame's geometry as shells (ShellRenderer), after it's all been drawn and finished.</summary>
+        internal virtual void ShellPass(RenderEngine renderEngine) { }
         public void ShadowRenderPass(RenderEngine renderEngine)
         {
             string taskName = Name + " Shadow";

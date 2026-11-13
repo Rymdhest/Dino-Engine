@@ -28,15 +28,25 @@ namespace Dino_Engine.ECS.Systems
 
             // All chunks are the same size now, so there is no terrain LOD. A single list for terrain.
             var terrainChunks = new List<TerrainChunkRenderData>();
+            // Those that grow moss to stand up as shells (SHELLS.md), close enough to show any.
+            var mossyChunks = new List<TerrainChunkRenderData>();
+            bool shells = Engine.RenderEngine.Shells.Drawing && Engine.RenderEngine.Shells.Settings.Ground;
+            float mossReach = Rendering.Shells.ShellStyles.Of(Rendering.Shells.ShellStyles.GroundMoss)!.FadeTo;
 
             foreach (Entity entity in visibleChunks)
             {
                 TerrainChunkRenderData chunkCommand = new TerrainChunkRenderData();
                 chunkCommand.chunkPos = world.GetComponent<LocalToWorldMatrixComponent>(entity).value.ExtractTranslation();
                 chunkCommand.size = world.GetComponent<ScaleComponent>(entity).value;
-                chunkCommand.arrayID = world.GetComponent<TerrainChunkComponent>(entity).normalHeightTextureArrayID;
+                TerrainChunkComponent chunk = world.GetComponent<TerrainChunkComponent>(entity);
+                chunkCommand.arrayID = chunk.normalHeightTextureArrayID;
 
                 terrainChunks.Add(chunkCommand);
+                if (shells && chunk.ShellCover > 0.004f)
+                {
+                    Vector2 nearestPoint = Vector2.Clamp(cameraPos.Xz, chunkCommand.chunkPos.Xz, chunkCommand.chunkPos.Xz + chunkCommand.size.Xz);
+                    if (Vector2.Distance(cameraPos.Xz, nearestPoint) < mossReach) mossyChunks.Add(chunkCommand);
+                }
             }
 
             // Grass gets every chunk within its draw distance, also those just outside the view whose blades lean into
@@ -69,7 +79,7 @@ namespace Dino_Engine.ECS.Systems
             Engine.RenderEngine._grassRenderer.SubmitGeometryCommand(new GrassRenderCommand(grassChunks.ToArray(), grass));
 
             // Single terrain command: every chunk is the same size/quality, so no LOD split needed.
-            Engine.RenderEngine._terrainRenderer.SubmitGeometryCommand(new TerrainRenderCommand(terrainChunks.ToArray()));
+            Engine.RenderEngine._terrainRenderer.SubmitGeometryCommand(new TerrainRenderCommand(terrainChunks.ToArray(), mossy: mossyChunks.ToArray()));
         }
 
 

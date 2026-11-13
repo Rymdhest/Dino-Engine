@@ -165,7 +165,7 @@ namespace Dino_Defenders.Tooltips
             Basic("Page", "Goes in a Book and holds Sentences. Found as an Attack or a Spell, and never changes. When a Projectile has an Impact, the Book turns to the next Page, from there.", "Pages");
             Basic("Sentence", "Goes on a Page. Always does one thing for it and one thing against it. A Unique one does something nothing else can.", "Sentences");
             Basic("Trigger Book", "Can't be used by hand. Goes off by itself on your Bar, paying its Cost, each time what it waits for has happened.", "Trigger Books");
-            Basic("Toggle Book", $"Press it on your Bar to turn it on or off. While on, each Pulse does {Share(AuraStrength)} of what it would by hand, and its Cost comes off your Mana Regeneration.", "Toggle Books");
+            Basic("Aura Book", $"Press it on your Bar to turn it on or off. While on, each Pulse does {Share(AuraStrength)} of what it would by hand, and its Cost comes off your Mana Regeneration.", "Aura Books");
             On(Stat.Potency, Word("Potency", $"How strong everything a Page does is, up to {Share(MostPotency)}. Each Page starts from where the last left off. Counts for healing too."));
             On(Tags.Opening, Word("Opening Page", "The first Page of a Book."));
             On(Tags.Turned, Word("Turned Page", "Any Page after the first."));
@@ -176,7 +176,7 @@ namespace Dino_Defenders.Tooltips
             Basic("Circle", "Everything within its Radius.");
             Basic("Line", "A narrow strip, starting from where it starts.");
             Basic("Rectangle", "A wide box. Away from you, it's centred on where it starts.");
-            On(Tags.Attack, Word("Attack", "A Page dealing all your Weapon's Damage, and any more for Attacks. Opening a Book, it takes your Weapon's time, and later ones none. Can be Evaded and Blocked.", "Attacks", "Attack Page", "Attack Pages"));
+            On(Tags.Attack, Word("Attack", "A Page dealing all your Weapon's Damage, and whatever else Attacks are given. Opening a Book, it takes your Weapon's time, and later ones none. Can be Evaded and Blocked.", "Attacks", "Attack Page", "Attack Pages"));
             On(Tags.Spell, Word("Spell", "A Page dealing all your Damage for Spells, mostly from Wands and Staves. Each adds its own cast time, cut by Cast Speed. Can be Blocked, but not Evaded.", "Spells", "Spell Page", "Spell Pages"));
             On(Tags.Hit, Word("Hit", "One Page striking one target. Striking several targets is several Hits.", "Hits"));
             On(Tags.DamageOverTime, Word("Damage over Time", "Dealt each second instead of on a Hit. Only Resistance and Damage Taken reduce it."));
@@ -319,7 +319,7 @@ namespace Dino_Defenders.Tooltips
             On(Tags.Zone, Word("Zone", "Stays on the ground for its Duration.", "Zones"));
             Word("Pulse", "A Zone Hits everything inside it this often.", "Pulses");
             On(Tags.Chaining, Word("Chaining", $"Jumps to the nearest target not yet struck, dealing {Share(1f - ChainFade)} less each jump."));
-            On(Stat.Chain, Word("Chain", $"One more jump. A Projectile finds its next target within {Metres(ProjectileChainReach)}.", "Chains"));
+            On(Stat.Chain, Word("Chain", $"A jump from one target to another. A Projectile finds its next target within {Metres(ProjectileChainReach)}.", "Chains"));
             On(Stat.Pierce, Word("Pierce", "How many targets a Projectile passes through.", "Pierced", "Pierces"));
             On(Stat.ProjectileCount, Word("Projectile Count", "How many are fired at once. Each can Hit the same target."));
             On(Stat.ProjectileSpeed, Basic("Projectile Speed", "Metres a second."));

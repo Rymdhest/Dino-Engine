@@ -776,7 +776,7 @@ namespace Dino_Defenders.UI
         private static string NoRoomIn(Item item, Item holder)
         {
             if (item.Sentence is Sentence sentence && holder.Page != null && !Sentences.GoesOn(sentence, holder.Page.Kind)) return "That Sentence is for another kind of Page";
-            if (item.IsPage && holder.Mode == BookMode.Toggle && item.Page?.Kind != PageKind.Area) return "A Toggle Book holds only Area Pages";
+            if (item.IsPage && holder.Mode == BookMode.Toggle && item.Page?.Kind != PageKind.Area) return "An Aura Book holds only Area Pages";
             if (holder.Summons) return item.IsBook && !Item.FitsMinions(item) ? "Minions only use a pressed Book with no Summon Page in it" : "Its Minions already have one";
             return holder.IsPage ? "There's no room on this Page" : "There's no place in this Book for that";
         }
@@ -785,7 +785,7 @@ namespace Dino_Defenders.UI
         {
             if (to.Shelf == Shelf.Worn && WornSlots.Fits(item, (WornSlot)to.Index)) return "Your pack is full";
             if (to.Shelf != Shelf.Held) return "That doesn't go there";
-            if (item.IsPage && Hero.At(to.Place.Holder) is { Mode: BookMode.Toggle }) return "A Toggle Book holds only Area Pages";
+            if (item.IsPage && Hero.At(to.Place.Holder) is { Mode: BookMode.Toggle }) return "An Aura Book holds only Area Pages";
             if (item.IsPage && Hero.At(to.Place.Holder) is { IsBook: true }) return "Nothing can come after a Summon Page";
             return item.IsSentence && Hero.At(to.Place.Holder) is { IsPage: true } ? "That Sentence is for another kind of Page" : "That doesn't go there";
         }

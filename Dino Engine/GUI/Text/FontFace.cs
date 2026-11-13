@@ -32,6 +32,25 @@ namespace Dino_Engine.GUI.Text
         public int Ascender { get; private set; }
         public int Descender { get; private set; }
         public int LineGap { get; private set; }
+
+        /// <summary>How high a capital stands over the baseline, in font units: the top of 'H', or two thirds of an em in a face without one.</summary>
+        public int CapHeight
+        {
+            get
+            {
+                if (_capHeight < 0)
+                {
+                    float top = 0f;
+                    int index = GetGlyphIndex('H');
+                    if (index != 0)
+                        foreach (var contour in GetGlyphOutline(index))
+                            foreach (var point in contour) top = MathF.Max(top, point.Position.Y);
+                    _capHeight = top > 0f ? (int)MathF.Round(top) : (int)(UnitsPerEm * 0.68f);
+                }
+                return _capHeight;
+            }
+        }
+        private int _capHeight = -1;
         public int GlyphCount { get; private set; }
         public bool HasKerning => _kerning.Count > 0;
 

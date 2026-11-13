@@ -361,16 +361,19 @@ namespace Dino_Defenders.Client
             {
                 Height = 2.3f, Length = 4f, Girth = 0.72f, Skull = 0.46f, Muzzle = 0.66f, Tail = 1.6f, Ears = 0.3f, Hump = 0.14f, Neck = 0.95f,
                 Coat = new Vector3(0.17f, 0.16f, 0.2f), Belly = new Vector3(0.26f, 0.24f, 0.28f),
+                Fur = Dino_Engine.Rendering.Shells.ShellStyles.DireFur,
             },
             ["boar"] = new BeastLook
             {
                 Height = 1.35f, Length = 2.9f, Girth = 0.82f, Skull = 0.46f, Muzzle = 0.56f, Tail = 0.4f, Ears = 0.16f, Tusks = 0.36f, Hump = 0.28f, Neck = 0.42f,
                 Coat = new Vector3(0.42f, 0.24f, 0.13f), Belly = new Vector3(0.5f, 0.34f, 0.22f),
+                Fur = Dino_Engine.Rendering.Shells.ShellStyles.Bristles,
             },
             ["bear"] = new BeastLook
             {
                 Height = 2.3f, Length = 3.9f, Girth = 1.25f, Skull = 0.62f, Muzzle = 0.44f, Tail = 0f, Ears = 0.17f, Hump = 0.34f, Neck = 0.8f,
                 Coat = new Vector3(0.34f, 0.2f, 0.1f), Belly = new Vector3(0.42f, 0.27f, 0.15f),
+                Fur = Dino_Engine.Rendering.Shells.ShellStyles.BearFur,
             },
         };
 

@@ -14,6 +14,8 @@ namespace Dino_Engine.ECS.Components
         public Vector3Grid normalGrid;
         /// <summary>The lowest the ground in this chunk goes.</summary>
         public float LowestHeight;
+        /// <summary>The most of its ground anything grows on as shells, 0 for none (<see cref="Rendering.Renderers.Geometry.TerrainRenderer.ShellCoverOf"/>).</summary>
+        public float ShellCover;
         public TerrainChunkComponent(FloatGrid heightGrid, Vector3Grid normalGrid, TerrainChunkSurface surface, Vector2 chunkPos, Vector2 chunkSize)
         {
             this.heightGrid = heightGrid;
@@ -28,6 +30,7 @@ namespace Dino_Engine.ECS.Components
             normalHeightTextureArrayID = Engine.RenderEngine._terrainRenderer.insertDataAndCarveChunk(
                             heightGrid, normalGrid, surface, chunkPos, chunkSize, spatialGrid
                         );
+            ShellCover = Engine.RenderEngine._terrainRenderer.ShellCoverOf(surface);
         }
 
         public void Cleanup()

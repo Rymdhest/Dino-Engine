@@ -174,7 +174,8 @@ namespace Dino_Defenders.Progression
             {
                 int more = (int)MathF.Round(value);
                 string what = affix.Slots.Contains(ItemSlot.Book) ? more == 1 ? "Page" : "Pages" : more == 1 ? "Sentence" : "Sentences";
-                yield return $"Holds {Say.Whole(more)} more {what}";
+                // Room is added, so it's signed as flat is: "more" is a multiplier everywhere, after a percentage (TOOLTIPS.md).
+                yield return $"{Say.Signed(more)} {what}";
                 yield break;
             }
             foreach (Mod mod in affix.Build(value)) yield return mod.Describe();

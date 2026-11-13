@@ -16,6 +16,9 @@ namespace Dino_Engine.Modelling.Model
         public static bool scaleUV = false;
         public bool isUsingBones = false;
         public List<PlantJoint>? joints = null;
+
+        /// <summary>What grows on it as shells (<see cref="Rendering.Shells.ShellStyles"/>), 0 for nothing; each vertex's <see cref="Vertex.Shell"/> says how much.</summary>
+        public byte ShellStyle = 0;
         public Mesh()
         {
             meshVertices = new List<MeshVertex>();
@@ -391,9 +394,9 @@ namespace Dino_Engine.Modelling.Model
             for (int i = 0; i < oldVertices.Length; i++)
             {
                 Vector3 newPosition = Vector3.Transform(oldVertices[i].position, rotation);
-                newVertices[i] = new Vertex(newPosition, oldVertices[i].materialTextureIndex, oldVertices[i].colour, oldVertices[i].boneIndices, oldVertices[i].BoneWeights, oldVertices[i].UVs) { joint = oldVertices[i].joint, Edges = oldVertices[i].Edges }; // TODO  potential uses same UVs
+                newVertices[i] = new Vertex(newPosition, oldVertices[i].materialTextureIndex, oldVertices[i].colour, oldVertices[i].boneIndices, oldVertices[i].BoneWeights, oldVertices[i].UVs) { joint = oldVertices[i].joint, Edges = oldVertices[i].Edges, Shell = oldVertices[i].Shell }; // TODO  potential uses same UVs
             }
-            return new Mesh(newVertices.ToList<Vertex>(), getAllIndicesArray().ToList<vIndex>()) { joints = MovedJoints(p => Vector3.Transform(p, rotation)) };
+            return new Mesh(newVertices.ToList<Vertex>(), getAllIndicesArray().ToList<vIndex>()) { joints = MovedJoints(p => Vector3.Transform(p, rotation)), ShellStyle = ShellStyle };
         }
 
         public void rotate(Quaternion rotation)
@@ -499,10 +502,10 @@ namespace Dino_Engine.Modelling.Model
                 {
                     newUVs[j] = new Vector2( oldVertices[i].UVs[j].X, oldVertices[i].UVs[j].Y);
                 }
-                newVertices[i] = new Vertex(newPosition, oldVertices[i].materialTextureIndex, oldVertices[i].colour, oldVertices[i].boneIndices, oldVertices[i].BoneWeights, newUVs) { joint = oldVertices[i].joint, Edges = ScaledEdges(oldVertices[i].Edges, transformation.scale) }; // TODO  potential uses same UVs
+                newVertices[i] = new Vertex(newPosition, oldVertices[i].materialTextureIndex, oldVertices[i].colour, oldVertices[i].boneIndices, oldVertices[i].BoneWeights, newUVs) { joint = oldVertices[i].joint, Edges = ScaledEdges(oldVertices[i].Edges, transformation.scale), Shell = oldVertices[i].Shell }; // TODO  potential uses same UVs
                 //if (scaleUV) newVertices[i].UV = meshVertices[i].GetTagentSpaceScaledUV(transformation.scale);
             }
-            return new Mesh(newVertices.ToList<Vertex>(), getAllIndicesArray().ToList<vIndex>()) { joints = MovedJoints(p => (new Vector4(p, 1.0f) * transformationMatrix).Xyz) };
+            return new Mesh(newVertices.ToList<Vertex>(), getAllIndicesArray().ToList<vIndex>()) { joints = MovedJoints(p => (new Vector4(p, 1.0f) * transformationMatrix).Xyz), ShellStyle = ShellStyle };
         }
 
         // A face's edges are as far off as it's grown: by the mean of the stretch, which is exact for an even one.
@@ -613,6 +616,7 @@ namespace Dino_Engine.Modelling.Model
             indices.AddRange(secondIndices);
 
             Mesh mesh =new Mesh(vertices, indices);
+            mesh.ShellStyle = a.ShellStyle != 0 ? a.ShellStyle : b.ShellStyle;
             if (a.joints != null || b.joints != null)
             {
                 mesh.joints = new List<PlantJoint>(a.JointCount + b.JointCount);

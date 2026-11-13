@@ -19,6 +19,12 @@ namespace Dino_Engine.Modelling.Model
         /// </summary>
         public Vector4 Edges = NoEdges;
 
+        /// <summary>
+        /// How much of whatever its model grows stands here, 0 to 1: fur on a coat, moss on bark (SHELLS.md). Which growth it is is the model's
+        /// (<see cref="Mesh.ShellStyle"/>); this is only how much, and nothing grows where it's 0.
+        /// </summary>
+        public float Shell;
+
         public static readonly Vector4 NoEdges = new Vector4(1e6f);
 
         public Vertex(Vector3 position, VertexMaterial vertexMaterial, params Vector2[] UVs)
@@ -27,6 +33,7 @@ namespace Dino_Engine.Modelling.Model
             this.UVs = UVs;
             this.materialTextureIndex = vertexMaterial.materialTextureIndex;
             this.colour = vertexMaterial.colour;
+            this.Shell = vertexMaterial.Shell;
 
             boneIndices = new Vector2(0.0f, 0.0f);
             BoneWeights = new Vector2(1.0f, 0.0f);
@@ -53,6 +60,7 @@ namespace Dino_Engine.Modelling.Model
             this.BoneWeights = v.BoneWeights;
             this.joint = v.joint;
             this.Edges = v.Edges;
+            this.Shell = v.Shell;
         }
     }
 }

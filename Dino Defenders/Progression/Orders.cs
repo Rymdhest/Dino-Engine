@@ -75,7 +75,7 @@ namespace Dino_Defenders.Progression
             Id = "brutmeisters-ledger", Name = "The Brutmeister's Ledger", Base = "Breeding Orders", MinLevel = 6,
             Lore = "Every animal in the brood, by number, and what it cost.",
             Gives = $"Every pack has a Rare leader. Rare Enemies drop {Say.Share(LedgerLoot - 1f)} more",
-            Costs = "Rare Enemies have one more trait",
+            Costs = "Rare Enemies have an extra trait",
             Rarity = LedgerRarity,
         });
 

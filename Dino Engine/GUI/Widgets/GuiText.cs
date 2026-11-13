@@ -36,7 +36,7 @@ namespace Dino_Engine.GUI.Widgets
             };
             float y = vertical switch
             {
-                Alignment.Center => rect.Y + (rect.Height - height) * 0.5f,
+                Alignment.Center => rect.Y + rect.Height * 0.5f + font.TopFromMiddle / scale,
                 Alignment.End => rect.Bottom - height,
                 _ => rect.Y,
             };

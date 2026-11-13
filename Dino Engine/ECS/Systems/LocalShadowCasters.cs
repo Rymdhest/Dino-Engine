@@ -26,9 +26,16 @@ namespace Dino_Engine.ECS.Systems
         private readonly List<(glModel model, Matrix4 matrix, AABB bounds)> _models = new();
         private readonly List<(glModel model, CharacterInstanceData instance, AABB bounds)> _characters = new();
 
-        public void Gather(ECSWorld world, Vector3 position, float radius)
+        /// <summary>
+        /// What the models last gathered come to, so that a map drawn from them alone can be kept until it changes: a sector streaming in or out, or a hall's inside
+        /// showing or hiding. Characters aren't in it, as they're never in a kept map.
+        /// </summary>
+        public int Signature { get; private set; }
+
+        public void Gather(ECSWorld world, Vector3 position, float radius, bool characters)
         {
             _models.Clear();
+            var signature = new HashCode();
             _characters.Clear();
 
             SpatialGrid grid = world.GetComponent<RenderSpatialGridSingleton>(world.GetSingleton<RenderSpatialGridSingleton>()).Grid;
@@ -48,8 +55,12 @@ namespace Dino_Engine.ECS.Systems
                 // matter: its walls are what keep the light in its room.
                 if (Contains(bounds, position) && MathF.Max(bounds.Max.X - bounds.Min.X, bounds.Max.Z - bounds.Min.Z) < EnclosingSize) continue;
                 _models.Add((model, matrix, bounds));
+                signature.Add(model);
+                signature.Add(matrix.Row3);
             }
+            Signature = signature.ToHashCode();
 
+            if (!characters) return;
             foreach (Archetype archetype in world.QueryArchetypes(_characterMask, BitMask.Empty))
             {
                 var modelArray = archetype.GetComponentArray<CharacterModelComponent>();
@@ -75,8 +86,8 @@ namespace Dino_Engine.ECS.Systems
                 && point.Z >= bounds.Min.Z && point.Z <= bounds.Max.Z;
         }
 
-        /// <summary>Queues what <paramref name="frustum"/> can see for drawing into <paramref name="shadow"/>.</summary>
-        public void Submit(Frustum frustum, Shadow shadow)
+        /// <summary>Queues what <paramref name="frustum"/> can see for drawing into <paramref name="shadow"/>, with the characters in it or not.</summary>
+        public void Submit(Frustum frustum, Shadow shadow, bool characters)
         {
             var models = new Dictionary<glModel, List<Matrix4>>();
             foreach (var (model, matrix, bounds) in _models)
@@ -90,14 +101,15 @@ namespace Dino_Engine.ECS.Systems
                 Engine.RenderEngine._instancedModelRenderer.SubmitShadowCommand(new ModelRenderCommand { model = model, matrices = matrices }, shadow);
             }
 
-            var characters = new Dictionary<glModel, List<CharacterInstanceData>>();
+            if (!characters) return;
+            var bodies = new Dictionary<glModel, List<CharacterInstanceData>>();
             foreach (var (model, instance, bounds) in _characters)
             {
                 if (frustum.IntersectsAABB(bounds) == IntersectionResult.Outside) continue;
-                if (!characters.TryGetValue(model, out var instances)) characters[model] = instances = new List<CharacterInstanceData>();
+                if (!bodies.TryGetValue(model, out var instances)) bodies[model] = instances = new List<CharacterInstanceData>();
                 instances.Add(instance);
             }
-            foreach (var (model, instances) in characters)
+            foreach (var (model, instances) in bodies)
             {
                 Engine.RenderEngine._characterRenderer.SubmitShadowCommand(new CharacterRenderCommand(model, instances), shadow);
             }

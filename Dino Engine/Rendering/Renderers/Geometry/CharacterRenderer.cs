@@ -174,6 +174,67 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             }
         }
 
+        internal override bool WantsShells(RenderEngine renderEngine)
+        {
+            foreach (CharacterRenderCommand command in geometryCommands)
+            {
+                if (renderEngine.Shells.Draws(command.model)) return true;
+            }
+            return false;
+        }
+
+        // Fur (SHELLS.md): every layer of a body in one call, posed as the body is. It's part of them as far as anything on the ground goes, which goes under them.
+        internal override void ShellPass(RenderEngine renderEngine)
+        {
+            ShellRenderer shells = renderEngine.Shells;
+            ShaderProgram program = shells.Character;
+            shells.Begin(program, renderEngine);
+            GL.ActiveTexture(TextureUnit.Texture0);
+            GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaAlbedoTextureArray);
+            ShellRenderer.BindWind(renderEngine, touch: false);
+
+            GL.Enable(EnableCap.StencilTest);
+            GL.StencilMask(AntiAliasing.MsaaRenderer.CharacterStencilBit);
+            GL.StencilFunc(StencilFunction.Always, AntiAliasing.MsaaRenderer.CharacterStencilBit, AntiAliasing.MsaaRenderer.CharacterStencilBit);
+            GL.StencilOp(StencilOp.Keep, StencilOp.Keep, StencilOp.Replace);
+
+            Vector3 camera = renderEngine.context.viewPos;
+            foreach (CharacterRenderCommand command in geometryCommands)
+            {
+                glModel model = command.model;
+                if (!shells.Draws(model)) continue;
+                Rendering.Shells.ShellStyle style = Rendering.Shells.ShellStyles.Of(model.Shell)!;
+
+                GL.BindVertexArray(model.getVAOID());
+                GL.EnableVertexAttribArray(0);
+                GL.EnableVertexAttribArray(1);
+                GL.EnableVertexAttribArray(2);
+                GL.EnableVertexAttribArray(5);
+                GL.EnableVertexAttribArray(6);
+                GL.EnableVertexAttribArray(7);
+
+                for (int i = 0; i < command.instances.Count; i++)
+                {
+                    CharacterInstanceData instance = command.instances[i];
+                    float distance = (instance.ModelMatrix.ExtractTranslation() - camera).Length;
+                    if (distance >= style.FadeTo) continue;
+                    int layers = shells.LayersAt(style, distance, renderEngine);
+                    shells.Use(program, model.Shell, layers);
+                    program.loadUniformMatrix4f("modelMatrix", instance.ModelMatrix);
+                    program.loadUniformMatrix4fArray("u_Bones", instance.SkinningMatrices);
+                    program.loadUniformVector4f("hitFlash", instance.Flash);
+                    program.loadUniformVector4f("characterSight", instance.Sight);
+                    GL.DrawElementsInstanced(PrimitiveType.Triangles, model.ShellIndexCount, DrawElementsType.UnsignedInt, IntPtr.Zero, layers);
+                    ShellRenderer.Count(model.Shell, 1, layers, (long)layers * model.ShellIndexCount / 3);
+                }
+            }
+
+            GL.StencilMask(0xFF);
+            GL.Disable(EnableCap.StencilTest);
+            for (int i = 0; i < 8; i++) GL.DisableVertexAttribArray(i);
+            GL.BindVertexArray(0);
+        }
+
         internal override void PerformShadowCommand(CharacterRenderCommand command, Shadow shadow, RenderEngine renderEngine)
         {
             if (shadow.isCubeMap && shadow.cubemapFaceIndex >= 0)

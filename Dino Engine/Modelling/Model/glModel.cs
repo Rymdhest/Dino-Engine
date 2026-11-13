@@ -12,6 +12,12 @@ public class glModel
     /// <summary>Where a mesh's <see cref="Vertex.Edges"/> go, for those that have them: everything else reads the default, which is no edges at all.</summary>
     public const int EdgeAttribute = 11;
 
+    /// <summary>
+    /// Where what grows on a model is pushed out along (xyz, in its own space, as long as the depth it has to keep over a crease needs) and how much grows there (w,
+    /// <see cref="Vertex.Shell"/>), for those that grow anything: everything else reads the default, which is nothing.
+    /// </summary>
+    public const int ShellAttribute = 12;
+
     public class ImposterData
     {
         public int TextureIndex;
@@ -52,6 +58,33 @@ public class glModel
 
     /// <summary>Drawn by nothing while it's set: what's inside a hall, while nobody's near enough to see it (HallCutawaySystem).</summary>
     public bool Hidden { get; set; }
+
+    /// <summary>
+    /// What grows on it as shells (<see cref="Rendering.Shells.ShellStyles"/>), 0 for nothing (SHELLS.md). Set before it's first drawn: it widens the bounds culling
+    /// goes by to what stands off its surface.
+    /// </summary>
+    public byte Shell
+    {
+        get => _shell;
+        set
+        {
+            _shell = value;
+            _boundsKnown = false;
+        }
+    }
+    private byte _shell;
+
+    /// <summary>Whether its vertices carry what the shells need (<see cref="ShellAttribute"/>): a model without them has nothing to grow from.</summary>
+    public bool HasShellData => ShellIndexCount > 0;
+
+    /// <summary>How many of its indices, from the first, are of triangles anything can grow on: the loader puts those first, and the shells draw nothing else.</summary>
+    public int ShellIndexCount { get; private set; }
+
+    public void SetShellData(int buffer, int indexCount)
+    {
+        Own(buffer);
+        ShellIndexCount = indexCount;
+    }
 
     public glModel(int vaoID, int[] VBOS, int vertexCount, AABB box)
     {
@@ -131,7 +164,7 @@ public class glModel
         }
 
         _boundsCentre = (box.Min + box.Max) * 0.5f;
-        _boundsRadius = (box.Max - box.Min).Length * 0.5f + PlantReach;
+        _boundsRadius = (box.Max - box.Min).Length * 0.5f + PlantReach + Rendering.Shells.ShellStyles.ReachOf(_shell);
     }
 
     public override string ToString()

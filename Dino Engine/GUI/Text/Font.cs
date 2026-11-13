@@ -35,6 +35,13 @@ namespace Dino_Engine.GUI.Text
         /// <summary>Distance from the baseline to the bottom of the line box (positive).</summary>
         public float Descent { get; }
         public float LineHeight { get; }
+        /// <summary>How high a capital (or a figure) stands over the baseline.</summary>
+        public float CapHeight => Face.CapHeight * Scale;
+        /// <summary>
+        /// Where a line's box starts so that its capitals sit in the middle of a span, measured from the span's middle. A face's ascent keeps room above
+        /// the capitals for accents, so centring the line box itself leaves figures and capitals high.
+        /// </summary>
+        public float TopFromMiddle => -(Ascent - CapHeight * 0.5f);
 
         public Font(FontFace face, float pixelSize, GlyphAtlas atlas)
         {

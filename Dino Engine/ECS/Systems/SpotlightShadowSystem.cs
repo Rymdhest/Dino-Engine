@@ -31,8 +31,8 @@ namespace Dino_Engine.ECS.Systems
             entity.Set(shadowComp);
 
             Shadow shadow = shadowComp.shadow;
-            _casters.Gather(world, lightPos, entity.Get<LightRangeComponent>().Radius);
-            _casters.Submit(new Frustum(shadow.lightViewMatrix * shadow.shadowProjectionMatrix), shadow);
+            _casters.Gather(world, lightPos, entity.Get<LightRangeComponent>().Radius, true);
+            _casters.Submit(new Frustum(shadow.lightViewMatrix * shadow.shadowProjectionMatrix), shadow, true);
         }
 
         private static Matrix4 CreateLightViewMatrix(Vector3 direction, Vector3 lightPos)

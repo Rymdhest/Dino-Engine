@@ -273,7 +273,7 @@ namespace Dino_Engine.GUI.Widgets
             float scale = Context.PixelScale;
             GuiRect content = ContentBounds;
             float lineHeight = font.LineHeight / scale;
-            float textY = content.Y + (content.Height - lineHeight) * 0.5f;
+            float textY = content.Y + content.Height * 0.5f + font.TopFromMiddle / scale;
 
             drawList.PushClip(content.Inflate(1f));
             if (_text.Length == 0)

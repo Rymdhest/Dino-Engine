@@ -110,6 +110,8 @@ namespace Dino_Engine.Rendering
         public OutlineRenderer _outlineRenderer;
         public TrailRenderer _trailRenderer;
         public GrassRenderer _grassRenderer;
+        /// <summary>What grows as shells, moss and fur, which each renderer draws after its own geometry (SHELLS.md).</summary>
+        public ShellRenderer Shells { get; private set; } = null!;
         public CelestialBodyRenderer _sunRenderer;
         public GlobalIlluminationRenderer _globalIllumination;
         private DepthOfFieldRenderer _depthOfFieldRenderer;
@@ -188,6 +190,7 @@ namespace Dino_Engine.Rendering
             Modelling.glLoader.SetNoEdges();
 
             _msaa = new MsaaRenderer(AntiAliasing);
+            Shells = new ShellRenderer();
             _modelRenderer = new ModelRenderer();
             _terrainRenderer = new TerrainRenderer();
             _instancedModelRenderer = new InstancedModelRenderer();
@@ -502,6 +505,7 @@ namespace Dino_Engine.Rendering
             }
             _gBuffer.cleanUp();
             _simpleShader.cleanUp();
+            Shells?.CleanUp();
 
             GL.DeleteBuffer(globalsUBO);
         }

@@ -33,11 +33,14 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         public TerrainChunkRenderData[] chunks;
         /// <summary>Mountains too far off to have chunks, that can still shade what's here. Only shadows have these.</summary>
         public TerrainChunkRenderData[]? farRock;
+        /// <summary>Those of the chunks with moss to stand up as shells (SHELLS.md, <see cref="TerrainRenderer.ShellCoverOf"/>). Only the camera's have these.</summary>
+        public TerrainChunkRenderData[]? mossy;
 
-        public TerrainRenderCommand(TerrainChunkRenderData[] chunks, TerrainChunkRenderData[]? farRock = null)
+        public TerrainRenderCommand(TerrainChunkRenderData[] chunks, TerrainChunkRenderData[]? farRock = null, TerrainChunkRenderData[]? mossy = null)
         {
             this.chunks = chunks;
             this.farRock = farRock;
+            this.mossy = mossy;
         }
     }
 
@@ -59,6 +62,11 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         private int roadInfoTextureArray;
         private readonly int[] surfaceWeightArrays = new int[3];
         private readonly Vector4[] surfaceMaterials = new Vector4[3];
+        // The palette's slots of the ground's moss and of its rock, -1 for none, and how much moss the world's rock grows (Geology.MossCover): what the shells grow
+        // on the ground by (SHELLS.md).
+        private int _mossSlot = -1;
+        private int _rockSlot = -1;
+        private float _rockMoss;
 
         // What the ground of each live chunk is made of, a layer to a chunk (TerrainChunkComponent.normalHeightTextureArrayID), for
         // global illumination's voxels, which colour the ground as this does.
@@ -296,6 +304,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             header[25] = geology.Moss.Y;
             header[26] = geology.Moss.Z;
             header[27] = geology.MossCover;
+            _rockMoss = geology.MossCover;
             header[28] = joint.CrossBedding;
             header[29] = joint.Foliation;
             header[30] = joint.Varnish;
@@ -335,6 +344,36 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             {
                 surfaceMaterials[i] = new Vector4(ids[i * 4], ids[i * 4 + 1], ids[i * 4 + 2], ids[i * 4 + 3]);
             }
+            _mossSlot = -1;
+            _rockSlot = -1;
+            for (int i = 0; i < palette.Count && i < TerrainSurface.MaxMaterials; i++)
+            {
+                if (palette[i] == SurfaceMaterial.Moss) _mossSlot = i;
+                if (palette[i] == SurfaceMaterial.Rock) _rockSlot = i;
+            }
+        }
+
+        /// <summary>
+        /// The most of a chunk's ground anything grows on as shells, 0 to 1: its moss, and its rock where the world's rock grows moss (Rock.glsl). A chunk with none
+        /// isn't drawn again for them. Shells/ShellVertex.glsl weighs each the same way, as a share of everything the ground is made of there.
+        /// </summary>
+        public float ShellCoverOf(TerrainChunkSurface surface)
+        {
+            bool stone = _rockSlot >= 0 && _rockMoss > 0.01f;
+            if (_mossSlot < 0 && !stone) return 0f;
+            float most = 0f;
+            int texels = surface.Weights[0].Length / 4;
+            for (int t = 0; t < texels; t++)
+            {
+                float total = 0f;
+                for (int slot = 0; slot < TerrainSurface.MaxMaterials; slot++) total += surface.Weights[slot >> 2][t * 4 + (slot & 3)];
+                if (total <= 1e-4f) continue;
+                float grows = 0f;
+                if (_mossSlot >= 0) grows += surface.Weights[_mossSlot >> 2][t * 4 + (_mossSlot & 3)];
+                if (stone) grows += surface.Weights[_rockSlot >> 2][t * 4 + (_rockSlot & 3)] * _rockMoss;
+                most = MathF.Max(most, grows / total);
+            }
+            return most;
         }
 
         private static int TextureOf(SurfaceMaterial material) => material switch
@@ -703,6 +742,74 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.BindVertexArray(0);
             GL.Enable(EnableCap.CullFace);
             GL.CullFace(CullFaceMode.Back);
+        }
+
+        internal override bool WantsShells(RenderEngine renderEngine)
+        {
+            if (!renderEngine.Shells.Drawing || !renderEngine.Shells.Settings.Ground || (_mossSlot < 0 && _rockSlot < 0)) return false;
+            foreach (TerrainRenderCommand command in geometryCommands)
+            {
+                if (command.mossy is { Length: > 0 }) return true;
+            }
+            return false;
+        }
+
+        // Moss on the ground and on its rock (SHELLS.md): the mossy chunks drawn again once for each layer, in one call, each chunk's numbers read once for all of them.
+        internal override void ShellPass(RenderEngine renderEngine)
+        {
+            ShellRenderer shells = renderEngine.Shells;
+            ShaderProgram program = shells.Terrain;
+            Rendering.Shells.ShellStyle style = Rendering.Shells.ShellStyles.Of(Rendering.Shells.ShellStyles.GroundMoss)!;
+            shells.Begin(program, renderEngine);
+            GL.Enable(EnableCap.CullFace);
+            GL.CullFace(CullFaceMode.Back);
+
+            GL.ActiveTexture(TextureUnit.Texture0);
+            GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaAlbedoTextureArray);
+            GL.ActiveTexture(TextureUnit.Texture6);
+            GL.BindTexture(TextureTarget.Texture2DArray, normalRoadHeightTextureArray);
+            GL.ActiveTexture(TextureUnit.Texture9);
+            GL.BindTexture(TextureTarget.Texture2DArray, surfaceWeightArrays[0]);
+            GL.ActiveTexture(TextureUnit.Texture10);
+            GL.BindTexture(TextureTarget.Texture2DArray, surfaceWeightArrays[1]);
+            GL.ActiveTexture(TextureUnit.Texture11);
+            GL.BindTexture(TextureTarget.Texture2DArray, surfaceWeightArrays[2]);
+            ShellRenderer.BindWind(renderEngine, touch: true);
+
+            program.loadUniformFloat("textureMapOffset", 1.0f / CHUNK_RESOLUTION);
+            program.loadUniformFloat("groundMossMaterial", TextureGenerator.moss);
+            program.loadUniformVector2i("groundSlots", new Vector2i(_mossSlot, _rockMoss > 0.01f ? _rockSlot : -1));
+            float distance = (renderEngine.context.focusPoint.Xyz - renderEngine.context.viewPos).Length;
+            int layers = shells.LayersAt(style, distance, renderEngine);
+            shells.Use(program, Rendering.Shells.ShellStyles.GroundMoss, layers);
+
+            GL.BindVertexArray(baseChunkModel.getVAOID());
+            GL.EnableVertexAttribArray(0);
+            GL.EnableVertexAttribArray(3);
+            GL.EnableVertexAttribArray(4);
+            GL.EnableVertexAttribArray(5);
+            // Each chunk's numbers hold for all of its layers.
+            GL.VertexAttribDivisor(3, layers);
+            GL.VertexAttribDivisor(4, layers);
+            GL.VertexAttribDivisor(5, layers);
+            foreach (TerrainRenderCommand command in geometryCommands)
+            {
+                if (command.mossy is not { Length: > 0 } mossy) continue;
+                GL.BindBuffer(BufferTarget.ArrayBuffer, instanceVBO);
+                GL.BufferData(BufferTarget.ArrayBuffer, mossy.Length * Marshal.SizeOf<TerrainChunkRenderData>(), mossy, BufferUsageHint.StreamDraw);
+                GL.DrawElementsInstanced(PrimitiveType.Triangles, baseChunkModel.getVertexCount(), DrawElementsType.UnsignedInt, IntPtr.Zero, mossy.Length * layers);
+                ShellRenderer.Count(Rendering.Shells.ShellStyles.GroundMoss, 1, (long)mossy.Length * layers, (long)mossy.Length * layers * baseChunkModel.getVertexCount() / 3);
+            }
+            GL.VertexAttribDivisor(3, 1);
+            GL.VertexAttribDivisor(4, 1);
+            GL.VertexAttribDivisor(5, 1);
+            GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
+            GL.DisableVertexAttribArray(0);
+            GL.DisableVertexAttribArray(3);
+            GL.DisableVertexAttribArray(4);
+            GL.DisableVertexAttribArray(5);
+            GL.BindVertexArray(0);
+            GL.ActiveTexture(TextureUnit.Texture0);
         }
 
         internal override void PerformShadowCommand(TerrainRenderCommand command, Shadow shadow, RenderEngine renderEngine)

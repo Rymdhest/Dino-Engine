@@ -553,7 +553,22 @@ namespace Dino_BuildLab
             unique.Lines.Add(new ItemLine("health", 40f));
             Item folio = ItemGenerator.Folio(20, random.Fork(2), Rarity.Rare);
             Item starter = HeroState.CreateNew().Equipped[WornSlot.Body]!;
-            report.Check("A name that wasn't rolled stays, whatever an old save has on it", unique.PlainName() == unique.Name && folio.PlainName() == folio.Name && starter.Name != starter.Base && starter.PlainName() == starter.Name, $"{unique.PlainName()}, {folio.PlainName()}, {starter.PlainName()}");
+            report.Check("A name that wasn't rolled stays, whatever an old save has on it", unique.PlainName() == unique.Name && starter.Name != starter.Base && starter.PlainName() == starter.Name, $"{unique.PlainName()}, {starter.PlainName()}");
+
+            // On the ground a book, a page or a sentence is what it is, as gear is its base: nothing rolled on it is named, so a crowd of them can be read.
+            var folios = new WorldRandom(53);
+            var grounded = Enumerable.Range(0, 400).Select(i => ItemGenerator.Folio(30, folios.Fork(i), (Rarity)(i % 4))).ToList();
+            var labelled = grounded.Where(item => item.Rarity != Rarity.Unique && item.PlainName() != ItemGenerator.FolioBase(item)).Select(item => $"{item.Name} as {item.PlainName()}").ToList();
+            var books = grounded.Where(item => item.IsBook).Select(item => item.PlainName()).Distinct().ToList();
+            var pages = grounded.Where(item => item.IsPage).Select(item => item.PlainName()).Distinct().ToList();
+            var sentences = grounded.Where(item => item.IsSentence && item.Rarity != Rarity.Unique).ToList();
+            report.Check("A book, a page or a sentence on the ground is only what it is", labelled.Count == 0 && folio.PlainName() == ItemGenerator.FolioBase(folio), string.Join(" | ", labelled.Take(6)));
+            report.Check("A book is a Book, a Trigger Book or an Aura Book", books.All(name => name is "Book" or "Trigger Book" or "Aura Book") && ItemGenerator.BookName(BookMode.Toggle) == "Aura Book", string.Join(", ", books));
+            report.Note("On the ground: " + string.Join(", ", books.Concat(pages).Concat(sentences.Select(item => item.PlainName()).Distinct())));
+            report.Check("A page says what hand and kind it is, and nothing rolled", pages.All(name => name.EndsWith(" Page") && !name.Contains(" of ") && !name.StartsWith("Plain ")), string.Join(", ", pages));
+            report.Check("A sentence is named for the one kind of page it goes on, or is just a Sentence", sentences.Count > 0 && sentences.All(item => item.PlainName() == (Sentences.Fits(item.Sentence!) is PageKind kind ? $"{kind} Sentence" : "Sentence")) && sentences.Any(item => item.PlainName() != "Sentence") && sentences.Any(item => item.PlainName() == "Sentence"), string.Join(", ", sentences.Select(item => item.PlainName()).Distinct()));
+            var named = grounded.Where(item => item.IsSentence && item.Rarity == Rarity.Unique).ToList();
+            report.Check("But a Unique sentence keeps its name, as a unique does", named.Count > 0 && named.All(item => item.PlainName() == item.Name), $"{named.Count}");
 
             int bought = 0;
             for (int i = 0; i < 4000; i++)

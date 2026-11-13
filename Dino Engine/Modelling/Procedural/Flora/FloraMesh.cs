@@ -14,6 +14,15 @@ namespace Dino_Engine.Modelling.Procedural.Flora
         public Vector2 UV;
         public int Material;
         public int Joint;
+
+        /// <summary>How much of the plant's growth stands here, 0 to 1: moss on bark (<see cref="FloraMesh.ShellStyle"/>, SHELLS.md).</summary>
+        public float Shell;
+
+        /// <summary>
+        /// Which way what grows here is pushed out, as long as it has to be to keep the same depth over every face it's a corner of, or zero for <see cref="Normal"/>.
+        /// A mesh with its normals split at hard edges needs it, or every crease opens a crack through its moss.
+        /// </summary>
+        public Vector3 ShellNormal;
     }
 
     /// <summary>
@@ -25,6 +34,16 @@ namespace Dino_Engine.Modelling.Procedural.Flora
         public readonly List<FloraVertex> Vertices = new();
         public readonly List<int> Indices = new();
         public readonly List<PlantJoint> Joints = new();
+
+        /// <summary>What grows on it as shells (<see cref="Rendering.Shells.ShellStyles"/>), 0 for nothing; each vertex's <see cref="FloraVertex.Shell"/> says how much.</summary>
+        public byte ShellStyle;
+
+        /// <summary>
+        /// For moss that grows by Rock.glsl's rule, on what faces the sky (<see cref="Rendering.Shells.ShellMask.Rock"/>): how far up, in its own frame, a corner
+        /// must face for its triangle to be drawn as shells at all. The rock's skin stands in the world as it was made and grows nothing under 0.25; a stone may be
+        /// tipped where it's put, so it keeps a margin.
+        /// </summary>
+        public float ShellFacing = -1f;
 
         public int VertexCount => Vertices.Count;
         public int TriangleCount => Indices.Count / 3;
@@ -98,10 +117,10 @@ namespace Dino_Engine.Modelling.Procedural.Flora
             var vertices = new List<Vertex>(Vertices.Count);
             foreach (FloraVertex vertex in Vertices)
             {
-                vertices.Add(new Vertex(vertex.Position, new VertexMaterial(vertex.Material, new Colour(vertex.Colour)), vertex.UV) { joint = vertex.Joint });
+                vertices.Add(new Vertex(vertex.Position, new VertexMaterial(vertex.Material, new Colour(vertex.Colour)), vertex.UV) { joint = vertex.Joint, Shell = vertex.Shell });
             }
 
-            var mesh = new Mesh(vertices, Indices) { joints = Joints.Count > 0 ? new List<PlantJoint>(Joints) : null };
+            var mesh = new Mesh(vertices, Indices) { joints = Joints.Count > 0 ? new List<PlantJoint>(Joints) : null, ShellStyle = ShellStyle };
             for (int i = 0; i < Vertices.Count; i++)
             {
                 mesh.meshVertices[i].normal = Vertices[i].Normal;

@@ -328,7 +328,12 @@ namespace Dino_Engine.Modelling.Procedural.Rock
                     kept[i] = moved[v];
                 }
 
-                return RockForge.Dress(work.Distance, 1.4f, keptPoints, kept, keptPins.ToArray(), work.Tint);
+                FloraMesh skin = RockForge.Dress(work.Distance, 1.4f, keptPoints, kept, keptPins.ToArray(), work.Tint);
+                // The moss painted on bare rock stands on it as shells (SHELLS.md).
+                skin.ShellStyle = Rendering.Shells.ShellStyles.RockMoss;
+                // It stands in the world as it was made, and moss grows on nothing that faces the sky less than this (RockGrowth.glsl).
+                skin.ShellFacing = 0.2f;
+                return skin;
             }
             finally
             {

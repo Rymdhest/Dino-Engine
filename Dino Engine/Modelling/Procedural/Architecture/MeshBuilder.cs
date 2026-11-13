@@ -393,7 +393,7 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
             {
                 int joint = vertex.joint >= 0 ? vertex.joint + firstJoint : -1;
                 Vector4 edges = vertex.Edges == Vertex.NoEdges ? Vertex.NoEdges : vertex.Edges * MathF.Cbrt(MathF.Abs(Stretch.X * Stretch.Y * Stretch.Z));
-                _vertices.Add(new Vertex(Transform(vertex.position), vertex.materialTextureIndex, vertex.colour, vertex.boneIndices, vertex.BoneWeights, vertex.UVs) { joint = joint, Edges = edges });
+                _vertices.Add(new Vertex(Transform(vertex.position), vertex.materialTextureIndex, vertex.colour, vertex.boneIndices, vertex.BoneWeights, vertex.UVs) { joint = joint, Edges = edges, Shell = vertex.Shell });
             }
             foreach (vIndex index in indices) _indices.Add(first + index.index);
             if (mesh.joints != null)
