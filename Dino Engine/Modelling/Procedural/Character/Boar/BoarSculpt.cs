@@ -37,19 +37,21 @@ namespace Dino_Engine.Modelling.Procedural.Character
                 field.Cone(SaurianPart.Body, new Vector3(0f, a.Middle, a.Z), new Vector3(0f, b.Middle, b.Z), a.Deep, b.Deep, MathF.Min(a.Deep, b.Deep) * 0.35f, squash);
             }
 
-            // The neck is short and thick, more of the shoulders than of the head, and runs into the back of the skull.
+            // The neck is short and thick, more of the shoulders than of the head: its crest runs on from the withers down to behind the ears, and its throat from the chest up under the jaw.
             BoarStation last = trunk[^1];
-            Vector3 throat = body.FromHead(new Vector3(0f, -body.HeadLength * 0.02f, body.HeadLength * 0.12f));
-            float neck = body.HeadLength * 0.21f;
-            field.Cone(SaurianPart.Body, new Vector3(0f, last.Middle, last.Z), throat, last.Deep * 0.95f, neck, neck * 0.5f, 1.2f);
+            float l = body.HeadLength;
+            Vector3 throat = body.FromHead(new Vector3(0f, -l * 0.08f, l * 0.16f));
+            field.Cone(SaurianPart.Body, new Vector3(0f, last.Middle, last.Z), throat, last.Deep * 0.95f, l * 0.2f, l * 0.1f, 1.2f);
+            Vector3 poll = body.FromHead(new Vector3(0f, l * 0.12f, l * 0.08f));
+            field.Cone(SaurianPart.Body, new Vector3(0f, body.W(0.86f), body.ForeZ - body.W(0.02f)), poll, body.W(0.13f), l * 0.17f, body.W(0.08f), 1.3f);
 
             // A wild boar's withers stand well above its hips, built up of the muscle that holds its head, which the old males thicken into a shield.
-            field.Ellipsoid(SaurianPart.Body, new Vector3(0f, body.W(0.84f), body.ForeZ - body.W(0.06f)), new Vector3(body.Breadth * (0.8f + 0.1f * body.Age), body.W(0.15f), body.W(0.34f)), body.W(0.1f));
+            field.Ellipsoid(SaurianPart.Body, new Vector3(0f, body.W(0.84f), body.ForeZ - body.W(0.03f)), new Vector3(body.Breadth * (0.8f + 0.1f * body.Age), body.W(0.15f), body.W(0.3f)), body.W(0.1f));
 
-            // The prow of the chest between the forelegs, and a belly that hangs a little between the legs.
-            field.Ellipsoid(SaurianPart.Body, new Vector3(0f, body.Brisket + body.W(0.12f), body.ForeZ + body.W(0.08f)), new Vector3(body.Breadth * 0.68f, body.W(0.14f), body.W(0.2f)), body.W(0.08f));
+            // The prow of the chest between the forelegs, and a belly between the legs, drawn up into the flank in front of the hind legs.
+            field.Ellipsoid(SaurianPart.Body, new Vector3(0f, body.Brisket + body.W(0.12f), body.ForeZ + body.W(0.08f)), new Vector3(body.Breadth * 0.66f, body.W(0.14f), body.W(0.18f)), body.W(0.08f));
             float middle = (body.HindZ + body.ForeZ) * 0.5f;
-            field.Ellipsoid(SaurianPart.Body, new Vector3(0f, body.Brisket + body.W(0.16f), middle + body.W(0.04f)), new Vector3(body.Breadth * 0.88f, body.W(0.17f), (body.ForeZ - body.HindZ) * 0.42f), body.W(0.12f));
+            field.Ellipsoid(SaurianPart.Body, new Vector3(0f, body.Brisket + body.W(0.16f), middle + body.W(0.1f)), new Vector3(body.Breadth * 0.8f, body.W(0.15f), (body.ForeZ - body.HindZ) * 0.36f), body.W(0.12f));
         }
 
         // A crest of longer bristles along the top of the neck and the back, from behind the ears to the middle of the back, highest over the withers: what a boar raises when it's angry. It's
@@ -88,13 +90,13 @@ namespace Dino_Engine.Modelling.Procedural.Character
 
             field.JoinAt(part, shoulder + new Vector3(0f, body.W(0.05f), 0f), body.W(0.09f), body.W(0.5f));
             Vector3 blade = new Vector3(0f, 0.86f, -0.5f).Normalized();
-            field.Ellipsoid(part, shoulder + new Vector3(0f, body.W(0.07f), -body.W(0.035f)), new Vector3(body.W(0.075f), body.W(0.11f), body.W(0.2f)), body.W(0.05f), blade, Vector3.UnitZ);
+            field.Ellipsoid(part, shoulder + new Vector3(side * body.W(0.012f), body.W(0.07f), -body.W(0.035f)), new Vector3(body.W(0.085f), body.W(0.11f), body.W(0.2f)), body.W(0.05f), blade, Vector3.UnitZ);
             field.Cone(part, shoulder, elbow, body.W(0.09f), body.W(0.072f), body.W(0.04f));
 
             // The forearm is all the muscle there is below the elbow, and goes down to the knee as a tendon.
             Vector3 forearm = carpus - elbow;
-            field.Cone(part, elbow, carpus, body.W(0.07f), body.W(0.037f), body.W(0.03f));
-            field.Ellipsoid(part, elbow + forearm * 0.28f, new Vector3(body.W(0.06f), body.W(0.062f), forearm.Length * 0.34f), body.W(0.035f), forearm, Vector3.UnitZ);
+            field.Cone(part, elbow, carpus, body.W(0.075f), body.W(0.038f), body.W(0.03f));
+            field.Ellipsoid(part, elbow + forearm * 0.28f, new Vector3(body.W(0.066f), body.W(0.068f), forearm.Length * 0.35f), body.W(0.035f), forearm, Vector3.UnitZ);
             field.Ellipsoid(part, carpus, new Vector3(body.W(0.041f), body.W(0.047f), body.W(0.045f)), body.W(0.018f));
 
             Lower(field, body, part, carpus, fetlock, coronet);
@@ -110,23 +112,26 @@ namespace Dino_Engine.Modelling.Procedural.Character
             float outward = side;
 
             field.JoinAt(part, hip + new Vector3(0f, body.W(0.04f), -body.W(0.02f)), body.W(0.11f), body.W(0.55f));
-            field.Ellipsoid(part, hip + new Vector3(outward * body.W(0.015f), -body.W(0.08f), -body.W(0.035f)), new Vector3(body.W(0.1f), body.W(0.19f), body.W(0.155f)), body.W(0.06f), new Vector3(0f, -0.2f, 1f));
-            field.Ellipsoid(part, new Vector3(hip.X * 0.55f, hip.Y - body.W(0.03f), hip.Z - body.W(0.15f)), new Vector3(body.W(0.085f), body.W(0.16f), body.W(0.1f)), body.W(0.05f));
+            field.Ellipsoid(part, hip + new Vector3(-outward * body.W(0.012f), -body.W(0.08f), -body.W(0.03f)), new Vector3(body.W(0.066f), body.W(0.18f), body.W(0.145f)), body.W(0.06f), new Vector3(0f, -0.2f, 1f));
+            field.Ellipsoid(part, new Vector3(hip.X * 0.4f, hip.Y - body.W(0.04f), hip.Z - body.W(0.13f)), new Vector3(body.W(0.066f), body.W(0.15f), body.W(0.09f)), body.W(0.05f));
 
-            field.Cone(part, stifle + new Vector3(0f, body.W(0.03f), 0f), hock, body.W(0.072f), body.W(0.036f), body.W(0.03f));
+            field.Cone(part, stifle + new Vector3(0f, body.W(0.03f), 0f), hock, body.W(0.078f), body.W(0.037f), body.W(0.03f));
             field.Ellipsoid(part, hock, new Vector3(body.W(0.04f), body.W(0.046f), body.W(0.046f)), body.W(0.018f));
             field.Ellipsoid(part, hock + new Vector3(0f, body.W(0.028f), -body.W(0.032f)), new Vector3(body.W(0.025f), body.W(0.032f), body.W(0.026f)), body.W(0.016f));
 
             Lower(field, body, part, hock, fetlock, coronet);
         }
 
-        // Below the knee or the hock, the same on all four: a cannon that's bone and tendon, the knuckle of the fetlock, a short pastern sloping forward, and a hoof standing on a flat sole.
+        // Below the knee or the hock, the same on all four: a cannon that's bone and tendon, the knuckle of the fetlock, a short pastern sloping forward, and a small hoof, its wall sloping to
+        // a point in front and a heel behind, standing on a flat sole.
         private static void Lower(SaurianField field, BoarBody body, SaurianPart part, Vector3 joint, Vector3 fetlock, Vector3 coronet)
         {
             field.Cone(part, joint, fetlock, body.W(0.034f), body.W(0.03f), body.W(0.015f));
             field.Ellipsoid(part, fetlock, new Vector3(body.W(0.035f), body.W(0.035f), body.W(0.037f)), body.W(0.014f));
-            field.Cone(part, fetlock, coronet, body.W(0.03f), body.W(0.034f), body.W(0.012f));
-            field.Ellipsoid(part, coronet + new Vector3(0f, -body.W(0.022f), body.W(0.022f)), new Vector3(body.W(0.041f), body.W(0.04f), body.W(0.052f)), body.W(0.008f));
+            field.Cone(part, fetlock, coronet, body.W(0.03f), body.W(0.031f), body.W(0.012f));
+            Vector3 toe = new Vector3(coronet.X, body.W(0.012f), coronet.Z + body.W(0.05f));
+            field.Cone(part, coronet + new Vector3(0f, -body.W(0.006f), body.W(0.004f)), toe, body.W(0.032f), body.W(0.012f), body.W(0.006f), 1.15f, new Vector3(0f, 1f, -0.6f));
+            field.Ellipsoid(part, new Vector3(coronet.X, body.W(0.024f), coronet.Z - body.W(0.008f)), new Vector3(body.W(0.029f), body.W(0.024f), body.W(0.026f)), body.W(0.008f));
             field.Ellipsoid(part, new Vector3(coronet.X, -body.W(0.2f), coronet.Z), new Vector3(body.W(0.25f), body.W(0.2f), body.W(0.25f)), body.W(0.004f), carve: true);
         }
 
@@ -138,20 +143,20 @@ namespace Dino_Engine.Modelling.Procedural.Character
             Vector3 forward = body.HeadForward, up = body.HeadUp;
             Vector3 At(float x, float y, float z) => body.FromHead(new Vector3(x * l, y * l, z * l));
 
-            field.JoinAt(SaurianPart.Head, body.Atlas, l * 0.14f, l * 1.0f);
-            field.Ellipsoid(SaurianPart.Head, At(0f, 0.1f, 0.2f), new Vector3(0.23f, 0.2f, 0.25f) * l, l * 0.06f, forward, up);
-            field.Ellipsoid(SaurianPart.Head, At(0f, -0.1f, 0.23f), new Vector3(0.25f, 0.19f, 0.22f) * l, l * 0.07f, forward, up);
+            field.JoinAt(SaurianPart.Head, body.Atlas, l * 0.14f, l * 0.9f);
+            field.Ellipsoid(SaurianPart.Head, At(0f, 0.08f, 0.2f), new Vector3(0.215f, 0.18f, 0.24f) * l, l * 0.06f, forward, up);
+            field.Ellipsoid(SaurianPart.Head, At(0f, -0.1f, 0.25f), new Vector3(0.255f, 0.17f, 0.23f) * l, l * 0.07f, forward, up);
 
             // The snout, and the bridge of the nose down its top, which makes the face one straight line from the brow to the disc.
-            field.Cone(SaurianPart.Head, At(0f, -0.02f, 0.33f), At(0f, -0.01f, 0.93f), l * 0.16f, l * 0.083f, l * 0.06f, 1f, up);
-            field.Cone(SaurianPart.Head, At(0f, 0.14f, 0.25f), At(0f, 0.05f, 0.9f), l * 0.12f, l * 0.05f, l * 0.05f, 1.6f, up);
-            field.Ellipsoid(SaurianPart.Head, At(0f, -0.01f, 0.955f), new Vector3(0.095f, 0.085f, 0.045f) * l, l * 0.015f, forward, up);
+            field.Cone(SaurianPart.Head, At(0f, -0.03f, 0.34f), At(0f, -0.02f, 0.93f), l * 0.14f, l * 0.072f, l * 0.06f, 1f, up);
+            field.Cone(SaurianPart.Head, At(0f, 0.12f, 0.25f), At(0f, 0.035f, 0.9f), l * 0.11f, l * 0.045f, l * 0.05f, 1.6f, up);
+            field.Ellipsoid(SaurianPart.Head, At(0f, -0.02f, 0.955f), new Vector3(0.082f, 0.074f, 0.04f) * l, l * 0.014f, forward, up);
 
-            field.Cone(SaurianPart.Head, At(0f, -0.21f, 0.3f), At(0f, -0.1f, 0.8f), l * 0.11f, l * 0.055f, l * 0.05f, 1f, up);
+            field.Cone(SaurianPart.Head, At(0f, -0.2f, 0.3f), At(0f, -0.1f, 0.8f), l * 0.1f, l * 0.05f, l * 0.05f, 1f, up);
             for (int side = -1; side <= 1; side += 2)
             {
-                field.Ellipsoid(SaurianPart.Head, At(side * 0.13f, 0.14f, 0.37f), new Vector3(0.07f, 0.05f, 0.08f) * l, l * 0.04f, forward, up);
-                field.Ellipsoid(SaurianPart.Head, At(side * 0.09f, -0.08f, 0.68f), new Vector3(0.06f, 0.06f, 0.1f) * l, l * 0.04f, forward, up);
+                field.Ellipsoid(SaurianPart.Head, At(side * 0.115f, 0.12f, 0.38f), new Vector3(0.065f, 0.045f, 0.075f) * l, l * 0.04f, forward, up);
+                field.Ellipsoid(SaurianPart.Head, At(side * 0.08f, -0.08f, 0.68f), new Vector3(0.055f, 0.055f, 0.09f) * l, l * 0.04f, forward, up);
             }
         }
     }

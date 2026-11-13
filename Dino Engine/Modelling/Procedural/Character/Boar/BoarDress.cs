@@ -8,8 +8,9 @@ namespace Dino_Engine.Modelling.Procedural.Character
 {
     /// <summary>
     /// How a boar's skin hangs on its bones, how its texture lies, what colour it is and where its bristles grow. Along the body a stretch of skin belongs to whichever bone that stretch is and
-    /// blends into the next across each joint; a leg's skin is its own bones', blending at the knee or hock and at the hoof, and the body and a leg share where they meet, half each right at the
-    /// join, so neither side of it pulls away from the other.
+    /// blends into the next across each joint; a leg's skin is its own bones', blending at the knee or hock and at the hoof. Where a leg meets the body the two share, half each right at the
+    /// join, over a wide band round the shoulder or the hip and a narrow one further down, where a boar's legs lie close against its belly: shared there, the inside of a forearm stayed with the
+    /// belly as the leg swung, and the belly between the legs went with whichever leg was nearest, which changed from one side of it to the other, and walking tore it into flaps.
     /// </summary>
     public sealed class BoarDress : ISkinDresser
     {
@@ -92,6 +93,9 @@ namespace Dino_Engine.Modelling.Procedural.Character
 
         // ---- Bones.
 
+        /// <summary>The bones a point on the body's own skin hangs from, for what's laid on it.</summary>
+        public Hang BodyHang(Vector3 p) => Along(AlongOf(p));
+
         /// <summary>The bones a stretch of the body's line hangs from, each joint blending over a third of the stretch either side of it.</summary>
         private Hang Along(float along)
         {
@@ -114,8 +118,6 @@ namespace Dino_Engine.Modelling.Procedural.Character
             return new Hang(_chain[k].Bone);
         }
 
-        private float JoinReach => _body.W(0.18f);
-
         // Two bones at most: the strongest of what the leg and the body each bring, the leg with this much of the say.
         private static Hang Mix(Hang limb, Hang body, float limbShare)
         {
@@ -126,25 +128,28 @@ namespace Dino_Engine.Modelling.Procedural.Character
 
         public Hang Hang(Vector3 p, SaurianPart part, ReadOnlySpan<float> parts)
         {
-            if (part == SaurianPart.Head) return Along(AlongOf(p));
-            if (IsLeg(part))
-            {
-                float gap = parts[(int)SaurianPart.Body] - parts[(int)part];
-                Hang leg = LegHang(part, p);
-                if (gap >= JoinReach) return leg;
-                return Mix(leg, Along(AlongOf(p)), 0.5f + 0.5f * Smooth(0f, JoinReach, gap));
-            }
-
-            // The body's skin near a leg shares with it as the leg's does with the body, so the two meet halfway.
             Hang body = Along(AlongOf(p));
-            SaurianPart nearest = SaurianPart.LegL;
-            for (SaurianPart leg = SaurianPart.LegL; leg <= SaurianPart.ForeR; leg++)
-            {
-                if (parts[(int)leg] < parts[(int)nearest]) nearest = leg;
-            }
-            float off = parts[(int)nearest] - parts[(int)SaurianPart.Body];
-            if (off >= JoinReach) return body;
-            return Mix(LegHang(nearest, p), body, 0.5f * (1f - Smooth(0f, JoinReach, off)));
+            if (part == SaurianPart.Head) return body;
+
+            // Which leg a point is on, or nearest, of the two on its own side.
+            bool onLeg = IsLeg(part);
+            bool left = p.X >= 0f;
+            SaurianPart fore = left ? SaurianPart.ForeL : SaurianPart.ForeR, hind = left ? SaurianPart.LegL : SaurianPart.LegR;
+            SaurianPart leg = onLeg ? part : parts[(int)fore] <= parts[(int)hind] ? fore : hind;
+            LegJoints(leg, out Vector3 top, out _, out _, out BoneType upper, out _, out _);
+
+            // How far it is to the body's surface less how far to the leg's, which is 0 at the join: the two share across a band that's wide round the shoulder or the hip and narrow
+            // further down, and none at all along the middle of the belly.
+            float gap = parts[(int)SaurianPart.Body] - parts[(int)leg];
+            bool forelegs = leg is SaurianPart.ForeL or SaurianPart.ForeR;
+            float near = 1f - Smooth(_body.W(0.08f), _body.W(forelegs ? 0.3f : 0.34f), (p - top).Length);
+            float band = MathHelper.Lerp(_body.W(0.015f), _body.W(0.18f), near) * Smooth(_body.Breadth * 0.15f, _body.Breadth * 0.45f, MathF.Abs(p.X));
+            float share = band > 1e-6f ? Smooth(-1f, 1f, gap / band) : gap >= 0f ? 1f : 0f;
+
+            Hang limb = onLeg ? LegHang(leg, p) : new Hang(upper);
+            if (share >= 0.999f) return limb;
+            if (share <= 0.001f) return body;
+            return Mix(limb, body, share);
         }
 
         private static bool IsLeg(SaurianPart part) => part is SaurianPart.LegL or SaurianPart.LegR or SaurianPart.ForeL or SaurianPart.ForeR;

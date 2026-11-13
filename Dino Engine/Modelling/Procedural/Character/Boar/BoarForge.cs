@@ -35,6 +35,7 @@ namespace Dino_Engine.Modelling.Procedural.Character
 
             Eyes(mesh, body, flesh);
             Ears(mesh, body, flesh);
+            Mane(mesh, body, flesh, dress);
             Tusks(mesh, body, flesh);
             Tail(mesh, body);
 
@@ -53,34 +54,77 @@ namespace Dino_Engine.Modelling.Procedural.Character
         private static void Eyes(SaurianMesh mesh, BoarBody body, SaurianField flesh)
         {
             float l = body.HeadLength;
-            float size = l * 0.034f;
+            float size = l * 0.028f;
             for (int side = -1; side <= 1; side += 2)
             {
                 Vector3 inside = body.FromHead(new Vector3(side * l * 0.05f, l * 0.11f, l * 0.4f));
                 Vector3 way = (Vector3.UnitX * side * 0.92f + body.HeadUp * 0.25f + body.HeadForward * 0.2f).Normalized();
                 Vector3 skin = inside + way * flesh.Exit(inside, way, l * 0.2f);
-                mesh.Ball(skin - way * size * 0.45f, new Vector3(size), 2, body.Hide.Eye, GearMaterials.Gem, BoneType.Head);
+                mesh.Ball(skin - way * size * 0.7f, new Vector3(size), 2, body.Hide.Eye, GearMaterials.Gem, BoneType.Head);
             }
         }
 
-        // Small, upright and pointed, set high at the back of the head and leaning out and a little forward, furred like the rest of it.
+        // Upright, broad at the base and pointed, set high at the back of the head and leaning out and a little forward, the tip cupped forward, furred like the rest of it: a leaf of skin
+        // and gristle, thin from the front and broad from the side.
         private static void Ears(SaurianMesh mesh, BoarBody body, SaurianField flesh)
         {
             float l = body.HeadLength;
             float length = body.Ears;
             if (length < Smallest) return;
+            Vector3 colour = Vector3.Lerp(body.Hide.Back, body.Hide.Face, 0.5f);
             for (int side = -1; side <= 1; side += 2)
             {
+                // It stands up from the world's up and not the head's, as the head hangs forward and an ear doesn't.
                 Vector3 inside = body.FromHead(new Vector3(side * l * 0.12f, l * 0.12f, l * 0.13f));
-                Vector3 up = (body.HeadUp * MathF.Cos(body.EarSpread) + Vector3.UnitX * side * MathF.Sin(body.EarSpread)).Normalized();
-                Vector3 way = (up * MathF.Cos(body.EarLean) + body.HeadForward * MathF.Sin(body.EarLean)).Normalized();
-                Vector3 root = inside + way * (flesh.Exit(inside, way, l * 0.2f) - length * 0.12f);
+                Vector3 up = (Vector3.UnitY * MathF.Cos(body.EarSpread) + Vector3.UnitX * side * MathF.Sin(body.EarSpread)).Normalized();
+                Vector3 way = (up * MathF.Cos(body.EarLean) + Vector3.UnitZ * MathF.Sin(body.EarLean)).Normalized();
+                Vector3 root = inside + way * (flesh.Exit(inside, way, l * 0.2f) - length * 0.14f);
 
-                // Thin across the way it faces, which is forward and out, and cupped a little back towards the tip.
-                Vector3 facing = (body.HeadForward + Vector3.UnitX * side * 0.6f).Normalized();
+                // It faces forward and out, and is as wide at its base as three quarters of its length.
+                Vector3 facing = (Vector3.UnitZ + Vector3.UnitX * side * 0.6f).Normalized();
+                facing = (facing - way * Vector3.Dot(facing, way)).Normalized();
+                Vector3 across = Vector3.Cross(facing, way).Normalized();
+                float half = length * 0.32f;
+                Vector3 cup = facing * (length * 0.12f);
+                var outline = new[]
+                {
+                    root - across * half,
+                    root - across * half * 1.05f + way * length * 0.28f,
+                    root - across * half * 0.5f + way * length * 0.68f + cup * 0.6f,
+                    root + way * length + cup,
+                    root + across * half * 0.5f + way * length * 0.68f + cup * 0.6f,
+                    root + across * half * 1.05f + way * length * 0.28f,
+                    root + across * half,
+                    root - way * length * 0.12f,
+                };
                 int first = mesh.Positions.Count;
-                mesh.Spike(root, way, length, length * 0.36f, -body.HeadForward, 0.12f, 7, Vector3.Lerp(body.Hide.Back, body.Hide.Face, 0.5f), GearMaterials.Leather, BoneType.Head, 0.34f, facing);
+                mesh.Sheet(outline, root + way * length * 0.36f + cup * 0.3f, facing, length * 0.045f, colour, colour * 0.9f, GearMaterials.Leather, _ => BoneType.Head);
                 Furred(mesh, first, 1f);
+            }
+        }
+
+        // The mane: a ragged crest of long dark bristles standing up and back along the top of the neck and the back, from behind the ears to the middle of the back, longest over the withers,
+        // in two rows either side of the spine. It's what a wild boar is known by from above, and what it raises when it's angry. Each tuft stands on the skin where it really is.
+        private static void Mane(SaurianMesh mesh, BoarBody body, SaurianField flesh, BoarDress dress)
+        {
+            float longest = body.W(0.085f + 0.06f * body.Age);
+            float from = body.Atlas.Z - body.W(0.01f);
+            float to = body.HindZ + (body.ForeZ - body.HindZ) * 0.35f;
+            float spacing = body.W(0.024f);
+            var random = new Dino_Engine.World.WorldRandom(body.Seed ^ 0x3A9E_11D5UL);
+            Vector3 dark = body.Hide.Back * 0.7f;
+            int row = 0;
+            for (float z = from; z > to; z -= spacing, row++)
+            {
+                float t = (from - z) / (from - to);
+                float length = longest * (0.45f + 0.55f * MathF.Sin(MathF.Min(t * 2f, 1f) * MathF.PI * 0.5f)) * (1f - 0.7f * MathF.Pow(MathF.Max(t - 0.55f, 0f) / 0.45f, 1.5f)) * random.Range(0.75f, 1.15f);
+                if (length < Smallest) continue;
+                float x = (row % 2 == 0 ? 1f : -1f) * body.W(0.012f);
+                float inside = z > body.Trunk[^1].Z ? body.Atlas.Y : body.Station(z).Middle;
+                Vector3 from3 = new Vector3(x, inside, z);
+                Vector3 root = from3 + Vector3.UnitY * (flesh.Exit(from3, Vector3.UnitY, body.W(0.2f)) - length * 0.12f);
+                Vector3 lean = new Vector3(x * 8f + random.Range(-0.12f, 0.12f), 0.62f, -0.78f + random.Range(-0.15f, 0.15f)).Normalized();
+                mesh.Spike(root, lean, length, length * 0.17f, -Vector3.UnitZ, 0.3f, 4, dark * random.Range(0.85f, 1.1f), GearMaterials.Leather, dress.BodyHang(root), 0.45f, Vector3.UnitX);
             }
         }
 

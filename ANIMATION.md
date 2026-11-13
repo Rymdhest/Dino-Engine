@@ -127,7 +127,7 @@ A dodge goes the tick it's pressed, and nothing gets in its way. Whatever was go
 
 **A new gesture**: three keys in `Gestures`, and a line in `SkillMotions.Of` if it's for a page. Add it to the list in `AnimCheck.Hostile`, and to `Script.Named` to look at it. If it isn't for a page, add to `Flourish`.
 
-**A new kind of animal**: a `BeastLook`. Its rig, its gait and how it falls all come from that. It needs a line in `CharacterFactory.Resolve` and `BearingOf`.
+**A new kind of animal**: a `BeastLook`. Its rig, its gait and how it falls all come from that. It needs a line in `CharacterFactory.Resolve` and `BearingOf`. A wild boar is grown instead (`BoarForge`), and its rig comes from the same body as its flesh (`BoarBody.BuildRig`): its forelegs are built hanging under it and a little folded, bending forward at the knee, which is the wrist, and its hind legs back at the hock, as a hoofed animal's do.
 
 **A new kind of dinosaur**: a species in `SaurianCatalog`, as `DINOSAURS.md` says. Its rig, its gait and how it falls come from its body, and `CharacterFactory` already knows any model named `dino:`. A new way of moving is a style in `SaurianForge.StyleOf`. A long neck needs nothing more than its frame saying so: what it reaches for is up to whoever drives it.
 

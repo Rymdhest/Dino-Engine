@@ -64,7 +64,7 @@ namespace Dino_AnimLab
                 {
                     var timing = System.Diagnostics.Stopwatch.StartNew();
                     var grown = Dino_Engine.Modelling.Procedural.Character.BoarForge.Make(boar, out var built);
-                    Console.WriteLine($"{key}: {timing.Elapsed.TotalMilliseconds:0} ms, {grown.faces.Count} triangles, {built.Withers:0.00} m at the withers, {built.Length:0.00} m long, age {built.Age:0.00}, tusks {built.Tusks:0.00} m");
+                    Console.WriteLine($"{key}: {timing.Elapsed.TotalMilliseconds:0} ms, {grown.faces.Count} triangles, {built.Withers:0.00} m at the withers, {built.Length:0.00} m long, age {built.Age:0.00}, tusks {built.Tusks:0.00} m, coat {built.Coat}");
                     continue;
                 }
                 var spec = Dino_Engine.Modelling.Procedural.Saurian.SaurianSpec.Parse(key);

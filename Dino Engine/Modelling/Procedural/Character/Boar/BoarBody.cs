@@ -88,6 +88,9 @@ namespace Dino_Engine.Modelling.Procedural.Character
 
         public readonly BoarHide Hide;
 
+        /// <summary>Which of the coats it has: 0 grizzled brown, 1 russet, 2 nearly black, 3 grey-brown.</summary>
+        public readonly int Coat;
+
         /// <summary>From the end of the snout to the back of the rump.</summary>
         public float Length => SnoutTip.Z - RumpBack;
 
@@ -97,20 +100,25 @@ namespace Dino_Engine.Modelling.Procedural.Character
         /// <summary>A share of the withers, which is what every measurement here is.</summary>
         public float W(float share) => Withers * share;
 
-        // A coat's colours, by how likely each is: grizzled grey-brown, a russet brown, nearly black, and a pale grey grizzle.
+        // A coat's colours, by how likely each is: a grizzled brown, a russet brown, nearly black, and a grey-brown grizzle. Warm and dark, as a wild boar is: the pale tips of its bristles
+        // (the coat's TipTint) are what grizzle it, and a coat any paler reads as a grey hide with nothing growing on it.
         private static readonly BoarHide[] Hides =
         {
-            new BoarHide(Back: V(0.072f, 0.062f, 0.05f), Flank: V(0.105f, 0.09f, 0.073f), Belly: V(0.095f, 0.082f, 0.068f), Legs: V(0.04f, 0.036f, 0.032f), Face: V(0.05f, 0.044f, 0.038f),
-                Cheek: V(0.2f, 0.18f, 0.15f), Disc: V(0.2f, 0.135f, 0.125f), Hoof: V(0.035f, 0.03f, 0.027f), Tusk: V(0.62f, 0.58f, 0.48f), Eye: V(0.03f, 0.018f, 0.01f)),
-            new BoarHide(Back: V(0.09f, 0.055f, 0.033f), Flank: V(0.13f, 0.08f, 0.048f), Belly: V(0.12f, 0.08f, 0.055f), Legs: V(0.045f, 0.032f, 0.026f), Face: V(0.065f, 0.045f, 0.034f),
-                Cheek: V(0.22f, 0.17f, 0.12f), Disc: V(0.22f, 0.135f, 0.115f), Hoof: V(0.036f, 0.03f, 0.026f), Tusk: V(0.64f, 0.58f, 0.46f), Eye: V(0.035f, 0.018f, 0.008f)),
-            new BoarHide(Back: V(0.04f, 0.037f, 0.034f), Flank: V(0.058f, 0.053f, 0.048f), Belly: V(0.062f, 0.056f, 0.05f), Legs: V(0.03f, 0.028f, 0.026f), Face: V(0.036f, 0.033f, 0.031f),
-                Cheek: V(0.15f, 0.14f, 0.125f), Disc: V(0.16f, 0.11f, 0.105f), Hoof: V(0.03f, 0.027f, 0.025f), Tusk: V(0.6f, 0.56f, 0.47f), Eye: V(0.025f, 0.015f, 0.01f)),
-            new BoarHide(Back: V(0.09f, 0.085f, 0.075f), Flank: V(0.13f, 0.12f, 0.104f), Belly: V(0.12f, 0.11f, 0.096f), Legs: V(0.048f, 0.044f, 0.04f), Face: V(0.058f, 0.053f, 0.048f),
-                Cheek: V(0.25f, 0.23f, 0.2f), Disc: V(0.22f, 0.15f, 0.14f), Hoof: V(0.036f, 0.032f, 0.029f), Tusk: V(0.62f, 0.58f, 0.49f), Eye: V(0.03f, 0.018f, 0.01f)),
+            new BoarHide(Back: V(0.066f, 0.051f, 0.039f), Flank: V(0.112f, 0.087f, 0.064f), Belly: V(0.1f, 0.079f, 0.06f), Legs: V(0.036f, 0.03f, 0.026f), Face: V(0.048f, 0.039f, 0.032f),
+                Cheek: V(0.19f, 0.165f, 0.135f), Disc: V(0.19f, 0.125f, 0.115f), Hoof: V(0.03f, 0.026f, 0.023f), Tusk: V(0.62f, 0.58f, 0.48f), Eye: V(0.03f, 0.018f, 0.01f)),
+            new BoarHide(Back: V(0.085f, 0.051f, 0.031f), Flank: V(0.14f, 0.085f, 0.051f), Belly: V(0.13f, 0.085f, 0.058f), Legs: V(0.042f, 0.03f, 0.024f), Face: V(0.06f, 0.041f, 0.031f),
+                Cheek: V(0.2f, 0.152f, 0.105f), Disc: V(0.2f, 0.125f, 0.105f), Hoof: V(0.032f, 0.027f, 0.023f), Tusk: V(0.64f, 0.58f, 0.46f), Eye: V(0.035f, 0.018f, 0.008f)),
+            new BoarHide(Back: V(0.04f, 0.035f, 0.031f), Flank: V(0.064f, 0.056f, 0.048f), Belly: V(0.066f, 0.058f, 0.05f), Legs: V(0.028f, 0.025f, 0.023f), Face: V(0.034f, 0.03f, 0.027f),
+                Cheek: V(0.14f, 0.128f, 0.11f), Disc: V(0.15f, 0.1f, 0.095f), Hoof: V(0.026f, 0.024f, 0.022f), Tusk: V(0.6f, 0.56f, 0.47f), Eye: V(0.025f, 0.015f, 0.01f)),
+            new BoarHide(Back: V(0.078f, 0.069f, 0.058f), Flank: V(0.122f, 0.108f, 0.09f), Belly: V(0.112f, 0.1f, 0.084f), Legs: V(0.042f, 0.038f, 0.034f), Face: V(0.054f, 0.048f, 0.042f),
+                Cheek: V(0.22f, 0.198f, 0.17f), Disc: V(0.2f, 0.135f, 0.125f), Hoof: V(0.032f, 0.029f, 0.026f), Tusk: V(0.62f, 0.58f, 0.49f), Eye: V(0.03f, 0.018f, 0.01f)),
         };
 
         private static Vector3 V(float r, float g, float b) => new Vector3(r, g, b);
+
+        // Which coat each of the first few has, so that however few a pack draws from, most are grizzled brown, with a russet, a grey-brown and a black one among them: drawn by chance,
+        // six came out half black and none brown.
+        private static readonly int[] Coats = { 0, 1, 0, 3, 0, 2 };
 
         public BoarBody(BoarSpec spec)
         {
@@ -120,36 +128,40 @@ namespace Dino_Engine.Modelling.Procedural.Character
             float size = genes.Range("size", 0.92f, 1.06f);
             Withers = 2.3f * size * (0.93f + 0.12f * Age);
 
-            // Its legs stand as far apart along it as two thirds of the trunk, the forelegs under the withers and the hind legs under the hips, and the middle of it is a little nearer the
-            // forelegs, as a boar carries most of its weight in front.
-            float trunk = W(genes.Range("trunk", 1.12f, 1.22f));
-            float spacing = trunk * 0.66f;
+            // The trunk, from the front of the chest to the back of the rump, is a little longer than the boar is tall, and its legs stand nearly three quarters of that apart, the forelegs
+            // under the withers and the hind legs under the hips. The middle of it is nearer the forelegs, as a boar carries most of its weight in front. The trunk's rounded ends reach
+            // a little past the places it's measured between.
+            float trunk = W(genes.Range("trunk", 0.95f, 1.02f));
+            float spacing = trunk * 0.74f;
             ForeZ = spacing * 0.42f;
             HindZ = -spacing * 0.58f;
-            ChestFront = ForeZ + trunk * 0.17f;
-            RumpBack = HindZ - trunk * 0.17f;
+            ChestFront = ForeZ + trunk * 0.14f;
+            RumpBack = HindZ - trunk * 0.12f;
 
-            RumpTop = W(genes.Range("rump", 0.84f, 0.9f));
-            Brisket = W(genes.Range("legs", 0.43f, 0.48f));
-            Breadth = W(genes.Range("breadth", 0.2f, 0.23f) * (1f + 0.06f * Age));
-            float deep = W(1f) - Brisket;
+            // Its hips are as high as its shoulders, as its legs are as long behind as in front: the withers stand over its hips because of what's built up over the shoulder blades.
+            Brisket = W(genes.Range("legs", 0.47f, 0.52f));
+            float shoulderHeight = Brisket + W(0.15f);
+            float hipHeight = shoulderHeight - W(0.02f);
+            RumpTop = hipHeight + W(genes.Range("rump", 0.23f, 0.27f));
+            Breadth = W(genes.Range("breadth", 0.17f, 0.195f) * (1f + 0.06f * Age));
 
-            // From the back of the rump to the throat: the rump's rounded end, the hips, the loin, the barrel, the shoulders under the withers, the front of the chest, and the neck.
-            float loin = HindZ + spacing * 0.3f, barrel = HindZ + spacing * 0.62f;
+            // From the back of the rump to the throat: the rump's rounded end, the hips with the flank tucked up in front of them, the loin, the barrel, the shoulders under the withers, and
+            // the front of the chest, where the neck begins.
+            float loin = HindZ + spacing * 0.3f, barrel = HindZ + spacing * 0.65f;
             Trunk = new[]
             {
-                new BoarStation(RumpBack + W(0.07f), RumpTop - W(0.07f), Brisket + W(0.13f), Breadth * 0.62f),
-                new BoarStation(HindZ, RumpTop, Brisket + W(0.03f), Breadth * 0.86f),
-                new BoarStation(loin, MathHelper.Lerp(RumpTop, W(1f), 0.25f), Brisket + W(0.01f), Breadth * 0.93f),
-                new BoarStation(barrel, MathHelper.Lerp(RumpTop, W(1f), 0.62f), Brisket, Breadth * 0.98f),
-                new BoarStation(ForeZ - W(0.12f), W(1f), Brisket - deep * 0.01f, Breadth),
-                new BoarStation(ChestFront - W(0.06f), W(0.93f), Brisket + W(0.06f), Breadth * 0.88f),
+                new BoarStation(RumpBack + W(0.06f), RumpTop - W(0.07f), Brisket + W(0.17f), Breadth * 0.42f),
+                new BoarStation(HindZ, RumpTop, Brisket + W(0.09f), Breadth * 0.6f),
+                new BoarStation(loin, MathHelper.Lerp(RumpTop, W(1f), 0.3f), Brisket + W(0.04f), Breadth * 0.76f),
+                new BoarStation(barrel, MathHelper.Lerp(RumpTop, W(1f), 0.75f), Brisket, Breadth * 0.95f),
+                new BoarStation(ForeZ - W(0.08f), W(1f), Brisket - W(0.005f), Breadth),
+                new BoarStation(ChestFront - W(0.04f), W(0.9f), Brisket + W(0.08f), Breadth * 0.84f),
             };
 
             // The forelegs: the point of the shoulder, the elbow at the bottom of the chest, the knee (which is the wrist, and bends forward), the fetlock, and the top of the hoof. The leg is
             // built a little folded at the knee, so that it has somewhere to go when the shoulders come down.
             float foreX = Breadth * 0.55f;
-            Shoulder = new Vector3(foreX, Brisket + W(0.15f), ForeZ);
+            Shoulder = new Vector3(foreX, shoulderHeight, ForeZ);
             Elbow = new Vector3(foreX * 1.05f, Brisket + W(0.02f), ForeZ - W(0.04f));
             Carpus = new Vector3(foreX * 0.98f, W(0.25f), ForeZ + W(0.05f));
             ForeFetlock = new Vector3(foreX * 0.97f, W(0.12f), ForeZ - W(0.012f));
@@ -157,28 +169,29 @@ namespace Dino_Engine.Modelling.Procedural.Character
             ForeCoronet = new Vector3(foreX * 0.97f, AnkleHeight, ForeZ);
 
             // The hind legs: the hip joint in the rump, the stifle (the knee, forward at the bottom of the flank), the hock (the heel, which bends back), the fetlock and the top of the hoof.
-            float hindX = Breadth * 0.52f;
-            Hip = new Vector3(hindX, RumpTop - W(0.28f), HindZ);
-            Stifle = new Vector3(hindX * 1.08f, Brisket + W(0.0f), HindZ + W(0.06f));
-            Hock = new Vector3(hindX * 0.95f, W(0.29f), HindZ - W(0.09f));
-            HindFetlock = new Vector3(hindX * 0.95f, W(0.12f), HindZ - W(0.01f));
-            HindCoronet = new Vector3(hindX * 0.95f, AnkleHeight, HindZ + W(0.01f));
+            float hindX = Breadth * 0.5f;
+            Hip = new Vector3(hindX, hipHeight, HindZ);
+            Stifle = new Vector3(hindX * 1.08f, Brisket + W(0.02f), HindZ + W(0.06f));
+            Hock = new Vector3(hindX * 0.95f, W(0.29f), HindZ - W(0.07f));
+            HindFetlock = new Vector3(hindX * 0.95f, W(0.12f), HindZ - W(0.015f));
+            HindCoronet = new Vector3(hindX * 0.95f, AnkleHeight, HindZ);
             HoofFront = W(0.045f);
             HoofBack = W(0.02f);
 
-            // The head hangs off the front of the shoulders on a neck that's mostly muscle, pointing down and forward: a wild boar carries its snout well below its back.
-            HeadLength = W(genes.Range("head", 0.46f, 0.51f) * (1f + 0.05f * Age));
-            float carriage = genes.Range("carriage", 0.54f, 0.66f);
+            // The head is big, nearly half as long as the trunk, and hangs off the front of the shoulders on a neck that's short and all muscle, pointing down and forward: a wild boar
+            // carries its snout well below its back, and the line of its face runs on up its neck to the withers.
+            HeadLength = W(genes.Range("head", 0.55f, 0.6f) * (1f + 0.05f * Age));
+            float carriage = genes.Range("carriage", 0.5f, 0.62f);
             HeadForward = new Vector3(0f, -MathF.Sin(carriage), MathF.Cos(carriage));
             HeadUp = new Vector3(0f, MathF.Cos(carriage), MathF.Sin(carriage));
-            Atlas = new Vector3(0f, W(0.69f), ChestFront + W(0.05f));
-            NeckRoot = new Vector3(0f, W(0.74f), ChestFront - W(0.1f));
+            Atlas = new Vector3(0f, W(0.7f), ChestFront + W(0.13f));
+            NeckRoot = new Vector3(0f, W(0.74f), ChestFront - W(0.06f));
 
-            Mane = W((0.025f + 0.035f * Age) * genes.Range("mane", 0.8f, 1.25f));
+            Mane = W((0.035f + 0.045f * Age) * genes.Range("mane", 0.8f, 1.25f));
             Tusks = HeadLength * (0.1f + 0.2f * Age) * genes.Range("tusks", 0.85f, 1.15f);
-            Ears = HeadLength * genes.Range("ears", 0.23f, 0.29f);
-            EarSpread = genes.Range("ear spread", 0.3f, 0.6f);
-            EarLean = genes.Range("ear lean", 0.05f, 0.35f);
+            Ears = HeadLength * genes.Range("ears", 0.25f, 0.3f);
+            EarSpread = genes.Range("ear spread", 0.3f, 0.55f);
+            EarLean = genes.Range("ear lean", 0.1f, 0.4f);
 
             // The tail leaves the top of the rump's end and hangs down and back, with a tuft at the end.
             TailLength = W(genes.Range("tail", 0.25f, 0.31f));
@@ -187,7 +200,8 @@ namespace Dino_Engine.Modelling.Procedural.Character
             TailMiddle = TailRoot + hang * (TailLength * 0.5f);
             TailEnd = TailMiddle + new Vector3(0f, -0.94f, -0.34f) * (TailLength * 0.5f);
 
-            BoarHide hide = Hides[genes.Pick("hide", 0.4f, 0.2f, 0.25f, 0.15f)];
+            Coat = spec.Variant >= 0 && spec.Variant < Coats.Length ? Coats[spec.Variant] : genes.Pick("hide", 0.42f, 0.22f, 0.16f, 0.2f);
+            BoarHide hide = Hides[Coat];
             float shade = genes.Range("shade", 0.88f, 1.12f);
             Hide = hide with
             {

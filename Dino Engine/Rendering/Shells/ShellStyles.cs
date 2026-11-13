@@ -144,25 +144,25 @@ namespace Dino_Engine.Rendering.Shells
             MostShells = 16,
         };
 
-        // A boar's coat is coarse and sparse: bristles standing off the hide in rows, more of them where the hump is, little undercoat.
+        // A wild boar's coat is coarse and sparse: long, stiff bristles standing off the hide, pale at their tips, which is what grizzles a dark coat, over little undercoat.
         private static readonly ShellStyle Boar = Wolf with
         {
             Name = "bristles",
-            Length = 0.055f,
-            ClumpSize = 0.075f,
-            ClumpWidth = 0.42f,
-            ClumpFill = 0.9f,
-            Carpet = 0.25f,
-            HeightVariety = 0.5f,
+            Length = 0.13f,
+            ClumpSize = 0.12f,
+            ClumpWidth = 0.5f,
+            ClumpFill = 1f,
+            Carpet = 0.34f,
+            HeightVariety = 0.55f,
             Shape = 1.2f,
-            Stretch = 2.8f,
-            Fringe = 0.45f,
-            StrandSize = 0.008f,
-            Variety = 0.2f,
-            RootShade = 0.6f,
-            TipTint = new Vector3(1.15f, 1.1f, 1.05f),
+            Stretch = 2.6f,
+            Fringe = 0.5f,
+            StrandSize = 0.011f,
+            Variety = 0.24f,
+            RootShade = 0.5f,
+            TipTint = new Vector3(1.3f, 1.24f, 1.15f),
             Lean = 0.45f,
-            Droop = 0.15f,
+            Droop = 0.12f,
             Sway = 0.06f,
         };
 

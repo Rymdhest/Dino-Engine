@@ -12,7 +12,7 @@ the sky, lamps, shadows, bounced light, fog, reflections and rain see it with no
   whose locks hang and sway) and `SpiderHair` (the weaver's bristles, in rows down its legs and abdomen, pale at their tips). A model carries its number (`glModel.Shell`, set by the loader from `Mesh.ShellStyle` or `FloraMesh.ShellStyle`), and 0 is
   nothing. A new growth is a number and a line in `ShellStyles.All`, at the same place.
 - A style's `Mask` says where on a surface it grows. `Vertex` reads each vertex's own amount (`Vertex.Shell`, `FloraVertex.Shell`, from a `VertexMaterial`'s
-  `Shell`): a beast's coat is everywhere but its nose, eyes and tusks (`BeastGenerator.Fur`), a rabbit's everywhere but its eyes and ears (`BodyMesh.Shell`),
+  `Shell`): a wolf's or a bear's coat is everywhere but its nose and eyes (`BeastGenerator.Fur`), a wild boar's thinner down its legs and its snout and none on its hooves or the disc of its snout (`BoarDress.Shell`), with its mane laid on as tufts, a rabbit's everywhere but its eyes and ears (`BodyMesh.Shell`),
   a dinosaur's as its species says (`SaurianSpecies.Coat`, with how far it goes down the legs, over the head and under the belly, or along the top as a mane,
   worked out per vertex by `SaurianDress.Shell`, so a snout, jaws, shins and feet stay scaled; it grows on the living and the rotting, and bones and ghosts have none),
   and bark moss is exactly as much as `BarkSkin` paints into the bark, on wood thick enough for a cushion (`ColourAt`'s `moss`). `Rock` grows wherever
