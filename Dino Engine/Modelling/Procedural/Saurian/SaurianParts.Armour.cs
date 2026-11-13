@@ -1,4 +1,4 @@
-using Dino_Engine.ECS.Components;
+﻿using Dino_Engine.ECS.Components;
 using Dino_Engine.Modelling.Procedural.Gear;
 using OpenTK.Mathematics;
 
@@ -8,9 +8,10 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
     {
         /// <summary>
         /// Armour, as an ankylosaur's was: rows of oval plates of bone across its back from the neck to the middle of the tail, each with a low keel, a row of short spikes out along each flank,
-        /// and a pair of horns at the back corners of its skull. From up where the camera is it's a shell, which is what it is.
+        /// and a pair of horns at the back corners of its skull. From up where the camera is it's a shell, which is what it is. Each plate lies on the skin, found in the body's
+        /// <paramref name="flesh"/>, as an animal this broad stands well outside the line of its body and plates laid by the line were buried in it; bones have no skin, and theirs lie where the line says.
         /// </summary>
-        public static void Armour(SaurianMesh mesh, SaurianBody body, SaurianDress dress)
+        public static void Armour(SaurianMesh mesh, SaurianBody body, SaurianDress dress, SaurianField? flesh = null)
         {
             float plate = body.Armour;
             if (plate < Smallest) return;
@@ -19,7 +20,7 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
             Vector3 shell = Vector3.Lerp(body.Coat.Back, body.Coat.Horn, 0.45f);
             float from = body.NeckAt + (body.NeckTopAt - body.NeckAt) * 0.5f;
             float to = body.HipAt * 0.45f;
-            float spacing = plate * 1.7f;
+            float spacing = plate * 1.3f;
             int row = 0;
             for (float at = from; at > to; at -= spacing, row++)
             {
@@ -28,14 +29,21 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
                 Vector3 across = Vector3.Cross(up, way);
                 float deep = axis.DeepAt(at), wide = axis.WideAt(at);
                 Hang hang = dress.Along(at);
-                float size = plate * (0.75f + 0.25f * MathF.Min(deep / MathF.Max(body.ChestDepth, 1e-3f), 1f));
-                int across_ = Math.Clamp((int)(wide * 2.2f / (size * 1.6f)), 2, 6);
+                float size = plate * (0.85f + 0.3f * MathF.Min(deep / MathF.Max(body.ChestDepth, 1e-3f), 1f));
+                int across_ = Math.Clamp((int)(wide * 2.6f / (size * 1.25f)), 3, 7);
                 float stagger = row % 2 == 0 ? 0f : 0.5f;
                 for (int k = 0; k < across_; k++)
                 {
-                    float angle = ((k + stagger) / (across_ - 1 + stagger * 2f) - 0.5f) * 2.1f;
+                    float angle = ((k + stagger) / (across_ - 1 + stagger * 2f) - 0.5f) * 2.5f;
                     Vector3 out_ = (up * MathF.Cos(angle) + across * MathF.Sin(angle)).Normalized();
                     Vector3 root = centre + up * (MathF.Cos(angle) * deep * 1.02f) + across * (MathF.Sin(angle) * wide * 1.02f);
+                    if (flesh != null)
+                    {
+                        Vector3 ray = (root - centre).Normalized();
+                        root = centre + ray * flesh.Exit(centre, ray, MathF.Max(deep, wide));
+                        out_ = flesh.Normal(root, deep * 0.05f);
+                    }
+
                     // A plate is a short, broad, flattened spike lying back along the body, its keel along the middle of it.
                     mesh.Spike(root - way * size * 0.2f, out_ * 0.45f - way * 0.9f, size, size * 0.5f, out_, 0.15f, 5, k % 2 == 0 ? shell : shell * 0.85f, GearMaterials.Bone, hang, 0.32f, out_);
                 }
@@ -46,6 +54,11 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
                     for (int side = -1; side <= 1; side += 2)
                     {
                         Vector3 root = centre + across * (side * wide * 0.98f) - up * (deep * 0.15f);
+                        if (flesh != null)
+                        {
+                            Vector3 ray = (root - centre).Normalized();
+                            root = centre + ray * flesh.Exit(centre, ray, wide);
+                        }
                         Vector3 out_ = (across * side - way * 0.35f + up * 0.1f).Normalized();
                         mesh.Spike(root, out_, size * 1.2f, size * 0.32f, -way, 0.2f, 5, horn, GearMaterials.Bone, hang, 0.55f, up);
                     }

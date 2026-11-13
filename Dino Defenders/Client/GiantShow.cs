@@ -1,13 +1,10 @@
-using Dino_Engine.Animation;
+﻿using Dino_Engine.Animation;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.ECS.Systems;
 using Dino_Engine.Modelling.Model;
-using Dino_Engine.Particles;
-using Dino_Engine.Particles.Content;
 using Dino_Engine.Physics;
 using Dino_Engine.Sound;
-using Dino_Engine.Sound.Content;
 using Dino_Engine.Wildlife;
 using Dino_Engine.World;
 using OpenTK.Mathematics;
@@ -23,11 +20,8 @@ namespace Dino_Defenders.Client
     /// </summary>
     public sealed class GiantShow
     {
-        private const float FootShare = 0.34f;      // As PlantContactSystem has it: how wide a foot's mark is, of the body's.
         private const float FootMark = 2.6f;        // Metres from the middle of a foot that it presses the grass, at a scale of one: well past the foot itself, as a weight that size flattens what's round it.
-        private const float TreadReach = 6.5f;      // Metres the ring a foot sends through the grass goes out,
-        private const float TreadGust = 5.5f;       // as a wind this many metres a second at its front,
-        private const float TreadFor = 0.7f;        // for this long: under anything that breaks what it reaches (BreakageSystem.BreakingWind).
+        private const float TreadReach = 6.5f;      // Metres the ring a foot sends through the grass goes out, at a scale of one.
         private const float TugGust = 4.5f;         // A pull at a tree, as a gust drawing its crown towards the mouth.
         private const float TugFor = 0.6f;
         private const float NearCamera = 7f;        // Metres from the camera inside which any of a giant thins away, as nothing should ever be seen from inside.
@@ -150,7 +144,7 @@ namespace Dino_Defenders.Client
                     new AnimatorComponent(animator),
                     new SkeletonComponent(bearing.Rig, animator.Skinning),
                     new VelocityComponent(),
-                    new PlantContactComponent(FootMark * scale / FootShare) { feetOnly = true });
+                    new PlantContactComponent(FootMark * scale / Treads.FootShare) { feetOnly = true });
             }
             _ecs.ApplyDeferredCommands();
             _standing = true;
@@ -174,8 +168,8 @@ namespace Dino_Defenders.Client
             return new ReadOnlySpan<Vector2>(_people, 0, count);
         }
 
-        // A foot that came down: the grass under it pressed flat by the body's own contact, a ring of wind through the grass round it, the thud of it where it landed, and a little of the ground
-        // thrown up, more off bare ground than turf, and a splash if it was in water.
+        // A foot that came down: the grass under it pressed flat by the body's own contact, the thud of it where it landed, and what any heavy foot does (Treads.Felt), a ring of wind through
+        // the grass round it and a little of the ground thrown up, or a splash in water.
         private void Felt(Giant giant, CharacterAnimator animator)
         {
             int landed = animator.Footfalls;
@@ -186,17 +180,8 @@ namespace Dino_Defenders.Client
             {
                 if ((landed & (1 << f)) == 0) continue;
                 Vector3 at = feet[f].At;
-                Wind.AddBlast(_ecs, at, TreadReach * scale, TreadGust, TreadFor);
+                Treads.Felt(_ecs, _world, at, TreadReach * scale, scale);
                 Audio.Play(GiantSounds.Step, at + Vector3.UnitY * 0.4f);
-
-                float depth = _world.WaterDepthAt(at.Xz);
-                if (depth > 0.02f)
-                {
-                    Water.AddSplash(_ecs, at, FootMark * scale * 1.4f, MathF.Min(depth * 2f, 1f));
-                    continue;
-                }
-                bool turf = Footsteps.GroundOf(_world.SurfaceAt(at.Xz)) == Ground.Grass;
-                Particles.Play(Smoke.Puff, at, (turf ? 0.45f : 0.65f) * scale, EffectShape.Ball(1.35f * scale), strength: turf ? 0.35f : 0.75f);
             }
         }
 

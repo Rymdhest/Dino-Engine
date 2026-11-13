@@ -89,6 +89,7 @@ namespace Dino_Engine.Animation
         private readonly Vector3[] _joints = new Vector3[Rig.BoneCount];
         private readonly Quaternion[] _rotations = new Quaternion[Rig.BoneCount];
         private readonly Vector3[] _ankles;
+        private readonly Vector3[] _landings;   // Where each ankle will be once its foot has come down, in the body's own space: where it stands, for one that's down.
         private readonly Quaternion[] _soles;
         private readonly Quaternion[] _toes;
         private readonly TurnContinuity[] _toeTurn;
@@ -201,6 +202,7 @@ namespace Dino_Engine.Animation
             _style = style.Individual(seed);
             _gait = new Gait(rig, _style);
             _ankles = new Vector3[rig.Legs.Length];
+            _landings = new Vector3[rig.Legs.Length];
             _soles = new Quaternion[rig.Legs.Length];
             _toes = new Quaternion[rig.Legs.Length];
             _toeTurn = new TurnContinuity[rig.Legs.Length];
@@ -589,6 +591,7 @@ namespace Dino_Engine.Animation
                 if (!foot.Swinging) _footMotion[i].Reset();
 
                 _ankles[i] = Vector3.Transform(smooth - input.Position, toBody) * inverse;
+                _landings[i] = foot.Swinging ? foot.Lands * inverse + Vector3.UnitY * Rig.AnkleHeight : _ankles[i];
                 float groundPitch = foot.Swinging ? 0f : foot.GroundPitch;
                 float groundRoll = foot.Swinging ? 0f : foot.GroundRoll;
                 float yaw = Spring.Shortest(foot.Yaw - input.Yaw) - Rig.Legs[i].Side * _style.ToeIn;
@@ -614,6 +617,7 @@ namespace Dino_Engine.Animation
 
         private const float SupportFrom = 0.18f;    // Of a foot's time on the ground, the share it takes to carry its full part of the weight after landing,
         private const float SupportUntil = 0.82f;   // and where it starts to give it up again before it lifts.
+        private const float ComingFrom = 0.35f;     // Of a swing, where a foot coming down starts to let the girdle down to meet it.
 
         // How much of the weight each foot carries: nothing in the air, and its full share standing, taken up over the first moment after it lands and handed on before it lifts. A foot
         // that lifts early, or lands in a stride that changed its mind, would still change things in a moment, so it's eased once more by its own half-life. Whatever's worked out from where
@@ -659,18 +663,39 @@ namespace Dino_Engine.Animation
             Vector3 girdleRest = Rig.Pivots[(int)girdle];
             for (int i = from; i < to; i++)
             {
-                // A foot that has just lifted still holds on for as long as its share of the weight takes to go, rising as it goes: let go of at once, it threw the hips up at every step.
-                if (_support[i] < 1e-3f) continue;
                 Limb limb = Rig.Legs[i];
                 Vector3 root = Rig.Pivots[(int)limb.Upper];
-                Vector3 ankle = _bearing[i];
-                float x = ankle.X - root.X - shift;
-                float z = ankle.Z - root.Z;
                 float length = limb.Length * Reach.Comfortable;
-                float top = ankle.Y + MathF.Sqrt(MathF.Max(length * length - x * x - z * z, 0f)) - (root.Y - girdleRest.Y);
-                highest = MathF.Min(highest, MathHelper.Lerp(stand, top, _support[i]));
+                float above = root.Y - girdleRest.Y;
+
+                // A foot that has just lifted still holds on for as long as its share of the weight takes to go, rising as it goes: let go of at once, it threw the hips up at every step.
+                if (_support[i] >= 1e-3f) highest = MathF.Min(highest, MathHelper.Lerp(stand, TopOver(_bearing[i], root, shift, length, above), _support[i]));
+
+                // And one coming down lets the girdle down to meet it before it lands, as a walking body is lowest with its legs spread: held down only once the foot carried weight, every
+                // foot out in front landed short of where it came down, and the girdle dropped to it afterwards. It's where the foot will land that counts, and not where it is, or the girdle
+                // follows it down out of the air.
+                float coming = Coming(i);
+                if (coming >= 1e-3f) highest = MathF.Min(highest, MathHelper.Lerp(stand, TopOver(_landings[i], root, shift, length, above), coming));
             }
             return MathF.Max(highest, stand - leg * 0.3f);
+        }
+
+        // The highest a girdle can be, as its own bone's height, with a foot at this ankle still in comfortable reach of a hip this far above it.
+        private static float TopOver(Vector3 ankle, Vector3 root, float shift, float length, float above)
+        {
+            float x = ankle.X - root.X - shift;
+            float z = ankle.Z - root.Z;
+            return ankle.Y + MathF.Sqrt(MathF.Max(length * length - x * x - z * z, 0f)) - above;
+        }
+
+        // How far a foot is through coming down, as a share of the hold it takes on the girdle: none for the first part of its swing, all of it as it lands, and kept until the weight it
+        // takes up holds the girdle down in its place (ReadSupport), so nothing lets go of it at the moment it lands.
+        private float Coming(int i)
+        {
+            ref Foot foot = ref _gait.Feet[i];
+            if (foot.Swinging) return Gait.Smooth(ComingFrom, 1f, 1f - foot.SwingLeft / MathF.Max(foot.SwingTime, 1e-3f));
+            float through = foot.Planted / MathF.Max(foot.StandFor, 0.05f);
+            return 1f - Gait.Smooth(SupportFrom, SupportFrom * 2f, through);
         }
 
         private float StandingPitch(in Foot foot)

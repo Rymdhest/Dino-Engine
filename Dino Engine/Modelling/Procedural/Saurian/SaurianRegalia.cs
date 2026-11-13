@@ -41,15 +41,7 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
         private static Vector3 OnSkin(Vector3 centre, Vector3 way, float deep, float outset)
         {
             if (_flesh == null) return centre + way * (deep * outset);
-            float inside = 0f, outside = deep * 1.2f;
-            for (int i = 0; i < 6 && _flesh.Distance(centre + way * outside) < 0f; i++) outside *= 1.5f;
-            for (int i = 0; i < 18; i++)
-            {
-                float middle = (inside + outside) * 0.5f;
-                if (_flesh.Distance(centre + way * middle) < 0f) inside = middle;
-                else outside = middle;
-            }
-            return centre + way * (outside + deep * (outset - 1f));
+            return centre + way * (_flesh.Exit(centre, way, deep) + deep * (outset - 1f));
         }
 
         // An iron helm over the top of the skull from the bridge of the snout back past the eyes, its brow plates over each eye, guards over the cheeks, and down the middle a crest of blades

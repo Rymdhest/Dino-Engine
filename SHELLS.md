@@ -1,4 +1,4 @@
-# Shells: moss and fur
+﻿# Shells: moss and fur
 
 Moss and fur are drawn as shells: the surface they grow on drawn again a few times, each layer pushed a little further out along it, and each cut from one
 height field of what grows there. It's the oldest way of drawing fur in real time (Lengyel, Praun, Finkelstein and Hoppe, "Real-Time Fur over Arbitrary
@@ -7,11 +7,14 @@ the sky, lamps, shadows, bounced light, fog, reflections and rain see it with no
 
 ## What grows where
 
-- A growth is a `ShellStyle` (`Rendering/Shells/`, headless), by a number in `ShellStyles`: rock moss, ground moss, bark moss, and the coats of wolves, dire
-  wolves, bears, boars and rabbits. A model carries its number (`glModel.Shell`, set by the loader from `Mesh.ShellStyle` or `FloraMesh.ShellStyle`), and 0 is
+- A growth is a `ShellStyle` (`Rendering/Shells/`, headless), by a number in `ShellStyles`: rock moss, ground moss, bark moss, the coats of wolves, dire
+  wolves, bears, boars and rabbits, and three for dinosaurs: `Plumage` (the reaper's and the strider's feathers), `Shag` (the shagback's coat of long filaments,
+  whose locks hang and sway) and `SpiderHair` (the weaver's bristles, in rows down its legs and abdomen, pale at their tips). A model carries its number (`glModel.Shell`, set by the loader from `Mesh.ShellStyle` or `FloraMesh.ShellStyle`), and 0 is
   nothing. A new growth is a number and a line in `ShellStyles.All`, at the same place.
 - A style's `Mask` says where on a surface it grows. `Vertex` reads each vertex's own amount (`Vertex.Shell`, `FloraVertex.Shell`, from a `VertexMaterial`'s
   `Shell`): a beast's coat is everywhere but its nose, eyes and tusks (`BeastGenerator.Fur`), a rabbit's everywhere but its eyes and ears (`BodyMesh.Shell`),
+  a dinosaur's as its species says (`SaurianSpecies.Coat`, with how far it goes down the legs, over the head and under the belly, or along the top as a mane,
+  worked out per vertex by `SaurianDress.Shell`, so a snout, jaws, shins and feet stay scaled; it grows on the living and the rotting, and bones and ghosts have none),
   and bark moss is exactly as much as `BarkSkin` paints into the bark, on wood thick enough for a cushion (`ColourAt`'s `moss`). `Rock` grows wherever
   Rock.glsl paints moss on stone, by the same function (`RockGrowth.glsl`'s `rockGrowthAt`, which Rock.glsl paints by), so the painted moss and the moss
   standing on it are never in different places; it goes under the rock's snow. Stones but pebbles and chips (`RockForge.Forge`) and every tile of the rock's
@@ -79,7 +82,8 @@ the sky, lamps, shadows, bounced light, fog, reflections and rain see it with no
 
 After any change here run `Dino FloraLab check`, `rockcheck` and `bend`, `Dino WorldLab skin` (tiles still meet), `Dino AnimLab check` and `Dino LifeLab check`,
 and look at it in the game, with shells on and off: `--seed 1 --archetype archipelago --biome cloudforest` for ground moss, `--garden rock.granite-boulder,rock.granite-tor`
-with `--weather clear` for stone, `--haven true --parade wolf,direwolf,boar,bear --look 24 --calm true` for fur, and `--perf` against the build before. The main
+with `--weather clear` for stone, `--haven true --parade wolf,direwolf,boar,bear --look 24 --calm true` for fur, `--parade shagback,reaper,strider,weaver` for the
+dinosaurs' coats, and `--perf` against the build before. The main
 menu's picture is settled, so nothing grows there (`ShellRenderer.Held`).
 
 Nobody has seen any of it move: it was judged from stills, on one GPU.

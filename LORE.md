@@ -1,4 +1,4 @@
-# Lore
+﻿# Lore
 
 What Dino Defenders is about, and the words, names, looks and sounds that say it. Read this before writing anything a player reads, naming anything, or adding an enemy, a place or a look. It's the main lore of the game, and everything else is there to mean it.
 
@@ -65,10 +65,11 @@ The blood-doctors. They found blood in amber and grew beasts from it, and they d
 
 The Reich's order of the dead. It digs where the land keeps its bones, in churchyards and barrows and under standing stones, and raises what it finds.
 
-Its work is in two kinds, and a player should tell them apart at a glance:
+Its work is in three kinds, and a player should tell them apart at a glance:
 
 - **Bones**: skeletons raised straight out of the rock, the old beasts the amber can't bring back. Bare bone with earth in the hollows, and a cold cyan-green light in the eyes and where the heart was, which is all that moves them. These are the skeleton dinosaurs.
 - **The rotting**: the Institute's failures, animals that hatched dying or were raised before the blood took, kept on their feet by an iron collar, a glass of glowing bile on the back and brass tubes into the neck. Their hide has gone grey and green and split where it rotted through, with ribs showing in the worst of it, and there's a sick yellow-green light in their eyes. These are the zombie dinosaurs. They're dumped where the land is wet enough to take them, so there are more of them in marshes.
+- **Ghosts**: where the bones it digs are too far gone to stand, the Ossuary calls up the cold light alone, and it comes back wearing the shape the animal had, round what's left of its skeleton. A ghost is light you can see through, faint face on and bright at its edges, with its bones showing pale inside it and wisps coming off it, in a cold blue that nothing else in the game is. These are the ghost dinosaurs. They go as if they weigh nothing, cold to be near, and blows go through them more often than not. Of the Ossuary's packs that aren't its rotting, three in ten are ghosts.
 
 Where it digs, the land's own dead don't lie quiet either: the restless dead, the grave knights and the mourners are the land's, stirred up. It's always night in a churchyard.
 
@@ -87,19 +88,26 @@ Every dinosaur is grown from a species and a seed, so no two are alike: `DINOSAU
 | Spikeback | Kentrosaurus and Stegosaurus | Spikes down its back and tail, its head carried low. Bred for its spikes, and driven ahead of a war-band where a hornback won't go | Leading war-bands |
 | War Ripper, Ripper | Utahraptor and Achillobator | The great raptor: half as long again as a raptor, with a sickle of a claw and a tail it swings like a rod. The Reich keeps a few to run down what its raptors can't, and some got out | Leading war-bands, and leading what got out in the deep woods |
 | Wader | Suchomimus and Baryonyx | A long, low snout full of small teeth for taking fish, a great thumb claw and a ridge of spines. Grown for the wet country and lost to it | Leading what got out in the fens and marshes |
-| Tyrant | Tyrannosaurus | A commander's war-beast | At the keep: every land's boss |
-| Bone Tyrant, Bone Raptor, Bone Ravager | | The Ossuary's skeletons | Among the dead, and now and then a land's boss |
-| Rotting Tyrant, Rotting Raptor, Rotting Hornback, Rotting Wader | | The Ossuary's failures | Among the dead in wet country, and now and then a land's boss |
+| Reaper | Therizinosaurus | A grazer the Institute grew into a war-beast: a small beaked head on an upright neck, feathers, and arms as long as it is tall with a scythe for each claw. The Reich sets it on lines of spears | Leading war-bands |
+| Clubtail | Ankylosaurus | Low and broad as a cart under rows of bone plates, spikes down its flanks and a club on its tail. Driven into lines of spears, which break | Leading war-bands |
+| Shagback, Wild Shagback | Yutyrannus | A tyrant's kin in a coat of long filaments, the Institute's answer to the snow, where the Reich's cold-blooded beasts die. Some got away into the high pines | Leading the Reich in the snow, and wild in the cold |
+| Strider | Gallimimus | Long-legged runners in flocks, faster than anything in open country, that take whatever they can catch and are gone | Wild, among what got out, and in flocks in gentle country |
+| Domehead | Pachycephalosaurus | A grazer on two legs with a dome of bone for a skull, which it lowers and runs at whatever's in its way | Wild, at the head of flocks of striders |
+| Weaver | Nothing that ever lived | The Institute's worst idea, grown from blood that wasn't all one animal's: a raptor's head with eight eyes and two fangs, on a low body slung between eight legs whose knees stand over its back, with an egg of an abdomen behind. It waits for whatever comes under it and spits before it bites. Lost from its pens | The deep woods, with skitters after it |
+| Tyrant | Tyrannosaurus | A commander's war-beast, the largest thing the Institute grows, in its commander's regalia: an iron helm with a crest of blades, a gorget, iron plates down its back over an oxblood cloth, tabards with the mark down its flanks and two standards on its shoulders | At the keep: every land's boss |
+| Bone Tyrant, Bone Raptor, Bone Ravager, Bone Hornback, Bone Spikeback, Bone Weaver | | The Ossuary's skeletons | Among the dead, and now and then a land's boss |
+| Rotting Tyrant, Rotting Raptor, Rotting Hornback, Rotting Ravager, Rotting Wader, Rotting Shagback | | The Ossuary's failures | Among the dead in wet country, and now and then a land's boss |
+| Ghost Tyrant, Ghost Raptor, Ghost Ravager, Ghost Ripper, Ghost Weaver | | The Ossuary's ghosts, called up in light | Among the dead, and now and then a land's boss |
 | Reich Legionary, Reich Marksman, Reich Wrangler | | The greycoats | With the war-bands, and on guard over what the Reich has taken |
 | Giant | Brachiosaurus and Giraffatitan | The Haven's own, and free: long-necked and gentle, cropping the tops of trees | The Haven, and behind the main menu. Never in a land, and never fought |
 
-**Every land's boss is a tyrant**, and it's the strongest thing in the game. Seven in ten are bred and harnessed, and the rest are a bone tyrant the Ossuary raised or a rotting one, half each (`Chronicle.BossKindOf`). The chronicle names it and the keep holds it, so the story and the fight are always the same animal.
+**Every land's boss is a tyrant**, and it's the strongest thing in the game. Seven in ten are bred and wear their commander's regalia, and the rest are what the Ossuary made of one, a bone tyrant, a rotting one or a ghost, a tenth each (`Chronicle.BossKindOf`). The chronicle names it and the keep holds it, so the story and the fight are always the same animal.
 
 The land has enemies of its own, and they're part of the same story:
 
 - **Outlaws** are turncoats who sold the land to the Reich and work the roads beside it, about a quarter of what holds them.
 - **The dead** are the land's, stirred up by the Ossuary's digging, with its bone-beasts among them.
-- **Wolves, boars and bears** are the land's own animals, sharing the wild with broods that got out. Cold-blooded things don't last the winter, so the snow is still mostly the wolves'.
+- **Wolves, boars and bears** are the land's own animals, sharing the wild with broods that got out. Cold-blooded things don't last the winter, so the snow is still mostly the wolves', with a wild shagback at the head of them now and then.
 - **Cults** of the land's own powers, fire in the badlands and frost on the snow, hold the old stones and fight whoever comes, the Reich or a Defender.
 
 **The Haven's giants** are the one kind of dinosaur that's none of these. Nobody knows how long they've been there: the Reich has never found the Haven, so it has never found them. There are three, the same three every time anyone comes home, and they're animals and nothing more, gentle because nothing has ever given them a reason not to be. They eat from the tops of the trees, call to each other with their mouths shut, as the bones say the great ones did, take a long look at anyone who comes near, and step carefully round whoever is under them. Nothing about them is the Reich's: no harness, no war paint, no black iron, oxblood or brass, and none of its beasts' voices, and a name that says one is harnessed, rotting or bones isn't grown at all. They're never in a land and never fought. They're also the first thing anyone sees, grazing beyond the hero behind the main menu.
@@ -167,10 +175,12 @@ Choices made without asking. Say if any are wrong.
 
 - **The name, the Saurian Reich.** "Reich" says at once who they're coded on, and "Saurian" what they fight with.
 - **The mark**, a tyrant's skull in brass on oxblood. A claw was tried first and read as a real flag.
-- **Black iron, oxblood and brass** for the Reich, cyan-green for the Ossuary's bones and yellow-green for its rot.
+- **Black iron, oxblood and brass** for the Reich, cyan-green for the Ossuary's bones, yellow-green for its rot and a cold blue for its ghosts.
 - **German-sounding names** for commanders, broods and tyrants, with plain army ranks.
 - **Two orders**, the Amber Institute for the living and the Ossuary for the dead, so that skeletons and zombies have a reason to be there.
-- **Every land's boss is a tyrant**, seven in ten of them bred and the rest bones or rotting. The human warlord who used to hold every land is nobody's boss now, though the kind is still there.
+- **Every land's boss is a tyrant**, seven in ten of them bred and the rest bones, rotting or a ghost. The human warlord who used to hold every land is nobody's boss now, though the kind is still there.
+- **The tyrant wears regalia, not a harness**, as a commander's own beast: it says whose it is from across a field without hiding the animal. Everything the Reich puts on a beast is black iron, oxblood and brass, and the mark on it is the tyrant's skull.
+- **The weaver is the Institute's own**, the one beast that's after no real animal, so that it says what the blood-doctors are: it's still a dinosaur, with a raptor's head and hide, and only its body is a spider's.
 - **Commanders are never met.** The tyrant is the face of a land, as the dinosaurs are the point.
 - **Outlaws are turncoats**, about a quarter of what holds the roads.
 - **Broods that got out** are two in five of the beasts in the wild, with swarms of raptors and skitters another one in five. In the snow they're one in six, and the rest is still the wolves'.

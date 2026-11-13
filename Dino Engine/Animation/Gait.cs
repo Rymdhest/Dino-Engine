@@ -41,6 +41,9 @@ namespace Dino_Engine.Animation
         public float SwingTime;
         public float SwingLeft;
         public float Height;        // Off the line between where it left and where it's going.
+
+        /// <summary>While it swings, where it's coming down as it will be from the body when it does, in the body's own frame (+X its left, +Z ahead): it hardly changes over a swing, as the foot moves with the body towards it.</summary>
+        public Vector3 Lands;
         public float LiftedFrom;
         public float LiftedYaw;
 
@@ -358,6 +361,12 @@ namespace Dino_Engine.Animation
             if (left > foot.SwingTime) foot.SwingTime = left / MathF.Max(1f - before, 0.05f);
             float after = Math.Clamp(1f - left / foot.SwingTime, before, 1f);
             Vector3 landing = Landing(i, input, leg, MathF.Max(left, 0f), ground);
+
+            // Where it lands from where the body will be then, on the ground the body will be on.
+            float then = MathF.Max(left, 0f);
+            Vector2 body = input.Position.Xz + input.Velocity.Xz * then;
+            float below = input.Position.Y + ground.HeightAt(body.X, body.Y) - ground.HeightAt(input.Position.X, input.Position.Z);
+            foot.Lands = Vector3.Transform(new Vector3(landing.X - body.X, landing.Y - below, landing.Z - body.Y), Frames.Yaw(-(input.Yaw + input.TurnRate * then)));
 
             // Each step goes the share of what's left that the curve says, so a foot can change its mind about where it's going at any moment and never jump.
             float eased = Ease(before);

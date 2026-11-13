@@ -1,4 +1,4 @@
-using Dino_Engine.Animation;
+﻿using Dino_Engine.Animation;
 using Dino_Engine.ECS.Components;
 using OpenTK.Mathematics;
 
@@ -13,6 +13,8 @@ namespace Dino_AnimLab
         private const float Step = 1f / 60f;
         public static bool Axes;
         public static int Landings;
+        public static bool Why;             // --why true says where each worst miss was.
+        public static string WhyText = "";
 
         /// <summary>How far short of its planted foot a leg falls, worst of all, as a share of the leg, walking at a pace and turning as it goes.</summary>
         public static (float stance, float slide, float jerk) Measure(Body body, float pace, float turn, float seconds = 16f, float scale = 1f)
@@ -43,7 +45,14 @@ namespace Dino_AnimLab
                     if (down && !wasDown[i]) Landings++;
                     if (down)
                     {
-                        float miss = (animator.JointOf(limb.End) - animator.AnkleWanted(i)).Length / body.Rig.LegLength;
+                        Vector3 off = (animator.JointOf(limb.End) - animator.AnkleWanted(i)) / body.Rig.LegLength;
+                        float miss = off.Length;
+                        if (miss > worst && Why)
+                        {
+                            // Which foot, how far through its time on the ground, and which way the ankle is drawn from where it stands (left, up, ahead), in shares of a leg.
+                            ref Foot foot = ref animator.Gait.Feet[i];
+                            WhyText = $"leg {i}, {foot.Planted / MathF.Max(foot.StandFor, 0.01f):0.00} through standing, off by ({off.X * 100f:0.0}, {off.Y * 100f:0.0}, {off.Z * 100f:0.0})%";
+                        }
                         worst = MathF.Max(worst, miss);
                         if (wasDown[i]) slide = MathF.Max(slide, (drawn - was[i]).Xz.Length / Step);
                     }
@@ -70,6 +79,7 @@ namespace Dino_AnimLab
             string[] names = options.Text("bodies", "giant,hornback,spikeback,tyrant,raptor,ravager,wolf,bear,bare").Split(',');
             float turn = options.Float("turn", 0f);
             Axes = options.Has("axes");
+            Why = options.Has("why");
             foreach (string name in names)
             {
                 Body body = Body.Named(name);
@@ -80,6 +90,7 @@ namespace Dino_AnimLab
                     (float stance, float slide, float jerk) = Measure(body, pace, turn, 16f, options.Float("scale", 1f));
                     float speed = pace * MathF.Sqrt(Rig.Gravity * body.Rig.LegLength * options.Float("scale", 1f));
                     Console.Write($"  {pace:0.00} ({speed:0.0} m/s): {stance * 100f,4:0.0}% {jerk,4:0.0} g {Landings / 13f / body.Rig.Legs.Length * 2f,4:0.00}/s");
+                    if (Why) Console.Write($" [{WhyText}]" + Environment.NewLine + "            ");
                 }
                 Console.WriteLine();
             }

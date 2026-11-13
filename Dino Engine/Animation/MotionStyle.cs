@@ -122,7 +122,7 @@
         public static readonly MotionStyle Horned = new MotionStyle { Cadence = 0.86f, Bounce = 0.65f, Sway = 1.3f, Lean = 0.7f, Give = 0.45f, TailSway = 0.6f, TailStiff = 0.3f, Gape = 0.45f, HeadLow = 0.22f, Gallop = 0f, LandAhead = 0.42f, StrideDip = 0.08f };
 
         /// <summary>Bones with nothing to hold them up but what raised them: stiff, jerky and slow to look round.</summary>
-        public static readonly MotionStyle Bones = new MotionStyle { Cadence = 0.92f, Stance = 0.5f, Bounce = 0.45f, Sway = 1.3f, Lean = 0.55f, Twist = 0.5f, Liveliness = 0.25f, Give = 1.2f, TailSway = 0.55f, TailStiff = 0.45f, ToeIn = 0.04f, Gape = 1.1f, Variety = 0.16f };
+        public static readonly MotionStyle Bones = new MotionStyle { Cadence = 0.92f, Stance = 0.5f, Bounce = 0.45f, Sway = 1.3f, Lean = 0.55f, Twist = 0.5f, Liveliness = 0.25f, Give = 1.2f, TailSway = 0.55f, TailStiff = 0.45f, ToeIn = 0.04f, Gape = 1.1f, Variety = 0.16f, LandAhead = 0.38f, StrideDip = 0.1f };
 
         /// <summary>
         /// A long-necked giant: long slow strides that never hurry, the weight rolling from side to side over the feet that are down, as an elephant's does, the tail swinging long behind, and nothing
@@ -137,10 +137,10 @@
         /// What the Ossuary called up in light: it goes as if it weighed nothing, gliding rather than striding, hardly rising and falling, its tail streaming behind it like smoke, and a blow
         /// goes through it more than it moves it.
         /// </summary>
-        public static readonly MotionStyle Ghost = new MotionStyle { Cadence = 0.82f, Stance = 0.6f, Bounce = 0.25f, Sway = 0.6f, Lean = 0.55f, Twist = 0.6f, Liveliness = 0.45f, Give = 0.5f, TailSway = 1.2f, TailStiff = 0f, ToeIn = 0.05f, Gape = 1.05f, Pant = 0f, HeadLow = 0.06f, Variety = 0.12f, LandAhead = 0.4f };
+        public static readonly MotionStyle Ghost = new MotionStyle { Cadence = 0.82f, Stance = 0.6f, Bounce = 0.25f, Sway = 0.6f, Lean = 0.55f, Twist = 0.6f, Liveliness = 0.45f, Give = 0.5f, TailSway = 1.2f, TailStiff = 0f, ToeIn = 0.05f, Gape = 1.05f, Pant = 0f, HeadLow = 0.06f, Variety = 0.12f, LandAhead = 0.4f, StrideDip = 0.1f };
 
         /// <summary>What's rotting on its feet: head hung, weight rolling from side to side, the tail dragging along behind.</summary>
-        public static readonly MotionStyle Rotting = new MotionStyle { Cadence = 0.8f, Stance = 0.65f, Bounce = 0.5f, Sway = 2f, Lean = 0.45f, Twist = 0.6f, Liveliness = 0.3f, Give = 1.1f, TailSway = 0.5f, TailStiff = 0f, ToeIn = 0f, Gape = 0.9f, HeadLow = 0.18f, Crouch = 0.04f, Variety = 0.18f, Gallop = 0f };
+        public static readonly MotionStyle Rotting = new MotionStyle { Cadence = 0.8f, Stance = 0.65f, Bounce = 0.5f, Sway = 2f, Lean = 0.45f, Twist = 0.6f, Liveliness = 0.3f, Give = 1.1f, TailSway = 0.5f, TailStiff = 0f, ToeIn = 0f, Gape = 0.9f, HeadLow = 0.18f, Crouch = 0.04f, Variety = 0.18f, Gallop = 0f, LandAhead = 0.38f, StrideDip = 0.1f };
 
         /// <summary>This style as one person has it, with <paramref name="seed"/> saying who.</summary>
         public MotionStyle Individual(int seed)

@@ -254,7 +254,7 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
         public static readonly SaurianSpecies Tyrant = new SaurianSpecies
         {
             Id = "tyrant", Name = "Tyrant", Form = SaurianForm.Theropod, Close = true, Regalia = true,
-            // From Hartman's skeletal of Sue: the hip joint at nearly a third of its length, the shoulders lower than the hips, a short neck that climbs steeply to put the skull level with the hips, and a
+            // From Hartman's skeletal of Sue: the hip joint at over a quarter of its length, close to Sue's, the shoulders lower than the hips, a short neck that climbs steeply to put the skull level with the hips, and a
             // keel of belly ribs hanging between the legs and the arms. Grown to what a commander's war-beast should be: twice a person's height at the hip, before the Reich's own pride in it is
             // added to that (Bestiary.Tyrant), with the widest, deepest head there is, hornlets in front of its eyes as Daspletosaurus had, and its skin as fine as a giant's.
             Length = R(16.4f, 17.6f), Hip = R(0.272f, 0.288f), Skull = R(0.118f, 0.128f), Neck = R(0.088f, 0.098f), Trunk = R(0.22f, 0.24f), NeckRise = R(0.8f, 0.95f),
@@ -505,10 +505,10 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
         public static readonly SaurianSpecies Clubtail = new SaurianSpecies
         {
             Id = "clubtail", Name = "Clubtail", Form = SaurianForm.Horned,
-            Length = R(9f, 10.2f), Hip = R(0.2f, 0.22f), Skull = R(0.09f, 0.1f), Neck = R(0.05f, 0.06f), Trunk = R(0.34f, 0.38f),
+            Length = R(9f, 10.2f), Hip = R(0.2f, 0.22f), Skull = R(0.105f, 0.115f), Neck = R(0.07f, 0.085f), Trunk = R(0.34f, 0.38f),
             Girth = R(0.1f, 0.11f), Breadth = R(1.4f, 1.6f), Belly = R(0.1f, 0.16f), BackSlope = R(-0.04f, 0.02f), NeckRise = R(-0.05f, 0.1f), NeckGirth = R(0.6f, 0.68f),
             TailRoot = R(0.55f, 0.62f), TailRod = 0.6f, TailDroop = R(-0.02f, 0.04f),
-            LegBones = new Vector3(0.44f, 0.36f, 0.2f), Crouch = R(0.14f, 0.2f), Thigh = R(0.5f, 0.58f), Shin = R(0.3f, 0.35f), Toe = R(0.24f, 0.3f),
+            LegBones = new Vector3(0.44f, 0.36f, 0.2f), Crouch = R(0.22f, 0.28f), Thigh = R(0.5f, 0.58f), Shin = R(0.3f, 0.35f), Toe = R(0.24f, 0.3f),
             Arm = R(0.7f, 0.8f), Fingers = 5, Claw = R(0.04f, 0.06f), ArmGirth = R(0.28f, 0.34f),
             SkullDepth = R(0.36f, 0.42f), SkullWidth = R(0.6f, 0.7f), Snout = R(0.5f, 0.6f), SnoutDepth = R(0.45f, 0.52f), Profile = R(0f, 0.03f),
             Brow = R(0.04f, 0.06f), Eye = R(0.045f, 0.055f), Teeth = new IntRange(0, 0), Lips = 1f, Beak = R(0.04f, 0.07f),

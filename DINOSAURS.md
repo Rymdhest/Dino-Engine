@@ -1,4 +1,4 @@
-# Dinosaurs
+﻿# Dinosaurs
 
 How a dinosaur is grown: its body, flesh, skin, colours and hard parts, what the Saurian Reich puts on it, and what the Ossuary does to it. Read `LORE.md` for who they are and `ANIMATION.md` for how they move. This is what they're made of.
 
@@ -31,7 +31,7 @@ The rig is made from the same body as the skin, so the bones are always where th
 
 ## Species
 
-There are ten, and a new one is an entry in `SaurianCatalog` and a kind in the game's `Bestiary`:
+There are sixteen, and a new one is an entry in `SaurianCatalog` and a kind in the game's `Bestiary`:
 
 | Species | After | Length | Skin budget | Form |
 |---|---|---|---|---|
@@ -39,14 +39,24 @@ There are ten, and a new one is an entry in `SaurianCatalog` and a kind in the g
 | Skitter | Compsognathus | 2.2 to 2.7 m | 2,600 | On two legs |
 | Spitter | Dilophosaurus | 8.4 to 9.4 m | 6,500 | On two legs |
 | Ravager | Allosaurus and Carnotaurus | 11.5 to 13 m | 9,000 | On two legs |
-| Tyrant | Tyrannosaurus | 14.2 to 15.4 m | 15,000 | On two legs |
+| Tyrant | Tyrannosaurus | 16.4 to 17.6 m | 30,000 | On two legs |
 | Hornback | Triceratops and its kin | 9.4 to 10.6 m | 10,000 | On four |
 | Giant | Brachiosaurus and Giraffatitan | 37 to 41 m | 50,000 | On four pillars |
 | Ripper | Utahraptor and Achillobator | 10.8 to 12 m | 8,000 | On two legs |
 | Wader | Suchomimus and Baryonyx | 12 to 13.5 m | 8,500 | On two legs |
 | Spikeback | Kentrosaurus and Stegosaurus | 9 to 10.2 m | 9,000 | On four |
+| Weaver | Nothing that lived: the Institute's own | 6.2 to 7.2 m | 9,000 | On eight |
+| Shagback | Yutyrannus | 10.5 to 11.8 m | 12,000 | On two legs, in a shaggy coat |
+| Reaper | Therizinosaurus | 10 to 11.2 m | 10,000 | On two legs, feathered |
+| Strider | Gallimimus | 7.8 to 8.8 m | 7,000 | On two legs, feathered |
+| Clubtail | Ankylosaurus | 9 to 10.2 m | 10,000 | On four, armoured |
+| Domehead | Pachycephalosaurus | 7.2 to 8.2 m | 6,500 | On two legs |
 
-The last three were added on 2026-11-11 from the forms there were, with nothing new in how a body is built: the ripper is a great raptor, deep in the chest with a sickle claw half as big again and a mane of quills; the wader has a long, low, narrow skull with many small teeth, a great thumb claw and a ridge of spines; and the spikeback is the horned form with no horns or frill, its hips high over its shoulders, its small head carried low, and spikes as long as Kentrosaurus's close together down its back and tail (`ScuteSpacing`, how far apart a species' spines stand in their own lengths, 2.6 unless a species says otherwise, as a species constant and not a draw, so it moved no other animal). Spines that small and far apart read as nothing on a spikeback, and a body as deep as a hornback's with no frill to read it by was a lump.
+**The tyrant was grown again on 2026-11-13** to be what a land's boss should be, after a person asked for a T. rex as majestic as the giants: its hips at 28% of its length, close to what Sue's are (they stood under a quarter of it, and its legs read as stubs), a sixth longer than it was, with hornlets before its eyes as Daspletosaurus had, deeper jowls, a row of scutes down its back, darker hides, bronze eyes, and a skin twice as fine, laid exactly on its surface (`SaurianSpecies.Close`, as a giant's is). In the game a land's boss is a Unique, drawn 1.7 times its kind's size (`Bestiary.PowerOf`), so a tyrant holding a land is some 27 m from its snout to the end of its tail. In the Reich's hands it wears regalia, not a harness (`SaurianRegalia`, below).
+
+**The six added on 2026-11-13** are from the forms there were, but for the weaver, which is a form of its own. The **weaver** is the Institute's worst idea, a hunter grown from blood that wasn't all one animal's: a raptor's head with eight eyes (`EyePairs`) and a pair of fangs under its snout (`Fangs`), a body like a low shield with eight jointed legs round its edge whose knees stand over its back, a narrow waist and an abdomen swollen into an egg, with ringed legs and a row of arrowheads down its back (`HidePattern.Ringed`, `Chevrons`). The **shagback** is a tyrant's kin in a coat of long filaments, for the snow; the **reaper** a small beaked head on an upright neck with arms as long as it is tall and a scythe for each claw; the **strider** an ostrich of a dinosaur; the **clubtail** low and broad under rows of keeled bone plates (`Armour`), with spikes down its flanks, horns at the corners of its skull and a club on the end of a stiff tail (`Club`); and the **domehead** a grazer on two legs with a dome of bone for a skull, ringed with knobs (`Dome`). A beak is horn-coloured and a dome is what's shown off (`SaurianPaint`).
+
+Three were added on 2026-11-11 from the forms there were, with nothing new in how a body is built: the ripper is a great raptor, deep in the chest with a sickle claw half as big again and a mane of quills; the wader has a long, low, narrow skull with many small teeth, a great thumb claw and a ridge of spines; and the spikeback is the horned form with no horns or frill, its hips high over its shoulders, its small head carried low, and spikes as long as Kentrosaurus's close together down its back and tail (`ScuteSpacing`, how far apart a species' spines stand in their own lengths, 2.6 unless a species says otherwise, as a species constant and not a draw, so it moved no other animal). Spines that small and far apart read as nothing on a spikeback, and a body as deep as a hornback's with no frill to read it by was a lump.
 
 **The giant is the Haven's alone** (`LORE.md`). It's `Free`, so it can't be harnessed, rot or be bones, and `SaurianSpec.Parse` refuses any name that says it is. It isn't in the `Bestiary` either, as nothing fights it. Its skin is finer than any other's by far, as it's the one dinosaur a player can stand under and look up at, and the one in the picture behind the menu.
 
@@ -58,7 +68,9 @@ So two raptors differ in length, build, posture, the shape of the head, how many
 
 `SaurianBody` is every measurement of one animal. It's built around a line (`SaurianAxis`), from the tip of the tail to the back of the skull, down the middle of the body: Bézier curves from the tail tip to the hips, sagging a little as a tail does, then to the shoulders, up the neck in the S every theropod has, and along the skull. It's sampled finely, and everything along a body is said by how far along that line it is: how thick the flesh is, which bone a stretch of skin hangs from, and which way a hide's stripes run.
 
-**A giant is a sauropod** (`SaurianForm.Sauropod`, `BuildSauropodAxis`): its shoulder stands higher than its hip (`Withers`), its neck is longer than the body in front of its tail and goes up from the shoulders as a giraffe's does, as the necks of living animals at their ease say it did, and its tail is carried clear of the ground, drooping to the tip. Its legs are columns on round feet (`BuildPillars`), with a thumb claw on each forefoot and three claws on each hind one, as a sauropod's feet had, and its head is small and long with a dome over the nostrils (`Arch`, after Giraffatitan's), a blunt mouth, and no teeth showing, as a browser's lips cover them.
+**A giant is a sauropod** (`SaurianForm.Sauropod`, `BuildSauropodAxis`): its shoulder stands higher than its hip (`Withers`), its neck is longer than the body in front of its tail and goes up from the shoulders as a giraffe's does, as the necks of living animals at their ease say it did, and its tail is carried clear of the ground, drooping to the tip. Its legs are columns on round feet (`BuildPillars`), with a thumb claw on each forefoot and three claws on each hind one, as a sauropod's feet had, and its head is small and long with a dome over the nostrils (`Arch`, after Giraffatitan's), a blunt mouth, and no teeth showing, as a browser's lips cover them. **Its forelegs stand under the front of its chest**, where the neck rises from it (`ShoulderAt`), as a sauropod's shoulder blade lay along its front ribs: under the middle of the chest, as they first were, a third of the trunk went on past them and they were shorter than its withers said, which a person saw at once. Its trunk is a little shorter than it was, the hip-to-shoulder share Giraffatitan's has, which kept its feet as far apart as a herd can turn round in the Haven.
+
+**What walks on eight is a form of its own** (`SaurianForm.Arachnid`, `SaurianBody.Arachnid.cs`): its line runs as any other's does, from the tip of the abdomen, which is the tail's bones, through the waist, which is the hips, to the back of the skull, so the head, the jaw, the eyes and the hide work as on anything else. Its eight legs are built as they stand, round the edge of the body, each a thigh up and out to a knee over the back, a shin down and out, and a foot down to its claw far out round it (`BuildArachnidLegs`), and each is a part of its own (`SaurianPart.SecondL` to `ThirdR`), so that no two grow together.
 
 Legs are hip, knee, ankle and the ball of the foot, **built folded, as they stand**, as that's where a skin bends best from. Small fast animals stand more folded on long shins and giants on near columns, which is `Crouch` and `LegBones`. Arms are carried folded too, and on four legs they're forelegs. The head has a frame of its own, from the back of the skull, which is where it turns on the neck.
 
@@ -94,17 +106,23 @@ Colours are albedos under a sun of about 13, so all of them are deep, as anythin
 
 **Anything smaller than a pixel and a half from the game's camera isn't made at all** (`Smallest`, 4.5 cm). A body is paid for thousands of times over.
 
+## What grows on them
+
+Feathers, a shaggy coat and hair are shells (`SHELLS.md`): a species says which (`Coat`, a `ShellStyles` number: `Plumage`, `Shag`, `SpiderHair` or `Down`), and how far it goes, down the legs from the hip (`CoatLegs`), forward over the head (`CoatHead`) and underneath (`CoatBelly`), or along the top alone, as a mane (`CoatMane`). `SaurianDress.Shell` says how much grows at each vertex, so the snout, the jaws, the shins and the feet stay scaled, and `SaurianForge.Make` gives the mesh its style. What's rotting keeps what's left of its coat, and bones and ghosts have none. The lab draws no shells: judge coats in the game.
+
 ## What's done to them
 
 The same seed is the same animal whatever's been done to it, so a raptor's bones are that raptor's bones (`SaurianCondition`).
 
 - **In harness** (`.reich`, `SaurianHarness`): an iron collar and its bolts, oxblood straps round the chest and belly joined down the back, and on the big ones an iron mask over the snout, spikes, and a plate on the back with a pole and the Reich's pennant, oxblood with its mark in brass on both sides (`SaurianHarness.Mark`). `SaurianPaint` adds the war paint: an oxblood band over the snout and a ring round the tail. Black iron, oxblood and brass are the Reich's alone.
+- **In regalia** (`.reich` on a species with `Regalia`, the tyrant, `SaurianRegalia`): what a commander puts on its own beast. An iron helm over its skull with a crest of blades down the middle and guards over its cheeks, riveted in brass; an iron gorget at the root of its neck; a ridge of iron plates down its back over an oxblood saddle-cloth edged in brass, each plate with a blade standing off it; oxblood tabards hanging down its flanks, pointed at their hems, the middle one on each side carrying the mark; two standards on its shoulders, a banner hanging from each with the mark on both faces; plates on its thighs; iron rings round its tail; and chains from its helm to its gorget. Cloth and plates are laid on the skin itself, found by searching the body's field outward from its line (`SaurianField.Exit`), as the belly and chest stand well outside the line and anything laid by it was inside them. A clubtail's plates are laid the same way, as a body that broad buried all but their tips.
 - **Rotting** (`.rot`, `SaurianRot`): the living colours drained, greyed and gone green with bruising (`Sicken`), three to five wounds carved into the field where there's most to rot, ribs showing in the worst of them, a sick light in the eyes, and what keeps it going: an iron collar, a glass of glowing bile on its back, brass tubes from that into its neck and bolts in its skull.
 - **Bones** (`.bones`, `SaurianBones`): the skeleton the flesh was measured from. The skull is the head's field with the openings a theropod skull has cut through it, the backbone is counted as Sue's is, ten in the neck, thirteen in the back, five over the hips and forty down the tail, and the ribs follow the shape the flesh had. A cold light burns in the eyes and where the heart was.
+- **A ghost** (`.ghost`, `SaurianSpectral`): what the Ossuary calls up where the bones it digs are too far gone to stand, the cold light alone wearing the shape the animal had, round what's left of its skeleton. Its bones are solid, gone pale and cold, with the ghost's blue in the eyes and the heart; its flesh is light. The flesh's triangles come after everything solid in the mesh (`SaurianMesh.BeginSpectral`, `Mesh.SpectralFrom`, `glModel.SpectralIndexCount`), so the geometry pass and the shadows draw only the bones, and `CharacterRenderer.SpectralPass` adds the rest over the lit scene, before the reflections and under the fog (`Spectral.vert`, `Spectral.frag`): faint seen face on and bright edge on, light running up and back through it in the body's own frame, a slow breath, thinning to a wisp at its feet (baked into its vertices), tested against the depth of what's solid but writing none, so a wall hides it, its own bones show through it, and wet ground reflects it. It's emission, so it goes with emission and the black test holds. In the game it trails wisps of its light and shines on the ground round it (`Haunts.Ghost`). Its colour is a cold blue nothing else is, to be told from the bones' cyan-green and the rot's yellow-green at a glance.
 
 ## The rig
 
-`SaurianBody.BuildRig` makes a `Rig` with a `SaurianFrame`, which is what tells the animator it has a dinosaur. It adds to a person's bones a jaw, a neck in two (`Neck`, `NeckTop`), a tail of five (`TailBase`, `Tail1` to `Tail3`, `TailTip`) and toes, all of which move, and says how thick the body is at each bone, so it falls as what it's made of. A giant's neck is in five (`SaurianFrame.LongNeck`: `Neck`, `Neck1` to `Neck3`, `NeckTop`), so that it curves rather than bends, and on anything else those three sit on the neck's root and move nothing. That's 31 bones, and the shaders take 32 (`u_Bones[32]`). How it moves is in `ANIMATION.md`.
+`SaurianBody.BuildRig` makes a `Rig` with a `SaurianFrame`, which is what tells the animator it has a dinosaur. It adds to a person's bones a jaw, a neck in two (`Neck`, `NeckTop`), a tail of five (`TailBase`, `Tail1` to `Tail3`, `TailTip`) and toes, all of which move, and says how thick the body is at each bone, so it falls as what it's made of. A giant's neck is in five (`SaurianFrame.LongNeck`: `Neck`, `Neck1` to `Neck3`, `NeckTop`), so that it curves rather than bends, and on anything else those three sit on the neck's root and move nothing. What walks on eight has two more pairs of legs, `SecondUpperL` to `ThirdFootR`, and a rig of its own plan (`BodyPlan.Arachnid`): its forelegs are the arms' bones and its hind legs the legs', as on four, and on anything with fewer the new twelve sit inside the chest and move nothing. Each leg's bones, in the order `Legs` has them, are `SaurianBody.LegUppers`, `LegLowers` and `LegEnds`. That's 43 bones, and the shaders take 48 (`u_Bones[48]`). How it moves is in `ANIMATION.md`.
 
 ## In the game
 
@@ -112,6 +130,7 @@ The same seed is the same animal whatever's been done to it, so a raptor's bones
 - A dinosaur is far thicker than a person, so its body is solid that far out: `EnemyKind.Bulk` is its radius at a scale of one (`RadiusAt`), for the server's body, the motor and the parade alike.
 - `CharacterFactory.BearingOf` gives it its own rig and `SaurianForge.StyleOf`, and `SkillMotions.Of` picks its gestures from a page by what it's built like: a theropod bites, stomps, pounces, spits, sweeps its tail and roars, and a horned one gores, tramples and bellows.
 - Its voice is in `Sound/Content/Saurians.cs`, picked by `GameSounds.DinosaurVoice` from its species and condition, and anything with legs over 1.6 times a person's shakes the ground as it walks (`Saurians.Tread`).
+- **Anything as big as a tyrant is felt where each foot lands, as a giant is** (`Treads`, `TreadSystem`): with its hips over `Treads.FeltFrom` at the size it's drawn, it carries its body over the grass, so only its feet press it, each where it lands (`PlantContactComponent.feetOnly`), and each sends a ring of wind out through the grass round it, too weak to break anything, and throws up a little of the ground, or splashes. `GiantShow` and the server's beasts go through the same `Treads.Felt`.
 - **The giants aren't sent by any server.** They're the Haven's, only ever looked at, and this client's alone: a `Herd` decides where each stands and what its head is doing, and `GiantShow` is their bodies (`WILDLIFE.md`). Each takes three seconds to grow, so they're begun the moment the game starts, before anything else, as they're in the picture behind the menu (`CharacterFactory.GrowGiants`), and nothing ever waits for them.
 - Its books are on `Shelf`, and what comes first in its list rests after use, or it would do nothing else: an enemy does the first thing that's ready and reaches. A blow is a cone, as a rectangle is a beam and a circle a nova, which go off like spells.
 
@@ -152,7 +171,14 @@ A lab can't say an animal looks alive. Judge them from the game's own camera, mo
 
 Growing one takes 0.16 to 0.9 s on one thread: a raptor about half a second and 10,000 triangles, a tyrant 0.8 s and 22,000, its bones 0.3 s. All 68 that the game can send are grown at once at the first loading screen and kept, which on a machine with few cores is a few seconds. A body's pose costs what a person's does, about 2.5 µs a frame, and allocates nothing. A giant takes 3 s and has 53,000 triangles, and its pose 5 µs, as its neck is worked out afresh each frame.
 
+**On 2026-11-13** the tyrant was grown again as a T. rex in the Reich's regalia, the giant's forelegs were moved to the front of its chest, and six species (the weaver on eight legs, the shagback, the reaper, the strider, the clubtail and the domehead), ghosts drawn in light, coats as shells, and the bestiary for all of them were added. A tyrant in its regalia has about 47,000 triangles, and 38,500 bare. They were judged from the lab's stills, which draw no shells and no light: nobody has seen a ghost, a coat or a weaver in the game.
+
 **Nobody has seen one but in the lab's stills.** Ask how they look in the game, and especially:
+
+- Whether the tyrant reads as majestic and dangerous, and whether its regalia says the Reich at a glance without hiding the animal.
+- Whether a ghost is "freaking awesome", as asked: bright enough in daylight, not too bright at night, and whether its bones should show more or less.
+- Whether the weaver reads as a dinosaur as well as a spider, and how its eight legs look moving.
+- Whether the coats read from the game's camera, and what they cost on a weaker card.
 
 - Whether a tyrant reads as a tyrant from the game's camera, and as big enough as a boss.
 - Whether the harness and war paint tell the Reich's from the wild at a glance.

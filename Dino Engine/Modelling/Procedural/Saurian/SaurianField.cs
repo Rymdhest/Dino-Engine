@@ -270,6 +270,23 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
             return grid;
         }
 
+        /// <summary>
+        /// How far from <paramref name="from"/>, inside, along <paramref name="way"/> the surface is, found by halving between a point inside and one outside, starting about <paramref name="guess"/> out:
+        /// anything laid on the skin goes by this, as the belly, the chest and the hips stand well outside the line of the body, and what was laid by the line was inside them.
+        /// </summary>
+        public float Exit(Vector3 from, Vector3 way, float guess)
+        {
+            float inside = 0f, outside = guess * 1.2f;
+            for (int i = 0; i < 6 && Distance(from + way * outside) < 0f; i++) outside *= 1.5f;
+            for (int i = 0; i < 18; i++)
+            {
+                float middle = (inside + outside) * 0.5f;
+                if (Distance(from + way * middle) < 0f) inside = middle;
+                else outside = middle;
+            }
+            return outside;
+        }
+
         /// <summary>Which way is out, from how the field rises.</summary>
         public Vector3 Normal(Vector3 p, float step)
         {

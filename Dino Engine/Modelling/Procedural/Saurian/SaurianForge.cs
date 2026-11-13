@@ -147,7 +147,7 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
             SaurianParts.Hands(mesh, body);
             if (!rotting) SaurianParts.Quills(mesh, body, dress);
             SaurianParts.Scutes(mesh, body, dress);
-            SaurianParts.Armour(mesh, body, dress);
+            SaurianParts.Armour(mesh, body, dress, flesh);
             SaurianParts.Club(mesh, body);
             SaurianParts.Dome(mesh, body);
             if (rotting) SaurianRot.Bare(mesh, body, dress);

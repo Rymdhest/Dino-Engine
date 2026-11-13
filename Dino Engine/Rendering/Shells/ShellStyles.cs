@@ -20,7 +20,6 @@ namespace Dino_Engine.Rendering.Shells
         public const byte Plumage = 9;
         public const byte Shag = 10;
         public const byte SpiderHair = 11;
-        public const byte Down = 12;
 
         /// <summary>The most there can be, which the GPU's table is sized for (Shells/ShellStyle.glsl's SHELL_STYLES).</summary>
         public const int Most = 16;
@@ -258,24 +257,8 @@ namespace Dino_Engine.Rendering.Shells
             MostShells = 10,
         };
 
-        // Short down over what's small and quick, as young theropods are known to have had: a soft edge, not a coat.
-        private static readonly ShellStyle Fuzz = Feathers with
-        {
-            Name = "down",
-            Length = 0.06f,
-            ClumpSize = 0.08f,
-            Carpet = 0.42f,
-            HeightVariety = 0.3f,
-            Stretch = 2.2f,
-            Fringe = 0.38f,
-            StrandSize = 0.009f,
-            Lean = 0.55f,
-            Droop = 0.15f,
-            MostShells = 8,
-        };
-
         /// <summary>Every style by its number. Index 0 is none, and is never drawn.</summary>
-        public static readonly ShellStyle?[] All = { null, StoneMoss, ForestMoss, TrunkMoss, Wolf, Dire, Bear, Boar, Rabbit, Feathers, Shaggy, Bristle, Fuzz };
+        public static readonly ShellStyle?[] All = { null, StoneMoss, ForestMoss, TrunkMoss, Wolf, Dire, Bear, Boar, Rabbit, Feathers, Shaggy, Bristle };
 
         public static ShellStyle? Of(byte style) => style < All.Length ? All[style] : null;
 
