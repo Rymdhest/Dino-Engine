@@ -16,8 +16,10 @@ never disagree.
 - `TextureGenerator` makes every material straight into its layer of three arrays at start (`MaterialBaker`), and keeps the old names (`TextureGenerator.cobble`
   and so on) as the catalogue's indices, known before anything is drawn.
 - Some materials are one biome's or one way of building's own: a conifer wood's floor of fallen needles (`Needles`), the red earth of the hot dry country with
-  its cracks fading out and stones trodden into it (`RedEarth`), a broadleaf wood's leaf litter (`Litter`), and the curved clay tiles of a roof in the sun's
-  country (`RoofTiles`, `BuildingStyle.Tiled`). They're on the end of the catalogue, so adding them moved no other material's layer. The ground's palette has
+  its cracks fading out and stones trodden into it (`RedEarth`), a broadleaf wood's leaf litter (`Litter`), the curved clay tiles of a roof in the sun's
+  country (`RoofTiles`, `BuildingStyle.Tiled`), and the north's upright boards with a batten over every joint, painted matt (`PaintedBoards`,
+  `BuildingStyle.Nordic`): pale, as its paint, the red of the walls and the white of the trim, is in the vertices, and a trim board is textured across one
+  board between its battens (`NORDIC.md`). They're on the end of the catalogue, so adding them moved no other material's layer. The ground's palette has
   at most `TerrainSurface.MaxMaterials`, and a material a world can't fit falls back to its cousin (`TerrainSurface`).
 
 ## Making one: `Textures/Synthesis/`

@@ -17,6 +17,7 @@ namespace Dino_Engine.Modelling.Procedural.Fence
         Churchyard, // Coursed and mortared, under a saddleback coping, with capped piers at its ends.
         Roofed,     // Plaster over a stone plinth under a little roof of its own, round holy ground in the East.
         Curtain,    // A keep's wall: battered at the foot, with a walk along the top behind crenellations.
+        Roundpole,  // Poles laid on a slant between stakes driven in pairs and bound with withies, as the north fences its fields and lanes (a gärdesgård).
     }
 
     /// <summary>What a fence is for, which with how a world builds decides what kind it is.</summary>
@@ -98,7 +99,10 @@ namespace Dino_Engine.Modelling.Procedural.Fence
         public static readonly FenceKind Roofed = new("roofed", FenceForm.Roofed, 0.8f, 4.2f, new FloatRange(4.4f, 5.2f), 0.04f, linePosts: false, sink: 1f);
         public static readonly FenceKind Curtain = new("curtain", FenceForm.Curtain, 0.9f, 9f, new FloatRange(4.6f, 5.4f), 0.03f, linePosts: false, sink: 1.6f);
 
-        public static readonly FenceKind[] All = { Rails, Paling, Wattle, Bamboo, Stockade, Pen, DryStone, Churchyard, Roofed, Curtain };
+        /// <summary>A bay is two stake intervals, with a pair of stakes in its middle and a pair at each post.</summary>
+        public static readonly FenceKind Roundpole = new("roundpole", FenceForm.Roundpole, 0.34f, 3f, new FloatRange(4.5f, 5.3f), 0.05f, linePosts: true, sink: 0.45f, spanVariants: 3);
+
+        public static readonly FenceKind[] All = { Rails, Paling, Wattle, Bamboo, Stockade, Pen, DryStone, Churchyard, Roofed, Curtain, Roundpole };
 
         private static readonly Dictionary<string, FenceKind> ById = All.ToDictionary(kind => kind.Id);
 
@@ -121,6 +125,8 @@ namespace Dino_Engine.Modelling.Procedural.Fence
                     BuildingStyle.Adobe => roll < 0.6f ? Wattle : Rails,
                     BuildingStyle.Stilt => roll < 0.6f ? Bamboo : Wattle,
                     BuildingStyle.Tiled => roll < 0.6f ? Rails : Paling,
+                    // The north fences every field with poles on a slant between paired stakes, and nothing else.
+                    BuildingStyle.Nordic => Roundpole,
                     _ => roll < 0.65f ? Rails : roll < 0.85f ? Wattle : Paling,
                 },
                 FenceUse.Garden => style switch
@@ -132,12 +138,15 @@ namespace Dino_Engine.Modelling.Procedural.Fence
                     BuildingStyle.Adobe => roll < 0.55f ? DryStone : Wattle,
                     BuildingStyle.Stilt => Bamboo,
                     BuildingStyle.Tiled => roll < 0.6f ? DryStone : Paling,
+                    // Its gardens mostly the same, now and then a wall of the stones cleared from them, and now and then a paling, as a red house's garden has.
+                    BuildingStyle.Nordic => roll < 0.62f ? Roundpole : roll < 0.85f ? DryStone : Paling,
                     _ => roll < 0.5f ? Wattle : Paling,
                 },
                 FenceUse.Yard => style switch
                 {
                     BuildingStyle.Eastern or BuildingStyle.Stilt => Bamboo,
                     BuildingStyle.Adobe => Wattle,
+                    BuildingStyle.Nordic => Roundpole,
                     _ => Rails,
                 },
                 FenceUse.Stockade => Stockade,

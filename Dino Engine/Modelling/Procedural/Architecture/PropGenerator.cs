@@ -462,6 +462,8 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
                 BuildingStyle.Tiled => Stone(214),
                 BuildingStyle.Adobe => new VertexMaterial(TextureGenerator.plaster, new Colour(214, 158, 114)),
                 BuildingStyle.Log => new VertexMaterial(TextureGenerator.barkBare, new Colour(196, 164, 130)),
+                // Tarred posts in the north.
+                BuildingStyle.Nordic => new VertexMaterial(TextureGenerator.barkBare, new Colour(0.4f, 0.34f, 0.3f)),
                 _ => DarkWood,
             };
             VertexMaterial roof = style switch
@@ -470,8 +472,11 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
                 BuildingStyle.Stone => new VertexMaterial(TextureGenerator.slate, new Colour(210, 214, 226)),
                 BuildingStyle.Log => new VertexMaterial(TextureGenerator.shingle, new Colour(206, 186, 162)),
                 BuildingStyle.Tiled => new VertexMaterial(TextureGenerator.roofTiles, new Colour(240, 236, 228)),
+                BuildingStyle.Nordic => new VertexMaterial(TextureGenerator.roofTiles, new Colour(0.6f, 0.44f, 0.43f)),
                 _ => Thatch,
             };
+            // Its lookout boarded as the houses are: red in the north.
+            VertexMaterial lookout = style == BuildingStyle.Nordic ? new VertexMaterial(TextureGenerator.paintedBoards, new Colour(0.47f, 0.072f, 0.035f)) : Wood(112, 86, 64);
 
             float top = 15f;
             if (solid)
@@ -507,13 +512,13 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
             for (int side = 0; side < 4; side++)
             {
                 b.Place(Vector3.Zero, side * MathF.PI * 0.5f);
-                b.Box(new Vector3(0f, top + 1.1f, 4.3f), new Vector3(4.4f, 0.9f, 0.1f), Wood(112, 86, 64));
+                b.Box(new Vector3(0f, top + 1.1f, 4.3f), new Vector3(4.4f, 0.9f, 0.1f), lookout);
             }
             b.ResetPlacement();
 
             // Clay tiles slide off a roof as steep as thatch wants, so theirs is low.
             float eave = top + 3.9f;
-            float rise = style == BuildingStyle.Tiled ? 2.4f : 3.9f;
+            float rise = style == BuildingStyle.Tiled ? 2.4f : style == BuildingStyle.Nordic ? 3.4f : 3.9f;
             for (int side = 0; side < 4; side++)
             {
                 b.Place(new Vector3(0f, 0f, 0f), side * MathF.PI * 0.5f);

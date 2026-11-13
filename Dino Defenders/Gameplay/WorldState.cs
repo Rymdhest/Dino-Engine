@@ -62,18 +62,17 @@ namespace Dino_Defenders.Gameplay
             IsHaven = Lands.IsHaven(request);
             Chronicle = Chronicle.Write(world, Terms, IsHaven);
 
-            bool twinned = Terms.Has(OrdersCatalog.TwinPens);
-            foreach (WorldSite site in world.Sites) Sites.Add(CreateState(site, wild: false, twinned));
-            foreach (WorldSite haunt in world.Haunts) Sites.Add(CreateState(haunt, wild: true, twinned));
+            foreach (WorldSite site in world.Sites) Sites.Add(CreateState(site, wild: false, Terms));
+            foreach (WorldSite haunt in world.Haunts) Sites.Add(CreateState(haunt, wild: true, Terms));
         }
 
-        // An arena's second tyrant only stands there on a land whose orders asked for two.
-        private static SiteState CreateState(WorldSite site, bool wild, bool twinned)
+        // Everyone who stands there, by the rule the map table counts a land by before it's opened.
+        private static SiteState CreateState(WorldSite site, bool wild, LandTerms terms)
         {
             var state = new SiteState { Site = site, Wild = wild };
             foreach (SiteSpawn spawn in site.Spawns)
             {
-                if (spawn.Role.IsHostile() && (spawn.Role != SpawnRole.Rival || twinned)) state.HostilesTotal++;
+                if (LandCensus.Stands(spawn.Role, terms)) state.HostilesTotal++;
             }
             return state;
         }

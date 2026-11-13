@@ -64,8 +64,12 @@ namespace Dino_Engine.World
         Ash,        // The Onslaught's floor, the ash the charge was buried in.
     }
 
-    /// <summary>A plant put somewhere on purpose by whoever built a site, as a garden's trees are. They're planted before the woods, which grow around them, and only if nothing built stands there.</summary>
-    public readonly record struct Planting(WorldAsset Asset, Vector2 Position, float Scale, float Yaw);
+    /// <summary>
+    /// A plant put somewhere on purpose by whoever built a site, as a garden's trees are. They're planted before the woods, which grow around them, and only if nothing built
+    /// stands there. <paramref name="Room"/> is how much of the room its kind keeps clear it needs: all of it by a house, whose roof its crown mustn't reach, and less beside
+    /// a lane, which a wayside tree's crown leans over as it does in any country.
+    /// </summary>
+    public readonly record struct Planting(WorldAsset Asset, Vector2 Position, float Scale, float Yaw, float Room = 1f);
 
     /// <summary>A soft-edged patch of painted ground.</summary>
     public readonly struct PaintPatch

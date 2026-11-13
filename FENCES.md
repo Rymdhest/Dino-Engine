@@ -49,14 +49,21 @@ A wall that meets a tower can't stand in it, so it's tried up to the tower's foo
 | `churchyard` | Churchyard | A churchyard | Coursed stone on a plinth under a saddleback coping, with piers capped by a pyramid, a ball or a step |
 | `roofed` | Roofed | A churchyard in the East | Plaster over a stone plinth between dark posts, sometimes earthen with white lines, under a little roof with hipped caps at its ends |
 | `curtain` | Curtain | A keep | Battered at its foot, a walk along the top behind merlons with arrow slits, a low parapet inside |
+| `roundpole` | Roundpole | Every field, yard and lane, and most gardens, where they build red with white corners (the north, `NORDIC.md`) | A gärdesgård: stakes driven in pairs, bound with withies at three heights, and poles, split or whole, laid on a slant between them, each resting on those under it |
 
 What a site puts up for a use is `FenceCatalog.Choose`, from how the site builds (`WorldData.StyleOf`, which is its land's way where its biome has one) and a fork of the site's own, once per use, so a village's gardens all match. A world draws `StylesPerWorld` styles of each kind from its seed, and a site takes one of them.
 
-**A field is fenced light and in wood**: rails mostly, wattle or a paling now and then, bamboo or rails in the East, rails or wattle where they build in logs, wattle or rails in the dry country, cane or wattle over the wet, and rails or paling in the tile country. Stone was tried round fields and read as a churchyard's, and a stone wall's wider footing took a waygate's ground. A field's gate faces the nearest road, and a footpath runs from it to that road when there's one within `LongestFieldTrack` and nothing built is in the way (`SettlementStage.LayFieldTrack`), so a farm is somewhere people walk to.
+**A field is fenced light and in wood**: rails mostly, wattle or a paling now and then, bamboo or rails in the East, rails or wattle where they build in logs, wattle or rails in the dry country, cane or wattle over the wet, rails or paling in the tile country, and the gärdesgård, always, in the north, which also fences one side of each lane out of its villages (`SettlementStage.LineLanes`). Stone was tried round fields and read as a churchyard's, and a stone wall's wider footing took a waygate's ground. A field's gate faces the nearest road, and a footpath runs from it to that road when there's one within `LongestFieldTrack` and nothing built is in the way (`SettlementStage.LayFieldTrack`), so a farm is somewhere people walk to.
 
 **A run stops where nobody could stand**, on rock or ground too steep to walk, and starts again beyond with an end post each side (`SiteBuilder.Wall`), as a village's stockade once climbed a cliff and its spans, out of slope steps, leaned 42 degrees.
 
 Black iron and oxblood are on the pen alone, as nothing but the Reich wears them. Dry stone uses the stone material, which the shader draws as the world's own rock at that height, so a wall matches the boulders it was cleared from.
+
+## The gärdesgård
+
+The north's fence (`RoundpoleFence.cs`) is built for the camera as much as for the north. Its poles are laid at about fifty degrees, 20 to 25 cm through, with daylight between them, and each is a grey of its own: the camera squashes what stands to four tenths of its height, and laid as most parishes lay them, at thirty degrees and close together, they read from up here as a flat band with no slant in it. From low down it looks too steep, which nothing in the game sees.
+
+A post is a pair of stakes with the poles' line between them, a span is a bay of two stake intervals with a pair in its middle (an upright, so it stands plumb on a slope while the poles shear with it), and an end post is two pairs set square, so that the poles coming in from either way at a corner are held. The poles are the same lines in every span of a style, a whole number of them to a bay, so where one span's poles leave a post the next span's take them up at the same heights and slant: a pole runs on through any number of posts. What may differ from one span to the next is a pole's tone and its bow, which are nothing at a post, and where a head lies that's well inside a span. A pole cut where a span starts is capped, so the end of a run shows end grain between its end post's stakes.
 
 ## Styles
 
@@ -68,7 +75,7 @@ A style is a seed, and its genes say everything pieces of it have to agree on: h
 |---|---|
 | Kinds, uses, styles | `Dino Engine/Modelling/Procedural/Fence/FenceCatalog.cs` |
 | Model ids | `FenceSpec.cs` |
-| Building | `FenceForge.cs`, `FenceBuilder.cs` (logs, flat-faced timbers, dressed blocks, field stones, panels), and one file per family: `TimberFences.cs`, `BambooFence.cs`, `LogFences.cs`, `StoneFences.cs` |
+| Building | `FenceForge.cs`, `FenceBuilder.cs` (logs, flat-faced timbers, dressed blocks, field stones, panels), and one file per family: `TimberFences.cs`, `BambooFence.cs`, `LogFences.cs`, `StoneFences.cs`, `RoundpoleFence.cs` |
 | Standing them on the land | `Dino Engine/World/FenceLayout.cs`, from `FinalizeStage` |
 | Putting a run down | `SiteBuilder.Wall`, `Ring`, `FenceAround` |
 | Turning ids into models | `WorldAssetLibrary`, which builds them on worker threads with the plants and stones while a world loads |

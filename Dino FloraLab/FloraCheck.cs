@@ -153,7 +153,7 @@ namespace Dino_FloraLab
             var used = new HashSet<string>();
             foreach (BiomeDefinition biome in BiomeCatalog.All)
             {
-                foreach (Species[] list in new[] { biome.Canopy, biome.Edge, biome.Shrubs, biome.Deadwood, biome.ForestFloor, biome.OpenGround, biome.Waterside })
+                foreach (Species[] list in new[] { biome.Canopy, biome.Edge, biome.Mingled, biome.Shrubs, biome.Deadwood, biome.ForestFloor, biome.OpenGround, biome.Waterside })
                 {
                     foreach (Species species in list)
                     {

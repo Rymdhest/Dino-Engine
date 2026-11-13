@@ -94,7 +94,7 @@ namespace Dino_Defenders.Server
         }
 
         /// <summary>How many times the entries open in a fight, which is once for every share of the tyrant's health but the last, as by then it's down.</summary>
-        public static int MostWaves => Math.Max((int)MathF.Round(1f / Rulebook.ArenaWaveEvery) - 1, 0);
+        public static int MostWaves => ArenaWaves.Most;
 
         /// <summary>How long one of an arena's entries takes to open.</summary>
         public static float OpeningTime(ArenaEntryKind kind) => kind switch
@@ -108,7 +108,7 @@ namespace Dino_Defenders.Server
         private bool PutUp(ECSWorld world, ServerSession session)
         {
             _searched = true;
-            WorldSite? site = session.World.Sites.FirstOrDefault(s => s.Arena != null);
+            WorldSite? site = session.World.Sites.FirstOrDefault(s => s.Arena != null);     // As LandCensus.ArenaOf.
             if (site?.Arena is not ArenaPlan plan) return false;
             _plan = plan;
             _site = site;
@@ -204,8 +204,9 @@ namespace Dino_Defenders.Server
         // Some of the entries open, spread round the floor and a different few each time, and the last time all of them. A chandelier gives too, where there are any.
         private void Open(ServerSession session, int wave)
         {
-            int count = wave >= MostWaves ? _gates.Count : Math.Min(Rulebook.ArenaWaveGates, _gates.Count);
-            int each = Math.Max((int)MathF.Round(Rulebook.ArenaWaveSize * (1f + session.Terms.MorePeople)), 1);
+            // By the rules the map table says how many an arena lets in by (ArenaWaves, LandCensus).
+            int count = ArenaWaves.GatesAt(wave, _gates.Count);
+            int each = ArenaWaves.EachGate(session.Terms);
             for (int i = 0; i < count; i++)
             {
                 Gate gate = _gates[(wave - 1 + i * _gates.Count / count) % _gates.Count];

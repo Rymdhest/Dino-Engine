@@ -269,6 +269,18 @@ namespace Dino_Defenders.Progression
 
         public static WorldRequest Haven => new WorldRequest(HavenSeed, HavenArchetype, 1);
 
+        /// <summary>What a land holds once these orders are given for it, which is what the server puts on it and what the map table counts it by (<see cref="Gameplay.LandCensus"/>).</summary>
+        public static LandTerms TermsFor(LandOffer offer, IEnumerable<Item> orders)
+        {
+            LandTerms terms = offer.Terms.Copy();
+            foreach (Item given in orders) terms.Give(given);
+            terms.Sanitize();
+            return terms;
+        }
+
+        /// <summary>The world a land on these terms is grown from.</summary>
+        public static WorldRequest RequestFor(LandOffer offer, LandTerms terms) => terms.Shape(offer.Request);
+
         public static bool IsHaven(in WorldRequest request) => request.ArchetypeId == HavenArchetype;
 
         public static bool IsArena(in WorldRequest request) => ArenaCatalog.Is(request.ArchetypeId);

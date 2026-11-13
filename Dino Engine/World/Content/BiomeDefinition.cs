@@ -121,6 +121,14 @@ namespace Dino_Engine.World.Content
 
         public Species[] Canopy = Array.Empty<Species>();
         public Species[] Edge = Array.Empty<Species>();         // Young trees and shrubs at forest edges. Empty: the canopy species.
+
+        /// <summary>
+        /// Trees of other kinds standing among the canopy, thickest at its edges and out in the open, as birches stand in a northern pinewood: each takes one of the
+        /// canopy's places, chosen by where it is, with the room and the scale the canopy tree there drew, so that adding them moves nothing else in any wood
+        /// (VegetationStage.PlantTrees), as a new kind on a list would, all down the world's one stream of trees.
+        /// </summary>
+        public Species[] Mingled = Array.Empty<Species>();
+        public float MingledShare;          // 0..1 of the canopy's places, and nearly twice that at its edges.
         public Species[] Shrubs = Array.Empty<Species>();
         public Species[] Deadwood = Array.Empty<Species>();
         public Species[] Boulders = Array.Empty<Species>();
@@ -225,7 +233,8 @@ namespace Dino_Engine.World.Content
         {
             Id = "pine",
             Mountains = MountainForm.Domes,
-            Builds = BuildingStyle.Log,
+            // Red boards and white corners, as the north's pinewoods have always been settled (BuildingStyle.Nordic).
+            Builds = BuildingStyle.Nordic,
             Life = Fauna.Conifer,
             Name = "Pinewood",
             MapColour = new Vector3(0.14f, 0.32f, 0.2f),
@@ -245,6 +254,9 @@ namespace Dino_Engine.World.Content
             TreeSpacing = 1.05f,
             Canopy = List(S(Conifers.ScotsPine, 4f), S(Conifers.BlackPine, 2f), S(Conifers.Spruce, 2f)),
             Edge = List(S(Conifers.Spruce, 2f), S(Conifers.BlackPine, 1f)),
+            // White birches among the pines, thickest where the wood thins at its edges and its clearings, as a northern pinewood is.
+            Mingled = List(S(Broadleaves.Birch)),
+            MingledShare = 0.2f,
             Shrubs = List(S(Undergrowth.Juniper, 2f), S(Undergrowth.BroadShrub, 1f), S(Undergrowth.Boxwood, 1f)),
             Deadwood = List(S(Wilds.PineLog, 2f), S(Wilds.PineStump, 2f), S(Conifers.DeadPine, 1f)),
             Boulders = List(S(NatureCatalog.Boulder)),
@@ -491,7 +503,7 @@ namespace Dino_Engine.World.Content
         {
             Id = "snow",
             Mountains = MountainForm.Jagged,
-            Builds = BuildingStyle.Log,
+            Builds = BuildingStyle.Nordic,
             Life = Fauna.Frozen,
             Name = "Snowfield",
             MapColour = new Vector3(0.9f, 0.93f, 0.96f),
@@ -508,6 +520,9 @@ namespace Dino_Engine.World.Content
             TreeSpacing = 1.4f,
             LoneTrees = 0.03f,
             Canopy = List(S(Conifers.FrostedSpruce, 3f), S(Wilds.SilverSnag, 1f)),
+            // Birches white from their trunks to their twigs among the frosted spruce, most where the wood opens out.
+            Mingled = List(S(Broadleaves.WinterBirch)),
+            MingledShare = 0.28f,
             Deadwood = List(S(Wilds.PineStump), S(Wilds.SilverLog, 0.5f)),
             Boulders = List(S(NatureCatalog.Boulder)),
             ShrubDensity = 0f,

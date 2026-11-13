@@ -41,7 +41,7 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
                 case "pen.trough": BuildFeedTrough(b, random); return true;
                 case "pen.rack": BuildMeatRack(b, random); return true;
                 case "pen.banner": BuildBanner(b, random); return true;
-                default: return false;
+                default: return BuildNordic(b, id, random);
             }
         }
 

@@ -1,3 +1,4 @@
+using Dino_Engine.Modelling.Procedural.Flora;
 using Dino_Engine.Modelling.Procedural.Rock;
 using Dino_Engine.World.Content;
 using OpenTK.Mathematics;
@@ -282,10 +283,11 @@ namespace Dino_Engine.World.Generation
                 if (!GroundFits(world, planting.Position, MaxTreeSlope)) continue;
 
                 float scale = planting.Scale;
-                if (placement.Overlaps(Footprint.Circle(planting.Position, asset.Footprint * scale), avoid)) scale = asset.Scale.Min;
-                if (placement.Overlaps(Footprint.Circle(planting.Position, asset.Footprint * scale), avoid)) continue;
+                float room = planting.Room;
+                if (placement.Overlaps(Footprint.Circle(planting.Position, asset.Footprint * scale * room), avoid)) scale = asset.Scale.Min;
+                if (placement.Overlaps(Footprint.Circle(planting.Position, asset.Footprint * scale * room), avoid)) continue;
 
-                placement.Add(Footprint.Circle(planting.Position, asset.Footprint * scale), layer);
+                placement.Add(Footprint.Circle(planting.Position, asset.Footprint * scale * room), layer);
                 if (asset.SolidRadius > 0f) placement.Add(Footprint.Circle(planting.Position, asset.SolidRadius * scale), PlacementLayer.None, solid: true);
                 AddPlant(world, objects, asset, planting.Position, scale, planting.Yaw, sink: tree ? 0.15f : 0.05f);
             }
@@ -319,9 +321,31 @@ namespace Dino_Engine.World.Generation
                 if (placement.Overlaps(Footprint.Circle(point, footprint), Avoid)) continue;
 
                 placement.Add(Footprint.Circle(point, footprint), PlacementLayer.Tree);
-                placement.Add(Footprint.Circle(point, asset.SolidRadius * scale), PlacementLayer.None, solid: true);
-                AddPlant(world, objects, asset, point, scale, random.Float() * MathF.Tau, sink: 0.15f);
+                // A mingled kind takes this place with the room and the scale already drawn, so that nothing drawn after it changes.
+                WorldAsset grown = Mingle(biome, asset, point, edge);
+                placement.Add(Footprint.Circle(point, grown.SolidRadius * scale), PlacementLayer.None, solid: true);
+                AddPlant(world, objects, grown, point, scale, random.Float() * MathF.Tau, sink: 0.15f);
             }
+        }
+
+        private const float MingledAtEdges = 1.8f;      // How much more of a wood's places its mingled kinds take at its edges and out in the open.
+
+        // Which kind stands in one of a canopy's places, by where it is and nothing drawn: one of the biome's mingled kinds for its share of them, more at the wood's edge.
+        private static WorldAsset Mingle(BiomeDefinition biome, WorldAsset canopy, Vector2 at, bool edge)
+        {
+            if (biome.Mingled.Length == 0 || biome.MingledShare <= 0f) return canopy;
+            uint here = FloraNoise.Hash((uint)(int)MathF.Floor(at.X * 4f) * 0x9E3779B1u ^ FloraNoise.Hash((uint)(int)MathF.Floor(at.Y * 4f) ^ 0x51C3A7u));
+            float share = MathF.Min(biome.MingledShare * (edge ? MingledAtEdges : 1f), 1f);
+            if ((here & 0xFFFFu) / 65536f >= share) return canopy;
+            float total = 0f;
+            foreach (Species species in biome.Mingled) total += species.Weight;
+            float pick = ((here >> 16) & 0xFFFFu) / 65536f * total;
+            foreach (Species species in biome.Mingled)
+            {
+                pick -= species.Weight;
+                if (pick <= 0f) return species.Asset;
+            }
+            return biome.Mingled[^1].Asset;
         }
 
         private static void PlantShrubs(WorldData world, WorldObjects objects, WorldRandom random, WorldNoise patches)

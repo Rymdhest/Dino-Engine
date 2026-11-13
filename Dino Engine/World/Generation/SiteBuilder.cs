@@ -373,7 +373,8 @@ namespace Dino_Engine.World.Generation
         public bool Field(Vector2 position, Vector2 halfExtents, float yaw, Vector2 gateSide) => Field(position, halfExtents, yaw, gateSide, out _);
 
         /// <param name="gate">The middle of the gap in its fence.</param>
-        public bool Field(Vector2 position, Vector2 halfExtents, float yaw, Vector2 gateSide, out Vector2 gate)
+        /// <param name="meadow">Mown for hay, its grass left and the hay hung on racks across it, rather than ploughed and sown.</param>
+        public bool Field(Vector2 position, Vector2 halfExtents, float yaw, Vector2 gateSide, out Vector2 gate, bool meadow = false)
         {
             gate = position;
             Footprint footprint = Footprint.Box(position, halfExtents, yaw);
@@ -381,9 +382,16 @@ namespace Dino_Engine.World.Generation
             if (World.Placement.Overlaps(footprint, Blockers, 2f)) return false;
 
             World.Placement.Add(footprint, PlacementLayer.Field);
-            Paint(GroundPaint.Farmland, footprint, 1.6f);
+            if (!meadow) Paint(GroundPaint.Farmland, footprint, 1.6f);
             World.Clearings.Add(new Clearing(position, halfExtents.Length, 18f));
             World.Pads.Add(new GroundPad(footprint, AverageGround(footprint), 7f));
+
+            if (meadow)
+            {
+                HangHay(footprint, halfExtents, yaw);
+                FenceAround(footprint, gateSide, FenceUse.Field, out gate);
+                return true;
+            }
 
             StructureDefinition crop = Random.Chance(0.6f) ? StructureCatalog.GrainCrop : StructureCatalog.VegetableCrop;
             float rowSpacing = crop == StructureCatalog.GrainCrop ? 2.5f : 3f;
@@ -399,6 +407,23 @@ namespace Dino_Engine.World.Generation
 
             FenceAround(footprint, gateSide, FenceUse.Field, out gate);
             return true;
+        }
+
+        // A meadow mown for hay, the hay hung on racks in rows across it to dry, along its length.
+        private void HangHay(in Footprint field, Vector2 half, float yaw)
+        {
+            float rackHalf = StructureCatalog.HayRack.HalfExtents.X;
+            if (half.X < rackHalf + 1.5f) return;
+            int rows = half.Y > 11f ? 3 : 2;
+            for (int row = 0; row < rows; row++)
+            {
+                float z = -half.Y + 2f * half.Y * (row + 0.5f) / rows + Random.Range(-1f, 1f);
+                float x = Random.Range(-1f, 1f) * (half.X - rackHalf - 1.2f);
+                Vector2 at = field.ToWorld(new Vector2(x, z));
+                Footprint rack = Footprint.Box(at, StructureCatalog.HayRack.HalfExtents, yaw);
+                if (!GroundFits(rack, 0.3f) || World.Placement.Overlaps(rack, PlacementLayer.Structure | PlacementLayer.Prop | PlacementLayer.Road, 0.5f)) continue;
+                Commit(StructureCatalog.HayRack, at, yaw, 1f, rack);
+            }
         }
 
         /// <summary>Fences a box, leaving a gate in the side nearest <paramref name="gateSide"/>.</summary>

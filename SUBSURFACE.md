@@ -74,16 +74,27 @@ it went through, as Unity's HDRP and Unreal measure thick transmission, after Ji
   speckled. So flesh has a map of its own (`FleshDepth`): 2048 texels over 64 m round the hero, three centimetres each, drawn each frame with no offset, of
   characters near the hero alone, and of their skin and hide alone (`Shadow_Flesh.frag` discards the rest, by the material table). It costs one more drawing of
   the nearby characters into a small depth map.
+- Only what faces away from the sun lets any of it out: whatever faces the sun at all is lit by it directly, and the ambient pass carries that round the
+  terminator as flesh does (`Wrap`). It comes in over a fifth of a cosine past the terminator (`SSS_FACING_AWAY`), as the normal is the shading one, bumps and
+  all, and a hard cut would follow every bump.
 - It's read over the four by four texels round the point, weighted as the shadow is, and each texel's thickness goes through `exp(-thickness / reach)` for
   each colour before they're averaged, not after, so a thin edge isn't lost in a thick average.
-- Only texels with flesh in front count, and the rest count as nothing rather than as thin: where the map shows none, the light went past the body and not
-  through it. That keeps the glow on a big body's dark side as wide as light gets through flesh, a few centimetres past the terminator, however wide the filter:
-  the thinnest a texel can make a point past the terminator is the point's own depth below it.
+- Only flesh in front counts, a centimetre of it and more in full (`THICKNESS_FULL`): where the map shows none, or shows the point's own surface, the light went
+  past the body or straight to the point, not through. And each texel counts by how squarely the sun met the flesh there, read from how fast the map's depth
+  changes across it, as light that meets a surface edge on hardly gets in. That's also what keeps it honest: the only texels that read thin where nothing is
+  are those where the map grazes a body's outline from the sun or steps from one part to another, and there the depth runs away. The first version counted a
+  texel up to its own slope behind the point as no thickness at all, which where the sun skims a surface (a big body's whole flank under a high or cloudy sun)
+  made the surface its own thin flesh, and painted it in orange stripes along the map's texels, seen close on a giant in the rain. `sssdebug=2` showed those
+  bodies white; now only what's really thin and turned from the sun shows.
+- What comes out is the same every way, as light is that comes out from under a surface, in blood's colour with some of the surface's hue, and as bright as the
+  skin is pale (`SSS_SKIN_LUMA`, a person's): light coming out through skin crosses the same pigment it would have bounced off, so a dark hide glows far less
+  than a person's ear.
 - Armour, a harness, a tree or a wall between the sun and the flesh isn't in that map, so the sun's own shadow map is asked whether anything stands in front of
   where the light went in, along the same ray, by more than its offset and the two maps' texels allow (`THICKNESS_ENTRY_SLACK`). A tyrant's gorget throws its
   shadow on its neck, and a crest in a tree's shade doesn't glow.
 - It's added as a pass of its own after the ambient pass, on characters alone, by their stencil bit (`Flesh_Light.frag`, `AmbientLightRenderer.DrawFlesh`), per pixel
-  and per sample as the light passes are, so that nothing but a character ever carries its five gathers of depth and forty-eight exponentials.
+  and per sample as the light passes are, and only where they face away from the sun, so that nothing else ever carries its five gathers of depth and
+  forty-eight exponentials.
 - It's the sun's alone. A lamp's cube map is kept still for most lamps, without whoever walks by in it, and from 33 m up a hand by a lantern is two pixels,
   so flesh by a lamp only has its light wrapped.
 - Flesh's red goes seven centimetres (`Reach`, at an amount of 1; hide is 0.8), ten times what real skin's does at the world's size, as from up here a frill,
@@ -132,10 +143,12 @@ for every lamp, which is why `sssProfileOf` reads each row at an index it knows.
 
 ## Checks
 
-After any change here run the black test (`--render sun=0,sky=0,lights=0,emission=0`), look with and without it (`--render sss=0`) at a backlit wood (the
-Haven at `--hour 17` is lit from the north, against the camera, and at noon from the south), at creatures (`--haven true --hour 17 --parade
-war-raptor,hornback,strider,reaper,domehead`), at snow (`--seed 2 --archetype highlands --biome snow`, and the Haven with `--weather snow`), and at the Haven's
-cloth, and `--perf` in a wood and at a parade against the build before, with `--meshseed` and `--wind 0:0:0` so two builds grow and move the same.
+After any change here run the black test (`--render sun=0,sky=0,lights=0,emission=0`), look with and without it (`--render sss=0`) at a backlit wood (the Haven at
+`--hour 17` is lit from the north, against the camera, and at noon from the south), at creatures (`--haven true --hour 17 --parade
+war-raptor,hornback,strider,reaper,domehead`), and at them close and low as well (`--parade hornback,clubtail,war-raptor --look 18 --angle 40` at noon, at 17 and in
+`--weather rain`, with `sssdebug=2`), as the striped flanks were all but invisible from 33 m up and plain to anyone who zoomed in on a giant, at snow (`--seed 2
+--archetype highlands --biome snow`, and the Haven with `--weather snow`), and at the Haven's cloth, and `--perf` in a wood and at a parade against the build before,
+with `--meshseed` and `--wind 0:0:0` so two builds grow and move the same.
 
 The main menu's camera stands low and looks across its meadow, where light comes through blades and petals further than it ever can from the game's camera,
 67 degrees down: its grass and flowers are about a fifth brighter than before this, by blades and flowers about equally, while the rest of the picture is

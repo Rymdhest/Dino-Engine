@@ -180,7 +180,7 @@ namespace Dino_Defenders.Server
             Ecs.DirtyEntities.Clear();
 
             _terms = Lands.IsHaven(request) ? new LandTerms() : terms;
-            _request = Lands.IsHaven(request) ? request : _terms.Shape(request);
+            _request = Lands.IsHaven(request) ? request : _terms.Shape(request);     // As Lands.RequestFor, which the map table counts what a land holds by.
             _saved = save;
             _loading = _worlds.Get(_request);
             _skyStart = Lands.IsHaven(request) && !_settings.SameSky ? (uint)Random.Shared.Next(1 << 24) : 0u;
@@ -1294,14 +1294,13 @@ namespace Dino_Defenders.Server
             }
 
             LandOffer offer = offers[choice];
-            LandTerms terms = offer.Terms.Copy();
+            var given = new List<Item>();
             foreach (int cell in ordersCells)
             {
-                Item orders = player.Hero.Inventory[cell]!;
+                given.Add(player.Hero.Inventory[cell]!);
                 player.Hero.Take(ItemPlace.Cell(cell));
-                terms.Give(orders);
             }
-            terms.Sanitize();
+            LandTerms terms = Lands.TermsFor(offer, given);
 
             session.Portal = (offer.Request, terms, offer.Plan.Name);
             session.PortalChanged = true;

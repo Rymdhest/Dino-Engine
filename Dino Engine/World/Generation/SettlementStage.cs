@@ -1,4 +1,5 @@
 using Dino_Engine.Modelling.Procedural.Fence;
+using Dino_Engine.Modelling.Procedural.Flora;
 using Dino_Engine.World.Content;
 using OpenTK.Mathematics;
 using static Dino_Engine.World.Generation.SiteBuilder;
@@ -148,6 +149,9 @@ namespace Dino_Engine.World.Generation
 
             b.Paint(GroundPaint.Plaza, Footprint.Circle(b.Centre, isVillage ? 13f : 7f), 9f);
             if (isVillage) PlaceRefuge(b);
+            bool nordic = b.Style == BuildingStyle.Nordic;
+            // A midsummer pole is dressed in fresh leaves, which nothing under snow has.
+            if (nordic && !Snowy(b)) PlaceMaypole(b, isVillage);
             PlaceSquare(b, isVillage);
 
             List<List<Vector3>> streets = b.StreetsWithin(site.Radius);
@@ -165,6 +169,9 @@ namespace Dino_Engine.World.Generation
             }
 
             PlaceFields(b, fields);
+            // The north fences the lanes out past its fields and lines them with birches; a village behind a stockade keeps only the birches, as its gates are its own.
+            if (nordic) LineLanes(b, fences: !fortified);
+            if (nordic && !Snowy(b)) HangHayAbout(b);
 
             for (int i = 0; i < 5; i++)
             {
@@ -338,13 +345,41 @@ namespace Dino_Engine.World.Generation
             return false;
         }
 
+        private const float MaypoleReach = 4.4f;        // Metres a midsummer pole's arms and rings reach from its foot, and a little more.
+
+        // The north raises a pole on its green for midsummer, dressed in leaves and flowers, and leaves it standing the year round. Its arms and rings reach well past
+        // its foot, so the ground under them is kept from anything built.
+        private static void PlaceMaypole(SiteBuilder b, bool isVillage)
+        {
+            WorldRandom random = b.Random.Fork("maypole");
+            for (int attempt = 0; attempt < 48; attempt++)
+            {
+                // Near the middle first, and further out the more tries it takes. Its arms are well over anyone's head, so only what's built has to keep from under them.
+                float reach = MathHelper.Lerp(isVillage ? 12f : 8f, isVillage ? 26f : 18f, attempt / 47f);
+                Vector2 spot = b.Centre + Direction(random.Float() * MathF.Tau) * random.Range(isVillage ? 5f : 3f, reach);
+                if (b.World.Placement.Overlaps(Footprint.Circle(spot, MaypoleReach), PlacementLayer.Built)) continue;
+                // Never in front of the gate, the shrine, the stash or a merchant from where the camera looks, which is north, as it's tall and its rings hang wide.
+                if (b.Site.Spawns.Any(spawn => spawn.Role is SpawnRole.Waygate or SpawnRole.Altar or SpawnRole.Stash or SpawnRole.Merchant
+                    && ((spawn.Position - spot).Length < 9f || (MathF.Abs(spawn.Position.X - spot.X) < 8f && spawn.Position.Y > spot.Y && spawn.Position.Y - spot.Y < 24f)))) continue;
+                if (!b.Place(StructureCatalog.Maypole, spot, random.Float() * MathF.Tau, padding: 1f)) continue;
+                b.World.Placement.Add(Footprint.Circle(spot, MaypoleReach), PlacementLayer.Keepout);
+                return;
+            }
+        }
+
         private static void PlaceSquare(SiteBuilder b, bool isVillage)
         {
-            // The square's heart is usually where roads meet, so its well stands to one side, with a trough beside it for the beasts.
-            for (int attempt = 0; attempt < 14; attempt++)
+            // The square's heart is usually where roads meet, so its well stands to one side, with a trough beside it for the beasts. The north draws its water with a
+            // sweep, its curb towards the square and its stone away from it.
+            bool sweep = b.Style == BuildingStyle.Nordic;
+            for (int attempt = 0; attempt < (sweep ? 26 : 14); attempt++)
             {
-                Vector2 spot = b.Centre + Direction(b.Random.Float() * MathF.Tau) * b.Random.Range(6f, 13f);
-                if (!b.Place(StructureCatalog.Well, spot, 0f)) continue;
+                Vector2 spot = b.Centre + Direction(b.Random.Float() * MathF.Tau) * b.Random.Range(6f, sweep ? 17f : 13f);
+                // A sweep is long, so it's tried pointing at the square and across it, and a square too crowded for it has a well of stone after all.
+                Vector2 toCentre = (b.Centre - spot).LengthSquared > 1e-4f ? (b.Centre - spot).Normalized() : Vector2.UnitY;
+                bool placed = sweep && (b.Place(StructureCatalog.WellSweep, spot, YawFacing(toCentre)) || b.Place(StructureCatalog.WellSweep, spot, YawFacing(new Vector2(-toCentre.Y, toCentre.X))));
+                if (!placed && (!sweep || attempt >= 18)) placed = b.Place(StructureCatalog.Well, spot, 0f);
+                if (!placed) continue;
                 WorldRandom trough = b.Random.Fork("trough");
                 Vector2 away = (spot - b.Centre).Normalized();
                 Vector2 along = new Vector2(-away.Y, away.X) * (trough.Chance(0.5f) ? 1f : -1f);
@@ -453,7 +488,9 @@ namespace Dino_Engine.World.Generation
                 if (b.Place(StructureCatalog.Shed, shed + outward * 3f, YawFacing(-outward), padding: 0.8f)) back += outward * 7f;
             }
 
-            if (b.Random.Chance(0.35f))
+            // The north fences more of its gardens, with the same poles on the slant as its fields.
+            bool nordic = b.Style == BuildingStyle.Nordic;
+            if (b.Random.Chance(nordic ? 0.6f : 0.35f))
             {
                 // A back garden, fenced off from the wilds.
                 Vector2 garden = position + outward * (type.HalfExtents.Y + 6.5f);
@@ -467,7 +504,65 @@ namespace Dino_Engine.World.Generation
             }
 
             YardClutter(b, type, position, outward, tangent);
+            if (nordic && type != StructureCatalog.Barn) PlantGuardian(b, type, position, outward, tangent);
         }
+
+        // A farm in the north keeps a tree by its house that nobody may fell, as old as the farm (a vårdträd): a birch, or now and then a linden, clear of the roofs.
+        // It's asked for here and planted with the rest of what sites plant, where nothing built stands in its way by then (VegetationStage.PlantOnPurpose).
+        private static void PlantGuardian(SiteBuilder b, StructureDefinition type, Vector2 position, Vector2 outward, Vector2 tangent)
+        {
+            WorldRandom random = b.Random.Fork("guardian");
+            PlantSpecies tree = !Snowy(b) && random.Chance(0.2f) ? Woodlands.Linden : NordicBirch(b);
+            float scale = tree.Scale.Lerp(random.Range(0.1f, 0.5f));
+            float side = random.Chance(0.5f) ? 1f : -1f;
+            Vector2 half = type.HalfExtents;
+            foreach (int spot in new[] { 0, 1, 2 })
+            {
+                // Each spot is tried with the reach of the very tree that would grow there, so that no bough reaches into a roof.
+                Vector2 Spot(float clear) => spot switch
+                {
+                    0 => position + tangent * side * (half.X + clear + 0.4f) + outward * (half.Y * 0.35f),
+                    1 => position - tangent * side * (half.X + clear + 0.4f) + outward * (half.Y * 0.35f),
+                    _ => position + outward * (half.Y + clear + 0.6f) + tangent * side * (half.X * 0.45f),
+                };
+                Vector2 at = Spot(tree.Footprint * scale);
+                at = Spot(CrownRoom(b, tree, at, scale));
+                if (TryPlant(b, tree, at, scale, GuardianRoom, random)) return;
+            }
+        }
+
+        private const float GuardianRoom = 0.85f;      // Of its kind's room, what a tree by a house keeps from anything low, as a fence or a garden is.
+        private const float WaysideRoom = 0.4f;        // And a birch along a lane from the lane, whose crown leans out over it.
+
+        // Asks for a tree at a place if nothing tall stands within its crown's reach and nothing low within `room` of its kind's room, and keeps its crown's ground from
+        // anything built after it as a site keeps a bed (PlacementLayer.Garden), which nothing wild grows on and only what a site plants does.
+        private static bool TryPlant(SiteBuilder b, PlantSpecies tree, Vector2 at, float scale, float room, WorldRandom random)
+        {
+            float crown = CrownRoom(b, tree, at, scale);
+            float low = tree.Footprint * scale * room;
+            PlacementIndex placement = b.World.Placement;
+            if (placement.Overlaps(Footprint.Circle(at, crown), PlacementLayer.Structure)) return false;
+            if (placement.Overlaps(Footprint.Circle(at, low), PlacementLayer.Built | PlacementLayer.Road | PlacementLayer.Tree)) return false;
+            if (!b.GroundFits(Footprint.Circle(at, 1f), 0.5f)) return false;
+            placement.Add(Footprint.Circle(at, crown), PlacementLayer.Garden);
+            b.World.Plantings.Add(new Planting(tree, at, scale, random.Float() * MathF.Tau, room));
+            return true;
+        }
+
+        // How far from its trunk a tree planted at a place, at a scale, reaches: its crown and a little more, or what its kind keeps if that's more. A plant is chosen by
+        // where it stands (NatureCatalog.ModelAt), so the crown is that very tree's.
+        private static float CrownRoom(SiteBuilder b, PlantSpecies tree, Vector2 at, float scale)
+        {
+            float room = tree.Footprint * scale * GuardianRoom;
+            NatureCatalog.SpeciesOf(NatureCatalog.ModelAt(tree, b.World.Plan.Seed, at), out ulong seed);
+            if (tree.TryCrown(seed, out _, out _, out float crown)) room = MathF.Max(room, crown * scale + 0.8f);
+            return room;
+        }
+
+        // Which birch a northern village plants: a summer one, or one white with frost where the land lies under snow.
+        private static PlantSpecies NordicBirch(SiteBuilder b) => Snowy(b) ? Broadleaves.WinterBirch : Broadleaves.Birch;
+
+        private static bool Snowy(SiteBuilder b) => b.Site.Biome >= 0 && b.Site.Biome < b.World.Plan.Biomes.Count && b.World.Plan.Biomes[b.Site.Biome].Ground == SurfaceMaterial.Snow;
 
         // What a household keeps about its house, on a stream of its own so that the rest of the village is laid out as it always was: an oven and jars where it's dry
         // enough to bake out of doors, hides drying where it's cold, and anywhere bees, hens, washing, a trough, a barrow and sacks of grain, more of them at a barn.
@@ -489,6 +584,13 @@ namespace Dino_Engine.World.Generation
                 case BuildingStyle.Log:
                     if (random.Chance(0.3f)) b.Place(StructureCatalog.DryingRack, back - side * (width * 0.5f) + outward * 1.5f, YawFacing(outward), padding: 0.3f);
                     break;
+                case BuildingStyle.Nordic:
+                    // The winter's wood stacked round behind the house, by a barn the hay on its rack along the back of it, and now and then a farm's own well with
+                    // its sweep, in the yard behind the house.
+                    if (random.Chance(barn ? 0.4f : 0.32f)) b.Place(StructureCatalog.Woodstack, back - side * (width * 0.55f) + outward * 1.8f, random.Float() * MathF.Tau, padding: 0.4f);
+                    if (barn && random.Chance(0.5f)) b.Place(StructureCatalog.HayRack, back + outward * 3.6f, YawFacing(outward), padding: 0.8f);
+                    if (!barn && random.Chance(0.22f)) b.Place(StructureCatalog.WellSweep, back + side * (width * 0.4f) + outward * 4.6f, YawFacing(side), padding: 0.6f);
+                    break;
             }
             if (random.Chance(0.16f)) b.Place(StructureCatalog.Hives, back + tangent * random.Range(-3f, 3f) + outward * 2.2f, YawFacing(-outward), padding: 0.6f);
             if (random.Chance(barn ? 0.3f : 0.18f)) b.Place(StructureCatalog.Coop, back - side * (width * 0.6f) + outward * 0.6f, YawFacing(-outward), padding: 0.5f);
@@ -502,6 +604,9 @@ namespace Dino_Engine.World.Generation
         {
             WorldSite site = b.Site;
             int placed = 0;
+            // The north mows some of its fields for hay rather than sowing them, and hangs the hay on racks across them to dry, unless the land's under snow.
+            WorldRandom meadows = b.Random.Fork("meadows");
+            bool mows = b.Style == BuildingStyle.Nordic && !Snowy(b);
             for (int attempt = 0; attempt < wanted * 10 && placed < wanted; attempt++)
             {
                 Vector2 direction = Direction(b.Random.Float() * MathF.Tau);
@@ -512,10 +617,129 @@ namespace Dino_Engine.World.Generation
                 if (b.World.Sites.Any(other => other != site && (other.Position - position).Length < other.Radius + half.Length + FieldClearance)) continue;
                 // Fields line up with the road they lie along, not with the compass, and open onto it.
                 Vector2 towardsRoad = TowardsNearestRoad(b, position);
-                if (!b.Field(position, half, YawFacing(towardsRoad), towardsRoad, out Vector2 gate)) continue;
+                bool meadow = mows && meadows.Chance(0.4f);
+                if (!b.Field(position, half, YawFacing(towardsRoad), towardsRoad, out Vector2 gate, meadow)) continue;
                 placed++;
                 LayFieldTrack(b, gate, position);
             }
+        }
+
+        // Hay hung on racks in the open meadows round a northern village, beyond its houses and along the lie of the nearest road, as the summer's mowing dries.
+        private static void HangHayAbout(SiteBuilder b)
+        {
+            WorldRandom random = b.Random.Fork("hay");
+            int wanted = random.Int(2, 4), placed = 0;
+            for (int attempt = 0; attempt < 30 && placed < wanted; attempt++)
+            {
+                Vector2 spot = b.Centre + Direction(random.Float() * MathF.Tau) * b.Site.Radius * random.Range(0.7f, 1.35f);
+                Vector2 towardsRoad = TowardsNearestRoad(b, spot);
+                // Room to walk round it either side, as it's a long wall of hay in the open.
+                if (b.Place(StructureCatalog.HayRack, spot, YawFacing(towardsRoad), padding: 2.6f, maxSlope: 0.25f)) placed++;
+            }
+        }
+
+        private const float LaneFenceOut = 2.5f;        // Metres out from a lane's edge that its fence stands.
+        private const float LaneFenceRun = 11f;         // Metres a run of it goes before it turns with the lane.
+        private const float LaneTreeEvery = 11.5f;      // Metres between the birches along a lane.
+
+        // The lanes out of a northern village are fenced along one side with poles on the slant, where the beasts are driven out past the fields to the grazing, and planted
+        // with birches along the other, from the last houses out past the fields. Each stretch draws which side is which, and every run of fence and every tree keeps out of
+        // the way of anything already there, and of anyone standing anywhere.
+        private static void LineLanes(SiteBuilder b, bool fences)
+        {
+            WorldSite site = b.Site;
+            WorldRandom random = b.Random.Fork("lanes");
+            float inner = site.Radius * 0.82f, outer = site.Radius * 1.6f;
+            var stretch = new List<Vector3>();
+            foreach (WorldRoad road in b.World.Roads.ToList())
+            {
+                if (road.Class == RoadClass.Footpath) continue;
+                stretch.Clear();
+                for (int i = 0; i <= road.Points.Count; i++)
+                {
+                    if (i < road.Points.Count)
+                    {
+                        float distance = (road.Points[i].Xz - site.Position).Length;
+                        if (distance >= inner && distance <= outer)
+                        {
+                            stretch.Add(road.Points[i]);
+                            continue;
+                        }
+                    }
+                    if (stretch.Count >= 3) LineStretch(b, road, stretch, random, fences);
+                    stretch.Clear();
+                }
+            }
+        }
+
+        private static void LineStretch(SiteBuilder b, WorldRoad road, List<Vector3> points, WorldRandom random, bool fences)
+        {
+            float fenceSide = random.Chance(0.5f) ? 1f : -1f;
+            bool birches = random.Chance(0.85f);
+            Vector2 Left(int i)
+            {
+                Vector2 tangent = points[Math.Min(i + 1, points.Count - 1)].Xz - points[Math.Max(i - 1, 0)].Xz;
+                return tangent.LengthSquared > 1e-6f ? new Vector2(-tangent.Y, tangent.X).Normalized() : Vector2.Zero;
+            }
+
+            // The fence first, in runs from point to point a few lengths of it apart, each starting where the last ended, so they're one fence.
+            if (fences)
+            {
+                Vector2? from = null;
+                for (int i = 0; i < points.Count; i++)
+                {
+                    Vector2 left = Left(i);
+                    if (left == Vector2.Zero) continue;
+                    Vector2 at = points[i].Xz + left * fenceSide * (road.HalfWidth + LaneFenceOut);
+                    if (from == null) { from = at; continue; }
+                    if ((at - from.Value).Length < LaneFenceRun && i < points.Count - 1) continue;
+                    if (LaneFenceFits(b, from.Value, at)) b.Wall(FenceUse.Field, from.Value, at);
+                    from = at;
+                }
+            }
+
+            // Then the birches, along the other side.
+            if (!birches) return;
+            PlantSpecies birch = NordicBirch(b);
+            float since = random.Range(3f, 9f);
+            for (int i = 1; i < points.Count; i++)
+            {
+                since += (points[i].Xz - points[i - 1].Xz).Length;
+                if (since < LaneTreeEvery) continue;
+                Vector2 left = Left(i);
+                if (left == Vector2.Zero) continue;
+                float scale = birch.Scale.Lerp(random.Range(0.1f, 0.8f));
+                Vector2 at = points[i].Xz - left * fenceSide * (road.HalfWidth + 1f + birch.Footprint * scale * WaysideRoom + random.Range(0.2f, 1.2f));
+                if (TryPlant(b, birch, at, scale, WaysideRoom, random)) since = random.Range(-1.5f, 1.5f);
+            }
+        }
+
+        // Whether a run of a lane's fence stands clear of anything built, any road, any other fence, and anyone who stands near.
+        private static bool LaneFenceFits(SiteBuilder b, Vector2 from, Vector2 to)
+        {
+            Vector2 along = to - from;
+            float length = along.Length;
+            if (length < 3f) return false;
+            along /= length;
+            float half = FenceCatalog.Roundpole.HalfThickness;
+            PlacementIndex placement = b.World.Placement;
+            Footprint run = Footprint.Segment(from + along * 0.5f, to - along * 0.5f, half);
+            if (placement.Overlaps(run, PlacementLayer.Structure | PlacementLayer.Prop | PlacementLayer.Garden, 1.2f)) return false;
+            if (placement.Overlaps(run, PlacementLayer.Field | PlacementLayer.Keepout, 1.8f)) return false;
+            if (placement.Overlaps(run, PlacementLayer.Road, 0.5f)) return false;
+            // Another fence, short of its own ends, which the runs either side of it share.
+            if (placement.Overlaps(Footprint.Segment(from + along * 1.2f, to - along * 1.2f, half), PlacementLayer.Fence, 0.3f)) return false;
+            Vector2 middle = (from + to) * 0.5f;
+            foreach (WorldSite site in b.World.Sites)
+            {
+                if ((site.Position - middle).Length > site.Radius + length + 40f) continue;
+                foreach (SiteSpawn spawn in site.Spawns)
+                {
+                    float t = Math.Clamp(Vector2.Dot(spawn.Position - from, along), 0f, length);
+                    if ((from + along * t - spawn.Position).Length < 2.6f) return false;
+                }
+            }
+            return true;
         }
 
         private const float FieldClearance = 6f;        // Metres a field keeps off any other place's ground.
@@ -612,13 +836,15 @@ namespace Dino_Engine.World.Generation
             b.Scatter(StructureCatalog.Barrels, b.Centre, 12f);
 
             int fields = b.Random.Int(2, 3);
+            WorldRandom meadows = b.Random.Fork("meadows");
+            bool mows = b.Style == BuildingStyle.Nordic && !Snowy(b);
             for (int attempt = 0, placed = 0; attempt < 18 && placed < fields; attempt++)
             {
                 Vector2 direction = Direction(b.Random.Float() * MathF.Tau);
                 Vector2 position = b.Centre + direction * b.Random.Range(28f, 46f);
                 Vector2 half = new Vector2(b.Random.Range(12f, 20f), b.Random.Range(9f, 14f));
                 Vector2 towardsRoad = TowardsNearestRoad(b, position);
-                if (b.Field(position, half, YawFacing(towardsRoad), towardsRoad, out Vector2 gate))
+                if (b.Field(position, half, YawFacing(towardsRoad), towardsRoad, out Vector2 gate, mows && meadows.Chance(0.4f)))
                 {
                     placed++;
                     LayFieldTrack(b, gate, position);
@@ -636,6 +862,13 @@ namespace Dino_Engine.World.Generation
             if (yard.Chance(0.4f)) b.Scatter(StructureCatalog.Laundry, housePosition - toRoad * 10f, 5f, padding: 0.4f);
             if (b.Style is BuildingStyle.Adobe or BuildingStyle.Tiled && yard.Chance(0.6f)) b.Scatter(StructureCatalog.Oven, b.Centre + side * 6f, 6f, padding: 0.5f);
             if (b.Style is BuildingStyle.Adobe or BuildingStyle.Tiled && yard.Chance(0.5f)) b.Scatter(StructureCatalog.Jars, housePosition + side * 10f, 4f, padding: 0.3f);
+            if (b.Style == BuildingStyle.Nordic)
+            {
+                // A northern farm's winter wood stacked round, its hay on a rack by the barn, and the tree by its house that nobody may fell.
+                if (yard.Chance(0.65f)) b.Scatter(StructureCatalog.Woodstack, housePosition - toRoad * 9f - side * 7f, 5f, padding: 0.4f);
+                if (yard.Chance(0.6f)) b.Scatter(StructureCatalog.HayRack, barn - toRoad * 11f, 6f, padding: 0.8f);
+                PlantGuardian(b, StructureCatalog.House, housePosition, -toRoad, side);
+            }
         }
 
         private static void BuildFishingHamlet(SiteBuilder b)

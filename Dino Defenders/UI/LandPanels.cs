@@ -24,7 +24,7 @@ namespace Dino_Defenders.UI
     internal sealed class MapTablePanel : GuiElement
     {
         private const float PanelWidth = 1300f;
-        private const float PanelHeight = 560f;
+        private const float PanelHeight = 660f;
         private const float Pad = 20f;
         private const float Gap = 16f;
         private const float LevelsWidth = 140f;
@@ -59,6 +59,7 @@ namespace Dino_Defenders.UI
 
         private readonly List<int> _slotted = new();
         private readonly Dictionary<string, Preview> _previews = new();
+        private readonly HashSet<string> _shownKeys = new();
         private int _level = 1;
         private string _shownFor = "";
         private int _levelsFor = -1;
@@ -70,14 +71,18 @@ namespace Dino_Defenders.UI
         private static GameSession Session => GameSession.Current;
         private static HeroState Hero => Session.Hero;
 
-        /// <summary>A land's map, as it's growing and once it's grown: where heroes come in and where its tyrant is, from 0 to 1 across it.</summary>
+        /// <summary>A land as it will be with what's slotted, as it's growing and once it's grown: its map, where heroes come in and where its tyrant is, from 0 to 1 across it, and everyone it holds.</summary>
         private sealed class Preview
         {
-            public Task<(byte[] Pixels, Vector2 Landing, Vector2 Tyrant)>? Growing;
+            public string Ground = "";      // Which map it draws: the same whoever stands on it, so a map already drawn is shown while the land grows again for other orders.
+            public Task<Grown>? Growing;
             public int Texture;
             public Vector2 Landing;
             public Vector2 Tyrant;
+            public LandCensus? Census;
         }
+
+        private readonly record struct Grown(byte[] Pixels, Vector2 Landing, Vector2 Tyrant, LandCensus Census);
 
         public MapTablePanel()
         {
@@ -195,7 +200,15 @@ namespace Dino_Defenders.UI
             LandTerms orders = Slotted();
             _offers = Lands.Offer(Hero, _level);
             _cards.ClearChildren();
-            for (int i = 0; i < _offers.Count; i++) _cards.Add(new LandCard(this, _offers[i], i, orders));
+            _shownKeys.Clear();
+            List<Item> given = _slotted.Select(cell => Hero.Inventory[cell]!).ToList();
+            for (int i = 0; i < _offers.Count; i++)
+            {
+                // Exactly what the server will put on this land if it's opened with what's slotted, and so exactly the world it will grow.
+                LandTerms terms = Lands.TermsFor(_offers[i], given);
+                Preview preview = PreviewOf(Lands.RequestFor(_offers[i], terms), terms);
+                _cards.Add(new LandCard(this, _offers[i], i, orders, preview));
+            }
 
             int slots = Lands.OrderSlots(Hero);
             _ordersTitle.Text = $"Orders  {_slotted.Count}/{slots}";
@@ -312,34 +325,42 @@ namespace Dino_Defenders.UI
             if (_lookingAtOrders is var (item, from)) Ui.DrawTooltip(Hero, item, from, null, compare: false);
         }
 
-        // ---- Previews: each land grown on a worker thread as it will be with what's slotted, drawn as its map, and kept a while in case it's looked at again.
+        // ---- Previews: each land grown on a worker thread exactly as the server will grow it with what's slotted, drawn as its map and counted, and kept a while in case it's looked at again.
 
-        private static string KeyOf(in WorldRequest request) => $"{request.Seed}/{request.ArchetypeId}/{request.Level}/{request.Larger:0.000}";
+        private static string GroundOf(in WorldRequest request) => $"{request.Seed}/{request.ArchetypeId}/{request.Level}/{request.Larger:R}";
 
-        /// <summary>The request a land's map is grown from: the land as asked, as large as the slotted orders make it. Who stands on it doesn't change the ground.</summary>
-        private WorldRequest PreviewRequest(LandOffer offer)
+        // Everything the land and its count depend on: the whole request, and the orders, which say who comes in as a tyrant, how many an arena lets in and who rises again.
+        private static string KeyOf(in WorldRequest request, LandTerms terms) =>
+            $"{GroundOf(request)}/{request.MorePeople:R}/{request.MorePacks:R}/{string.Join(",", terms.Orders.OrderBy(id => id, StringComparer.Ordinal))}";
+
+        private Preview PreviewOf(WorldRequest request, LandTerms terms)
         {
-            WorldRequest shaped = Slotted().Shape(offer.Request);
-            return new WorldRequest(shaped.Seed, shaped.ArchetypeId, shaped.Level, larger: shaped.Larger);
-        }
-
-        private Preview? PreviewOf(LandOffer offer)
-        {
-            WorldRequest request = PreviewRequest(offer);
-            string key = KeyOf(request);
+            string key = KeyOf(request, terms);
+            _shownKeys.Add(key);
             if (_previews.TryGetValue(key, out Preview? preview)) return preview;
-            preview = new Preview { Growing = Task.Run(() => Grow(request)) };
+            preview = new Preview { Ground = GroundOf(request), Growing = Task.Run(() => Grow(request, terms)) };
             _previews[key] = preview;
             return preview;
         }
 
-        private static (byte[] Pixels, Vector2 Landing, Vector2 Tyrant) Grow(WorldRequest request)
+        /// <summary>The map to draw for a land: its own once it's grown, and until then any already drawn of the same ground.</summary>
+        private Preview? MapOf(Preview preview)
+        {
+            if (preview.Texture != 0) return preview;
+            foreach (Preview other in _previews.Values)
+            {
+                if (other.Texture != 0 && other.Ground == preview.Ground) return other;
+            }
+            return null;
+        }
+
+        private static Grown Grow(WorldRequest request, LandTerms terms)
         {
             WorldData world = new Dino_Engine.World.Generation.WorldGenerator().Generate(request);
             byte[] pixels = WorldMapImage.Render(world, PreviewResolution, showSites: false);
             WorldSite? tyrant = world.Sites.FirstOrDefault(site => site.Kind is SiteKind.Keep or SiteKind.Arena);
             Vector2 landing = world.Sites[0].Position / world.Size;
-            return (pixels, landing, tyrant != null ? tyrant.Position / world.Size : landing);
+            return new Grown(pixels, landing, tyrant != null ? tyrant.Position / world.Size : landing, LandCensus.Of(world, terms));
         }
 
         // Grown maps go to the GPU here, on the thread that owns it, and the oldest that aren't shown go, so that clicking through levels doesn't fill the card's memory.
@@ -354,16 +375,16 @@ namespace Dino_Defenders.UI
                     preview.Growing = null;
                     continue;
                 }
-                (byte[] pixels, Vector2 landing, Vector2 tyrant) = growing.Result;
-                preview.Texture = Upload(pixels);
-                preview.Landing = landing;
-                preview.Tyrant = tyrant;
+                Grown grown = growing.Result;
+                preview.Texture = Upload(grown.Pixels);
+                preview.Landing = grown.Landing;
+                preview.Tyrant = grown.Tyrant;
+                preview.Census = grown.Census;
                 preview.Growing = null;
             }
 
             if (_previews.Count <= MostPreviewsKept) return;
-            var shown = new HashSet<string>(_offers.Select(offer => KeyOf(PreviewRequest(offer))));
-            foreach (string key in _previews.Keys.Where(key => !shown.Contains(key)).Take(_previews.Count - MostPreviewsKept).ToList())
+            foreach (string key in _previews.Keys.Where(key => !_shownKeys.Contains(key)).Take(_previews.Count - MostPreviewsKept).ToList())
             {
                 Preview old = _previews[key];
                 if (old.Growing != null) continue;
@@ -391,7 +412,7 @@ namespace Dino_Defenders.UI
         /// <summary>A land: its map, its name, what kind of land and weather, its tyrant, what it asks, and the way in.</summary>
         private sealed class LandCard : StackPanel
         {
-            public LandCard(MapTablePanel panel, LandOffer offer, int index, LandTerms orders) : base(Orientation.Vertical, 4f)
+            public LandCard(MapTablePanel panel, LandOffer offer, int index, LandTerms orders, Preview preview) : base(Orientation.Vertical, 4f)
             {
                 float inner = CardWidth - CardPad * 2f;
                 Width = CardWidth;
@@ -404,7 +425,7 @@ namespace Dino_Defenders.UI
 
                 WorldPlan plan = offer.Plan;
                 Herald herald = offer.Herald;
-                Add(new MapPreview(panel, offer, inner));
+                Add(new MapPreview(panel, preview, inner));
                 Add(new Spacer(height: 4f));
                 Add(Sized(Ui.Paragraph(plan.Name, 17f, Ui.Parchment), inner));
                 Add(Sized(Ui.Line($"{plan.Archetype.Name}  ·  {Lands.WeatherOf(plan)}", 12.5f, offer.Arena ? ArenaInk : Ui.Faded), inner));
@@ -414,6 +435,15 @@ namespace Dino_Defenders.UI
                 string asks = offer.Arena ? "Bring down its tyrant" : $"Free {offer.Terms.Places} places, then its tyrant";
                 if (orders.Has(OrdersCatalog.TwinPens)) asks = offer.Arena ? "Bring down both tyrants" : $"Free {offer.Terms.Places} places, then both tyrants";
                 Add(Sized(Ui.Line(asks, 13f, Ui.Faded), inner));
+
+                // Everyone it holds, counted from the land itself, grown as it will be: nothing until it is, as a guess would be a number that isn't true.
+                bool twins = orders.Has(OrdersCatalog.TwinPens);
+                for (int line = 0; line < CensusLines; line++)
+                {
+                    int which = line;
+                    Label said = Add(Sized(Ui.Line("", which == 0 ? 13.5f : 12.5f, which == 0 ? Ui.Parchment : Ui.Faded), inner));
+                    said.Bind(() => CensusLine(preview.Census, offer.Arena, twins, which));
+                }
                 Add(new Spacer(height: UIValue.Fill));
 
                 Button open = Add(Ui.Action("Open", () => panel.OpenWay(index)));
@@ -421,6 +451,30 @@ namespace Dino_Defenders.UI
                 int level = offer.Request.Level;
                 open.Label.Bind(() => GameSession.Current?.Client.Portal is var (name, request, _) && name == plan.Name && request.Level == level ? "The way is open"
                     : panel.SlottedCells.Count == 1 ? "Open with 1 order" : panel.SlottedCells.Count > 1 ? $"Open with {panel.SlottedCells.Count} orders" : "Open");
+            }
+
+            private const int CensusLines = 4;
+
+            // What a land holds, a line at a time. A count is only what stands there when someone arrives, and anything that depends on how the fight goes is said as the most it comes to.
+            private static string CensusLine(LandCensus? census, bool arena, bool twins, int line)
+            {
+                if (census is not LandCensus c) return line == 0 ? "Counting who's there…" : "";
+                var lines = new List<string>();
+                string enemies = $"{c.Enemies:N0} {(c.Enemies == 1 ? "Enemy" : "Enemies")}";
+                if (arena)
+                {
+                    lines.Add(c.Clutches > 0 ? $"Holds {enemies} and {c.Clutches:N0} {(c.Clutches == 1 ? "clutch" : "clutches")}" : $"Holds {enemies}");
+                    if (c.MostThroughGates > 0) lines.Add($"Up to {c.MostThroughGates:N0} let in as {(twins ? "its tyrants weaken" : "its tyrant weakens")}");
+                    if (c.MostHatched > 0) lines.Add($"Up to {c.MostHatched:N0} hatch from its clutches");
+                }
+                else
+                {
+                    lines.Add($"Holds {enemies}");
+                    string packs = $"{c.Packs:N0} {(c.Packs == 1 ? "pack" : "packs")}", places = $"{c.Places:N0} held {(c.Places == 1 ? "place" : "places")}";
+                    lines.Add(c.Packs > 0 ? $"in {packs} and {places}" : $"all in {places}");
+                }
+                if (c.MostRisen > 0) lines.Add($"Up to {c.MostRisen:N0} rise again");
+                return line < lines.Count ? lines[line] : "";
             }
 
             private static T Sized<T>(T element, float width) where T : GuiElement
@@ -434,12 +488,12 @@ namespace Dino_Defenders.UI
         private sealed class MapPreview : GuiElement
         {
             private readonly MapTablePanel _panel;
-            private readonly LandOffer _offer;
+            private readonly Preview _preview;
 
-            public MapPreview(MapTablePanel panel, LandOffer offer, float side)
+            public MapPreview(MapTablePanel panel, Preview preview, float side)
             {
                 _panel = panel;
-                _offer = offer;
+                _preview = preview;
                 Width = side;
                 Height = side;
             }
@@ -450,7 +504,7 @@ namespace Dino_Defenders.UI
                 if (Context == null) return;
                 GuiRect map = Bounds;
                 draw.AddRect(map, GuiColors.Rgba(12, 10, 8, 255), 2f, 1f, Line);
-                Preview? preview = _panel.PreviewOf(_offer);
+                Preview? preview = _panel.MapOf(_preview);
                 if (preview == null || preview.Texture == 0)
                 {
                     Ui.Text(Context, draw, "…", 22f, map, Ui.Faded, Alignment.Center);

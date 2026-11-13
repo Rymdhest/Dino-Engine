@@ -107,6 +107,7 @@ namespace Dino_Engine.Textures
         public static int roofTiles = MaterialCatalog.RoofTiles.Index;
         public static int skin = MaterialCatalog.Skin.Index;
         public static int hide = MaterialCatalog.Hide.Index;
+        public static int paintedBoards = MaterialCatalog.PaintedBoards.Index;
 
         public List<MaterialMapsTextures> preparedTextures = new List<MaterialMapsTextures>();
 

@@ -41,6 +41,7 @@ namespace Dino_Engine.Modelling.Procedural.Fence
                 case FenceForm.Churchyard: StoneFences.Churchyard(job); break;
                 case FenceForm.Roofed: StoneFences.Roofed(job); break;
                 case FenceForm.Curtain: StoneFences.Curtain(job); break;
+                case FenceForm.Roundpole: RoundpoleFence.Build(job); break;
             }
             return b.Finish();
         }

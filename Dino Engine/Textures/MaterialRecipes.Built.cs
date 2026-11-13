@@ -126,6 +126,39 @@ namespace Dino_Engine.Textures
             return new Surface(wood, Field.Lerp(0.66f, 0.78f, grain.Late), height);
         }
 
+        // Boards stood upright, each with a batten nailed over the joint between it and the next, as the north boards a house, under a paint of red earth and linseed
+        // that dries matt and chalks paler where the sun reaches it. The boards cup a little and their grain stands up through the paint, a board's paint takes its
+        // own way, and the battens' edges hold the dirt. Pale, as the colour, the red of BuildingStyle.Nordic's walls and the white of their corners, is in the
+        // vertices; u runs across the boards and v up them (MeshBuilder). From the game's camera a board is fourteen pixels and a batten three, so the battens' lines
+        // and their shadows are what carry it; the paint's wear is for close up, and kept soft, as a wall is a few tiles of it side by side.
+        private static Surface PaintedBoards(Canvas c)
+        {
+            const int Boards = 5;               // Across the tile: a board and its batten are about a hand wider than a real one, at the world's twice real scale.
+            const float BattenHalf = 0.12f;     // Of a board's width, either side of its joint.
+            const float Ease = 0.035f;          // How far a batten's edge is rounded, of a board's width: a cliff in the height tears at this camera's slant.
+            Field across = (c.U * Boards).Fract();
+            Field fromJoint = 0.5f - (across - 0.5f).Abs();     // 0 at a joint, under its batten; a half at a board's middle.
+            Field batten = 1f - fromJoint.Smooth(BattenHalf - Ease, BattenHalf);
+            // Each board has its own number, which changes under a batten, and each batten its own, which changes in the middle of a board, where no batten is.
+            Field boardId = c.U.Quantize(Boards);
+            Field battenId = (c.U + 0.5f / Boards).Fract().Quantize(Boards);
+
+            Field grain = c.Noise(new Vector2(110f, 4f), octaves: 4, kind: NoiseKind.Ridged, warp: 0.004f);
+            Field chalk = c.Noise(new Vector2(26f, 9f), octaves: 4, warp: 0.02f);
+            Field cup = (fromJoint * 2f - 0.5f).Abs() * -0.08f * boardId.Random(3);
+            Field boardHeight = 0.36f + 0.06f * boardId.Random(1) + cup + (grain - 0.5f) * 0.05f;
+            Field battenHeight = 0.93f + 0.05f * battenId.Random(2) + (grain - 0.5f) * 0.03f;
+            Field height = Field.Lerp(boardHeight, battenHeight, batten);
+
+            // The paint: about one colour, each board and batten a shade of its own, chalkier along the grain and in soft patches where it's thinnest, and darker in
+            // the angle at a batten's foot, where the rain leaves what it carries.
+            Field shade = Field.Lerp(0.95f + 0.07f * boardId.Random(5), 0.96f + 0.06f * battenId.Random(6), batten);
+            Paint paint = Rgb(184, 180, 174) * shade * Field.Lerp(0.95f, 1.04f, chalk) * Field.Lerp(1.03f, 0.95f, grain);
+            Field foot = (1f - (fromJoint - BattenHalf).Abs().Smooth(0f, 0.05f)) * (1f - batten);
+            paint = paint * Field.Lerp(1f, 0.82f, foot);
+            return new Surface(paint, Field.Lerp(0.82f, 0.9f, chalk), height);
+        }
+
         // Bundled reeds laid in courses down the roof, butt ends out, the course above lying over the top of the one below. Weathered grey where it's old, moss in the
         // damp. Courses run across the tile and the reeds run up it.
         private static Surface Thatch(Canvas c)

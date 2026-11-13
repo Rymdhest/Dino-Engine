@@ -138,6 +138,11 @@ namespace Dino_Engine.Textures
         public static readonly MaterialSpec Skin = Add("skin", 1f, 0f, 0.3f, SubsurfaceKind.Flesh);
         public static readonly MaterialSpec Hide = Add("hide", 1f, 0.005f, 0.45f, SubsurfaceKind.Flesh);
 
+        // Boards stood upright with a batten over every joint, painted matt, as the north boards its houses (BuildingStyle.Nordic): pale, as the paint's colour, the red of
+        // its walls and the white of its corners, is in the vertices. A batten stands two fingers proud of the boards, which is the relief. Last, so that adding it moved no
+        // other material's layer.
+        public static readonly MaterialSpec PaintedBoards = Add("boards-painted", 2.4f, 0.07f, 0.55f);
+
         public static IReadOnlyList<MaterialSpec> All => _all;
 
         public static int Count => _all.Count;

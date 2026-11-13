@@ -92,8 +92,10 @@ namespace Dino_Defenders.Server
                     case SpawnRole.Boss:
                     case SpawnRole.Beast:
                     case SpawnRole.Cultist:
+                    case SpawnRole.Rival:
+                        // Whoever stands here by the rule the map table counted the land by: an arena's second tyrant is only let in on a land whose orders asked for two.
                         // A place set free stays free, whoever a newer build would have put there.
-                        if (state.Dead.Contains(i) || state.Cleared) break;
+                        if (!LandCensus.Stands(spawn.Role, session.Terms) || state.Dead.Contains(i) || state.Cleared) break;
                         SpawnEnemy(world, session, state, siteIndex, i, spawn, Orders(session, state, spawn, random, musters), spawnRandom);
                         break;
                     case SpawnRole.Villager:
@@ -101,10 +103,6 @@ namespace Dino_Defenders.Server
                         break;
                     case SpawnRole.Spectator:
                         SpawnSpectator(world, session, state, siteIndex, spawn, spawnRandom);
-                        break;
-                    case SpawnRole.Rival:
-                        // An arena's second tyrant is only let in on a land whose orders asked for two.
-                        if (session.Terms.Has(OrdersCatalog.TwinPens) && !state.Dead.Contains(i) && !state.Cleared) SpawnEnemy(world, session, state, siteIndex, i, spawn, Orders(session, state, spawn, random, musters), spawnRandom);
                         break;
                     case SpawnRole.Merchant:
                         // A land's people hide from the Reich, and trade with whoever isn't it.
@@ -187,8 +185,8 @@ namespace Dino_Defenders.Server
         private void SpawnEnemy(ECSWorld world, ServerSession session, SiteState state, int siteIndex, int spawnIndex, SiteSpawn spawn, PackOrders orders, WorldRandom random)
         {
             int level = LevelAt(session, state);
-            bool twin = session.IsArena ? spawn.Role == SpawnRole.Rival : session.Terms.Has(OrdersCatalog.TwinPens) && state.Site == Chronicle.TwinSite(session.World) && spawnIndex == FirstHostile(state.Site);
-            bool boss = spawn.Role == SpawnRole.Boss || twin;
+            bool twin = LandCensus.IsTwin(session.World, session.Terms, state.Site, spawnIndex);
+            bool boss = LandCensus.IsTyrant(session.World, session.Terms, state.Site, spawnIndex);
             WorldRandom kinds = random.Fork("kind");
 
             EnemyKind kind;
@@ -254,15 +252,7 @@ namespace Dino_Defenders.Server
             state.Live.Add(actor.Entity);
         }
 
-        // The first of a place's people, who leads them.
-        private static int FirstHostile(WorldSite site)
-        {
-            for (int i = 0; i < site.Spawns.Count; i++)
-            {
-                if (site.Spawns[i].Role.IsHostile()) return i;
-            }
-            return -1;
-        }
+        private static int FirstHostile(WorldSite site) => LandCensus.FirstHostile(site);
 
         // Straw on a post, to try a build on: as strong as what the land the strongest climber here would go to next, and never down for long. It belongs to no place, as there's nothing to free.
         private void SpawnDummy(ECSWorld world, ServerSession session, SiteState state, SiteSpawn spawn, int group)

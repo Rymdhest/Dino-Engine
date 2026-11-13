@@ -109,6 +109,8 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
         public static Mesh Generate(StructureDefinition definition, BuildingStyle style, int variant, List<Vector3>? chimneys = null, List<AssetLight>? lights = null)
         {
             var random = new WorldRandom(0x51ED).Fork(definition.Id).Fork((int)style * 16 + variant);
+            // The north builds everything its own way, from a kit of its own (NordicStyle.cs).
+            if (style == BuildingStyle.Nordic) return BuildNordic(definition, variant, random, chimneys, lights);
             Kit kit = KitFor(style, random);
             kit.Lights = lights;
             Vector2 half = definition.HalfExtents;

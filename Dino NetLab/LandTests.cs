@@ -204,6 +204,7 @@ namespace Dino_NetLab
             TheHaven(report, worlds);
             TheHalls(report, worlds);
             OpeningTheWay(report, worlds);
+            TheCount(report, worlds);
             SteppingThrough(report, worlds);
             OneLife(report, worlds);
             OneLifeEach(report, worlds);
@@ -715,6 +716,84 @@ namespace Dino_NetLab
             return found;
         }
 
+        // The map table says how many enemies a land holds before it's opened, and a player must never be told a number that isn't so: it's worked out here as the panel works it out, from
+        // the client's own hero, then the land is opened through the client with those orders, and what the server really holds is counted, and some of it woken and counted by who comes in.
+        private static void TheCount(Report report, WorldCache worlds)
+        {
+            report.Section("What the map table says a land holds");
+
+            Item? Find(Func<OmenDefinition, bool> wanted)
+            {
+                for (int seed = 0; seed < 4000; seed++)
+                {
+                    Item rolled = OrdersMaker.Roll(30, new WorldRandom((ulong)seed), Rarity.Rare);
+                    if (OrdersMaker.OmensOf(rolled).Any(o => wanted(o.Omen))) return rolled;
+                }
+                return null;
+            }
+            Item? crowded = Find(omen => omen.People > 0f);
+            Item? packed = Find(omen => omen.Packs > 0f);
+            report.Check("There are orders that bring larger packs and orders that bring more of them", crowded != null && packed != null);
+            if (crowded == null || packed == null) return;
+            Item Unique(UniqueOrders unique, int seed) => OrdersMaker.Make(unique, 30, new WorldRandom((ulong)seed));
+
+            var cases = new (string what, int level, int choice, Item[] orders)[]
+            {
+                ("a land with nothing given for it", 7, 0, Array.Empty<Item>()),
+                ("larger packs and more of them", 7, 1, new[] { crowded, packed }),
+                ("the Last Garrison and the Twin Pens", 7, 2, new[] { Unique(OrdersCatalog.Garrison, 1), Unique(OrdersCatalog.TwinPens, 2) }),
+                ("the Ossuary's Writ and larger packs", 6, 0, new[] { Unique(OrdersCatalog.Writ, 3), crowded }),
+                ("an arena with two tyrants and larger packs", 10, 1, new[] { Unique(OrdersCatalog.TwinPens, 4), crowded }),
+            };
+            foreach ((string what, int level, int choice, Item[] orders) in cases)
+            {
+                HeroState hero = Sturdy(31);
+                for (int i = 0; i < orders.Length; i++) hero.Inventory[10 + i] = orders[i];
+                int[] cells = Enumerable.Range(10, orders.Length).ToArray();
+
+                using var scene = new Scene(worlds, Lands.Haven, hero: hero);
+                HeroState seen = scene.Player.Client.Hero;
+                LandOffer offer = Lands.Offer(seen, level)[choice];
+                LandCensus told = LandCensus.Foresee(offer, cells.Select(cell => seen.Inventory[cell]!).ToList());
+
+                scene.Venture(choice, level, cells);
+                ServerSession session = scene.Session;
+                bool there = !session.IsHaven && session.World.Plan.Seed == offer.Request.Seed;
+                report.Check($"For {what}, the way leads to the land the table counted", there, $"{session.World.Plan.Name}, level {session.World.Plan.Level}");
+                if (!there) continue;
+
+                int held = session.Sites.Sum(s => s.HostilesTotal);
+                int packs = session.Sites.Count(s => s.Wild && s.HostilesTotal > 0);
+                int places = session.Sites.Count(s => !s.Wild && s.HostilesTotal > 0);
+                report.Check($"And it holds as many as it said", held == told.Enemies && packs == told.Packs && places == told.Places,
+                    $"{held} in {packs} packs and {places} places, told {told.Enemies} in {told.Packs} and {told.Places}");
+                report.Check("Which the client counts the same", scene.Seen.Sites.Sum(s => s.HostilesTotal) == told.Enemies);
+
+                // Who really comes in, at the places that matter most to the count: the tyrant's, the second tyrant's, and a few packs.
+                var woken = new List<SiteState>();
+                woken.AddRange(session.Sites.Where(s => s.Site.Kind is SiteKind.Keep or SiteKind.Arena));
+                if (Chronicle.TwinSite(session.World) is WorldSite twin) woken.AddRange(session.Sites.Where(s => s.Site == twin));
+                woken.AddRange(session.Sites.Where(s => s.Wild && s.HostilesTotal > 0).Take(3));
+                var wrong = new List<string>();
+                foreach (SiteState state in woken.Distinct())
+                {
+                    scene.Go(state.Site.Position);
+                    scene.Lab.Run(1.5);
+                    int came = scene.Members(state).Count(a => !a.Dead);
+                    if (came != state.HostilesTotal) wrong.Add($"{state.Site.Name}: {came} of {state.HostilesTotal}");
+                }
+                report.Check("And exactly that many come in where it's woken", woken.Count > 0 && wrong.Count == 0, string.Join(", ", wrong));
+
+                // How many an arena's gates let in is held where they're opened, in Arenas.
+                if (session.IsArena) report.Check("And as many as its gates can let in, with larger packs", told.MostThroughGates > 0 && told.MostThroughGates == LandCensus.Of(session.World, session.Terms).MostThroughGates);
+                if (session.Terms.Has(OrdersCatalog.Writ))
+                {
+                    int tyrants = scene.Members(session.Sites.First(s => s.Site.Kind == SiteKind.Keep)).Count(a => a.Tyrant);
+                    report.Check("And as many as can rise again, which is all but the tyrant", told.MostRisen == told.Enemies - tyrants && tyrants == 1, $"{told.MostRisen} of {told.Enemies}");
+                }
+            }
+        }
+
         private static void Arenas(Report report, WorldCache worlds)
         {
             report.Section("Arenas");
@@ -805,6 +884,7 @@ namespace Dino_NetLab
                 int all = first + Rulebook.ArenaWaveGates * Rulebook.ArenaWaveSize + plan.Entries.Count * Rulebook.ArenaWaveSize;
                 report.Check("The last time every gate goes up", gates.All(g => Lift(g) > 2f), string.Join(", ", gates.Select(g => Lift(g).ToString("0.0"))));
                 report.Check("And as many come through as each time asks, however quickly they come", scene.Session.Arrivals.Count + first == all, $"{scene.Session.Arrivals.Count + first} of {all}");
+                report.Check("Which is what the map table said they could come to", LandCensus.Of(scene.Session.World, scene.Session.Terms).MostThroughGates == all);
 
                 // Sixteen of the brood wear anyone down in the end, and how that goes is no part of this.
                 foreach (Actor brood in scene.Session.Arrivals.ToList()) scene.Session.Combat.Harm(scene.Hero, brood, 1e12f, DamageType.Magic);

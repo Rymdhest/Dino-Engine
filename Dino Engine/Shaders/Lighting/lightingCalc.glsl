@@ -137,11 +137,17 @@ vec3 sssThinColour(vec3 albedo, SssProfile p)
     return max(mix(vec3(luma), albedo, p.gains.w), vec3(0.0)) * p.colour.rgb;
 }
 
-// The colour light comes out of flesh or frost in, before what its thickness takes: its kind's own, blood's or ice's, with something of the surface's hue in it.
+// How pale skin is, as an albedo's luminance, when what comes through flesh comes out as its kind says: a person's. Paler lets more out and darker less, up to SSS_PALEST times as
+// much, as light coming out through skin crosses the same pigment it would have bounced off.
+const float SSS_SKIN_LUMA = 0.47;
+const float SSS_PALEST = 1.25;
+
+// The colour light comes out of flesh in, before what its thickness takes: blood's, with something of the surface's hue in it, and as bright as the surface is pale, so a
+// dark hide glows far less than a person's ear.
 vec3 sssThickColour(vec3 albedo, SssProfile p)
 {
     float luma = max(dot(albedo, vec3(0.2126, 0.7152, 0.0722)), 0.02);
-    return p.colour.rgb * mix(vec3(1.0), min(albedo / luma, vec3(3.0)), p.colour.w);
+    return p.colour.rgb * mix(vec3(1.0), min(albedo / luma, vec3(3.0)), p.colour.w) * min(luma / SSS_SKIN_LUMA, SSS_PALEST);
 }
 
 // How a canopy passes light on, 1 straight through: leaves turned every way, each letting through what falls on its back as a Lambertian sheet does, send it on

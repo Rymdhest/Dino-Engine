@@ -16,6 +16,7 @@ namespace Dino_Engine.World.Content
         Adobe,      // Thick mud walls and flat roofs with their beams poking through, a terrace on top: where it hardly rains.
         Stilt,      // Plank rooms up on posts over the wet, a deck in front and a steep thatch with its rafters crossed at the peaks.
         Tiled,      // Whitewashed walls with stone corners and coloured shutters, under low roofs of curved clay tiles: the sun's country.
+        Nordic,     // Boards painted the red of the north's mines, white at every corner, window and verge, under clay tiles or turf, with roundpole fences: the pinewoods and the snow.
     }
 
     /// <summary>
@@ -172,6 +173,13 @@ namespace Dino_Engine.World.Content
         public static readonly StructureDefinition Coop = Prop("coop", 1.7f, 1.6f, 2.6f);
         public static readonly StructureDefinition PillarLamp = Round("lamp.pillar", 0.4f, Thin);
         public static readonly StructureDefinition PaperLantern = Round("lantern.paper", 0.3f, Thin);
+
+        // What a northern village has about it (BuildingStyle.Nordic, PropGenerator.Nordic.cs): its midsummer pole on the green, a well drawn with a sweep, hay drying on a
+        // rack of poles, and firewood stacked round under a cap.
+        public static readonly StructureDefinition Maypole = Round("maypole", 0.7f, Thin);
+        public static readonly StructureDefinition WellSweep = Prop("well.sweep", 1.4f, 4f, 1.6f);
+        public static readonly StructureDefinition HayRack = Prop("hayrack", 7.9f, 0.85f, 3.6f);
+        public static readonly StructureDefinition Woodstack = Round("woodstack", 1.9f, 3.4f);
 
         // What a road passes between places, and what stands out of a land that nobody built (SettlementStage.PlaceMarker and PlaceLandmarks).
         public static readonly StructureDefinition WaysideShrine = Round("shrine.wayside", 0.55f, Thin);

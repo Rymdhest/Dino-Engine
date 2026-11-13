@@ -18,6 +18,7 @@ namespace Dino_FloraLab
     ///   bend    [--plants a,b] [--count N]                                                                            Bends every plant as hard as it can go. Exit code 1 if one comes apart.
     ///   rocks, rockcheck                                                                                              The same for stones: see RockCheck.
     ///   fences, fencecheck                                                                                            The same for fences and walls: see FenceLab.
+    ///   houses                                                                                                        Every building of a way of building: see HouseLab.
     /// </summary>
     internal static class Program
     {
@@ -51,6 +52,8 @@ namespace Dino_FloraLab
                     return FenceLab.Sheet(options);
                 case "fencecheck":
                     return FenceLab.Check(options);
+                case "houses":
+                    return HouseLab.Sheet(options);
                 default:
                     Console.WriteLine($"No command called {command}.");
                     return 1;

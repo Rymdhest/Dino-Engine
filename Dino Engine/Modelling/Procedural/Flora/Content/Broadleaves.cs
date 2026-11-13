@@ -38,6 +38,9 @@ namespace Dino_Engine.Modelling.Procedural.Flora
         public static readonly FlowerSpike Wisteria = new FlowerSpike { Id = "raceme.wisteria", Florets = 150, Size = 0.075f, Width = 0.1f, Strands = 3 };
         public static readonly BareTwigs Twigs = new BareTwigs { Id = "twigs.bare" };
 
+        /// <summary>Bare twigs furred white with hoarfrost, as a birch stands in the snow: pale, as its palette is the frost's colour, and finer, as a birch's twigs are.</summary>
+        public static readonly BareTwigs FrostTwigs = new BareTwigs { Id = "twigs.frost", Depth = 5, Thickness = 0.011f, Angle = 0.48f, Colour = new Vector3(0.8f, 0.81f, 0.84f) };
+
         public static readonly LeafScatter OakLitter = new LeafScatter { Id = "litter.oak", Leaf = OakLeaf(), LeafLength = 0.11f, Leaves = 110 };
         public static readonly LeafScatter MapleLitter = new LeafScatter { Id = "litter.maple", Leaf = MapleLeaf(), LeafLength = 0.09f, Leaves = 150 };
         public static readonly LeafScatter GinkgoLitter = new LeafScatter { Id = "litter.ginkgo", Leaf = GinkgoLeaf(), LeafLength = 0.075f, Leaves = 200 };
@@ -138,7 +141,14 @@ namespace Dino_Engine.Modelling.Procedural.Flora
         public static readonly PlantSpecies Ginkgo = new PlantSpecies("ginkgo", WorldAssetKind.Tree, Spreading(19f, 0.38f, 0.42f, 0.03f, Leaves(GinkgoSpray, Gold(), 3f, 300), new BarkForm { Kind = BarkKind.Furrowed, Colour = V(0.5f, 0.44f, 0.38f), YoungColour = V(0.34f, 0.28f, 0.24f), Moss = 0.15f }, CrownShape.Flame, 0.53f, forks: 7))
         { Footprint = 7f, SolidRadius = 0.9f, Variants = 6 };
 
-        private static TreeForm BirchForm(Palette colours) => new TreeForm
+        // A birch's crown is leaves, or in winter the bare twigs alone, hanging as a weeping birch's do.
+        private static FoliageForm BirchLeaves(Palette colours) => new FoliageForm { Card = BirchSpray, CardSize = new FloatRange(2.6f, 3.5f), MostCards = 320, Spacing = 0.32f, Droop = 0.34f, Colours = colours };
+        private static FoliageForm BirchTwigs(Palette colours) => new FoliageForm { Card = FrostTwigs, CardSize = new FloatRange(2.8f, 3.6f), MostCards = 300, Spacing = 0.32f, Fold = 0.14f, Droop = 0.42f, Cross = 0.35f, Shell = 0.2f, Shade = 0f, Colours = colours };
+
+        private static TreeForm BirchForm(Palette colours) => BirchForm(BirchLeaves(colours), 0.1f, V(0.28f, 0.16f, 0.12f));
+
+        // Its young wood is dark red-brown, or in winter furred with frost as its twigs are.
+        private static TreeForm BirchForm(FoliageForm foliage, float moss, Vector3 youngWood) => new TreeForm
         {
             Height = new FloatRange(16f, 23f),
             Trunk = new TrunkForm { Reach = new FloatRange(0.86f, 0.96f), Girth = new FloatRange(0.017f, 0.023f), Lean = new FloatRange(0.01f, 0.1f), Curve = new StemCurve { Wander = 0.035f, Waves = 2.4f }, Flare = new FloatRange(0.25f, 0.45f), LobeDepth = new FloatRange(0.1f, 0.18f) },
@@ -156,8 +166,8 @@ namespace Dino_Engine.Modelling.Procedural.Flora
                 },
             },
             Buds = new BudForm { Years = new IntRange(12, 14), Apical = new FloatRange(0.52f, 0.54f), Internode = 0.36f, MostNodes = 2600, Tropism = new FloatRange(-0.02f, 0.02f), TropismByOrder = -0.03f, MarkerDensity = 1.3f, Occupancy = 0.66f, Gaps = 0.34f },
-            Bark = new BarkForm { Kind = BarkKind.Papery, Colour = V(0.72f, 0.72f, 0.68f), YoungColour = V(0.28f, 0.16f, 0.12f), Moss = 0.1f, Tile = 2.2f, Bumps = 0.05f },
-            Foliage = new FoliageForm { Card = BirchSpray, CardSize = new FloatRange(2.6f, 3.5f), MostCards = 320, Spacing = 0.32f, Droop = 0.34f, Colours = colours },
+            Bark = new BarkForm { Kind = BarkKind.Papery, Colour = V(0.72f, 0.72f, 0.68f), YoungColour = youngWood, Moss = moss, Tile = 2.2f, Bumps = 0.05f },
+            Foliage = foliage,
         };
 
         public static readonly PlantSpecies Birch = new PlantSpecies("birch", WorldAssetKind.Tree, BirchForm(new Palette { Shade = V(0.07f, 0.13f, 0.04f), Body = V(0.18f, 0.29f, 0.07f), Sun = V(0.36f, 0.45f, 0.1f) }))
@@ -165,6 +175,10 @@ namespace Dino_Engine.Modelling.Procedural.Flora
 
         public static readonly PlantSpecies GoldBirch = new PlantSpecies("birch.gold", WorldAssetKind.Tree, BirchForm(Gold()))
         { Footprint = 5.5f, SolidRadius = 0.6f, Variants = 6 };
+
+        /// <summary>A birch in the snow: its white trunk, and every twig of its weeping crown furred with frost, as the north's birches stand in winter.</summary>
+        public static readonly PlantSpecies WinterBirch = new PlantSpecies("birch.winter", WorldAssetKind.Tree, BirchForm(BirchTwigs(new Palette { Shade = V(0.44f, 0.45f, 0.49f), Body = V(0.7f, 0.72f, 0.76f), Sun = V(0.86f, 0.87f, 0.9f), Drift = 0.05f, Patches = 0.08f }), 0.04f, V(0.64f, 0.63f, 0.64f)))
+        { Footprint = 5.5f, SolidRadius = 0.6f, Variants = 5 };
 
         private static TreeForm CherryForm(Palette colours) => new TreeForm
         {
