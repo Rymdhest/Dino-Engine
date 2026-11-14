@@ -1,3 +1,4 @@
+using Dino_Engine.Modelling.Procedural.Architecture.Churchyard;
 using Dino_Engine.Modelling.Procedural.Fence;
 using Dino_Engine.Modelling.Procedural.Rock;
 using Dino_Engine.World;
@@ -334,15 +335,7 @@ namespace Dino_WorldLab
                 // Every place a land asks to be freed is held, and has a chest of what they took.
                 if (site.Kind != SiteKind.Keep && site.Spawns.Any(s => s.Role.IsHostile()) && !site.Spawns.Any(s => s.Role == SpawnRole.Chest)) Problem($"{site.Name} is held, but has no chest");
                 if (site.Kind == SiteKind.Waygate && !site.Spawns.Any(s => s.Role == SpawnRole.Waygate)) Problem($"{site.Name} is a waygate with no gate");
-                if (site.Kind == SiteKind.Graveyard)
-                {
-                    foreach (SiteSpawn spawn in site.Spawns)
-                    {
-                        // The wall wanders up to 8% either side of the radius.
-                        float out_ = (spawn.Position - site.Position).Length - site.Radius * 1.08f;
-                        if (out_ > 0f) Problem($"{spawn.Role} of {site.Name} was pushed {out_:0.0} m out of the churchyard, to {spawn.Position}");
-                    }
-                }
+                if (site.Kind == SiteKind.Graveyard) CheckChurchyard(world, site);
                 foreach (SiteSpawn spawn in site.Spawns)
                 {
                     if (spawn.Role == SpawnRole.Spectator) Problem($"{site.Name} has someone watching in it, which only a boss map's arena has");
@@ -1004,7 +997,53 @@ namespace Dino_WorldLab
         {
             foreach (WorldObject item in world.Objects.All())
             {
-                if (world.Objects.AssetIds[item.Asset] == StructureCatalog.Church.Id && (item.Position.Xz - site.Position).Length < site.Radius) return true;
+                if (YardSpec.TryParse(world.Objects.AssetIds[item.Asset], out YardSpec spec) && spec.Kind == YardKind.Church && (item.Position.Xz - site.Position).Length < site.Radius) return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// A churchyard as CHURCHYARD.md has it: its dead inside its wall, two gates at least, each with its way in open and walkable, and the porch reachable, as a path that leads
+        /// nowhere or a gate that can't be walked through reads as a fault; and graves enough that it's a churchyard and not a church in a field.
+        /// </summary>
+        private void CheckChurchyard(WorldData world, WorldSite site)
+        {
+            if (site.Yard is not YardPlan yard)
+            {
+                Problem($"{site.Name} is a churchyard with no plan");
+                return;
+            }
+            foreach (SiteSpawn spawn in site.Spawns)
+            {
+                if (!yard.Inside(spawn.Position, 1f)) Problem($"{spawn.Role} of {site.Name} is outside its churchyard's wall, at {spawn.Position} ({yard.ToLocal(spawn.Position).X:0.0}, {yard.ToLocal(spawn.Position).Y:0.0} of {yard.HalfX:0.0} by {yard.HalfZ:0.0})");
+            }
+            if (yard.Gates.Count < 2) Problem($"{site.Name} has {yard.Gates.Count} gate(s); a churchyard has two at least");
+            if (yard.Porch is Vector2 porch && !NearPassable(world, porch + yard.Az * 2.5f, 3f)) Problem($"{site.Name}'s porch can't be walked to, at {porch}");
+            foreach ((Vector2 at, Vector2 out_) in yard.Gates)
+            {
+                if (!NearPassable(world, at - out_ * 4.5f, 2f) || !NearPassable(world, at + out_ * 3f, 2.5f)) Problem($"{site.Name} has a gate at {at} that can't be walked through");
+            }
+            int stones = 0;
+            foreach (WorldObject item in world.Objects.All())
+            {
+                if (YardSpec.TryParse(world.Objects.AssetIds[item.Asset], out YardSpec spec) && spec.Kind == YardKind.Stone && yard.Inside(item.Position.Xz)) stones++;
+            }
+            // As many as its plots can hold, which is fewer in a yard the land kept small; but never so few that it's a church in a field.
+            float plots = 4f * yard.HalfX * yard.HalfZ - 2f * yard.Chamfer * yard.Chamfer - 1600f;
+            int wanted = Math.Max(12, (int)(plots / 90f));
+            if (stones < wanted) Problem($"{site.Name} has only {stones} graves, where {wanted} were wanted");
+        }
+
+        // Whether anywhere within `reach` of a point is walkable, as Passable keeps clearance round what's solid and a point exactly on a path's edge may not be.
+        private static bool NearPassable(WorldData world, Vector2 at, float reach)
+        {
+            for (float r = 0f; r <= reach; r += 0.5f)
+            {
+                int directions = r > 0f ? 8 : 1;
+                for (int i = 0; i < directions; i++)
+                {
+                    if (world.Passable.IsSet(at + new Vector2(MathF.Cos(i * MathF.PI / 4f), MathF.Sin(i * MathF.PI / 4f)) * r)) return true;
+                }
             }
             return false;
         }

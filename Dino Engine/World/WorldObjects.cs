@@ -62,6 +62,7 @@ namespace Dino_Engine.World
         Sand,       // An arena's floor, raked sand that nothing grows through (ARENAS.md).
         Mud,        // A pen's floor, trodden mud and straw.
         Ash,        // The Onslaught's floor, the ash the charge was buried in.
+        Sward,      // A churchyard's turf: kept short enough that the stones show, dark and cool, and in no flower, whatever the land round it grows (CHURCHYARD.md).
     }
 
     /// <summary>

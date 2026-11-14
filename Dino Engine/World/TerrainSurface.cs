@@ -264,6 +264,24 @@ namespace Dino_Engine.World
                 Hollow = hollow,
             };
             if (garden > 0f) Tend(ref grass, garden, x, z, normalY, small);
+            float sward = world.Sward?.Sample(x, z) ?? 0f;
+            if (sward > 0f) Mow(ref grass, sward, x, z);
+        }
+
+        // A churchyard's turf: someone still comes, so it's kept short enough that the stones stand out of it, but nobody tends it as a garden is tended, so it's dark, cool, a little
+        // tired in patches and in no flower, and grows longer in drifts where the scythe doesn't reach. Its colour is the one a grave's mound is built in (YardStone.Turf).
+        private static readonly Vector3 SwardGrass = new Vector3(0.15f, 0.2f, 0.09f);
+        private const float SwardHeight = 0.22f;
+
+        private void Mow(ref GrassCell grass, float sward, float x, float z)
+        {
+            float drift = _noise.Fbm01(x - 613f, z + 197f, 6.5f, 2);
+            float tall = Smoothstep(0.62f, 0.85f, _noise.Fbm01(x + 83f, z - 421f, 11f, 2));
+            grass.Height = Lerp(grass.Height, SwardHeight * (0.85f + 0.3f * drift) + tall * 0.14f, sward);
+            grass.Colour = Vector3.Lerp(grass.Colour, SwardGrass * (0.88f + 0.2f * drift), sward);
+            grass.Dryness = Lerp(grass.Dryness, 0.12f + 0.2f * drift, sward);
+            grass.Bloom = Lerp(grass.Bloom, 0f, sward);
+            grass.Plumes = Lerp(grass.Plumes, 0f, sward);
         }
 
         // A tended bed's grass: thick, kept short and green, and in flower in small drifts of a few colours, as a gardener plants them, where the land round it grows

@@ -222,12 +222,13 @@ namespace Dino_Engine.World.Content
             Kind = SiteKind.Graveyard,
             Label = "Barrow",   // Older than the church that now stands there, and a label seeds its kind's fork: renaming one moves every site of it.
             MapColour = new Vector3(0.64f, 0.56f, 0.82f),
-            Radius = new FloatRange(24f, 32f),
+            Radius = new FloatRange(36f, 45f),  // A churchyard sprawls: its plots of graves round a church of forty metres and more (CHURCHYARD.md).
             PerSquareKilometre = 1.1f,
             Limits = new IntRange(1, 4),
             Spacing = 340f,
+            Margin = 40f,       // Walled, so it can stand nearer its neighbours than an open site.
             MaxSlope = 0.36f,
-            MinInland = 22f,
+            MinInland = 30f,    // Its wall comes in from the water where it has to (ChurchyardBuilder.PlanOf).
             Remoteness = new FloatRange(0.3f, 1f),
             HighGround = 0.5f,
             Road = RoadClass.Footpath,

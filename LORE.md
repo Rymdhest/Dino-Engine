@@ -121,7 +121,7 @@ What each kind of place is under the Reich, as `Chronicle.Describe` tells it:
 | Landing | Where a Defender comes ashore |
 | Keep | The commander's seat, and the tyrant's pen |
 | Camp (`SiteKind.BanditCamp`) | A brood's pen: cages, chains and the smell of blood, where the beasts are kept between hunts |
-| Churchyard | Where the Ossuary digs |
+| Churchyard | Where the Ossuary digs, among the land's own dead: a church in the middle of plots of graves inside a wall, the oldest by the church, the poor's on the north side, a family's railed plot, chest tombs and mausoleums, graves it has opened, and candles still left by whoever comes (`CHURCHYARD.md`) |
 | Shrine | Put out by the Reich, and kindled again by a Defender |
 | Village | People hiding behind barred doors, with a waygate, a shrine and a merchant, who trade with anyone who isn't the Reich |
 | Hamlet, farmstead, fishing hamlet, lumber camp | Overrun: the Reich's people or its beasts are in them now |

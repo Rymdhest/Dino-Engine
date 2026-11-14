@@ -128,10 +128,14 @@ namespace Dino_Engine.World.Generation
                 WorldRandom random = _random.Fork("sites").Fork(site.Id);
                 int wanted = (int)MathF.Round(UsualSize(_world.Plan.Level, site.Remoteness) * share * _crowd);
                 float reach = site.Radius * 0.72f;
+                // A churchyard's are inside its wall, which is pulled in from bad ground and roads, so may not reach as far as its radius (CHURCHYARD.md).
+                Vector2 middle = site.Yard?.Centre ?? site.Position;
+                if (site.Yard is YardPlan yard) reach = yard.Reach;
                 int placed = 0;
                 for (int attempt = 0; attempt < wanted * 8 && placed < wanted; attempt++)
                 {
-                    Vector2 spot = site.Position + SiteBuilder.Direction(random.Float() * MathF.Tau) * (reach * MathF.Sqrt(random.Float()));
+                    Vector2 spot = middle + SiteBuilder.Direction(random.Float() * MathF.Tau) * (reach * MathF.Sqrt(random.Float()));
+                    if (site.Yard is YardPlan walled && !walled.Inside(spot, -4f)) continue;
                     if (!CanStand(spot)) continue;
                     // A keep's garrison camps round the yard its tyrant waits in, and leaves the yard to it.
                     if (site.Kind == SiteKind.Keep && (spot - site.Position).Length < SettlementStage.KeepYard(site) + 1.5f) continue;

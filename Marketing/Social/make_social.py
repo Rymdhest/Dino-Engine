@@ -7,7 +7,11 @@ Sources (in source/), both made by the game itself:
   tyrant_roar.png  the tyrant roaring, from
                    dotnet "Dino AnimLab/bin/Release/net8.0/Dino AnimLab.dll" sheet --body tyrant --do roar --view side --tile 1000 --frames 12 --columns 6 --out tyrant_roar.png
 
-Type is Palatino Linotype, the menu's own face (UI/Ui.cs), in the menu's parchment, gold and blood (Ui.Parchment, Ui.Gold, Ui.Blood).
+The look is a bold flat badge, after the classic dinosaur-film badges but its own: an ink tyrant
+against a red sun on bone, in an ink ring with two red lines, and the name on a plate
+framed the same way. The red is the land's own, the Falu red of the north's houses, never the Reich's
+oxblood (LORE.md). Type is Palatino Linotype,
+the menu's own face (UI/Ui.cs).
 
 Run: python make_social.py   ->   out/*.png
 """
@@ -31,8 +35,13 @@ SCRIM = (9, 7, 6)
 GOLD_LIGHT = (246, 218, 150)
 GOLD_DEEP = (168, 120, 50)
 INK = (24, 18, 14)
-PAPER_TOP = (238, 227, 202)
-PAPER_BOTTOM = (212, 193, 156)
+PAPER_TOP = (240, 232, 212)   # bone
+PAPER_BOTTOM = (222, 208, 178)
+# The land's own red, the Falu red of the north's houses in the sun (NordicStyle.NordicKit), warm
+# with the yellow of iron earth in it: never the Reich's oxblood, a dark crimson (ArenaStone).
+FALU_LIGHT = (206, 66, 40)
+FALU = (184, 52, 32)
+FALU_DEEP = (156, 38, 26)
 
 TITLE = "DINO DEFENDERS"
 TAGLINE = "Take it back, a place at a time"
@@ -93,7 +102,7 @@ def emblem(size=2048):
     # The sun, behind the tyrant's raised head.
     sun_c = (c + 0.12 * S, c - 0.07 * S)
     sun_r = 0.27 * S
-    sun = gradient((S, S), (200, 60, 42), (142, 28, 20))
+    sun = gradient((S, S), FALU_LIGHT, FALU_DEEP)
     sun_mask = Image.new("L", (S, S), 0)
     ImageDraw.Draw(sun_mask).ellipse(
         (sun_c[0] - sun_r, sun_c[1] - sun_r, sun_c[0] + sun_r, sun_c[1] + sun_r), fill=255)
@@ -129,8 +138,8 @@ def emblem(size=2048):
     ImageDraw.Draw(hole).ellipse((c - inner_r, c - inner_r, c + inner_r, c + inner_r), fill=255)
     badge.paste(scene, (0, 0), hole)
     ring = ImageDraw.Draw(badge)
-    for r, w in ((0.468 * S, 0.008 * S), (0.452 * S, 0.006 * S)):
-        ring.ellipse((c - r, c - r, c + r, c + r), outline=GOLD, width=int(w))
+    for r, w, colour in ((0.468 * S, 0.008 * S, FALU), (0.452 * S, 0.007 * S, FALU)):
+        ring.ellipse((c - r, c - r, c + r, c + r), outline=colour, width=int(w))
     return badge
 
 
@@ -140,9 +149,12 @@ def save_icon(badge, size, name):
 
 # ---------------------------------------------------------------- the wordmark
 
-def wordmark(cap, tagline=True, tracking=0.10, shadow=0.0):
-    """DINO DEFENDERS in tracked Palatino bold, gold, with a soft shadow, and the tagline under it.
-    shadow adds a tight dark edge as well (0..1), for type on a picture with no scrim under it."""
+def wordmark(cap, tagline=True, tracking=0.10, shadow=0.0, style="gold"):
+    """DINO DEFENDERS in tracked Palatino bold with the tagline under it.
+    style "gold": gold gradient on a soft shadow; shadow adds a tight dark edge as well (0..1).
+    style "plaque": the emblem's language, flat: ink type on parchment in a rounded plate with the
+    badge's ink band and two gold lines.
+    style "outline": flat parchment type with a solid ink edge, as the badge draws its tyrant."""
     em = cap / 0.69  # Palatino's capitals are about 0.69 em tall
     f = font("palab.ttf", em)
     pad = int(cap * 0.6)
@@ -190,6 +202,10 @@ def wordmark(cap, tagline=True, tracking=0.10, shadow=0.0):
             d.polygon([(px, mid - s), (px + s, mid), (px, mid + s), (px - s, mid)], fill=255)
 
     shadow_src = Image.fromarray(np.maximum(np.asarray(text), np.asarray(tag)))
+    if style == "plaque":
+        return plaque(shadow_src, cap)
+    if style == "outline":
+        return outlined(shadow_src, cap)
     shadow_soft = shadow_src.filter(ImageFilter.GaussianBlur(cap * 0.14)).point(lambda v: min(255, int(v * 1.6)))
     out = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     out.paste((*SCRIM, 255), (0, int(cap * 0.04)), shadow_soft.point(lambda v: int(v * 0.85)))
@@ -199,6 +215,66 @@ def wordmark(cap, tagline=True, tracking=0.10, shadow=0.0):
         out.paste((*SCRIM, 255), (0, int(cap * 0.03)), edge)
     out.paste((*PARCHMENT, 255), (0, 0), tag)
     out.paste(gold, (0, 0), text)
+    return out
+
+
+def disk(radius):
+    r = int(np.ceil(radius))
+    y, x = np.mgrid[-r:r + 1, -r:r + 1]
+    return (x * x + y * y) <= radius * radius
+
+
+def plaque(type_mask, cap):
+    """Ink type on a parchment plate with round ends, framed as the badge is: ink band, gold line,
+    ink, gold line, parchment."""
+    box = type_mask.getbbox()
+    content = type_mask.crop(box)
+    pad_x, pad_y = cap * 1.05, cap * 0.42
+    band = cap * 0.30  # the ink band round the plate
+    w = int(content.width + 2 * (pad_x + band))
+    h = int(content.height + 2 * (pad_y + band))
+
+    k = 4  # drawn large and scaled down, for clean round ends
+    big = Image.new("RGBA", (w * k, h * k), (0, 0, 0, 0))
+    d = ImageDraw.Draw(big)
+
+    def stadium(inset, fill):
+        i = inset * k
+        d.rounded_rectangle((i, i, w * k - 1 - i, h * k - 1 - i), radius=(h * k - 2 * i) / 2, fill=fill)
+
+    line = max(1.0, cap * 0.055)
+    stadium(0, (*INK, 255))
+    stadium(band * 0.30, (*FALU, 255))
+    stadium(band * 0.30 + line, (*INK, 255))
+    stadium(band - line * 0.9, (*FALU, 255))
+    stadium(band, (255, 255, 255, 255))  # the plate, painted next
+    plate = big.resize((w, h), Image.LANCZOS)
+
+    out = plate.copy()
+    paper = gradient((w, h), PAPER_TOP, PAPER_BOTTOM).convert("RGBA")
+    inner = Image.new("L", (w * k, h * k), 0)
+    i = band * k
+    ImageDraw.Draw(inner).rounded_rectangle((i, i, w * k - 1 - i, h * k - 1 - i), radius=(h * k - 2 * i) / 2, fill=255)
+    out.paste(paper, (0, 0), inner.resize((w, h), Image.LANCZOS))
+    out.paste((*INK, 255), (int(band + pad_x), int(band + pad_y)), content)
+    return out
+
+
+def outlined(type_mask, cap):
+    """Flat parchment type with a solid ink edge."""
+    edge = cap * 0.11
+    m = np.asarray(type_mask) > 127
+    pad = int(edge) + 4
+    m = np.pad(m, pad)
+    outline = ndimage.binary_dilation(m, structure=disk(edge))
+    def soft(a):
+        img = Image.fromarray((a * 255).astype(np.uint8))
+        return img.resize((img.width * 3, img.height * 3), Image.NEAREST).filter(
+            ImageFilter.GaussianBlur(1.2)).resize(img.size, Image.LANCZOS)
+    out = Image.new("RGBA", (m.shape[1], m.shape[0]), (0, 0, 0, 0))
+    out.paste((*INK, 255), (0, 0), soft(outline))
+    fill = Image.fromarray(np.pad(np.asarray(type_mask), pad))
+    out.paste((*PARCHMENT, 255), (0, 0), fill)
     return out
 
 
@@ -273,45 +349,39 @@ def round_badge(badge, size):
 
 def reddit_wide(size, name, cap):
     """Reddit's own banner shape, about 8.4:1 (1072x128 desktop, 1080x128 app), at twice that.
-    The title on the left, the giants on the right, and the picture left as the game drew it: the
-    title carries itself on a tight shadow of its own. No badge: the community icon is already there,
-    over the bottom left corner (about the first 10% across and the lower 30%), so the title starts
-    past it and sits a little high."""
+    The name's plate on the left, the giants on the right, and the picture left as the game drew it.
+    No badge: the community icon is already there, over the bottom left corner (about the first 10%
+    across and the lower 30%), so the plate starts past it and sits a little high."""
     w, h = size
     img = vista((820, 440, 2380), size).convert("RGBA")
-    mark = wordmark(cap, shadow=1.0)
-    left = int(w * 0.105) - int(cap * 0.6)  # the wordmark's own padding
-    img.paste(mark, (left, int(h * 0.45 - mark.height / 2)), mark)
+    mark = wordmark(cap, style="plaque")
+    img.paste(mark, (int(w * 0.105), int(h * 0.45 - mark.height / 2)), mark)
     img.convert("RGB").save(OUT / name, optimize=True)
 
 
-def discord_banner(badge):
+# The banners carry the name's plate and not the badge, which every platform shows beside them anyway,
+# and the picture is left as the game drew it.
+
+def discord_banner():
     size = (960, 540)
-    img = vista((1493, 230, 1600), size)
-    img = shade(img, np.maximum(vertical(size, 540, 300, 0.85), glow(size, (480, 455), (330, 80), 0.5)))
-    img = img.convert("RGBA")
-    put(img, wordmark(34), (480, 450))
+    img = vista((1493, 230, 1600), size).convert("RGBA")
+    put(img, wordmark(26, style="plaque"), (480, 445))
     img.convert("RGB").save(OUT / "discord_banner_960x540.png", optimize=True)
 
 
-def discord_splash(badge):
+def discord_splash():
     size = (1920, 1080)
-    img = vista((1030, 0, 2526), size)
-    img = shade(img, vertical(size, 1080, 760, 0.75))
-    img = img.convert("RGBA")
-    put(img, round_badge(badge, 150), (150, 960))
-    put(img, wordmark(36), (560, 966))
+    img = vista((1030, 0, 2526), size).convert("RGBA")
+    mark = wordmark(34, style="plaque")
+    img.paste(mark, (70, 1080 - 70 - mark.height), mark)
     img.convert("RGB").save(OUT / "discord_invite_splash_1920x1080.png", optimize=True)
 
 
-def youtube_banner(badge):
+def youtube_banner():
     size = (2560, 1440)
-    img = vista((820, 0, 2526), size)
+    img = vista((820, 0, 2526), size).convert("RGBA")
     # The part every device shows is the middle 1546x423 (x 507..2053, y 508..931).
-    img = shade(img, np.maximum(horizontal(size, 200, 1500, 0.55), glow(size, (895, 720), (560, 300), 0.8)))
-    img = img.convert("RGBA")
-    put(img, round_badge(badge, 220), (895, 632))
-    put(img, wordmark(46), (895, 842))
+    put(img, wordmark(42, style="plaque"), (930, 720))
     img.convert("RGB").save(OUT / "youtube_banner_2560x1440.png", optimize=True)
 
     # A guide showing what each device keeps, not for uploading.
@@ -329,11 +399,11 @@ def main():
     save_icon(badge, 512, "discord_icon_512.png")
     save_icon(badge, 800, "youtube_avatar_800.png")
     save_icon(badge, 1024, "emblem_1024.png")
-    reddit_wide((2144, 256), "reddit_banner_desktop_2144x256.png", 52)
-    reddit_wide((2160, 256), "reddit_banner_mobile_2160x256.png", 52)
-    discord_banner(badge)
-    discord_splash(badge)
-    youtube_banner(badge)
+    reddit_wide((2144, 256), "reddit_banner_desktop_2144x256.png", 36)
+    reddit_wide((2160, 256), "reddit_banner_mobile_2160x256.png", 36)
+    discord_banner()
+    discord_splash()
+    youtube_banner()
     for p in sorted(OUT.glob("*.png")):
         with Image.open(p) as im:
             print(f"{p.name:40s} {im.size[0]}x{im.size[1]}")

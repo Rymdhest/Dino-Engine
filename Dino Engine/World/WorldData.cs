@@ -104,6 +104,9 @@ namespace Dino_Engine.World
         public bool Paved;
         /// <summary>Beds someone tends (GroundPaint.Garden), whose grass is short, green and in flower whatever the land around grows.</summary>
         public ByteField Garden = null!;
+
+        /// <summary>A churchyard's turf (GroundPaint.Sward), short, dark and in no flower, so that its stones show (CHURCHYARD.md).</summary>
+        public ByteField Sward = null!;
         /// <summary>An arena's floor of sand, a pen's of mud and straw, and the ash of the Onslaught (GroundPaint.Sand, Mud and Ash), laid over whatever was there, which nothing grows through.</summary>
         public ByteField Sand = null!;
         public ByteField Mud = null!;

@@ -1,3 +1,4 @@
+using Dino_Engine.Modelling.Procedural.Architecture.Churchyard;
 using Dino_Engine.World.Content;
 using OpenTK.Mathematics;
 using static Dino_Engine.World.Generation.SiteBuilder;
@@ -108,21 +109,49 @@ namespace Dino_Engine.World.Generation
             int graves = b.Random.Int(5, 8);
             float first = b.Random.Float() * MathF.Tau;
 
-            // Wide apart, as what's left of a burying ground is: a character is broad, and has to get between them.
+            // Wide apart, as what's left of a burying ground is: a character is broad, and has to get between them. They're a churchyard's oldest stones (CHURCHYARD.md), broken
+            // and fallen in, from a few kinds, as one hand cut them.
+            WorldRandom stones = b.Random.Fork("stones");
+            uint seed = (uint)stones.NextULong();
             for (int i = 0; i < graves; i++)
             {
                 float angle = first + i * (MathF.Tau / graves) + b.Random.Range(-0.2f, 0.2f);
                 Vector2 spot = b.Centre + Direction(angle) * radius * b.Random.Range(0.55f, 0.85f);
-                b.Place(StructureCatalog.Grave, spot, b.Random.Float() * MathF.Tau, padding: 0.3f);
+                int kind = stones.Int(4);
+                var form = kind switch { 0 => StoneForm.Broken, 1 => StoneForm.Slab, 2 => StoneForm.Round, _ => StoneForm.Wooden };
+                var dress = kind == 3 ? GraveDress.Mound : stones.Chance(0.5f) ? GraveDress.Sunken : GraveDress.Grass;
+                PlaceYard(b, new YardSpec(YardKind.Stone, seed + (uint)kind, (int)form, (int)dress, 95), spot, b.Random.Float() * MathF.Tau, new Vector2(YardForge.GraveWidth, YardForge.GraveLength) * 0.5f, 0.9f);
             }
 
-            b.Scatter(StructureCatalog.Tomb, b.Centre, radius * 0.5f, attempts: 10, padding: 0.8f);
+            // A chest tomb with its lid slid off, and a grave dug open beside it: the Ossuary has been here.
+            uint tomb = (uint)stones.NextULong();
+            Vector3 size = YardForge.TombSize(tomb);
+            for (int attempt = 0; attempt < 10; attempt++)
+            {
+                Vector2 spot = b.Centre + Direction(b.Random.Float() * MathF.Tau) * radius * 0.5f * MathF.Sqrt(b.Random.Float());
+                if (PlaceYard(b, new YardSpec(YardKind.Tomb, tomb, stones.Int(0, 2), 1, 95, 1000, 500), spot, b.Random.Float() * MathF.Tau, new Vector2(size.X, size.Z) * 0.5f + new Vector2(0.15f), size.Y)) break;
+            }
+            for (int attempt = 0; attempt < 10; attempt++)
+            {
+                Vector2 spot = b.Centre + Direction(b.Random.Float() * MathF.Tau) * radius * 0.6f * MathF.Sqrt(b.Random.Float());
+                if (PlaceYard(b, new YardSpec(YardKind.Dug, (uint)stones.NextULong(), 1, 95), spot, b.Random.Float() * MathF.Tau, new Vector2(1.5f, 2.2f), 0.9f)) break;
+            }
             for (int i = 0; i < 3; i++)
             {
                 Vector2 spot = b.Centre + Direction(b.Random.Float() * MathF.Tau) * radius * b.Random.Range(0.7f, 1f);
                 b.Place(StructureCatalog.DeadTree, spot, b.Random.Float() * MathF.Tau, 0.6f * b.Random.Range(0.8f, 1.25f), padding: 0.6f);
             }
             for (int i = 0; i < 3; i++) b.Scatter(StructureCatalog.Candles, b.Centre, radius * 0.7f, padding: 0f);
+        }
+
+        // A churchyard's piece put down where it fits, solid to whoever walks into it up to `height`.
+        private static bool PlaceYard(SiteBuilder b, in YardSpec spec, Vector2 at, float yaw, Vector2 half, float height)
+        {
+            Footprint footprint = Footprint.Box(at, half, yaw);
+            if (!b.Fits(footprint, 0.4f, 0.3f)) return false;
+            b.World.Placement.Add(footprint, PlacementLayer.Prop, solid: true, height: height);
+            b.World.Pending.Add(new PendingObject(spec.Id, at, yaw, Vector3.One, null));
+            return true;
         }
 
         private static void BuildDen(SiteBuilder b)

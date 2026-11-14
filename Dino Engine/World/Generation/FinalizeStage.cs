@@ -175,7 +175,9 @@ namespace Dino_Engine.World.Generation
                     // Whoever watches from an arena's stands stands where nobody else can go, and is meant to.
                     if (spawn.Role == SpawnRole.Spectator) continue;
 
-                    if (TryFindPassable(passable, spawn.Position, MaxSpawnShift, out Vector2 moved))
+                    // A churchyard's dead stay inside its wall: moved within it, or not there at all (CHURCHYARD.md).
+                    YardPlan? yard = site.Yard;
+                    if (TryFindPassable(passable, spawn.Position, MaxSpawnShift, out Vector2 moved, yard == null ? null : p => yard.Inside(p, -1.5f)))
                     {
                         site.Spawns[i] = new SiteSpawn(spawn.Role, moved);
                     }
@@ -187,7 +189,7 @@ namespace Dino_Engine.World.Generation
             }
         }
 
-        private static bool TryFindPassable(ByteField passable, Vector2 around, float reach, out Vector2 found)
+        private static bool TryFindPassable(ByteField passable, Vector2 around, float reach, out Vector2 found, Func<Vector2, bool>? allowed = null)
         {
             float cell = passable.CellSize;
             for (float radius = cell; radius <= reach; radius += cell)
@@ -197,7 +199,7 @@ namespace Dino_Engine.World.Generation
                 {
                     float angle = i * (MathF.Tau / steps);
                     Vector2 candidate = around + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * radius;
-                    if (!passable.IsSet(candidate)) continue;
+                    if (!passable.IsSet(candidate) || (allowed != null && !allowed(candidate))) continue;
                     found = candidate;
                     return true;
                 }

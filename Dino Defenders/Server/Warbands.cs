@@ -97,6 +97,7 @@ namespace Dino_Defenders.Server
         private const float FeralShare = 0.4f;      // Of what lives wild, broods that got out of the pens.
         private const float SwarmShare = 0.2f;
         private const float GhostShare = 0.3f;      // Of the dead that aren't rotting, ghosts the Ossuary called up in light.
+        private const float ChurchyardGhosts = 0.45f; // Of a churchyard's dead, where the bones it digs are oldest and most often too far gone to stand.
         private const float NestShare = 0.4f;       // Of the swarms, the Institute's weavers and what scavenges after them.
         private const float FlockShare = 0.3f;      // Of what got out into gentle country, runners in a flock.
 
@@ -194,6 +195,8 @@ namespace Dino_Defenders.Server
             switch (folk)
             {
                 case SpawnRole.Undead:
+                    // A churchyard's dead are its own and the Ossuary's raising: bones and ghosts. What rots is dumped in the wet, not buried (CHURCHYARD.md).
+                    if (site.Kind == SiteKind.Graveyard) return random.Chance(ChurchyardGhosts) ? Ghosts : Dead;
                     if (biome.Moisture >= 0.6f && random.Chance(RotShare)) return Rotting;
                     return random.Chance(GhostShare) ? Ghosts : Dead;
                 case SpawnRole.Beast:

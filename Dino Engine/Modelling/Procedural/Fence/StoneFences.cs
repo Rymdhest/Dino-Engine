@@ -13,7 +13,19 @@ namespace Dino_Engine.Modelling.Procedural.Fence
         private const float CellSize = 0.55f;       // Metres to a cell of a wall's face, which carries its weathering.
 
         // A wall's dressed stone, the colour the church and the keep are, so that a churchyard's wall is of a piece with its church.
-        private static Vector3 Dressed(Genes style) => new Vector3(0.66f, 0.655f, 0.63f) * style.Range("stone shade", 0.9f, 1.06f) * Vector3.Lerp(Vector3.One, new Vector3(1.04f, 1f, 0.94f), style.Unit("warmth"));
+        private static Vector3 Dressed(Genes style) => DressedColour(style.Range("stone shade", 0.9f, 1.06f), style.Unit("warmth"));
+
+        /// <summary>Dressed stone of a shade and a warmth (0 grey to 1 honey), as an albedo.</summary>
+        public static Vector3 DressedColour(float shade, float warmth) => new Vector3(0.66f, 0.655f, 0.63f) * shade * Vector3.Lerp(Vector3.One, new Vector3(1.04f, 1f, 0.94f), warmth);
+
+        /// <summary>
+        /// The shade and warmth of a churchyard wall's stone in a style, which the church, its gates and its crosses are built of too (CHURCHYARD.md), so that the wall is of a piece with them.
+        /// </summary>
+        public static (float Shade, float Warmth) ChurchyardStone(ulong style)
+        {
+            Genes genes = new Genes(style).Part(FenceCatalog.Churchyard.Id);
+            return (genes.Range("stone shade", 0.9f, 1.06f), genes.Unit("warmth"));
+        }
 
         // A texture repeat that fits a span a whole number of times, so the courses of one span run on into the next.
         private static float TileFor(float bay, float wanted) => bay / MathF.Max(1f, MathF.Round(bay / wanted));

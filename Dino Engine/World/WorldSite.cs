@@ -86,6 +86,9 @@ namespace Dino_Engine.World
         /// <summary>The arena of a boss map, or the sealed one in a land's keep, where its tyrant waits (ARENAS.md).</summary>
         public ArenaPlan? Arena;
 
+        /// <summary>A churchyard's wall, gates and church (CHURCHYARD.md).</summary>
+        public YardPlan? Yard;
+
         /// <summary>Where a game should put characters and things. Worldgen only says where and what for.</summary>
         public readonly List<SiteSpawn> Spawns = new();
 

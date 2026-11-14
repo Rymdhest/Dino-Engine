@@ -48,6 +48,7 @@ namespace Dino_Engine.World.Generation
             world.Farmland = ByteField.ForWorld(size, WorldData.DetailCell);
             world.Paving = ByteField.ForWorld(size, WorldData.DetailCell);
             world.Garden = ByteField.ForWorld(size, WorldData.DetailCell);
+            world.Sward = ByteField.ForWorld(size, WorldData.DetailCell);
             world.Sand = ByteField.ForWorld(size, WorldData.DetailCell);
             world.Mud = ByteField.ForWorld(size, WorldData.DetailCell);
             world.Ash = ByteField.ForWorld(size, WorldData.DetailCell);
@@ -185,6 +186,7 @@ namespace Dino_Engine.World.Generation
                 GroundPaint.Plaza => world.Plaza,
                 GroundPaint.Paving => world.Paving,
                 GroundPaint.Garden => world.Garden,
+                GroundPaint.Sward => world.Sward,
                 GroundPaint.Sand => world.Sand,
                 GroundPaint.Mud => world.Mud,
                 GroundPaint.Ash => world.Ash,
