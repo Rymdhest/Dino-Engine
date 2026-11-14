@@ -27,6 +27,7 @@ namespace Dino_Engine.World.Generation
             public float Fertility;     // Open farmland, 0..1.
             public float Remoteness;
             public float Woods;         // How thick the woods are round it, 25 to 60 m out, 0..1.
+            public float Timber;        // The same, counting only trees worth felling (PlaceStory.IsTimber).
             public float Rise;          // Metres the walkable ground climbs to its north within 50 m, at the most: what a quarry is cut into.
             public int Biome;           // Which of the plan's biomes it's most of.
         }
@@ -259,6 +260,7 @@ namespace Dino_Engine.World.Generation
             var candidates = new List<Candidate>();
             int steps = (int)(world.Size / CandidateSpacing);
             ScalarField height = world.Elevation;
+            float[] timber = world.Plan.Biomes.Select(PlaceStory.TimberShare).ToArray();
 
             for (int z = 0; z < steps; z++)
             {
@@ -280,11 +282,12 @@ namespace Dino_Engine.World.Generation
                     }
 
                     float forest = ForestAt(world, position);
-                    float woods = 0f;
+                    float woods = 0f, timbered = 0f;
                     for (int i = 0; i < 8; i++)
                     {
                         Vector2 direction = SiteBuilder.Direction(i * (MathF.Tau / 8f) + 0.39f);
                         woods += ForestAt(world, position + direction * 28f) + ForestAt(world, position + direction * 55f);
+                        timbered += ForestAt(world, position + direction * 28f, timber) + ForestAt(world, position + direction * 55f, timber);
                     }
 
                     candidates.Add(new Candidate
@@ -296,6 +299,7 @@ namespace Dino_Engine.World.Generation
                         Domination = Math.Clamp((h - around / 8f) / 9f, -1f, 1f),
                         Fertility = (1f - forest) * (1f - Smoothstep(0.05f, 0.3f, steepest)),
                         Woods = woods / 16f,
+                        Timber = timbered / 16f,
                         Rise = RiseNorth(world, position, h),
                         Biome = world.DominantBiome(position),
                     });
@@ -304,11 +308,12 @@ namespace Dino_Engine.World.Generation
             return candidates;
         }
 
-        private static float ForestAt(WorldData world, Vector2 position)
+        // How thick the woods are somewhere, 0..1, of what share of each biome's trees, if given.
+        private static float ForestAt(WorldData world, Vector2 position, float[]? share = null)
         {
             if (!world.InBounds(position)) return 0f;
             float forest = 0f;
-            for (int b = 0; b < world.BiomeWeights.Length; b++) forest += world.Plan.Biomes[b].ForestCover * world.BiomeWeights[b].Sample(position);
+            for (int b = 0; b < world.BiomeWeights.Length; b++) forest += world.Plan.Biomes[b].ForestCover * (share?[b] ?? 1f) * world.BiomeWeights[b].Sample(position);
             return forest;
         }
 
@@ -509,7 +514,7 @@ namespace Dino_Engine.World.Generation
             if (candidate.Remoteness < definition.Remoteness.Min || candidate.Remoteness > definition.Remoteness.Max) return false;
             // A linear land's keep is at the end of its way, so that nothing is left behind it to come back for.
             if (definition.Kind == SiteKind.Keep && world.Plan.Linear && candidate.Remoteness < LinearKeepRemoteness) return false;
-            if (candidate.Woods < definition.LeastWoods || candidate.Rise < definition.LeastRise) return false;
+            if ((definition.Fells ? candidate.Timber : candidate.Woods) < definition.LeastWoods || candidate.Rise < definition.LeastRise) return false;
             if (candidate.Height - WorldPlan.SeaLevel > definition.MostAboveSea) return false;
             if (definition.Climate != null && (candidate.Biome < 0 || candidate.Biome >= world.Plan.Biomes.Count || !definition.Climate(world.Plan.Biomes[candidate.Biome]))) return false;
             return true;
@@ -543,7 +548,7 @@ namespace Dino_Engine.World.Generation
                 + definition.HighGround * candidate.Domination * 2f
                 + definition.WaterNearby * water
                 + definition.Fertility * fertile
-                + definition.WoodsNearby * (candidate.Woods * 2f - 1f)
+                + definition.WoodsNearby * ((definition.Fells ? candidate.Timber : candidate.Woods) * 2f - 1f)
                 + (definition.LeastRise > 0f ? Saturate((candidate.Rise - definition.LeastRise) / 10f) : 0f)
                 + remoteFit * 0.4f;
             return MathF.Max(interest + 1.5f, 0.01f);

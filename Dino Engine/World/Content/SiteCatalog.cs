@@ -84,6 +84,8 @@ namespace Dino_Engine.World.Content
         public float LeastWoods;
         /// <summary>Above 0, it wants woods thick round it.</summary>
         public float WoodsNearby;
+        /// <summary>Its woods are what it fells, so <see cref="LeastWoods"/> and <see cref="WoodsNearby"/> count only trees worth felling (<see cref="PlaceStory.IsTimber"/>), and never bamboo or palms.</summary>
+        public bool Fells;
         /// <summary>Metres the ground has to rise to the north of it, within a stone's throw, as a quarry is cut into a hillside the camera looks at.</summary>
         public float LeastRise;
         /// <summary>Metres above the sea its middle may stand at most, as a wreck lies on a beach.</summary>
@@ -233,6 +235,7 @@ namespace Dino_Engine.World.Content
             Fertility = -0.4f,
             WoodsNearby = 1.4f,
             LeastWoods = 0.32f,
+            Fells = true,
             Levelling = 0.7f,
             StoryWeight = 1f,
         };

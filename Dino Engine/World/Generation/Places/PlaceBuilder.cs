@@ -1,4 +1,5 @@
 using Dino_Engine.Modelling.Procedural.Architecture.Places;
+using Dino_Engine.Modelling.Procedural.Fence;
 using Dino_Engine.Modelling.Procedural.Flora;
 using Dino_Engine.World.Content;
 using OpenTK.Mathematics;
@@ -176,6 +177,121 @@ namespace Dino_Engine.World.Generation.Places
             return found;
         }
 
+        // ---------------------------------------------------------------- Walls and gates
+
+        /// <summary>A side of a walled place, in its own frame: its back is -z, its front +z, its left -x.</summary>
+        protected enum Side { Back, Front, Left, Right }
+
+        protected static Vector2 Outward(Side side) => side switch
+        {
+            Side.Back => -Vector2.UnitY,
+            Side.Front => Vector2.UnitY,
+            Side.Left => -Vector2.UnitX,
+            _ => Vector2.UnitX,
+        };
+
+        /// <summary>
+        /// Where a walled place's gate goes, on its side of a box of half size <paramref name="half"/>: the side the road comes from, so whoever comes up the road comes straight in, and along it
+        /// towards where the road meets it. Recorded on the plan.
+        /// </summary>
+        protected (Side Side, Vector2 Local) GateOnRoad(Vector2 half)
+        {
+            Vector2 road = Plan.ToLocal(Site.Position + Site.RoadDirection);
+            road = road.LengthSquared > 1e-4f ? road.Normalized() : Vector2.UnitY;
+            Side side = MathF.Abs(road.X) / half.X > MathF.Abs(road.Y) / half.Y ? (road.X > 0f ? Side.Right : Side.Left) : (road.Y > 0f ? Side.Front : Side.Back);
+            float along = (side is Side.Front or Side.Back ? road.X * half.X : road.Y * half.Y) * 0.5f;
+            Vector2 local = side switch
+            {
+                Side.Back => new Vector2(Math.Clamp(along, -half.X + 8f, half.X - 8f), -half.Y),
+                Side.Front => new Vector2(Math.Clamp(along, -half.X + 8f, half.X - 8f), half.Y),
+                Side.Left => new Vector2(-half.X, Math.Clamp(along, -half.Y + 8f, half.Y - 8f)),
+                _ => new Vector2(half.X, Math.Clamp(along, -half.Y + 8f, half.Y - 8f)),
+            };
+            Plan.Gates.Add((W(local), Plan.Dir(Outward(side))));
+            return (side, local);
+        }
+
+        /// <summary>A wall or fence of a use round a box of half size <paramref name="half"/> about the middle, broken where the gate is, and the gate's way kept clear inside and out.</summary>
+        protected void Enclose(FenceUse use, Vector2 half, Side gateSide, Vector2 gateLocal, float gateHalf)
+        {
+            Vector2[] corners = { new(-half.X, -half.Y), new(half.X, -half.Y), new(half.X, half.Y), new(-half.X, half.Y) };
+            Side[] sides = { Side.Back, Side.Right, Side.Front, Side.Left };
+            for (int i = 0; i < 4; i++)
+            {
+                Vector2 a = corners[i], c = corners[(i + 1) % 4];
+                if (sides[i] != gateSide)
+                {
+                    B.Wall(use, W(a), W(c), Plan.Centre);
+                    continue;
+                }
+                Vector2 along = (c - a).Normalized();
+                float t = Vector2.Dot(gateLocal - a, along);
+                B.Wall(use, W(a), W(a + along * (t - gateHalf)), Plan.Centre);
+                B.Wall(use, W(a + along * (t + gateHalf)), W(c), Plan.Centre);
+            }
+            Vector2 inward = -Outward(gateSide);
+            Keep(Footprint.Box(W(gateLocal + inward * 5f), new Vector2(gateHalf, 6f), YawOf(inward)));
+            Keep(Footprint.Box(W(gateLocal - inward * 3f), new Vector2(gateHalf, 3f), YawOf(inward)));
+        }
+
+        /// <summary>The Reich's banners either side of a gate, outside it, and its lanterns inside, as at every place it holds.</summary>
+        protected void ReichGate(Side gateSide, Vector2 gateLocal, float gateHalf, WorldRandom r)
+        {
+            Vector2 outward = Plan.Dir(Outward(gateSide));
+            Vector2 across = new Vector2(-outward.Y, outward.X);
+            Vector2 inward = -Outward(gateSide);
+            foreach (float s in new[] { -1f, 1f })
+            {
+                PutRound(new PlaceSpec(PlacePiece.Banner, NextSeed(), PlaceSpec.Cm(r.Range(6.4f, 7.4f)), 1), W(gateLocal) + outward * 2.6f + across * (s * (gateHalf + 1.6f)), SiteBuilder.YawFacing(outward), 0.5f, 0f, 0.2f, 0.5f);
+                PutRound(new PlaceSpec(PlacePiece.Lantern, NextSeed(), PlaceSpec.Cm(4.2f), 1), W(gateLocal + inward * 2.2f) + across * (s * (gateHalf - 0.6f)), SiteBuilder.YawFacing(-outward), 0.4f, 0f, 0.2f, 0.5f);
+            }
+        }
+
+        /// <summary>
+        /// The tree worth felling that the woods round the place are mostly of, weighed over its own biome and its neighbours' out to a stone's throw by how much of each is woods worth
+        /// felling, so that a camp at the edge of a bamboo thicket fells the pines beyond it. Null if nothing near is worth felling.
+        /// </summary>
+        protected PlantSpecies? TimberTree()
+        {
+            var score = new float[World.BiomeWeights.Length];
+            for (int i = 0; i <= 16; i++)
+            {
+                Vector2 at = i == 0 ? Site.Position : Site.Position + SiteBuilder.Direction(i * MathF.Tau / 8f) * (i <= 8 ? 30f : 60f);
+                if (!World.InBounds(at)) continue;
+                for (int b = 0; b < score.Length; b++) score[b] += World.BiomeWeights[b].Sample(at);
+            }
+            PlantSpecies? found = null;
+            float best = 0f;
+            for (int b = 0; b < score.Length; b++)
+            {
+                BiomeDefinition biome = World.Plan.Biomes[b];
+                float weight = score[b] * biome.ForestCover * PlaceStory.TimberShare(biome);
+                if (weight <= best || PlaceStory.TimberOf(biome) is not PlantSpecies tree) continue;
+                best = weight;
+                found = tree;
+            }
+            return found;
+        }
+
+        /// <summary>
+        /// The bark of the wood round the place, as the ids of what's cut from it carry it: its kind and its colour, per mille, from the tree worth felling its woods are mostly of
+        /// (<see cref="TimberTree"/>), or an oak's if nothing near is.
+        /// </summary>
+        protected int[] WoodOf()
+        {
+            BarkKind kind = BarkKind.Furrowed;
+            Vector3 colour = new Vector3(0.8f, 0.72f, 0.62f);
+            if (TimberTree() is PlantSpecies tree && tree.Form is TreeForm form)
+            {
+                kind = form.Bark.Kind;
+                colour = form.Bark.Colour;
+            }
+            return new[] { (int)kind, (int)MathF.Round(colour.X * 1000f), (int)MathF.Round(colour.Y * 1000f), (int)MathF.Round(colour.Z * 1000f) };
+        }
+
+        /// <summary>A piece's numbers followed by the wood's bark, for what's cut from the wood round the place.</summary>
+        protected static int[] With(int[] numbers, int[] wood) => numbers.Concat(wood).ToArray();
+
         // ---------------------------------------------------------------- People
 
         /// <summary>Whether someone could stand here: ground they can walk, and nothing solid within a body's reach.</summary>
@@ -226,6 +342,16 @@ namespace Dino_Engine.World.Generation.Places
                 }
             }
             B.Spawn(SpawnRole.Chest, wanted);
+        }
+
+        /// <summary>Tries something up to <paramref name="attempts"/> times, each drawing a place of its own, until it fits.</summary>
+        protected static bool Tries(int attempts, Func<bool> attempt)
+        {
+            for (int i = 0; i < attempts; i++)
+            {
+                if (attempt()) return true;
+            }
+            return false;
         }
 
         /// <summary>A pick by weight from a few things.</summary>

@@ -35,8 +35,10 @@ namespace Dino_Engine.World.Generation
                 if (site.Kind is SiteKind.Shrine or SiteKind.StandingStones) EndRoadsShortOf(world, site.Position, StructureCatalog.Altar.HalfExtents.X + AltarForecourt);
                 if (site.Kind == SiteKind.Waygate) EndRoadsShortOf(world, site.Position, StructureCatalog.Waygate.HalfExtents.Y + AltarForecourt);
                 if (site.Kind == SiteKind.Keep) EndRoadsShortOf(world, site.Position, site.Radius * KeepRoadEnd);
-                // A walled place with a story of its own (PLACES.md) is come into by its gate, which its builder puts where the road comes: the road stops there.
+                // A walled place with a story of its own (PLACES.md) is come into by its gate, which its builder puts where the road comes: the road stops there. A dig's road stops at
+                // its camp, short of the pit.
                 if (WalledStory(site.Kind)) EndRoadsShortOf(world, site.Position, site.Radius * 0.92f);
+                if (site.Kind == SiteKind.Excavation) EndRoadsShortOf(world, site.Position, site.Radius * 0.85f);
             }
             foreach (WorldRoad road in world.Roads) ReserveRoad(world, road);
 
@@ -62,10 +64,7 @@ namespace Dino_Engine.World.Generation
                         BuildFishingHamlet(builder);
                         Overrun(builder, SpawnRole.Raider, builder.Random.Int(3, 4));
                         break;
-                    case SiteKind.LumberCamp:
-                        BuildLumberCamp(builder);
-                        Overrun(builder, SpawnRole.Raider, builder.Random.Int(2, 3));
-                        break;
+                    case SiteKind.LumberCamp: Places.LoggingBuilder.Build(builder); break;
                     case SiteKind.Shrine: BuildShrine(builder); break;
                     case SiteKind.StandingStones: BuildStandingStones(builder); break;
                     case SiteKind.Watchtower: BuildWatchtower(builder); break;
@@ -79,6 +78,9 @@ namespace Dino_Engine.World.Generation
                     // Places with a story of their own, each laid out by a builder of its own (PLACES.md).
                     case SiteKind.Shipwreck: Places.WreckBuilder.Build(builder); break;
                     case SiteKind.Prison: Places.PrisonBuilder.Build(builder); break;
+                    case SiteKind.Laboratory: Places.LaboratoryBuilder.Build(builder); break;
+                    case SiteKind.Excavation: Places.ExcavationBuilder.Build(builder); break;
+                    case SiteKind.Nest: Places.NestBuilder.Build(builder); break;
                 }
             }
 
@@ -110,6 +112,7 @@ namespace Dino_Engine.World.Generation
             SiteKind.Arena => 1.3f,     // Bare ground all round, as an arena is a thing to be seen from far off.
             SiteKind.Ruins => 0.8f,
             SiteKind.Graveyard => 1.2f,     // Its wall's corners reach past its radius, and it plants its own trees inside it.
+            SiteKind.Nest => 0.72f,         // Deep in the woods, which close in round it.
             _ => 1.05f,
         };
 
@@ -916,21 +919,6 @@ namespace Dino_Engine.World.Generation
                     b.Place(StructureCatalog.Boat, boat, YawFacing(side) + b.Random.Range(-0.3f, 0.3f), padding: 0.4f, maxSlope: 0.5f);
                 }
             }
-        }
-
-        private static void BuildLumberCamp(SiteBuilder b)
-        {
-            b.Paint(GroundPaint.Yard, Footprint.Circle(b.Centre, b.Site.Radius * 0.45f), 12f);
-            Vector2 toRoad = b.Site.RoadDirection;
-            b.Place(StructureCatalog.Hut, b.Centre - toRoad * 8f, YawFacing(toRoad), padding: 0.8f);
-            b.Place(StructureCatalog.Campfire, b.Centre + toRoad * 3f, 0f);
-            b.Scatter(StructureCatalog.Cart, b.Centre, b.Site.Radius * 0.7f, attempts: 10);
-            for (int i = 0; i < 5; i++) b.Scatter(StructureCatalog.LogStack, b.Centre, b.Site.Radius * 0.85f);
-            b.Scatter(StructureCatalog.Woodpile, b.Centre, b.Site.Radius * 0.7f);
-            WorldRandom yard = b.Random.Fork("yard");
-            if (yard.Chance(0.55f)) b.Scatter(StructureCatalog.Barrow, b.Centre, b.Site.Radius * 0.6f, padding: 0.3f);
-            if (yard.Chance(0.35f)) b.Scatter(StructureCatalog.Sacks, b.Centre - toRoad * 4f, 6f, padding: 0.3f);
-            b.SpawnAround(SpawnRole.Villager, b.Centre, b.Site.Radius * 0.6f, 2);
         }
 
         private static void BuildShrine(SiteBuilder b)

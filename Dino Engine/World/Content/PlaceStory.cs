@@ -1,3 +1,5 @@
+using Dino_Engine.Modelling.Procedural.Flora;
+
 namespace Dino_Engine.World.Content
 {
     /// <summary>Who nests at a nesting ground (PLACES.md): what got out of the pens and found it could breed.</summary>
@@ -28,6 +30,37 @@ namespace Dino_Engine.World.Content
             ("dino:domehead.", 3, 1.1f, new OpenTK.Mathematics.Vector3(5f, 6.4f, 5f)),
             ("dino:strider.", 3, 1.1f, new OpenTK.Mathematics.Vector3(4.6f, 6.6f, 5.8f)),
         };
+
+        /// <summary>
+        /// Whether a plant is worth felling for timber: a tree with wood in it, and not a bamboo's canes, a palm's rings or anything green, which no logging camp would stand by.
+        /// </summary>
+        public static bool IsTimber(PlantSpecies plant) => plant.Kind == WorldAssetKind.Tree && plant.Form is TreeForm form && form.Bark.Kind is not (BarkKind.Cane or BarkKind.Stem or BarkKind.Ringed);
+
+        /// <summary>The share of a biome's canopy, by weight, that's worth felling, which is what a logging camp counts of its woods.</summary>
+        public static float TimberShare(BiomeDefinition biome)
+        {
+            float total = 0f, timber = 0f;
+            foreach (Species species in biome.Canopy)
+            {
+                total += species.Weight;
+                if (FloraCatalog.TryGet(species.Asset.Id, out PlantSpecies plant) && IsTimber(plant)) timber += species.Weight;
+            }
+            return total > 0f ? timber / total : 0f;
+        }
+
+        /// <summary>The tree worth felling that a biome's woods are mostly of, if they have one.</summary>
+        public static PlantSpecies? TimberOf(BiomeDefinition biome)
+        {
+            PlantSpecies? found = null;
+            float best = -1f;
+            foreach (Species species in biome.Canopy)
+            {
+                if (species.Weight <= best || !FloraCatalog.TryGet(species.Asset.Id, out PlantSpecies plant) || !IsTimber(plant)) continue;
+                best = species.Weight;
+                found = plant;
+            }
+            return found;
+        }
 
         /// <summary>Of wrecks, the share that are the Reich's iron ships rather than the land's own.</summary>
         public const float ReichWrecks = 0.68f;

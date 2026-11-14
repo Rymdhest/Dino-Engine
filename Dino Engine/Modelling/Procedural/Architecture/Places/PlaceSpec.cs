@@ -44,19 +44,21 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Places
         BoneCrates,     // Crates of bones packed in straw, stencilled with the Reich's mark.
         Spoil,          // A heap of what's been dug out: length.
         DrawingTable,   // A table under an awning where what's found is drawn and numbered.
+        Hoist,          // A tripod of poles over the pit, a chain and a jacketed bone coming up on it: height.
 
         // ---- A nesting ground (Nests.cs).
         NestMound,      // A nest heaped up of earth and torn branches, its eggs in it: kind (NestKind), eggs, radius.
         Carcass,        // What's been dragged back to feed the young: form (0 a great beast's ribcage, 1 a smaller one's), length.
         Shells,         // Shells of eggs that hatched, broken, scattered.
-        Web,            // A weaver's web strung between two points: width, height.
+        Web,            // A weaver's web strung between two points: width, height, form (0 an orb, 1 a sheet slung under one).
         EggSac,         // A weaver's egg sac hung from a branch: size.
         Cocoon,         // Something a weaver caught, wrapped up and hung: length.
+        Wrap,           // Silk wound round a trunk a web is anchored to: the trunk's radius, how high it's wound.
 
         // ---- A logging camp (Logging.cs). Its wood is the wood round it (bark, per NestKind-like choice below).
-        Stump,          // A tree's stump, its cut face pale and its bark the tree's: radius, bark (BarkKind), height.
-        Log,            // A felled trunk, limbed: length, radius, bark.
-        LogDeck,        // Logs decked at the landing, ends to the road: length, rows, bark.
+        Stump,          // A tree's stump, its cut face pale and its bark the tree's: radius, height, bark (BarkKind, then its colour, three per mille).
+        Log,            // A felled trunk, limbed: length, radius, bark (as a stump's).
+        LogDeck,        // Logs decked at the landing, ends to the road: length, rows, bark (as a stump's).
         Sawpit,         // A sawpit: a trunk on trestles over a pit, the long saw in it.
         PlankStack,     // Sawn boards stacked to season with sticks between: length.
         ToolRack,       // Axes, saws and wedges on a rack, and a grindstone beside it.

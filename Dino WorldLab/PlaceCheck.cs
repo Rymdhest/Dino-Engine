@@ -20,7 +20,27 @@ namespace Dino_WorldLab
         private const int MostLights = 40;
         private const float FarthestReach = 48f;
 
-        public static int Run(int first, int count, string? archetype, string? kind)
+        /// <summary>
+        /// What makes each place what it is, and how many of it there have to be: a wreck with no hull, a prison with no cages or a nesting ground with one nest in it says nothing, however
+        /// much else stands there. Any one of the pieces listed counts.
+        /// </summary>
+        private static readonly Dictionary<SiteKind, (PlacePiece[] Pieces, int Least)> Signatures = new()
+        {
+            [SiteKind.Shipwreck] = (new[] { PlacePiece.Hull }, 1),
+            [SiteKind.Prison] = (new[] { PlacePiece.Cage }, 3),
+            [SiteKind.Laboratory] = (new[] { PlacePiece.LabHall }, 1),
+            [SiteKind.Excavation] = (new[] { PlacePiece.Fossil }, 1),
+            [SiteKind.Nest] = (new[] { PlacePiece.NestMound, PlacePiece.Web, PlacePiece.Carcass }, 4),
+            [SiteKind.LumberCamp] = (new[] { PlacePiece.Stump }, 6),
+            [SiteKind.Quarry] = (new[] { PlacePiece.Face }, 1),
+            [SiteKind.FishingHamlet] = (new[] { PlacePiece.Jetty, PlacePiece.Boat }, 2),
+            [SiteKind.Ruins] = (new[] { PlacePiece.RuinWall, PlacePiece.RuinColumn, PlacePiece.RuinArch }, 4),
+            [SiteKind.Tradepost] = (new[] { PlacePiece.Scales, PlacePiece.Bales }, 2),
+            [SiteKind.Farm] = (new[] { PlacePiece.FeedRack, PlacePiece.HatchingShed }, 2),
+            [SiteKind.SnowCastle] = (new[] { PlacePiece.SnowWall, PlacePiece.SnowTower }, 4),
+        };
+
+        public static int Run(int first, int count, string? archetype, string? kind, bool pieces = false)
         {
             int problems = 0, places = 0;
             var byPiece = new SortedDictionary<string, (int Models, int Triangles, int Lights, long Ms, int Most)>();
@@ -36,6 +56,7 @@ namespace Dino_WorldLab
                     float reach = (site.Place?.Reach ?? site.Radius) + 12f;
                     Vector2 middle = site.Place?.Centre ?? site.Position;
                     var ids = new HashSet<string>();
+                    var counted = new SortedDictionary<PlacePiece, int>();
                     int placed = 0, placedLights = 0;
                     foreach (WorldObject item in world.Objects.All())
                     {
@@ -43,6 +64,7 @@ namespace Dino_WorldLab
                         if (!PlaceSpec.IsPlace(id) || (item.Position.Xz - middle).Length > reach) continue;
                         ids.Add(id);
                         placed++;
+                        if (PlaceSpec.TryParse(id, out PlaceSpec seen)) counted[seen.Kind] = counted.GetValueOrDefault(seen.Kind) + 1;
                     }
                     int triangles = 0;
                     var lightsOf = new Dictionary<string, int>();
@@ -85,6 +107,12 @@ namespace Dino_WorldLab
                     if (placedLights > MostLights) { Console.WriteLine($"PROBLEM: {site.Name} has {placedLights} lights"); problems++; }
                     if (hostiles > 0 && !site.Spawns.Any(s => s.Role == SpawnRole.Chest)) { Console.WriteLine($"PROBLEM: {site.Name} is held, but has no chest"); problems++; }
                     if (placed == 0) { Console.WriteLine($"PROBLEM: {site.Name} has nothing of its own in it"); problems++; }
+                    if (Signatures.TryGetValue(site.Kind, out var signature))
+                    {
+                        int has = signature.Pieces.Sum(p => counted.GetValueOrDefault(p));
+                        if (has < signature.Least) { Console.WriteLine($"PROBLEM: {site.Name} has {has} of {string.Join(" or ", signature.Pieces)}, and wants {signature.Least}"); problems++; }
+                    }
+                    if (pieces) Console.WriteLine("    " + string.Join(", ", counted.Select(c => $"{c.Value} {c.Key}")));
                 }
             }
             foreach ((string piece, var sum) in byPiece) Console.WriteLine($"{piece,-14} {sum.Models,4} models {sum.Triangles,9} triangles (most {sum.Most,6}) {sum.Lights,4} lights {sum.Ms,6} ms");
