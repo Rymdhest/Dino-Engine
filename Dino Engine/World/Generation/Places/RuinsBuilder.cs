@@ -62,14 +62,16 @@ namespace Dino_Engine.World.Generation.Places
                     float yaw = YawOf(new Vector2(along.Y, -along.X));
                     Footprint f = Footprint.Box(W(mid), new Vector2(each * 0.5f, 0.5f), yaw);
                     if (!Ground(f, 0.5f) || !Clear(f, PlacementLayer.Built | PlacementLayer.Road, 0.2f)) continue;
-                    // A doorway is walked through: its wall is solid either side of it only.
+                    // A doorway is walked through: its wall is solid either side of it only. Each stretch's solid stops short of its ends, so that it never touches the next one's,
+                    // or the one round a corner, with a gap between them nobody can get through.
+                    const float Short = 0.8f;
                     if (gap == 1)
                     {
-                        Vector2 wa = W(mid - along * (each * 0.5f)), wb = W(mid - along * 0.85f), wc = W(mid + along * 0.85f), wd = W(mid + along * (each * 0.5f));
+                        Vector2 wa = W(mid - along * (each * 0.5f - Short)), wb = W(mid - along * 0.85f), wc = W(mid + along * 0.85f), wd = W(mid + along * (each * 0.5f - Short));
                         World.Placement.Add(Footprint.Segment(wa, wb, 0.45f), PlacementLayer.Structure, solid: true, height: height);
                         World.Placement.Add(Footprint.Segment(wc, wd, 0.45f), PlacementLayer.Structure, solid: true, height: height);
                     }
-                    else World.Placement.Add(Footprint.Segment(W(mid - along * (each * 0.5f)), W(mid + along * (each * 0.5f)), 0.45f), PlacementLayer.Structure, solid: true, height: height);
+                    else World.Placement.Add(Footprint.Segment(W(mid - along * (each * 0.5f - Short)), W(mid + along * (each * 0.5f - Short)), 0.45f), PlacementLayer.Structure, solid: true, height: height);
                     World.Pending.Add(new PendingObject(new PlaceSpec(PlacePiece.RuinWall, NextSeed(), Stone(PlaceSpec.Cm(each + 0.02f), PlaceSpec.Cm(height), gap)).Id, W(mid), yaw, Vector3.One, null));
                 }
             }

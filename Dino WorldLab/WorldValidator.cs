@@ -1146,8 +1146,8 @@ namespace Dino_WorldLab
 
                 foreach (SiteSpawn spawn in site.Spawns)
                 {
-                    // Those watching from an arena's stands are where nobody can reach them, on purpose.
-                    if (spawn.Role == SpawnRole.Spectator) continue;
+                    // Those watching from an arena's stands are where nobody can reach them, on purpose, and so is what's caged or penned at a place with a story (PLACES.md).
+                    if (spawn.Role is SpawnRole.Spectator or SpawnRole.Captive) continue;
                     if (!AnyReachedNear(reached, size, spawn.Position, Cell, 3f))
                     {
                         Problem($"{spawn.Role} of {site.Definition.Label} {site.Name} at {spawn.Position} can't be reached on foot");

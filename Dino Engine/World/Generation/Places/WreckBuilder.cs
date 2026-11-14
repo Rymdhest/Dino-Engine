@@ -74,14 +74,15 @@ namespace Dino_Engine.World.Generation.Places
                 _break = W(breakLocal);
                 return;
             }
-            // A beach too crowded for her whole: her bow alone, where it fits.
-            for (int attempt = 0; attempt < 24; attempt++)
+            // A beach too crowded for her whole: her bow alone, where it fits, as far out into the shallows as it has to be.
+            for (int attempt = 0; attempt < 48; attempt++)
             {
                 WorldRandom a = r.Fork(100 + attempt);
                 float turn = a.Float() * MathF.Tau;
                 Vector2 way = new Vector2(MathF.Sin(turn), MathF.Cos(turn));
-                Vector2 local = new Vector2(a.Range(-10f, 10f), -_shore + a.Range(4f, 14f));
-                if (!TryHalf(0, W(local), YawOf(way), bowLength, 2f, a, dryRun: false)) continue;
+                float spread = attempt < 24 ? 1f : 1.6f;
+                Vector2 local = new Vector2(a.Range(-10f, 10f) * spread, -_shore + a.Range(attempt < 24 ? 4f : -6f, 14f * spread));
+                if (!TryHalf(0, W(local), YawOf(way), bowLength, attempt < 24 ? 2f : 2.6f, a, dryRun: false)) continue;
                 _break = W(local - way * bowLength * 0.5f);
                 return;
             }

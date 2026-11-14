@@ -179,7 +179,7 @@ Choices made without asking. Say if any are wrong.
 
 Not built:
 
-- **Caves, mines and wrecks.** The places a land asks to be freed are the kinds there already were.
+- **Caves and mines.** Since 2026-11-14 a land asks to be freed of places with a story of their own as well, wrecks among them (`PLACES.md`), but nothing goes underground.
 - **Anything unlocked by an arena but an orders slot.**
 - **Orders being crafted or changed.** They're found and given as they are.
 - **A count of time in a land**, for anyone who wants to race.

@@ -63,6 +63,8 @@ namespace Dino_Engine.World.Generation.Places
         {
             _width = Math.Clamp(Site.Radius * r.Range(0.85f, 1.1f), 22f, 38f);
             _faceZ = -Site.Radius * 0.32f;
+            // Narrower where a road passes close by, so that neither the face nor the rubble at its ends is ever on it.
+            for (int k = 0; k < 6 && !FaceClear(_width, 4f * 2.1f); k++) _width = MathF.Max(_width * 0.86f, 14f);
             _floorDepth = Site.Radius * 0.86f;
             Vector2 floorCentre = new Vector2(0f, _faceZ + _floorDepth * 0.5f);
             Vector2 floorHalf = new Vector2(_width * 0.5f + 3f, _floorDepth * 0.5f + 0.3f);
@@ -89,9 +91,16 @@ namespace Dino_Engine.World.Generation.Places
             // The face, solid to its full height over its benches, and its ends, where the rubble is tipped.
             var face = new PlaceSpec(PlacePiece.Face, NextSeed(), Stone(PlaceSpec.Cm(_width), PlaceSpec.Cm(_height), _benches, PlaceSpec.Cm(_ledge), PlaceSpec.Cm(over)));
             World.Placement.Add(Footprint.Box(W(new Vector2(0f, _faceZ - depth * 0.5f + 0.3f)), new Vector2(_width * 0.5f, depth * 0.5f + 0.3f), Plan.Yaw), PlacementLayer.Structure, solid: true, height: _height);
-            foreach (float s in new[] { -1f, 1f }) World.Placement.Add(Footprint.Box(W(new Vector2(s * (_width * 0.5f + 2.6f), _faceZ - depth * 0.5f + 0.8f)), new Vector2(3f, depth * 0.5f + 2.2f), Plan.Yaw), PlacementLayer.Structure, solid: true, height: _height * 0.6f);
+            foreach (float s in new[] { -1f, 1f }) World.Placement.Add(Footprint.Box(W(new Vector2(s * (_width * 0.5f + 3.15f), _faceZ - depth * 0.5f + 0.8f)), new Vector2(3f, depth * 0.5f + 2.2f), Plan.Yaw), PlacementLayer.Structure, solid: true, height: _height * 0.6f);
             World.Pending.Add(new PendingObject(face.Id, W(new Vector2(0f, _faceZ)), Plan.Yaw, Vector3.One, _floor));
             Plan.Marks.Add(new PlaceMark(PlaceMarkKind.Pit, W(floorCentre), Plan.Yaw, floorHalf));
+        }
+
+        // Whether a face this wide, its benches this deep at most, and the rubble at its ends keep clear of every road.
+        private bool FaceClear(float width, float depth)
+        {
+            Footprint face = Footprint.Box(W(new Vector2(0f, _faceZ - depth * 0.5f)), new Vector2(width * 0.5f + 6.2f, depth * 0.5f + 2.6f), Plan.Yaw);
+            return !World.Placement.Overlaps(face, PlacementLayer.Road, 0.6f);
         }
 
         // On the floor: the crane at the face's foot, what's been cut lying where it came down, the sledge, the split line, the bankers, the rubble along the sides.

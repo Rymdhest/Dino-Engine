@@ -84,8 +84,8 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Places
 
         public static VertexMaterial Bone(WorldRandom random, float shade = 1f) => new VertexMaterial(MaterialCatalog.Bone.Index, new Colour(new Vector3(0.6f, 0.55f, 0.45f) * shade * random.Range(0.88f, 1.05f)));
 
-        /// <summary>Old bone out of the rock, stained the rock's colour.</summary>
-        public static VertexMaterial Fossil(WorldRandom random, float shade = 1f) => new VertexMaterial(MaterialCatalog.Bone.Index, new Colour(Vector3.Lerp(new Vector3(0.52f, 0.42f, 0.3f), new Vector3(0.44f, 0.38f, 0.32f), random.Float()) * shade));
+        /// <summary>Old bone out of the rock, stained the rock's colour, and still paler than the dug earth it lies in, or a pit's floor swallows it from the camera.</summary>
+        public static VertexMaterial Fossil(WorldRandom random, float shade = 1f) => new VertexMaterial(MaterialCatalog.Bone.Index, new Colour(Vector3.Lerp(new Vector3(0.68f, 0.58f, 0.43f), new Vector3(0.6f, 0.55f, 0.47f), random.Float()) * shade));
 
         public static VertexMaterial Plaster(float shade = 1f) => new VertexMaterial(MaterialCatalog.Plaster.Index, new Colour(new Vector3(0.74f, 0.72f, 0.66f) * shade));
 

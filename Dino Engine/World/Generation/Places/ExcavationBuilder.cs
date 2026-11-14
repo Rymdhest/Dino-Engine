@@ -36,7 +36,7 @@ namespace Dino_Engine.World.Generation.Places
             Plan.Half = new Vector2(Site.Radius, Site.Radius * 0.85f);
             if (!Dig(Random.Fork("pit")))
             {
-                SmallDig(Random.Fork("small"));
+                SmallDig(form, length, Random.Fork("small"));
                 return;
             }
             Shore(Random.Fork("shoring"));
@@ -208,15 +208,48 @@ namespace Dino_Engine.World.Generation.Places
         }
 
         // Ground too broken for a pit of any size: the Ossuary has only begun, with a trench of its own (the dig every site of its has) and its camp beside it, and what it's raised so far.
-        private void SmallDig(WorldRandom r)
+        // Where the ground wouldn't take a pit, a dig only just begun: the beast coming out of a shallow scrape at the ground's own height, less of it freed, the grid over it and the camp
+        // round it as at any dig. Only if there's no room even for that does it fall back to a dig of the old kind.
+        private void SmallDig(FossilForm form, float length, WorldRandom r)
         {
+            _rampWay = Vector2.UnitY;
+            _camp = new Vector2(0f, 10f);
+            float yaw = YawOf(Vector2.UnitX);
+            for (float scale = 1f; scale >= 0.6f; scale -= 0.2f)
+            {
+                float l = MathF.Max(length * scale, 4f);
+                for (float reach = 0f; reach <= Site.Radius * 0.5f; reach += 3f)
+                {
+                    for (int k = 0; k < (reach <= 0f ? 1 : 10); k++)
+                    {
+                        Vector2 at = Site.Position + SiteBuilder.Direction(k * MathF.Tau / 10f + r.Range(-0.2f, 0.2f)) * reach;
+                        Footprint scrape = Footprint.Box(at, new Vector2(l * 0.5f + 1.5f, l * 0.3f + 1.5f), Plan.Yaw);
+                        if (!Ground(scrape, 0.25f) || !Clear(scrape, PlacementLayer.Built | PlacementLayer.Road | PlacementLayer.Tree, 0.6f)) continue;
+                        Plan.Centre = at;
+                        // The scrape is at the ground's own height, which is where the tripod stands (Works stands it a step under the ground round a pit).
+                        _top = AverageGround(scrape) + Step;
+                        _floorHalf = new Vector2(l * 0.5f + 1.5f, l * 0.3f + 1.5f);
+                        _outerHalf = _floorHalf + new Vector2(2f);
+                        _rampOut = new Vector2(0f, _floorHalf.Y + 2f);
+                        Keep(scrape);
+                        Paint(GroundPaint.Mud, scrape, 1.5f);
+                        Paint(GroundPaint.Yard, Footprint.Circle(at, MathF.Max(_floorHalf.X, _floorHalf.Y) + 6f), 4f);
+                        World.Placement.Add(Footprint.Box(at, new Vector2(l * 0.32f, l * 0.12f), Plan.Yaw), PlacementLayer.Prop, solid: true, height: 0.9f);
+                        World.Pending.Add(new PendingObject(new PlaceSpec(PlacePiece.Fossil, NextSeed(), (int)form, PlaceSpec.Cm(l), (int)MathF.Round(r.Range(0.3f, 0.55f) * 100f)).Id, at, yaw, Vector3.One, null));
+                        World.Pending.Add(new PendingObject(new PlaceSpec(PlacePiece.DigGrid, NextSeed(), PlaceSpec.Cm(MathF.Min(l * 0.42f, _floorHalf.X)), PlaceSpec.Cm(MathF.Min(l * 0.36f, _floorHalf.Y * 1.6f))).Id, at + Plan.Ax * (l * 0.2f), Plan.Yaw, Vector3.One, null));
+                        Plan.Marks.Add(new PlaceMark(PlaceMarkKind.Pit, at, Plan.Yaw, _floorHalf));
+                        Works(r.Fork("works"));
+                        Hold(r.Fork("holders"));
+                        return;
+                    }
+                }
+            }
             _floorHalf = new Vector2(4f, 3f);
             _outerHalf = _floorHalf + new Vector2(Bench);
-            _rampWay = Vector2.UnitY;
             _rampOut = new Vector2(0f, 4f);
-            _camp = new Vector2(0f, 10f);
             B.PlaceNear(StructureCatalog.Dig, Site.Position, Plan.Yaw + MathF.PI * 0.5f, Site.Radius * 0.6f, out Vector2 dig, padding: 0.6f);
             Plan.Centre = dig;
+            _top = World.Elevation.Sample(dig) + Step;
             Paint(GroundPaint.Yard, Footprint.Circle(dig, 9f), 4f);
             Works(r.Fork("works"));
             Hold(r.Fork("holders"));

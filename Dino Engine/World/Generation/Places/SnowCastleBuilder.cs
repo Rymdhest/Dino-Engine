@@ -46,8 +46,8 @@ namespace Dino_Engine.World.Generation.Places
                 if (side == 2)
                 {
                     float middle = length * 0.5f;
-                    spans.Add((TowerRoom, middle - gateHalf - 0.9f));
-                    spans.Add((middle + gateHalf + 0.9f, length - TowerRoom));
+                    spans.Add((TowerRoom, middle - gateHalf - 1.7f));
+                    spans.Add((middle + gateHalf + 1.7f, length - TowerRoom));
                 }
                 else spans.Add((TowerRoom, length - TowerRoom));
                 foreach ((float from, float to) in spans)
@@ -62,7 +62,8 @@ namespace Dino_Engine.World.Generation.Places
                         float high = wallHigh * r.Range(0.85f, 1.1f);
                         Footprint f = Footprint.Box(W(mid), new Vector2(each * 0.5f, 0.55f), yaw);
                         if (!Ground(f, 0.45f) || !Clear(f, PlacementLayer.Built | PlacementLayer.Road, 0.1f)) continue;
-                        World.Placement.Add(Footprint.Segment(W(mid - along * (each * 0.5f)), W(mid + along * (each * 0.5f)), 0.5f), PlacementLayer.Structure, solid: true, height: high);
+                        // Its solid stops short of its ends, so that the stretches beside it never touch it, with no gap anyone gets through.
+                        World.Placement.Add(Footprint.Segment(W(mid - along * (each * 0.5f - 0.6f)), W(mid + along * (each * 0.5f - 0.6f)), 0.5f), PlacementLayer.Structure, solid: true, height: high);
                         World.Pending.Add(new PendingObject(new PlaceSpec(PlacePiece.SnowWall, NextSeed(), PlaceSpec.Cm(each + 0.02f), PlaceSpec.Cm(high)).Id, W(mid), yaw, Vector3.One, null));
                     }
                 }

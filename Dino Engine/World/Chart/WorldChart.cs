@@ -85,6 +85,7 @@ namespace Dino_Engine.World.Chart
                 DrawRoads();
                 var glyphs = new List<ChartGlyph>();
                 AddBuildings(glyphs);
+                AddPlaceMarks(glyphs);
                 AddTrees(glyphs);
                 AddMountains(glyphs);
                 DrawGlyphs(glyphs);
@@ -473,6 +474,25 @@ namespace Dino_Engine.World.Chart
                 }
             }
 
+            // What marks each place with a story of its own (PLACES.md): its hull, its pit, its nests, its webs.
+            private void AddPlaceMarks(List<ChartGlyph> glyphs)
+            {
+                foreach (WorldSite site in _world.Sites)
+                {
+                    if (site.Place is not PlacePlan plan) continue;
+                    foreach (PlaceMark mark in plan.Marks)
+                    {
+                        Vector2 centre = Pixel(mark.At);
+                        if (centre.X < -40f || centre.Y < -40f || centre.X > _r + 40f || centre.Y > _r + 40f) continue;
+                        Vector2 ax = new Vector2(MathF.Cos(mark.Yaw), -MathF.Sin(mark.Yaw)), az = new Vector2(MathF.Sin(mark.Yaw), MathF.Cos(mark.Yaw));
+                        Vector2 px = Pixel(mark.At + ax * mark.Half.X) - centre, pz = Pixel(mark.At + az * mark.Half.Y) - centre;
+                        var glyph = new PlaceGlyph(mark.Kind, centre, px, pz, _ink);
+                        if (mark.Kind is PlaceMarkKind.Hull or PlaceMarkKind.Pit) MarkClear(glyph.Min, glyph.Max);
+                        glyphs.Add(glyph);
+                    }
+                }
+            }
+
             private (Vector3 wall, Vector3 roof, bool flat) LookOfBuilding(Vector2 at)
             {
                 WorldSite? nearest = null;
@@ -486,8 +506,11 @@ namespace Dino_Engine.World.Chart
                         nearest = site;
                     }
                 }
-                // The Reich's keeps are its own dark stone.
-                if (nearest is { Kind: SiteKind.Keep } && best < nearest.Radius * nearest.Radius * 2.5f) return (new Vector3(0.52f, 0.5f, 0.48f), new Vector3(0.3f, 0.29f, 0.3f), false);
+                // The Reich's keeps are its own dark stone, and so are what it built itself, its Institute and its prisons.
+                if (nearest is { Kind: SiteKind.Keep or SiteKind.Laboratory or SiteKind.Prison } && best < nearest.Radius * nearest.Radius * 2.5f) return (new Vector3(0.52f, 0.5f, 0.48f), new Vector3(0.3f, 0.29f, 0.3f), false);
+                // A snow castle is its snow, ruins and a quarry's face their pale stone, all flat on top.
+                if (nearest is { Kind: SiteKind.SnowCastle } && best < nearest.Radius * nearest.Radius * 1.5f) return (new Vector3(0.95f, 0.95f, 0.93f), new Vector3(0.88f, 0.9f, 0.93f), true);
+                if (nearest is { Kind: SiteKind.Ruins or SiteKind.Quarry } && best < nearest.Radius * nearest.Radius * 1.5f) return (new Vector3(0.76f, 0.74f, 0.68f), new Vector3(0.68f, 0.66f, 0.6f), true);
                 BuildingStyle style = nearest != null ? _world.StyleOf(nearest) : _world.Style;
                 return style switch
                 {

@@ -109,7 +109,7 @@ namespace Dino_Engine.World.Generation.Places
         /// walked round and stops nothing in the air), in <paramref name="layer"/>; <paramref name="floor"/>, if given, levels the ground under it to that height and stands it there.
         /// </summary>
         protected bool Put(PlaceSpec spec, Vector2 at, float yaw, in Footprint footprint, float height, PlacementLayer layer = PlacementLayer.Prop, float maxSlope = 0.45f,
-            float padding = 0.3f, PlacementLayer blockers = PlacementLayer.Built | PlacementLayer.Road, float? floor = null, bool solid = true, float wet = -1f, float scale = 1f)
+            float padding = 0.3f, PlacementLayer blockers = PlacementLayer.Built | PlacementLayer.Road | PlacementLayer.Tree, float? floor = null, bool solid = true, float wet = -1f, float scale = 1f)
         {
             if (!Ground(footprint, maxSlope, wet) || !Clear(footprint, blockers, padding)) return false;
             World.Placement.Add(footprint, layer, solid, height);
@@ -325,6 +325,23 @@ namespace Dino_Engine.World.Generation.Places
                 float a = random.Float() * MathF.Tau;
                 yield return centre + SiteBuilder.Direction(a) * (reach * MathF.Sqrt(random.Range(0.05f, 1f)));
             }
+        }
+
+        /// <summary>Someone a place can't do without, a trader or a keeper, wherever there's ground for them, nearest where they're wanted: false only if there's none within reach.</summary>
+        protected bool StandNear(SpawnRole role, Vector2 wanted, float reach)
+        {
+            for (float r = 0f; r <= reach; r += 1f)
+            {
+                int directions = r <= 0f ? 1 : Math.Max(8, (int)(r * 2f));
+                for (int i = 0; i < directions; i++)
+                {
+                    Vector2 at = wanted + SiteBuilder.Direction(i * MathF.Tau / directions) * r;
+                    if (!CanStand(at) || Site.Spawns.Any(s => (s.Position - at).Length < 2f)) continue;
+                    B.Spawn(role, at);
+                    return true;
+                }
+            }
+            return false;
         }
 
         /// <summary>Every place a land asks to be freed has a chest of what its holders took, so there has to be one, wherever there's ground for it, nearest where it's wanted.</summary>

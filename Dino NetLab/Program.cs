@@ -63,6 +63,8 @@ namespace Dino_NetLab
                     return VendorTests.Run(options);
                 case "crafting":
                     return CraftingTests.Run(options);
+                case "places":
+                    return PlaceTests.Run(options);
                 default:
                     Console.Error.WriteLine($"Unknown command '{command}'.");
                     return 2;

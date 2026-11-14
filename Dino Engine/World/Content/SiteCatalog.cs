@@ -423,7 +423,7 @@ namespace Dino_Engine.World.Content
             Fertility = -0.3f,
             Road = RoadClass.Track,
             Levelling = 0.35f,         // Its floor is levelled where it's cut (QuarryBuilder), and the hill behind it has to stay a hill.
-            StoryWeight = 1.1f,
+            StoryWeight = 0.85f,     // It wants little but a hillside, so it would turn up in most lands.
         };
 
         /// <summary>A castle of snow, in the snow and nowhere else.</summary>
@@ -486,7 +486,7 @@ namespace Dino_Engine.World.Content
             Road = RoadClass.Track,
             RoadChance = 0.85f,
             Levelling = 0.8f,
-            StoryWeight = 1f,
+            StoryWeight = 0.8f,      // It wants little but flat ground, so it would turn up in most lands.
         };
 
         /// <summary>The Amber Institute's outstation, deep in the land, on flat ground near water.</summary>

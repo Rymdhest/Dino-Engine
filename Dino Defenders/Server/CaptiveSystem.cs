@@ -60,7 +60,14 @@ namespace Dino_Defenders.Server
         protected override void UpdateFrame(ECSWorld world, float deltaTime)
         {
             ServerSession? session = _server.Session;
-            if (session == null || session.Paused) return;
+            if (session != null && !session.Paused) SwingDoors(world, session, deltaTime);
+            // And every captive, as the engine's own loop does: overriding this replaces it.
+            base.UpdateFrame(world, deltaTime);
+        }
+
+        // Every door and gate of a freed place swings open on its hinge.
+        private static void SwingDoors(ECSWorld world, ServerSession session, float deltaTime)
+        {
             foreach (var archetype in world.QueryArchetypes(DoorMask, BitMask.Empty))
             {
                 foreach (var entity in new ComponentAccessor(archetype))

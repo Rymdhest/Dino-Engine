@@ -90,7 +90,8 @@ namespace Dino_Engine.World.Generation.Places
             Vector2 inward = -Outward(_gateSide);
             Stand(SpawnRole.Raider, Around(Plan.Centre, Plan.Half.Length * 0.55f, r.Fork("yard"), 60), r.Int(4, 6), 4.5f, r.Fork("turncoats"));
             Stand(SpawnRole.Raider, Around(W(_gateLocal + inward * 4f), 5f, r.Fork("gate"), 20), 2, 3.5f, r.Fork("gatemen"));
-            Stand(SpawnRole.Trader, Around(W(_house - inward * 6.5f), 3f, r.Fork("trader"), 20), 1, 3f, r.Fork("trader stand"));
+            // Its trader, who has to have somewhere to stand, by the house.
+            StandNear(SpawnRole.Trader, W(_house - inward * 6.5f), Plan.Half.Length);
             Stand(SpawnRole.Returning, Around(Plan.Centre, Plan.Half.Length * 0.4f, r.Fork("porters"), 30), r.Int(1, 2), 4f, r.Fork("porter stand"));
             Chest(W(_house - inward * 5f + new Vector2(-inward.Y, inward.X) * 3f), Site.Radius * 0.4f);
         }
