@@ -140,8 +140,9 @@ def save_icon(badge, size, name):
 
 # ---------------------------------------------------------------- the wordmark
 
-def wordmark(cap, tagline=True, tracking=0.10):
-    """DINO DEFENDERS in tracked Palatino bold, gold, with a soft shadow, and the tagline under it."""
+def wordmark(cap, tagline=True, tracking=0.10, shadow=0.0):
+    """DINO DEFENDERS in tracked Palatino bold, gold, with a soft shadow, and the tagline under it.
+    shadow adds a tight dark edge as well (0..1), for type on a picture with no scrim under it."""
     em = cap / 0.69  # Palatino's capitals are about 0.69 em tall
     f = font("palab.ttf", em)
     pad = int(cap * 0.6)
@@ -189,9 +190,13 @@ def wordmark(cap, tagline=True, tracking=0.10):
             d.polygon([(px, mid - s), (px + s, mid), (px, mid + s), (px - s, mid)], fill=255)
 
     shadow_src = Image.fromarray(np.maximum(np.asarray(text), np.asarray(tag)))
-    shadow = shadow_src.filter(ImageFilter.GaussianBlur(cap * 0.14)).point(lambda v: min(255, int(v * 1.6)))
+    shadow_soft = shadow_src.filter(ImageFilter.GaussianBlur(cap * 0.14)).point(lambda v: min(255, int(v * 1.6)))
     out = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    out.paste((*SCRIM, 255), (0, int(cap * 0.04)), shadow.point(lambda v: int(v * 0.85)))
+    out.paste((*SCRIM, 255), (0, int(cap * 0.04)), shadow_soft.point(lambda v: int(v * 0.85)))
+    if shadow > 0:
+        edge = shadow_src.filter(ImageFilter.MaxFilter(3)).filter(ImageFilter.GaussianBlur(cap * 0.05))
+        edge = edge.point(lambda v: min(255, int(v * 2.5 * shadow)))
+        out.paste((*SCRIM, 255), (0, int(cap * 0.03)), edge)
     out.paste((*PARCHMENT, 255), (0, 0), tag)
     out.paste(gold, (0, 0), text)
     return out
@@ -268,15 +273,13 @@ def round_badge(badge, size):
 
 def reddit_wide(size, name, cap):
     """Reddit's own banner shape, about 8.4:1 (1072x128 desktop, 1080x128 app), at twice that.
-    The title on the left under the menu's scrim, the giants on the right. No badge: the community
-    icon is already there, over the bottom left corner (about the first 10% across and the lower 30%),
-    so the title starts past it and sits a little high."""
+    The title on the left, the giants on the right, and the picture left as the game drew it: the
+    title carries itself on a tight shadow of its own. No badge: the community icon is already there,
+    over the bottom left corner (about the first 10% across and the lower 30%), so the title starts
+    past it and sits a little high."""
     w, h = size
-    img = vista((820, 440, 2380), size)
-    img = shade(img, np.maximum(horizontal(size, w * 0.20, w * 0.52, 0.88),
-                                glow(size, (w * 0.27, h * 0.45), (w * 0.24, h * 0.8), 0.6)))
-    img = img.convert("RGBA")
-    mark = wordmark(cap)
+    img = vista((820, 440, 2380), size).convert("RGBA")
+    mark = wordmark(cap, shadow=1.0)
     left = int(w * 0.105) - int(cap * 0.6)  # the wordmark's own padding
     img.paste(mark, (left, int(h * 0.45 - mark.height / 2)), mark)
     img.convert("RGB").save(OUT / name, optimize=True)
