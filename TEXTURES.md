@@ -21,6 +21,12 @@ never disagree.
   `BuildingStyle.Nordic`): pale, as its paint, the red of the walls and the white of the trim, is in the vertices, and a trim board is textured across one
   board between its battens (`NORDIC.md`). They're on the end of the catalogue, so adding them moved no other material's layer. The ground's palette has
   at most `TerrainSurface.MaxMaterials`, and a material a world can't fit falls back to its cousin (`TerrainSurface`).
+- A material can give way to the one in the next layer, and only to that one (`MaterialSpec.GivesWay`, the table's `w` in `MaterialTable.glsl`). A mesh then runs
+  from the first to the second through its vertices, each with a layer between the two by how far it has given way (`FloraVertex.MaterialShare`, added to its
+  material on the way to the GPU), and `Model.frag`'s `givenWayLayer` reads one layer a pixel: the second wherever the first's height is lower than how far it
+  has given way, so the second fills the first's hollows before it covers its tops. It's chosen once, before the relief, so the relief, the look and the weather
+  all read the same layer. A pine's thick fissured bark gives way so to its thin flaking bark up the trunk (`BarkFissured`, `BarkFlaking`, added together on the
+  end of the catalogue; `FLORA.md`). Every other triangle has one material at all three corners, or its layer would pass through every material between.
 
 ## Making one: `Textures/Synthesis/`
 

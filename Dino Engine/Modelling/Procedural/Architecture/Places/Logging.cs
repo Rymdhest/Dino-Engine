@@ -17,7 +17,7 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Places
     internal static class Logging
     {
         /// <summary>The bark an id carries: its kind and its colour, per mille, at <paramref name="first"/> and the three after it.</summary>
-        private static VertexMaterial BarkOf(in PlaceSpec spec, int first) => Bark((BarkKind)Math.Clamp(spec.Int(first), 0, (int)BarkKind.Stem), new Vector3(spec.Int(first + 1), spec.Int(first + 2), spec.Int(first + 3)) / 1000f);
+        private static VertexMaterial BarkOf(in PlaceSpec spec, int first) => Bark((BarkKind)Math.Clamp(spec.Int(first), 0, (int)BarkKind.Flaking), new Vector3(spec.Int(first + 1), spec.Int(first + 2), spec.Int(first + 3)) / 1000f);
 
         // The wood inside, pale where it's freshly cut, darker at the heart.
         private static VertexMaterial Sap(WorldRandom random, float shade = 1f) => new VertexMaterial(MaterialCatalog.Wood.Index, new Colour(new Vector3(0.7f, 0.56f, 0.38f) * shade * random.Range(0.92f, 1.05f)));

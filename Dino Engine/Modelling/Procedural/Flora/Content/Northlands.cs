@@ -76,15 +76,15 @@ namespace Dino_Engine.Modelling.Procedural.Flora
                 },
             },
             Buds = new BudForm { Years = new IntRange(12, 14), Apical = new FloatRange(0.5f, 0.52f), Internode = 0.36f, MostNodes = 2400, Tropism = new FloatRange(0.03f, 0.06f), Hollow = 0.62f, ClumpSize = 3f, Gaps = 0.3f, MarkerDensity = 1.2f, Occupancy = 0.7f },
-            Bark = PlatedBark(V(0.44f, 0.4f, 0.37f), 0.35f),
-            Foliage = new FoliageForm { Card = Conifers.LongNeedles, CardSize = new FloatRange(2.6f, 3.5f), MostCards = 340, Spacing = 0.3f, Tilt = 0.3f, Fold = 0.2f, Droop = 0.1f, Cross = 0.14f, Colours = StonePine() },
+            Bark = new BarkForm { Kind = BarkKind.Fissured, Colour = V(0.48f, 0.45f, 0.42f), YoungColour = V(0.42f, 0.36f, 0.3f), Moss = 0.35f, Tile = 1.8f, Bumps = 0.06f },
+            Foliage = new FoliageForm { Card = Conifers.PineNeedles, CardSize = new FloatRange(2f, 2.8f), MostCards = 380, Spacing = 0.28f, Tilt = 0.3f, Fold = 0.14f, Droop = -0.03f, Cross = 0.14f, Colours = StonePine() },
         })
         { Footprint = 6f, SolidRadius = 0.9f, Variants = 6 };
 
         // --- Shrubs ---
 
         /// <summary>Mountain pine as the wind leaves it up high: a low dark tangle of needled limbs crawling over the rock.</summary>
-        public static readonly PlantSpecies MountainPine = new PlantSpecies("pine.mountain", WorldAssetKind.Shrub, Shrub(2.2f, 0.95f, Conifers.LongNeedles, StonePine(), PlatedBark(V(0.4f, 0.34f, 0.3f), 0.2f), cardSize: 1.5f, cards: 140, crown: CrownShape.Hemispherical))
+        public static readonly PlantSpecies MountainPine = new PlantSpecies("pine.mountain", WorldAssetKind.Shrub, Shrub(2.2f, 0.95f, Conifers.PineNeedles, StonePine(), PlatedBark(V(0.4f, 0.34f, 0.3f), 0.2f), cardSize: 1.3f, cards: 150, crown: CrownShape.Hemispherical))
         { Footprint = 2.2f, Scale = new FloatRange(0.8f, 1.35f) };
 
         /// <summary>Alpenrose: a low evergreen shrub that goes crimson with flowers along the edge of the snow.</summary>

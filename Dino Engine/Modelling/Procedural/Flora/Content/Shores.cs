@@ -97,8 +97,8 @@ namespace Dino_Engine.Modelling.Procedural.Flora
                 Years = new IntRange(12, 14), Apical = new FloatRange(0.49f, 0.51f), Internode = 0.4f, MostNodes = 2400,
                 Tropism = new FloatRange(0f, 0.02f), BranchAngle = new FloatRange(0.75f, 1f), Hollow = 0.75f, ClumpSize = 4f, Gaps = 0.42f, MarkerDensity = 1.1f, Occupancy = 0.7f,
             },
-            Bark = new BarkForm { Kind = BarkKind.Plated, Colour = V(0.44f, 0.36f, 0.3f), YoungColour = V(0.38f, 0.26f, 0.18f), Moss = 0.25f, Tile = 1.8f, Bumps = 0.08f },
-            Foliage = new FoliageForm { Card = Conifers.LongNeedles, CardSize = new FloatRange(2.7f, 3.6f), MostCards = 300, Spacing = 0.32f, Tilt = 0.2f, Fold = 0.2f, Droop = 0.08f, Cross = 0.1f, Colours = Needled() },
+            Bark = new BarkForm { Kind = BarkKind.Fissured, Colour = V(0.48f, 0.41f, 0.36f), YoungColour = V(0.42f, 0.3f, 0.2f), Moss = 0.25f, Tile = 1.8f, Bumps = 0.08f },
+            Foliage = new FoliageForm { Card = Conifers.LongNeedles, CardSize = new FloatRange(2.3f, 3.1f), MostCards = 340, Spacing = 0.3f, Tilt = 0.2f, Fold = 0.14f, Droop = -0.03f, Cross = 0.12f, Colours = Needled() },
         })
         { Footprint = 7f, SolidRadius = 0.9f, Variants = 6 };
 

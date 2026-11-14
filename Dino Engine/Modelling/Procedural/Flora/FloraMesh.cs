@@ -13,6 +13,13 @@ namespace Dino_Engine.Modelling.Procedural.Flora
         public Vector3 Colour;
         public Vector2 UV;
         public int Material;
+
+        /// <summary>
+        /// 0 to 1: how far its material has given way to the one in the next layer (<c>MaterialSpec.GivesWay</c>), as a pine's trunk runs from thick plates to thin flakes through its
+        /// vertices. It goes to the GPU added to <see cref="Material"/>, and Model.frag decides between the two layers pixel by pixel. 0 for everything else.
+        /// </summary>
+        public float MaterialShare;
+
         public int Joint;
 
         /// <summary>How much of the plant's growth stands here, 0 to 1: moss on bark (<see cref="FloraMesh.ShellStyle"/>, SHELLS.md).</summary>

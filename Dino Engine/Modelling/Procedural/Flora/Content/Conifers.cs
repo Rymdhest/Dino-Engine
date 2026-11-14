@@ -5,25 +5,30 @@ using OpenTK.Mathematics;
 namespace Dino_Engine.Modelling.Procedural.Flora
 {
     /// <summary>
-    /// Trees with needles. A conifer's architecture is rigid enough to be written down, so most are a scaffold alone: a straight axis, tiers of boughs, and shoots along them.
-    /// Pines are the exception, as an old one has lost its tiers and comes in flat pads that fight for the light like a broadleaf's crown.
+    /// Trees with needles. A conifer's architecture is rigid enough to be written down, so most are a scaffold alone: a straight axis, tiers of boughs, and shoots along them, and
+    /// a Scots pine of the northern woods is too, whorls up a leader and branches held out flat along every limb. The old pines of the south and the coast are the exception, as
+    /// one has lost its tiers and comes in flat pads that fight for the light like a broadleaf's crown. Every pine wears the same pads of needles (PineSpray), long or short.
     /// </summary>
     [FloraCollection]
     public static class Conifers
     {
         // --- Cards ---
 
-        public static readonly NeedleSpray LongNeedles = new NeedleSpray { Id = "needles.long", Needle = 0.17f, NeedleRadius = 0.0036f, NeedlesPerShoot = 230, Spread = 1.35f, Tufted = 0.92f, Shoots = new IntRange(9, 12), ShootLength = 0.46f, ShootAngle = 0.72f };
+        // A pine with long stiff needles, a black pine's or a stone pine's of the south: fewer, longer years to a twig, and needles swept further forward into longer brushes.
+        public static readonly PineSpray LongNeedles = new PineSpray { Id = "needles.long", Years = new IntRange(5, 6), Growth = 0.13f, Needle = 0.085f, NeedleAngle = 0.5f, Opening = 0.5f, Density = 330f, NeedleRadius = 0.0013f };
         public static readonly NeedleSpray ShortNeedles = new NeedleSpray { Id = "needles.short", Needle = 0.085f, NeedleRadius = 0.0034f, NeedlesPerShoot = 240, Spread = 1.1f, Tufted = 0.1f, Shoots = new IntRange(9, 12), ShootAngle = 0.72f, ShootLength = 0.5f };
+        public static readonly PineSpray PineNeedles = new PineSpray { Id = "needles.pine" };
         public static readonly ScaleSpray Plumes = new ScaleSpray { Id = "scales.plume", Depth = 3, Angle = 0.5f, Ratio = 0.52f, Branchlets = 8, Thickness = 0.0125f };
         public static readonly ScaleSpray RedwoodSprigs = new ScaleSpray { Id = "scales.redwood", Depth = 1, Angle = 0.78f, Ratio = 0.5f, Branchlets = 11, Thickness = 0.0052f, Barbs = 7, BarbLength = 0.05f };
 
         // --- What they're coloured. Conifers are the darkest thing in a forest, and bluer than it. ---
 
         private static Palette Evergreen() => new Palette { Shade = new Vector3(0.022f, 0.052f, 0.042f), Body = new Vector3(0.055f, 0.125f, 0.08f), Sun = new Vector3(0.13f, 0.22f, 0.095f), Drift = 0.1f, Patches = 0.08f };
-        private static Palette BlueGreen() => new Palette { Shade = new Vector3(0.022f, 0.05f, 0.055f), Body = new Vector3(0.05f, 0.115f, 0.11f), Sun = new Vector3(0.12f, 0.2f, 0.15f), Drift = 0.08f, Patches = 0.07f };
+        // A Scots pine's needles: grey-green with a bloom on them, deep in the crown nearly black, and an olive green where the sun's on them, never the teal of a spruce.
+        private static Palette ScotsGreen() => new Palette { Shade = new Vector3(0.02f, 0.042f, 0.03f), Body = new Vector3(0.054f, 0.102f, 0.064f), Sun = new Vector3(0.135f, 0.2f, 0.095f), Drift = 0.08f, Patches = 0.09f };
 
-        private static BarkForm PineBark(float moss = 0.25f) => new BarkForm { Kind = BarkKind.Plated, Colour = new Vector3(0.44f, 0.36f, 0.3f), YoungColour = new Vector3(0.38f, 0.26f, 0.18f), Moss = moss, Tile = 1.8f, Bumps = 0.07f };
+        // A black pine's bark: thick plates in deep fissures all the way up, nearly black, with no orange to it.
+        private static BarkForm PineBark(float moss = 0.25f) => new BarkForm { Kind = BarkKind.Fissured, Colour = new Vector3(0.42f, 0.38f, 0.35f), YoungColour = new Vector3(0.4f, 0.3f, 0.22f), Moss = moss, Tile = 1.8f, Bumps = 0.07f };
 
         // --- A shape shared by everything with tiers: a spire of boughs that sag and lift at their ends. ---
 
@@ -51,7 +56,7 @@ namespace Dino_Engine.Modelling.Procedural.Flora
         public static readonly PlantSpecies BlackPine = new PlantSpecies("pine.black", WorldAssetKind.Tree, BlackPineForm())
         { Footprint = 7f, SolidRadius = 0.9f, Variants = 6 };
 
-        private static TreeForm BlackPineForm(bool dead = false) => new TreeForm
+        private static TreeForm BlackPineForm() => new TreeForm
         {
             Height = new FloatRange(14f, 21f),
             Trunk = new TrunkForm
@@ -81,41 +86,75 @@ namespace Dino_Engine.Modelling.Procedural.Flora
                 Years = new IntRange(13, 15), Apical = new FloatRange(0.5f, 0.52f), Internode = 0.4f, MostNodes = 2800,
                 Tropism = new FloatRange(0.02f, 0.05f), BranchAngle = new FloatRange(0.7f, 0.95f), Hollow = 0.72f, ClumpSize = 4.4f, Gaps = 0.4f, MarkerDensity = 1.1f, Occupancy = 0.7f,
             },
-            Bark = PineBark(dead ? 0.1f : 0.3f),
-            Foliage = new FoliageForm { Card = LongNeedles, CardSize = new FloatRange(2.9f, 3.9f), MostCards = 340, Spacing = 0.32f, Tilt = 0.28f, Fold = 0.2f, Droop = 0.1f, Cross = 0.12f, Colours = Evergreen() },
-            Dead = dead ? new Decay() : null,
+            Bark = PineBark(0.3f),
+            Foliage = new FoliageForm { Card = LongNeedles, CardSize = new FloatRange(2.4f, 3.2f), MostCards = 380, Spacing = 0.3f, Tilt = 0.28f, Fold = 0.14f, Droop = -0.03f, Cross = 0.14f, Colours = Evergreen() },
         };
 
-        /// <summary>A Scots pine: tall and bare, orange high up, with a small flat crown at the top. What northern pinewoods are made of.</summary>
-        public static readonly PlantSpecies ScotsPine = new PlantSpecies("pine.scots", WorldAssetKind.Tree, new TreeForm
+        /// <summary>
+        /// A Scots pine as a wood grows it, and what northern pinewoods are made of: a tall clean bole, grey and plated at its foot and fox-orange higher up, with the dead spikes of the
+        /// limbs the shade took still on it, and above them a crown of whorled limbs that kink out and lift at their ends, carrying pads of blue-green needles out at their tips with
+        /// the sky between them. Its architecture is written down, as a conifer's can be: whorls a year's growth apart up a straight leader, and branches held out flat along each limb.
+        /// </summary>
+        public static readonly PlantSpecies ScotsPine = new PlantSpecies("pine.scots", WorldAssetKind.Tree, ScotsPineForm())
+        { Footprint = 5.5f, SolidRadius = 0.8f, Variants = 6, Scale = new FloatRange(0.8f, 1f) };
+
+        private static TreeForm ScotsPineForm(bool dead = false) => new TreeForm
         {
             Height = new FloatRange(20f, 27f),
             Trunk = new TrunkForm
             {
-                Reach = new FloatRange(0.88f, 0.96f),
-                Girth = new FloatRange(0.02f, 0.026f),
-                Lean = new FloatRange(0f, 0.05f),
-                Curve = new StemCurve { Wander = 0.03f, Waves = 2.5f },
-                Flare = new FloatRange(0.25f, 0.4f),
+                Reach = new FloatRange(0.95f, 0.99f),
+                Girth = new FloatRange(0.017f, 0.022f),
+                Lean = new FloatRange(0f, 0.04f),
+                Curve = new StemCurve { Wander = 0.025f, Waves = 3f },
+                Flare = new FloatRange(0.2f, 0.32f),
+                LobeDepth = new FloatRange(0.05f, 0.1f),
+                Step = 0.8f,
             },
-            Crown = CrownShape.Hemispherical,
-            CrownBase = new FloatRange(0.58f, 0.68f),
-            CrownRadius = new FloatRange(0.26f, 0.34f),
-            CrownBumps = 0.25f,
+            Crown = CrownShape.Ovoid,
+            CrownBase = new FloatRange(0.44f, 0.58f),
+            CrownRadius = new FloatRange(0.15f, 0.2f),
+            CrownBumps = 0.32f,
             Limbs = new[]
             {
+                // Whorls a year's growth apart, of which the shade has taken many. They leave level low in the crown and steeper higher up, kink as they go, and lift at their ends.
                 new LimbForm
                 {
-                    Count = new FloatRange(8f, 12f), From = 0.62f, To = 1f, Jitter = 0.9f,
-                    Angle = new Ramp(1.3f, 0.7f), AngleJitter = 0.16f,
-                    Length = new Ramp(0.24f, 0.34f), Wander = 0.1f, Waves = 2.2f, Rise = 0.05f, RiseFrom = 0.4f, FitRoom = 0.05f, StepLength = 0.6f,
+                    Spacing = 0.75f, Whorl = 4, Missing = 0.4f, From = 0.42f, To = 0.98f, Jitter = 0.3f, Divergence = 38f, DivergenceJitter = 0.4f,
+                    Angle = new Ramp(1.5f, 1.2f, 0.75f), AngleJitter = 0.15f,
+                    Length = new Ramp(0.12f, 0.3f), Wander = 0.16f, Waves = 2.6f,
+                    Sag = 0.05f, Rise = 0.18f, RiseFrom = 0.4f, FitRoom = 0.06f, Shortest = 0.6f, StepLength = 0.45f,
+                },
+                // Branches along the outer part of each limb, held out flat to either side, lifting at their tips.
+                new LimbForm
+                {
+                    Spacing = 0.42f, Whorl = 2, Missing = 0.15f, From = 0.25f, To = 1f, Jitter = 0.5f, Divergence = 75f, DivergenceJitter = 0.35f, Planar = 0.7f,
+                    Angle = new Ramp(1f, 0.7f), AngleJitter = 0.2f,
+                    Length = new Ramp(0.35f, 0.65f), Profile = new Ramp(1f, 0.5f), OfParent = true, Shrink = 0.7f, FitRoom = 0.1f, Shortest = 0.3f,
+                    Wander = 0.2f, Waves = 2f, Rise = 0.25f, RiseFrom = 0.25f, StepLength = 0.4f,
+                },
+                // And shoots off those towards their ends, each a pad of its own.
+                new LimbForm
+                {
+                    Spacing = 0.36f, Whorl = 2, Missing = 0.25f, From = 0.35f, To = 1f, Jitter = 0.6f, Divergence = 80f, DivergenceJitter = 0.4f, Planar = 0.5f,
+                    Angle = new Ramp(0.9f, 0.65f), AngleJitter = 0.25f,
+                    Length = new Ramp(0.45f, 0.8f), Profile = new Ramp(1f, 0.6f), OfParent = true, Shrink = 0.6f, FitRoom = 0.14f, Shortest = 0.2f,
+                    Wander = 0.25f, Waves = 1.5f, Rise = 0.3f, RiseFrom = 0.2f, StepLength = 0.35f,
                 },
             },
-            Buds = new BudForm { Years = new IntRange(12, 14), Internode = 0.38f, MostNodes = 2000, Hollow = 0.7f, ClumpSize = 3.4f, Gaps = 0.36f, MarkerDensity = 1.2f, Occupancy = 0.7f },
-            Bark = new BarkForm { Kind = BarkKind.Plated, Colour = new Vector3(0.48f, 0.4f, 0.36f), UpperColour = new Vector3(0.62f, 0.34f, 0.2f), UpperFrom = 0.42f, YoungColour = new Vector3(0.55f, 0.32f, 0.2f), Moss = 0.3f, Tile = 2.4f, Bumps = 0.05f },
-            Foliage = new FoliageForm { Card = LongNeedles, CardSize = new FloatRange(2.8f, 3.7f), MostCards = 280, Spacing = 0.3f, Tilt = 0.34f, Fold = 0.2f, Droop = 0.12f, Cross = 0.15f, Colours = BlueGreen() },
-        })
-        { Footprint = 5.5f, SolidRadius = 0.8f, Variants = 6, Scale = new FloatRange(0.8f, 1f) };
+            Stubs = new StubForm(),
+            TipRadius = 0.015f,
+            // Dead, there are no needles to carry the fine wood, so more of it is skinned: a snag is the skeleton of its crown, twigs and all.
+            WoodBudget = dead ? 260f : 125f,
+            MostAxes = dead ? 200 : 140,
+            // Dead, the bark keeps its two surfaces but greys, the orange of it faded to a dull rust, and the moss goes with the shade.
+            Bark = dead
+                ? new BarkForm { Kind = BarkKind.Fissured, Upper = BarkKind.Flaking, Colour = new Vector3(0.5f, 0.47f, 0.44f), UpperColour = new Vector3(0.6f, 0.47f, 0.37f), UpperFrom = 0.44f, YoungColour = new Vector3(0.54f, 0.46f, 0.4f), Moss = 0.06f, Tile = 1.6f, Bumps = 0.035f, Shaded = 0.5f }
+                : new BarkForm { Kind = BarkKind.Fissured, Upper = BarkKind.Flaking, Colour = new Vector3(0.5f, 0.44f, 0.4f), UpperColour = new Vector3(0.72f, 0.38f, 0.19f), UpperFrom = 0.44f, YoungColour = new Vector3(0.6f, 0.36f, 0.22f), Moss = 0.18f, Tile = 1.6f, Bumps = 0.035f, Shaded = 0.5f },
+            Foliage = new FoliageForm { Card = PineNeedles, CardSize = new FloatRange(2f, 2.7f), MostCards = 300, Spacing = 0.26f, Tilt = 0.32f, Fold = 0.12f, Droop = -0.05f, Cross = 0.16f, Shade = 0f, Colours = ScotsGreen() },
+            // Most stand at full height with their limbs snapped back; some have lost their tops.
+            Dead = dead ? new Decay { Broken = new FloatRange(0.72f, 1f), Stubs = new FloatRange(0.55f, 1f), Lost = 0.14f } : null,
+        };
 
         /// <summary>A spruce: a dark spire, skirts to the ground, boughs that hang and lift at their tips.</summary>
         public static readonly PlantSpecies Spruce = new PlantSpecies("spruce", WorldAssetKind.Tree, SpruceForm(Evergreen()))
@@ -178,8 +217,11 @@ namespace Dino_Engine.Modelling.Procedural.Flora
         })
         { Footprint = 8.5f, SolidRadius = 2.2f, Variants = 5, Scale = new FloatRange(0.84f, 0.96f) };
 
-        /// <summary>A dead pine. The world's sites stand these about by name.</summary>
-        public static readonly PlantSpecies DeadPine = new PlantSpecies("pine.dead", WorldAssetKind.Tree, BlackPineForm(dead: true))
+        /// <summary>
+        /// A dead pine: a Scots pine the beetles or a dry summer killed, standing grey among the living as pinewoods have them, its limbs snapped back to spikes and now and then its
+        /// top gone. The world's sites stand these about by name.
+        /// </summary>
+        public static readonly PlantSpecies DeadPine = new PlantSpecies("pine.dead", WorldAssetKind.Tree, ScotsPineForm(dead: true))
         { Footprint = 4f, SolidRadius = 0.8f, Variants = 5 };
     }
 }

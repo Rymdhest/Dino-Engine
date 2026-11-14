@@ -13,6 +13,7 @@ namespace Dino_Engine.Modelling.Procedural.Flora
         Flame,          // Widest high up, to a point.
         InverseCone,    // A vase: narrow at the bottom, widest at the top.
         Umbrella,       // Flat on top and spreading, as an acacia or an old pine.
+        Ovoid,          // An egg, widest a third of the way up and drawn in to a blunt top: a pine grown among others.
     }
 
     /// <summary>
@@ -56,6 +57,7 @@ namespace Dino_Engine.Modelling.Procedural.Flora
                 case CrownShape.Flame: return h <= 0.7f ? 0.1f + 0.9f * h / 0.7f : 0.1f + 0.9f * (1f - h) / 0.3f;
                 case CrownShape.InverseCone: return 0.2f + 0.8f * MathF.Pow(h, 0.7f) * (h > 0.85f ? (1f - h) / 0.15f * 0.6f + 0.4f : 1f);
                 case CrownShape.Umbrella: return 0.3f + 0.7f * MathF.Pow(h, 0.45f) * (h > 0.8f ? MathF.Sqrt(MathF.Max(1f - (h - 0.8f) / 0.2f, 0f)) * 0.75f + 0.25f : 1f);
+                case CrownShape.Ovoid: return h <= 0.35f ? 0.5f + 0.5f * MathF.Sin(MathF.PI * 0.5f * h / 0.35f) : 0.12f + 0.88f * MathF.Pow(MathF.Max(MathF.Cos(MathF.PI * 0.5f * (h - 0.35f) / 0.65f), 0f), 0.75f);
                 default: return 1f;
             }
         }

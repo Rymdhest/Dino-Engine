@@ -84,8 +84,8 @@ namespace Dino_Engine.Modelling.Procedural.Flora
                 },
             },
             Buds = new BudForm { Years = new IntRange(12, 14), Apical = new FloatRange(0.46f, 0.48f), Internode = 0.4f, MostNodes = 2800, Tropism = new FloatRange(0.02f, 0.04f), Hollow = 0.82f, ClumpSize = 3.6f, Gaps = 0.3f, MarkerDensity = 1.3f, Occupancy = 0.7f },
-            Bark = new BarkForm { Kind = BarkKind.Plated, Colour = V(0.5f, 0.38f, 0.3f), UpperColour = V(0.58f, 0.36f, 0.24f), UpperFrom = 0.45f, YoungColour = V(0.48f, 0.3f, 0.2f), Moss = 0.08f, Tile = 2.2f, Bumps = 0.05f },
-            Foliage = new FoliageForm { Card = Conifers.LongNeedles, CardSize = new FloatRange(3f, 4f), MostCards = 340, Spacing = 0.3f, Tilt = 0.24f, Fold = 0.2f, Droop = 0.08f, Cross = 0.1f, Colours = UmbrellaGreen() },
+            Bark = new BarkForm { Kind = BarkKind.Fissured, Colour = V(0.56f, 0.43f, 0.34f), UpperColour = V(0.62f, 0.4f, 0.27f), UpperFrom = 0.45f, YoungColour = V(0.5f, 0.32f, 0.21f), Moss = 0.08f, Tile = 2.2f, Bumps = 0.05f },
+            Foliage = new FoliageForm { Card = Conifers.LongNeedles, CardSize = new FloatRange(2.6f, 3.4f), MostCards = 360, Spacing = 0.3f, Tilt = 0.24f, Fold = 0.14f, Droop = -0.03f, Cross = 0.1f, Colours = UmbrellaGreen() },
         })
         { Footprint = 8.5f, SolidRadius = 0.9f, Variants = 6 };
 

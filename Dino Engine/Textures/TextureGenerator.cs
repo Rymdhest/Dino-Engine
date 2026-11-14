@@ -95,6 +95,8 @@ namespace Dino_Engine.Textures
         public static int barkBare = MaterialCatalog.BarkBare.Index;
         public static int barkCharred = MaterialCatalog.BarkCharred.Index;
         public static int pineBark = MaterialCatalog.PineBark.Index;
+        public static int barkFissured = MaterialCatalog.BarkFissured.Index;
+        public static int barkFlaking = MaterialCatalog.BarkFlaking.Index;
         public static int plate = MaterialCatalog.Plate.Index;
         public static int mail = MaterialCatalog.Mail.Index;
         public static int leather = MaterialCatalog.Leather.Index;
@@ -335,6 +337,8 @@ namespace Dino_Engine.Textures
             FloraMaterials.SetBark(BarkKind.Bare, barkBare);
             FloraMaterials.SetBark(BarkKind.Charred, barkCharred);
             FloraMaterials.SetBark(BarkKind.Stem, foliage_white);
+            FloraMaterials.SetBark(BarkKind.Fissured, barkFissured);
+            FloraMaterials.SetBark(BarkKind.Flaking, barkFlaking);
         }
 
         private void SetPorosity()

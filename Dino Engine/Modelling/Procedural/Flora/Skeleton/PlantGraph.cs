@@ -122,6 +122,7 @@ namespace Dino_Engine.Modelling.Procedural.Flora
         public bool Root;           // Goes down and out into the ground, not up into the light.
         public bool Cut;            // Ends in a flat face of bare wood, and not a point.
         public bool CutFoot;        // And starts in one.
+        public bool Bare;           // Dead, with its bark gone: carried stiffly by what it's on, and nothing grows on it (StubForm).
 
         // Filled in by the rig.
         public int FirstLink = -1;

@@ -62,7 +62,7 @@ public class glLoader
             normals[i * 3] = vertex.Normal.X; normals[i * 3 + 1] = vertex.Normal.Y; normals[i * 3 + 2] = vertex.Normal.Z;
             tangents[i * 3] = vertex.Tangent.X; tangents[i * 3 + 1] = vertex.Tangent.Y; tangents[i * 3 + 2] = vertex.Tangent.Z;
             uvs[i * 2] = vertex.UV.X; uvs[i * 2 + 1] = vertex.UV.Y;
-            materials[i] = vertex.Material;
+            materials[i] = vertex.Material + vertex.MaterialShare;
             joints[i] = vertex.Joint;
             if (shells != null)
             {

@@ -62,6 +62,29 @@ namespace Dino_Engine.Modelling.Procedural.Flora
         public float RiseFrom = 0.3f;
         public float Sag;                                   // Radians a metre towards the ground, up to RiseFrom.
         public float StepLength = 0.8f;
+
+        /// <summary>
+        /// 0 to 1: how much a level off a limb keeps to the level of the limb it leaves, out to either side rather than up or down, as a pine holds the branches of a bough out flat
+        /// to the light. Nothing for what leaves an upright stem, which has no sides to keep to.
+        /// </summary>
+        public float Planar;
+    }
+
+    /// <summary>
+    /// The dead lower limbs a tree grown among others keeps for years after the shade killed them: grey spikes along the bole under its crown, the longest where they died last, just
+    /// under it, and the lowest snapped to stubs. They're bare wood, carried stiffly by the trunk, and nothing grows on them.
+    /// </summary>
+    public sealed class StubForm
+    {
+        public FloatRange Count = new FloatRange(10f, 16f);
+        public float From = 0.15f;                          // Up the bole, as a share of the height of the crown's foot.
+        public float To = 1f;
+        public FloatRange Length = new FloatRange(0.35f, 2f);   // Metres, from the lowest to those just under the crown.
+        public float Broken = 0.4f;                         // The chance of one having snapped off short anyway.
+        public float Radius = 0.03f;                        // Metres where it leaves the trunk, for the longest.
+        public Ramp Angle = new Ramp(1.85f, 1.5f);          // Radians off upright: the lowest hang furthest.
+        public float Wander = 0.25f;                        // Radians it kinks by.
+        public Vector3 Colour = new Vector3(0.5f, 0.47f, 0.44f);   // Silvered, as dead wood goes.
     }
 
     /// <summary>Palubicki's parameters, as ranges.</summary>
@@ -110,6 +133,7 @@ namespace Dino_Engine.Modelling.Procedural.Flora
         public IntRange RootCount = new IntRange(5, 7);
         public LimbForm[] Limbs = Array.Empty<LimbForm>();
         public BudForm? Buds;
+        public StubForm? Stubs;             // Dead lower limbs along the bole, for a tree grown in a wood.
 
         // The crown, as shares of the tree's height.
         public CrownShape Crown = CrownShape.Spherical;
@@ -164,6 +188,7 @@ namespace Dino_Engine.Modelling.Procedural.Flora
             if (axes.Count == 0) return;
             Limit(axes);
             if (Dead != null) Dead.Apply(graph, axes, genes.Part("decay"));
+            if (Stubs != null) AddStubs(axes, genes.Part("stubs"), envelope.Bottom);
 
             // Roots come out of the ridges of the foot, or the two would look like something stuck on.
             int rootCount = Roots != null ? genes.Count("root count", RootCount.Min, RootCount.Max) : genes.Count("lobes", Trunk.Lobes.Min, Trunk.Lobes.Max);
@@ -314,6 +339,68 @@ namespace Dino_Engine.Modelling.Procedural.Flora
                 if (axis.Parent == null || kept.Contains(axis.Parent)) kept.Add(axis);
             }
             axes.RemoveAll(axis => !kept.Contains(axis));
+        }
+
+        // Dead limbs up the bole under the crown. They're added once everything living is settled, from a stream of their own, so they move nothing else about the tree.
+        private void AddStubs(List<PlantAxis> axes, Genes genes, float crownFoot)
+        {
+            PlantAxis? trunk = axes.Find(axis => axis.Parent == null && !axis.Root);
+            if (trunk == null || trunk.Points.Count < 2) return;
+            StubForm form = Stubs!;
+            WorldRandom random = genes.Stream("stubs");
+            int count = (int)MathF.Round(random.Range(form.Count));
+            float low = crownFoot * form.From, high = crownFoot * form.To;
+
+            for (int i = 0; i < count; i++)
+            {
+                // Spread up the bole, crowding towards the crown, where they died last and have had the least time to fall.
+                float t = MathF.Pow((i + random.Float()) / count, 0.75f);
+                float y = MathHelper.Lerp(low, high, t);
+                int point = -1;
+                for (int p = 0; p + 1 < trunk.Points.Count; p++)
+                {
+                    if (trunk.Points[p].Y <= y && trunk.Points[p + 1].Y > y)
+                    {
+                        point = p;
+                        break;
+                    }
+                }
+                float around = random.Float() * MathF.Tau;
+                float angle = form.Angle.At(t) + random.Range(-0.15f, 0.15f);
+                float length = MathHelper.Lerp(form.Length.Min, form.Length.Max, t) * random.Range(0.7f, 1.15f);
+                bool broken = random.Float() < form.Broken;
+                if (broken) length *= random.Range(0.15f, 0.45f);
+                float thickness = random.Range(0.8f, 1.15f);
+                Vector3 kink = new Vector3(random.Range(-1f, 1f), random.Range(-1f, 1f), random.Range(-1f, 1f));
+                if (point < 0) continue;
+
+                Vector3 below = trunk.Points[point], above = trunk.Points[point + 1];
+                float share = (y - below.Y) / MathF.Max(above.Y - below.Y, 1e-4f);
+                Vector3 at = Vector3.Lerp(below, above, share);
+                float trunkHere = MathHelper.Lerp(trunk.Radii[point], trunk.Radii[point + 1], share);
+                Vector3 direction = Scaffold.Away((above - below).Normalized(), Vector3.UnitX, around, angle);
+                float radius = MathF.Min(form.Radius * MathHelper.Lerp(0.55f, 1f, t) * thickness, trunkHere * 0.3f);
+                float light = trunk.Lights.Count > point ? trunk.Lights[point] : 1f;
+
+                // From the heart of the trunk, out past its bark by its own length, kinking once on the way as dead wood does.
+                var stub = new PlantAxis { Parent = trunk, ParentPoint = point, Order = 1, Bare = true, Cut = broken };
+                stub.Points.Add(at);
+                stub.Radii.Add(radius);
+                stub.Nodes.Add(-1);
+                stub.Lights.Add(light);
+                Vector3 bend = (direction + kink * form.Wander).Normalized();
+                Vector3 middle = at + direction * (trunkHere + length * 0.45f);
+                Vector3 end = middle + bend * (length * 0.55f);
+                stub.Points.Add(middle);
+                stub.Radii.Add(radius * 0.75f);
+                stub.Nodes.Add(-1);
+                stub.Lights.Add(light);
+                stub.Points.Add(end);
+                stub.Radii.Add(radius * (broken ? 0.6f : 0.3f));
+                stub.Nodes.Add(-1);
+                stub.Lights.Add(light);
+                axes.Add(stub);
+            }
         }
 
         private void AddRoots(List<PlantAxis> axes, PlantAxis trunk, Genes genes, float height, float trunkRadius, int count, float facing)

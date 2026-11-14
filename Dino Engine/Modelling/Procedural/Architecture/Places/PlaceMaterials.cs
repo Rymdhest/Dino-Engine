@@ -162,6 +162,8 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Places
             BarkKind.Ringed => MaterialCatalog.BarkRinged.Index,
             BarkKind.Bare => MaterialCatalog.BarkBare.Index,
             BarkKind.Charred => MaterialCatalog.BarkCharred.Index,
+            BarkKind.Fissured => MaterialCatalog.BarkFissured.Index,
+            BarkKind.Flaking => MaterialCatalog.BarkFlaking.Index,
             _ => MaterialCatalog.BarkFurrowed.Index,
         };
 

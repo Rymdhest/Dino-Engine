@@ -24,6 +24,7 @@ namespace Dino_Engine.Rendering
                 data[spec.Index * 4] = spec.ReliefRatio;
                 data[spec.Index * 4 + 1] = spec.TileMetres;
                 data[spec.Index * 4 + 2] = (float)spec.Scatter;
+                data[spec.Index * 4 + 3] = spec.GivesWay ? 1f : 0f;
             }
             if (_buffer == 0) _buffer = GL.GenBuffer();
             GL.BindBuffer(BufferTarget.UniformBuffer, _buffer);

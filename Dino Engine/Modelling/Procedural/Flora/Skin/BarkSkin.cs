@@ -16,6 +16,8 @@ namespace Dino_Engine.Modelling.Procedural.Flora
         Bare,       // Silvered wood with no bark left.
         Charred,    // Burnt to scales.
         Stem,       // Green and soft: anything that isn't wood.
+        Fissured,   // Thick plates in deep fissures, flaking in layers: the foot of an old pine. Gives way to Flaking (BarkForm.Upper).
+        Flaking,    // Thin papery flakes, peeling: a pine's upper trunk and its limbs.
     }
 
     public sealed class BarkForm
@@ -25,6 +27,13 @@ namespace Dino_Engine.Modelling.Procedural.Flora
         public Vector3 YoungColour = new Vector3(0.62f, 0.52f, 0.42f);  // What it comes to on thin branches.
         public Vector3? UpperColour;                                    // What it turns to up the trunk, as a Scots pine goes orange.
         public float UpperFrom = 0.5f;
+
+        /// <summary>
+        /// The bark it gives way to up the trunk, by <see cref="UpperFrom"/> of the tree's height, and on every limb, as a pine's thick plates give way to thin flaking bark: the plates
+        /// stand as islands in it, higher up one side than the other, before the last of them goes. Its material has to be the next layer after this one's, which only
+        /// <see cref="BarkKind.Fissured"/> to <see cref="BarkKind.Flaking"/> is (MaterialCatalog.GivesWay). Null for a bark that's one surface all over.
+        /// </summary>
+        public BarkKind? Upper;
         public float Tile = 2.4f;           // Metres the texture covers.
         public float Bumps = 0.09f;         // How lumpy a stem is, as a share of its radius.
         public bool RoundTips;              // Stems end in a dome and not a point.
@@ -34,6 +43,12 @@ namespace Dino_Engine.Modelling.Procedural.Flora
         public float Moss;                  // 0 to 1, how much of it is under moss.
         public Vector3 MossColour = new Vector3(0.2f, 0.3f, 0.07f);
         public int MostSides = 16;
+
+        /// <summary>
+        /// 0 to 1: how much the shade wood stands in inside a crown darkens it. All of it for a broadleaf's, which is dark inside; less for a pine's open crown, where a trunk's orange
+        /// shows between the pads all the way up.
+        /// </summary>
+        public float Shaded = 1f;
     }
 
     /// <summary>
@@ -64,15 +79,19 @@ namespace Dino_Engine.Modelling.Procedural.Flora
             float flareHeight = form.Trunk.FlareHeight * height;
             float tint = genes.Range("tint", 0.88f, 1.12f);
             Vector3 mossAway = Vector3.Normalize(new Vector3(genes.Range("moss x", -1f, 1f), 0.45f, genes.Range("moss z", -1f, 1f)));
+            // What's died back to bare wood is silvered and has nothing on it.
+            Vector3 dead = form.Stubs?.Colour ?? bark.Colour;
+            var deadWood = new BarkForm { Kind = BarkKind.Bare, Colour = dead, YoungColour = dead * 0.92f, Tile = 1.2f, Bumps = 0.05f, MostSides = 4 };
 
             foreach (PlantAxis axis in axes)
             {
                 bool trunk = axis.Order == 0 && !axis.Root;
                 var style = new SkinStyle
                 {
-                    Bark = bark,
+                    Bark = axis.Bare ? deadWood : bark,
                     Seed = seed + (uint)axis.Points.Count * 7919u,
                     Trunk = trunk,
+                    Root = axis.Root,
                     Lobes = trunk ? lobes : 0,
                     LobeDepth = lobeDepth,
                     LobeFacing = lobeFacing,
@@ -92,6 +111,7 @@ namespace Dino_Engine.Modelling.Procedural.Flora
             public BarkForm Bark;
             public uint Seed;
             public bool Trunk;
+            public bool Root;
             public int Lobes;
             public float LobeDepth;
             public float LobeFacing;    // Which way in the world the first ridge looks, in radians.
@@ -125,6 +145,15 @@ namespace Dino_Engine.Modelling.Procedural.Flora
             if (style.Bark.RoundTips) Dome(rings);
 
             int material = FloraMaterials.Bark(style.Bark.Kind);
+            // A bark that gives way to another runs into it through its vertices, if its material is the one before the other's, as only such a pair can be (MaterialCatalog.GivesWay).
+            // Otherwise what gives way wholly takes the other bark whole, a limb, say, and a trunk keeps its own: never a triangle between two materials that aren't neighbours.
+            bool runs = false;
+            if (style.Bark.Upper is BarkKind upper)
+            {
+                int upperMaterial = FloraMaterials.Bark(upper);
+                runs = upperMaterial == material + 1;
+                if (!runs && GivenWay(rings[0].Centre, style) >= 1f) material = upperMaterial;
+            }
             float aroundTiles = MathF.Max(MathF.Round(MathF.Tau * rings[0].Radius / style.Bark.Tile), 1f);
             // The moss painted into the bark also stands on it as shells (SHELLS.md), as much as was painted.
             if (style.Bark.Moss > 0f) mesh.ShellStyle = Rendering.Shells.ShellStyles.BarkMoss;
@@ -143,14 +172,16 @@ namespace Dino_Engine.Modelling.Procedural.Flora
                 {
                     // A stem comes to a point, and that point needs no ring: one vertex closes it.
                     Vector3 tip = ring.Centre + ring.Along * ring.Radius;
+                    float tipGiven = GivenWay(tip, style);
                     mesh.Add(new FloraVertex
                     {
                         Position = tip,
                         Normal = ring.Along,
                         Tangent = ring.Side,
-                        Colour = ColourAt(tip, ring.Along, ring.Radius, ring.Share, ring.Light, style, out float tipMoss),
+                        Colour = ColourAt(tip, ring.Along, ring.Radius, ring.Share, ring.Light, tipGiven, style, out float tipMoss),
                         UV = new Vector2(aroundTiles * 0.5f, ring.Travelled / style.Bark.Tile),
                         Material = material,
+                        MaterialShare = runs ? tipGiven : 0f,
                         Joint = joint,
                         Shell = tipMoss,
                     });
@@ -162,14 +193,16 @@ namespace Dino_Engine.Modelling.Procedural.Flora
                 {
                     float angle = i * (MathF.Tau / sides);
                     Vector3 at = Surface(ring, other, angle, style, out Vector3 normal, out Vector3 tangent);
+                    float given = GivenWay(at, style);
                     mesh.Add(new FloraVertex
                     {
                         Position = at,
                         Normal = normal,
                         Tangent = tangent,
-                        Colour = ColourAt(at, normal, ring.Radius, ring.Share, ring.Light, style, out float moss),
+                        Colour = ColourAt(at, normal, ring.Radius, ring.Share, ring.Light, given, style, out float moss),
                         UV = new Vector2(aroundTiles * i / sides, ring.Travelled / style.Bark.Tile),
                         Material = material,
+                        MaterialShare = runs ? given : 0f,
                         Joint = joint,
                         Shell = moss,
                     });
@@ -201,6 +234,7 @@ namespace Dino_Engine.Modelling.Procedural.Flora
                 rim.Colour = heart;
                 rim.UV = new Vector2(i / (float)sides, 0f);
                 rim.Material = material;
+                rim.MaterialShare = 0f;
                 rim.Shell = 0f;
                 mesh.Add(rim);
             }
@@ -302,13 +336,19 @@ namespace Dino_Engine.Modelling.Procedural.Flora
         }
 
         // `moss` is how much of the bark here is under moss, for the shells, which stand only on wood thick enough for a cushion to sit on: a twig is most of a tree's triangles, each bent through its joints for every layer, and moss on it is less than a pixel.
-        private static Vector3 ColourAt(Vector3 at, Vector3 normal, float radius, float share, float light, in SkinStyle style, out float moss)
+        // `given` is how far a bark that gives way to another has done so here (GivenWay).
+        private static Vector3 ColourAt(Vector3 at, Vector3 normal, float radius, float share, float light, float given, in SkinStyle style, out float moss)
         {
             BarkForm bark = style.Bark;
             moss = 0f;
             float young = 1f - MathF.Min(radius / MathF.Max(style.ThickRadius * 0.28f, 0.05f), 1f);
             Vector3 colour = Vector3.Lerp(bark.Colour, bark.YoungColour, young * young);
-            if (bark.UpperColour is Vector3 upper)
+            if (bark.Upper != null)
+            {
+                // Its colour goes with its surface, the grey of the plates to the fox-orange of what's above them, so the two change together; thin wood is its own colour.
+                colour = Vector3.Lerp(Vector3.Lerp(bark.Colour, bark.UpperColour ?? bark.Colour, given), bark.YoungColour, young * young);
+            }
+            else if (bark.UpperColour is Vector3 upper)
             {
                 float climbed = at.Y / MathF.Max(style.TreeHeight, 1f);
                 colour = Vector3.Lerp(colour, upper, Smooth(bark.UpperFrom - 0.12f, bark.UpperFrom + 0.12f, climbed));
@@ -336,7 +376,18 @@ namespace Dino_Engine.Modelling.Procedural.Flora
                 float from = at.Y / bark.NodeSpacing;
                 colour *= 1f - 0.55f * Smooth(0.05f, 0f, MathF.Abs(from - MathF.Round(from)));
             }
-            return colour * light;
+            return colour * (bark.Shaded == 1f ? light : MathHelper.Lerp(1f, light, bark.Shaded));
+        }
+
+        // How far a bark that gives way to another (BarkForm.Upper) has done so here, 0 to 1. Up a trunk by how far up it is, the plates reaching higher up one side than the other in
+        // tongues, as an old pine's do; a limb is wholly the upper bark, as a pine's are thin bark all over; a root is the foot's.
+        private static float GivenWay(Vector3 at, in SkinStyle style)
+        {
+            if (style.Bark.Upper == null || style.Root) return 0f;
+            if (!style.Trunk) return 1f;
+            float climbed = at.Y / MathF.Max(style.TreeHeight, 1f);
+            float ragged = (FloraNoise.Fbm(new Vector3(at.X * 1.4f, at.Y * 0.22f, at.Z * 1.4f), style.Seed + 11u, 3) - 0.5f) * 0.45f;
+            return Smooth(style.Bark.UpperFrom - 0.07f, style.Bark.UpperFrom + 0.09f, climbed + ragged);
         }
 
         private static float Smooth(float from, float to, float value)

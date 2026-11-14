@@ -25,19 +25,27 @@ namespace Dino_Engine.Textures
         /// <summary>Its layer in the material arrays.</summary>
         public int Index { get; internal set; } = -1;
 
+        /// <summary>
+        /// It gives way to the material in the next layer: a mesh can run from one to the other through its vertices, each with a layer between the two by how far it's given way
+        /// (<c>FloraVertex.MaterialShare</c>), and the next shows first where this one's relief is lowest, as a pine's thin flaking bark shows between its thick plates before they
+        /// go (Model.frag's <c>givenWayLayer</c>). The next material is what it gives way to, so the two are always added together.
+        /// </summary>
+        public bool GivesWay { get; }
+
         /// <summary>Relief over tile width: the slope a height of 1 over a whole tile would have. What the normals are made with and what the parallax marches to.</summary>
         public float ReliefRatio => ReliefMetres / TileMetres;
 
         /// <summary>Texture repeats per metre for a mesh that wants it at its natural size.</summary>
         public float TilesPerMetre => 1f / TileMetres;
 
-        internal MaterialSpec(string name, float tileMetres, float reliefMetres, float porosity, SubsurfaceKind scatter)
+        internal MaterialSpec(string name, float tileMetres, float reliefMetres, float porosity, SubsurfaceKind scatter, bool givesWay = false)
         {
             Name = name;
             TileMetres = tileMetres;
             ReliefMetres = reliefMetres;
             Porosity = porosity;
             Scatter = scatter;
+            GivesWay = givesWay;
         }
     }
 
@@ -158,6 +166,12 @@ namespace Dino_Engine.Textures
         // Snow packed into blocks and smoothed with a spade, the blocks' joints soft and the spade's strokes across them, as a castle of snow is built: it scatters light as snow does.
         public static readonly MaterialSpec PackedSnow = Add("snow-packed", 3f, 0.05f, 0f, SubsurfaceKind.Frost);
 
+        // A pine's bark as a pine wears it (FLORA.md): thick plates in deep fissures at its foot, which give way up the trunk to thin papery flakes, the bark of its upper trunk
+        // and its limbs. The first gives way to the second (GivesWay), so they're added together, one after the other. Pale, as their colour, a Scots pine's grey below and fox-orange
+        // above, is in the vertices. Last, so that adding them moved no other material's layer.
+        public static readonly MaterialSpec BarkFissured = Add("bark-fissured", 2f, 0.08f, 0.7f, givesWay: true);
+        public static readonly MaterialSpec BarkFlaking = Add("bark-flaking", 2f, 0.014f, 0.6f);
+
         public static IReadOnlyList<MaterialSpec> All => _all;
 
         public static int Count => _all.Count;
@@ -168,9 +182,9 @@ namespace Dino_Engine.Textures
         /// <summary>Texture repeats per metre for the material in a layer, or 1 for anything that isn't a tiling material.</summary>
         public static float TilesPerMetre(int index) => Of(index)?.TilesPerMetre ?? 1f;
 
-        private static MaterialSpec Add(string name, float tileMetres, float reliefMetres, float porosity, SubsurfaceKind scatter = SubsurfaceKind.Sheet)
+        private static MaterialSpec Add(string name, float tileMetres, float reliefMetres, float porosity, SubsurfaceKind scatter = SubsurfaceKind.Sheet, bool givesWay = false)
         {
-            var spec = new MaterialSpec(name, tileMetres, reliefMetres, porosity, scatter) { Index = _all.Count };
+            var spec = new MaterialSpec(name, tileMetres, reliefMetres, porosity, scatter, givesWay) { Index = _all.Count };
             _all.Add(spec);
             return spec;
         }

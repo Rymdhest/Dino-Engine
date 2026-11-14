@@ -110,6 +110,8 @@ namespace Dino_Engine.Modelling.Procedural.Flora
                 {
                     if (random.Float() < form.Missing) continue;
                     float around = azimuth + member * (MathF.Tau / perGroup) + random.Range(-1f, 1f) * form.DivergenceJitter;
+                    // Kept to the level of the limb: what would have stood up or hung down is turned out towards whichever side it's nearer.
+                    if (form.Planar > 0f) around = MathF.Atan2(MathF.Sin(around) * (1f - form.Planar), MathF.Cos(around));
                     float angle = form.Angle.Lerp(t) + random.Range(-1f, 1f) * form.AngleJitter;
                     Vector3 direction = Away(axis, Vector3.UnitY, around, angle);
 

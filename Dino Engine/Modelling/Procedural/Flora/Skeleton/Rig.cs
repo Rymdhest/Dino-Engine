@@ -28,7 +28,7 @@ namespace Dino_Engine.Modelling.Procedural.Flora
 
                 int parentLink = axis.Parent != null ? CarrierAt(axis.Parent, ShareAt(axis.Parent, axis.ParentPoint)) : -1;
                 int links = axis.Order < LinksByOrder.Length ? LinksByOrder[axis.Order] : 0;
-                if (axis.Root || axis.Length < ShortestLink * links) links = 0;
+                if (axis.Root || axis.Bare || axis.Length < ShortestLink * links) links = 0;
 
                 if (links == 0 && parentLink >= 0)
                 {

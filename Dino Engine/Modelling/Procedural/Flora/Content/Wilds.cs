@@ -216,7 +216,7 @@ namespace Dino_Engine.Modelling.Procedural.Flora
 
         private static BarkForm Mossy(BarkKind kind, Vector3 colour, float moss = 0.55f) => new BarkForm { Kind = kind, Colour = colour, YoungColour = colour * 0.8f, Moss = moss, Tile = 2.2f };
 
-        public static readonly PlantSpecies PineLog = Log("log.pine", Mossy(BarkKind.Plated, V(0.5f, 0.42f, 0.36f)), 0.62f, 9f);
+        public static readonly PlantSpecies PineLog = Log("log.pine", Mossy(BarkKind.Fissured, V(0.52f, 0.46f, 0.41f)), 0.62f, 9f);
         public static readonly PlantSpecies OakLog = Log("log.oak", Mossy(BarkKind.Furrowed, V(0.5f, 0.44f, 0.36f)), 0.74f, 8f);
         public static readonly PlantSpecies BirchLog = Log("log.birch", Mossy(BarkKind.Papery, V(0.66f, 0.66f, 0.62f), 0.5f), 0.36f, 7.5f);
         public static readonly PlantSpecies RedwoodLog = Log("log.redwood", Mossy(BarkKind.Fibrous, V(0.8f, 0.46f, 0.3f), 0.6f), 1.5f, 15f);
@@ -224,7 +224,7 @@ namespace Dino_Engine.Modelling.Procedural.Flora
         public static readonly PlantSpecies BlackLog = Log("log.black", BlackBark(), 0.6f, 8.5f);
         public static readonly PlantSpecies CharredLog = Log("log.charred", Burnt(), 0.55f, 7.5f, fungi: false);
 
-        public static readonly PlantSpecies PineStump = Stump("stump.pine", Mossy(BarkKind.Plated, V(0.5f, 0.42f, 0.36f), 0.45f), 0.66f);
+        public static readonly PlantSpecies PineStump = Stump("stump.pine", Mossy(BarkKind.Fissured, V(0.52f, 0.46f, 0.41f), 0.45f), 0.66f);
         public static readonly PlantSpecies OakStump = Stump("stump.oak", Mossy(BarkKind.Furrowed, V(0.5f, 0.44f, 0.36f), 0.45f), 0.8f);
         public static readonly PlantSpecies RedwoodStump = Stump("stump.redwood", Mossy(BarkKind.Fibrous, V(0.8f, 0.46f, 0.3f), 0.5f), 1.9f);
         public static readonly PlantSpecies SilverStump = Stump("stump.silver", SilverWood(0f), 0.55f, fungi: false);

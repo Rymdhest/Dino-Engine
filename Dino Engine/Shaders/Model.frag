@@ -62,6 +62,19 @@ layout (location = 2) out vec4 gMaterials;
 const float HIT_SHINE = 7.0;
 const float MATERIAL_SIZE = 1024.0;     // Texels across a material as the arrays keep it (TextureGenerator.MaterialLevelsDropped), for the mip a relief reads.
 
+// Which layer a pixel reads. A material that gives way to the next one up (MaterialCatalog.GivesWay) is drawn with its vertices' layers between the two, by how far each has
+// given way (FloraVertex.MaterialShare), and the next shows first where this one's relief is lowest: a pine's thin flaking bark comes in between its thick plates, which stand as
+// islands in it until the last of them goes. Everything else is a whole layer, and reads that. Chosen once, so the relief, the look and the weather all read the same layer.
+float givenWayLayer(float index, vec2 uv, vec2 uvDx, vec2 uvDy)
+{
+	float base = floor(index);
+	float share = index - base;
+	int layer = int(base);
+	if (share < 0.002 || share > 0.998 || layer < 0 || layer + 1 >= numberOfMaterials || materialInfo[layer].w < 0.5) return floor(index + 0.5);
+	float height = textureGrad(materialMapTextureArray, vec3(uv, base), uvDx, uvDy).a;
+	return height > share * 1.3 - 0.15 ? base : base + 1.0;
+}
+
 void main() {
 
 	vec3 worldPosition = (invViewMatrix * vec4(viewSpacePos, 1.0)).xyz;
@@ -74,6 +87,7 @@ void main() {
 	SurfaceFrame frame = surfaceFrame(viewSpacePos, facing, fragUV);
 	vec3 positionDX = mat3(invViewMatrix) * frame.positionDx;
 	vec3 positionDY = mat3(invViewMatrix) * frame.positionDy;
+	float layer = givenWayLayer(textureIndex, fragUV, frame.uvDx, frame.uvDy);
 
 	// Only what's big enough to hide the player opens for them (FocusOccluder.glsl). Characters keep whole, and so does
 	// wildlife, as a bird flying over the hero is never in the way.
@@ -101,7 +115,7 @@ void main() {
 	// A stone is the rock of the mountains: the same layers at the same heights, whatever its own shape. It's read from where it is and not from its texture
 	// coordinates (Rock.glsl), so there's no relief of the material's to follow, and a march through one would shade it with shadows of a surface not drawn.
 #ifndef CHARACTER
-	bool stone = isRock(textureIndex);
+	bool stone = isRock(layer);
 #else
 	const bool stone = false;
 #endif
@@ -114,19 +128,19 @@ void main() {
 	float sunThrough = 1.0;
 	if (!card && !stone && !cap && reliefScale > 0.0)
 	{
-		float ratio = materialReliefRatio(textureIndex, numberOfMaterials);
+		float ratio = materialReliefRatio(layer, numberOfMaterials);
 		if (ratio > 0.0)
 		{
 			surfaceShape(frame);
 			float lod = reliefLod(frame, MATERIAL_SIZE);
 			float edge = min(min(fragEdges.x, fragEdges.y), min(fragEdges.z, fragEdges.w));
-			relief = reliefMarch(frame, fragUV, normalize(-viewSpacePos), textureIndex, ratio * frame.tileMetres * reliefScale, edge, lod);
-			sunThrough = reliefShadow(frame, relief, normalize(mat3(viewMatrix) * sunDirectionWorld.xyz), textureIndex, lod);
+			relief = reliefMarch(frame, fragUV, normalize(-viewSpacePos), layer, ratio * frame.tileMetres * reliefScale, edge, lod);
+			sunThrough = reliefShadow(frame, relief, normalize(mat3(viewMatrix) * sunDirectionWorld.xyz), layer, lod);
 		}
 	}
 
 	// Filtered by the footprint of the surface itself: the relief's coordinates jump where one thing hides another, and their own derivatives would pick the wrong mip.
-	MaterialProps material = LookupAllMaterialPropsGrad(relief.uv, textureIndex, frame.uvDx, frame.uvDy);
+	MaterialProps material = LookupAllMaterialPropsGrad(relief.uv, layer, frame.uvDx, frame.uvDy);
 #ifndef CHARACTER
 	RockLook rock;
 	if (stone) {
@@ -150,7 +164,7 @@ void main() {
 
     // What light does under the surface (SUBSURFACE.md): a card is leaves, a canopy; a material says what it is. A thin thing's amount is what gets through it, less
     // what its thickness takes; flesh's and frost's is how far light goes in them.
-    int scatterKind = card ? SSS_CANOPY : max(materialSubsurfaceKind(textureIndex, numberOfMaterials), SSS_SHEET);
+    int scatterKind = card ? SSS_CANOPY : max(materialSubsurfaceKind(layer, numberOfMaterials), SSS_SHEET);
     float scatter = scatterKind >= SSS_FLESH ? material.subSurface : transmittance(material.subSurface, material.height);
     float snowed = 0.0;
     gNormal.a = material.ambient;
@@ -168,7 +182,7 @@ void main() {
 		vec3 geometryNormal = normalize(viewToWorld * (card ? smoothNormal : facing));
 		vec3 worldNormal = viewToWorld * normal;
 		vec3 albedo = gAlbedo.rgb;
-		snowed = weatherWetten(worldPosition, geometryNormal, weatherPorosity(textureIndex, numberOfMaterials), material.metalic, 0.0, material.height, albedo, roughness, worldNormal);
+		snowed = weatherWetten(worldPosition, geometryNormal, weatherPorosity(layer, numberOfMaterials), material.metalic, 0.0, material.height, albedo, roughness, worldNormal);
 		gAlbedo.rgb = albedo;
 		normal = mat3(viewMatrix) * worldNormal;
 	}

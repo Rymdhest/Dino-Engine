@@ -113,6 +113,58 @@ namespace Dino_Engine.Textures
             return new Surface(colour, Field.Lerp(0.95f, 0.62f, block), height);
         }
 
+        // The foot of an old pine: thick plates in deep fissures. The fissures run up the trunk, many across and wide, braiding where a noise stretched up it crosses its middle,
+        // and short shallower breaks across the ridges between cut them into plates several times taller than they're wide: built so and not from cells, which read as crazy
+        // paving. A plate stands a little proud of or behind its neighbour and its face is terraced where scales came away. Its face is a weathered grey, and what's deep, a
+        // fissure's walls and a scale's fresh scar, is warmer, a pine's red-brown: the tree's own colour is in its vertices. It gives way to BarkFlaking up the trunk
+        // (MaterialCatalog.GivesWay), which shows first where this is lowest, in the fissures.
+        private static Surface BarkFissured(Canvas c)
+        {
+            Field lay = c.Noise(new Vector2(14f, 2f), octaves: 3, gain: 0.5f, warp: 0.05f);
+            Field fissure = ((lay - 0.5f).Abs() - 0.025f).Profile(0.12f, Rise.Smooth);
+            // Breaks across a ridge, here and there and short: soft steps that only matter on the plates, never as deep as a fissure.
+            Field rows = c.Noise(new Vector2(3f, 7f), octaves: 2, warp: 0.06f);
+            Field breaks = ((rows - 0.5f).Abs() - 0.006f).Profile(0.06f, Rise.Smooth);
+            Field where = c.Noise(new Vector2(9f, 5f), octaves: 2).Threshold(0.6f, 0.1f);
+            Field ridge = fissure * Field.Lerp(1f, Field.Lerp(0.6f, 1f, breaks), where);
+            Field shelf = c.Noise(new Vector2(5f, 3f), octaves: 2);
+            Field scales = c.Noise(new Vector2(16f, 8f), octaves: 3, warp: 0.08f).Quantize(3f);
+            Field face = 0.72f + (shelf - 0.5f) * 0.2f + (scales - 0.5f) * 0.14f + (c.Noise(new Vector2(60f, 30f), octaves: 3) - 0.5f) * 0.05f;
+            Field plateHeight = ridge * face;
+            Paint top = Paint.Lerp(Rgb(190, 184, 176), Rgb(160, 154, 147), c.Noise(new Vector2(8f, 4f), octaves: 4));
+            // Where the most scales have come away, the deepest terrace, the bark is fresh and warm. A fissure's walls are darker and warmer still, as what's read from far off is
+            // furrows running up the trunk, and the plates between them.
+            Paint faceColour = Paint.Lerp(top, Rgb(172, 128, 100), (1f - scales.Smooth(0.15f, 0.45f)) * 0.45f);
+            Surface plate = new Surface(Paint.Lerp(faceColour, Rgb(118, 90, 72), 1f - fissure.Smooth(0.2f, 0.8f)), 0.9f, plateHeight);
+            Field bottom = 0.05f + c.Noise(new Vector2(40f, 4f), octaves: 3, kind: NoiseKind.Ridged) * 0.08f;
+            Surface furrow = new Surface(Paint.Lerp(Rgb(44, 35, 29), Rgb(72, 56, 46), c.Noise(30f, octaves: 3)), 0.95f, bottom);
+            return furrow.Stack(plate, 0.025f);
+        }
+
+        // A pine's upper trunk and its limbs: thin bark peeling in papery flakes. The bark under them is smooth and finely striated round the trunk, as it splits round as it grows.
+        // The flakes lie across it, overlapping, flat with their edges lifting as they curl away, a hairline of dark where each stands off what it lies on. It's shallow, a sixth
+        // of the plates' depth, as the bark is thin.
+        private static Surface BarkFlaking(Canvas c)
+        {
+            Field striae = c.Noise(new Vector2(4f, 48f), octaves: 3);
+            Field undulation = (c.Noise(new Vector2(3f, 5f), octaves: 4) - 0.5f) * 0.14f;
+            Field under = 0.5f + undulation + (striae - 0.5f) * 0.06f;
+            // Torn, not cut: every flake's outline wanders, by the same warp for all it says, so they agree.
+            Offsets torn = c.Offsets(16f, octaves: 3);
+            Stones flakes = c.Scatter(new Vector2(6f, 11f), count: 3, radius: 0.5f, radiusJitter: 0.55f, elongation: 2.4f, heightJitter: 0.35f, flatness: 0.9f, turn: 0f, turnJitter: 0.35f);
+            Field cover = flakes.Cover.Warp(torn, 0.018f);
+            Field lift = flakes.Out.Warp(torn, 0.018f).Smooth(0.7f, 0.98f) * cover;
+            Field flakeHeight = 0.72f + (flakes.Id.Warp(torn, 0.018f) - 0.5f) * 0.12f + lift * 0.14f + undulation;
+            Field height = Field.Lerp(under, flakeHeight, cover);
+            // The fresh bark under the flakes is the palest of it; old flakes are greyer, each its own shade, so the trunk is mottled from far off and not one flat colour.
+            Paint underColour = Paint.Lerp(Rgb(238, 226, 212), Rgb(214, 202, 190), striae);
+            Paint flakeColour = Paint.Lerp(Rgb(192, 183, 174), Rgb(150, 141, 133), flakes.Id2.Warp(torn, 0.018f)) * Field.Lerp(0.92f, 1.05f, c.Noise(new Vector2(18f, 10f), octaves: 3));
+            Paint colour = Paint.Lerp(underColour, flakeColour, cover);
+            Field rim = (cover * (1f - cover) * 4f).Clamp();
+            colour = Paint.Lerp(colour, Rgb(72, 60, 52), rim * 0.75f);
+            return new Surface(colour, Field.Lerp(0.72f, 0.84f, cover), height);
+        }
+
         // The bark of a pine log, for what's built of one: thick plates in dark furrows, reddish where flakes have come away and grey where they've weathered.
         private static Surface PineBark(Canvas c)
         {

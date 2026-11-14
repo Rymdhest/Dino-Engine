@@ -81,6 +81,8 @@ namespace Dino_Engine.Textures
             if (spec == MaterialCatalog.CutStone) return CutStone(c);
             if (spec == MaterialCatalog.Netting) return Netting(c);
             if (spec == MaterialCatalog.PackedSnow) return PackedSnow(c);
+            if (spec == MaterialCatalog.BarkFissured) return BarkFissured(c);
+            if (spec == MaterialCatalog.BarkFlaking) return BarkFlaking(c);
 
             throw new InvalidOperationException($"No recipe for {spec.Name}.");
         }
