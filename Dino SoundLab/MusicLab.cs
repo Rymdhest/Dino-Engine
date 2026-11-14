@@ -151,7 +151,7 @@ namespace Dino_SoundLab
                 (Section.Guitar, 45, "Guitar.A2"), (Section.Guitar, 64, "Guitar.E4"), (Section.Dulcimer, 69, "Dulcimer.A4"), (Section.Pad, 60, "Pad.C4"), (Section.SoloCello, 50, "SoloCello.D3"),
                 (Section.EnglishHorn, 65, "EnglishHorn.F4"), (Section.Bassoon, 46, "Bassoon.Bb2"), (Section.AltoFlute, 67, "AltoFlute.G4"), (Section.BassFlute, 60, "BassFlute.C4"), (Section.Ocarina, 76, "Ocarina.E5"),
                 (Section.Tuba, 38, "Tuba.D2"), (Section.BassClarinet, 45, "BassClarinet.A2"), (Section.MutedViolins, 74, "MutedViolins.D5"), (Section.MutedCellos, 48, "MutedCellos.C3"), (Section.Voices, 60, "Voices.C4"),
-                (Section.HandDrum, 48, "HandDrum"), (Section.RimDrum, 60, "RimDrum"), (Section.Shaker, 60, "Shaker"),
+                (Section.HandDrum, 48, "HandDrum"), (Section.RimDrum, 60, "RimDrum"), (Section.Shaker, 60, "Shaker"), (Section.Crash, 60, "Crash"),
             };
             foreach ((Section section, int pitch, string name) in tests)
             {

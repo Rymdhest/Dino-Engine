@@ -249,7 +249,7 @@ namespace Dino_SoundLab
             return (clashes, 1);
         }
 
-        private static bool IsDrum(Section section) => section is Section.Timpani or Section.BigDrum or Section.FrameDrum or Section.Tambourine or Section.Cymbal or Section.HandDrum or Section.RimDrum or Section.Shaker;
+        private static bool IsDrum(Section section) => section is Section.Timpani or Section.BigDrum or Section.FrameDrum or Section.Tambourine or Section.Cymbal or Section.HandDrum or Section.RimDrum or Section.Shaker or Section.Crash;
 
         // ---- Instruments. ----
 
@@ -850,13 +850,22 @@ namespace Dino_SoundLab
                 float Ending(string movement) => Level(End(movement) - 5.0, End(movement));
 
                 float prelude = Whole("Prelude"), rising = Whole("Rising"), theme = Ending("Theme"), away = Opening("Away"), awayEnd = Ending("Away"), back = Whole("Return");
+                float drop = Opening("Return"), crest = Whole("Crest"), glory = Whole("Glory");
                 float fade = Level(starts["rest"] + 10.0, starts["rest"] + 13.0);
-                Console.WriteLine($"  {name}: {setting.Tempo:0} bpm, key {MusicLab.NoteName(setting.Tonic)}. Prelude {prelude - back:0.0}, rising {rising - back:0.0}, theme's height {theme - back:0.0}, away {away - back:0.0} building to {awayEnd - back:0.0}, return 0, ten seconds into the fade {fade - back:0.0} dB. {Seconds("rest"):0} s long.");
+                double height = starts["rest"] - Seconds("Return");
+                Console.WriteLine($"  {name}: {setting.Tempo:0} bpm, key {MusicLab.NoteName(setting.Tonic)}. Prelude {prelude - back:0.0}, rising {rising - back:0.0}, theme's height {theme - back:0.0}, away {away - back:0.0} building to {awayEnd - back:0.0}, the drop {drop - back:0.0}, return 0, crest {crest - back:0.0}, glory {glory - back:0.0}, ten seconds into the fade {fade - back:0.0} dB. At its height {height:0} s, {Seconds("rest"):0} s long.");
                 Expect(back - prelude > 14f, $"{name}: the prelude is only {back - prelude:0.0} dB under the return, where the recording's is twenty or more");
                 Expect(rising > prelude + 1.5f && theme > rising + 3f, $"{name} doesn't build: prelude {prelude:0.0}, rising {rising:0.0}, theme {theme:0.0} dB");
                 Expect(away < theme - 2f && awayEnd > away + 2f, $"{name}: the dominant doesn't drop and build back ({away - theme:0.0} dB on arriving, {awayEnd - away:0.0} dB on)");
                 Expect(back >= theme - 1f && back >= awayEnd, $"{name}: the return isn't its height");
                 Expect(fade < back - 25f, $"{name} doesn't fade out: {fade - back:0.0} dB ten seconds after the last chord");
+
+                // A person heard it reach its height for one statement and stop, and said it ended just as it was about to begin. The recording stays close to its loudest for well over
+                // a minute: so the drop has to land, harder than what wound up to it, the piece has to stay up there, easing between its summits, and its last statement is the biggest.
+                Expect(drop > awayEnd + 2f, $"{name}: the drop lands only {drop - awayEnd:0.0} dB over what built to it");
+                Expect(height > 60.0, $"{name} is at its height for only {height:0} s");
+                Expect(crest > back - 6f && crest < glory, $"{name}: between its summits it falls to {crest - back:0.0} dB, and the last statement is at {glory - back:0.0}");
+                Expect(glory >= back - 0.5f, $"{name}: the last statement ({glory - back:0.0} dB) isn't its biggest");
 
                 // No bass until the pedal comes in, and then plenty: its arrival is the first thing that happens.
                 float before = LowShare(Seconds("Prelude"), End("Prelude")), after = LowShare(Seconds("Rising"), End("Rising"));
@@ -881,6 +890,8 @@ namespace Dino_SoundLab
                 int dominant = setting.Tonic + setting.Style.Plan.First(m => m.Name == "Away").Key;
                 Expect(Belongs("Away", dominant) > 0.9f, $"{name}: only {Belongs("Away", dominant) * 100f:0}% of the middle is in the dominant");
                 Expect(Belongs("Return", setting.Tonic) > 0.9f, $"{name}: only {Belongs("Return", setting.Tonic) * 100f:0}% of the return is in the home key");
+                int lifted = setting.Tonic + setting.Style.Plan.First(m => m.Name == "Glory").Key;
+                Expect(Belongs("Glory", lifted) > 0.9f, $"{name}: only {Belongs("Glory", lifted) * 100f:0}% of the last statement is in its key");
             }
 
             // It's the Haven's score, so the theme it announces is the one the Haven's waltz is made of.

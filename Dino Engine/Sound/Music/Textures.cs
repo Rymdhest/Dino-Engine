@@ -57,7 +57,7 @@ namespace Dino_Engine.Sound.Music
     /// </summary>
     public static class Textures
     {
-        private static readonly (int low, int high)[] Ranges = BuildRanges();
+        internal static readonly (int low, int high)[] Ranges = BuildRanges();
 
         private static (int, int)[] BuildRanges()
         {
@@ -102,6 +102,7 @@ namespace Dino_Engine.Sound.Music
             ranges[(int)Section.HandDrum] = (36, 60);
             ranges[(int)Section.RimDrum] = (36, 80);
             ranges[(int)Section.Shaker] = (40, 80);
+            ranges[(int)Section.Crash] = (40, 80);
             return ranges;
         }
 
@@ -830,6 +831,24 @@ namespace Dino_Engine.Sound.Music
 
                 case "dance":
                     Dance(bar, part, pitch, loudness);
+                    break;
+
+                case "anthem":
+                    // A hymn at full stretch, driven: the downbeat every bar, the middle of it on the timpani, a pickup throwing every other bar into the next, and a roll into the
+                    // phrase after. It's what turns a tune played loudly into a tune that's going somewhere.
+                    bool timpani = part.Section == Section.Timpani;
+                    bar.Add(part, pitch, 0f, 1f, loudness);
+                    if (timpani && beats >= 4)
+                    {
+                        bar.Add(part, Fit(part, pitch + 7), beats / 2f, 0.5f, loudness * 0.78f);
+                        if (bar.Bar % 2 == 1 && !bar.LastBar)
+                        {
+                            bar.Add(part, Fit(part, pitch + 7), beats - 1f, 0.4f, loudness * 0.62f);
+                            bar.Add(part, Fit(part, pitch + 7), beats - 0.5f, 0.4f, loudness * 0.72f);
+                        }
+                    }
+                    else if (beats >= 4 && bar.Halfway) bar.Add(part, pitch, beats - 1f, 1f, loudness * 0.8f);
+                    if (bar.LastBar) Fill(bar, part, pitch, loudness);
                     break;
             }
         }

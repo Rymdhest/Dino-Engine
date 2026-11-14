@@ -313,6 +313,7 @@ namespace Dino_Engine.Sound.Music
             // A piece with a plan goes where it says, whatever the game asks for: an overture builds as it was written to.
             Movement? movement = style.Plan.Length > 0 ? style.Plan[_formIndex % style.Plan.Length] : null;
             if (movement is { Close: true }) return WriteClose(setting, movement);
+            if (movement is { Surge: true }) return WriteSurge(setting, movement);
 
             MelodyUse section = movement?.Use ?? Form[_formIndex % Form.Length];
             _tune ??= TuneFor(movement?.Tune ?? section);
@@ -373,8 +374,10 @@ namespace Dino_Engine.Sound.Music
                 break;
             }
 
+            // A part given a section plays only in it, accompaniment as well as tune: that's how an overture's last statement gets players the others don't.
             foreach (Part part in style.Parts)
             {
+                if (part.Use != MelodyUse.Always && part.Use != section) continue;
                 if (shaped >= part.From && shaped <= part.To) part.Writer(bar, part);
             }
             if (melody.Count > 0) bar.PreviousMelodyDegree = melody[^1].Degree;
@@ -435,19 +438,34 @@ namespace Dino_Engine.Sound.Music
             }
         }
 
-        // An overture's last two bars, which aren't a tune's: the swell into the last chord, and the chord.
+        // An overture's last three bars, which aren't a tune's: the subdominant, broad; the swell through the flat sixth and seventh; and the chord.
         private Bar WriteClose(Score.Setting setting, Movement movement)
         {
             float beat = 60f / (setting.Tempo * movement.Pace);
             int beats = setting.Meter.Beats;
             var bar = new Bar { Seconds = beats * beat, Beats = beats, Label = $"{setting.Style.Mood} {movement.Name} {_bar + 1}" };
             int tonic = setting.Tonic + movement.Key;
-            if (_bar == 0) Close.Approach(bar, tonic, beat, beats);
+            if (_bar == 0) Close.Broaden(bar, tonic, beat, beats);
+            else if (_bar == 1) Close.Approach(bar, tonic, beat, beats);
             else Close.Arrive(bar, tonic, beat, beats);
             _played = 1f;
             _absolute += beats;
             _bar++;
-            if (_bar >= 2) EndPhrase(setting.Style);
+            if (_bar >= 3) EndPhrase(setting.Style);
+            return bar;
+        }
+
+        // Bars with no tune, wound up on the dominant for what follows to break on.
+        private Bar WriteSurge(Score.Setting setting, Movement movement)
+        {
+            float beat = 60f / (setting.Tempo * movement.Pace);
+            int beats = setting.Meter.Beats;
+            var bar = new Bar { Seconds = beats * beat, Beats = beats, Label = $"{setting.Style.Mood} {movement.Name} {_bar + 1}" };
+            Surge.Write(bar, setting.Tonic + movement.Key, setting.Mode, beat, beats, _bar, Math.Max(movement.Bars, 1));
+            _played = 1f;
+            _absolute += beats;
+            _bar++;
+            if (_bar >= Math.Max(movement.Bars, 1)) EndPhrase(setting.Style);
             return bar;
         }
 
@@ -522,18 +540,116 @@ namespace Dino_Engine.Sound.Music
     }
 
     /// <summary>
-    /// How an overture ends. The band drops back and swells from the subdominant through the flat seventh, the oldest way a film score says that home is coming, with the
-    /// violins and trumpets climbing by step to the tonic chord's third, a timpani roll closing in and a cymbal timed to break on the downbeat. Then the tonic, struck by everyone at
-    /// once with a harp swept up through it, held, and let go into the hall over its bass, as the recording it was measured from fades for thirteen seconds. Written in major chords,
-    /// as the overture is in a major mode.
+    /// The bars before a drop, which are what make it one: nothing new is said, everything is wound tighter. The bass and low brass sit on the dominant and swell, the horns and
+    /// voices hold it with the fourth hanging over the third and only let it fall at the last moment, the violins climb the scale in tremolo, a timpani roll closes in and the big
+    /// drum counts in. Then everything stops for half a beat, all but a cymbal roll timed to break on the downbeat, and the theme comes in on the whole band. A person heard the
+    /// overture without these and said it sounded as if it were about to begin and then didn't.
+    /// </summary>
+    internal static class Surge
+    {
+        private const float CymbalPeak = 1.6f;      // Seconds into its take that a cymbal roll is at its height.
+        private const float Breath = 0.5f;          // Beats of silence before the drop.
+
+        private static void Put(Bar bar, Section section, int pitch, float start, float length, float loudness, Articulation articulation, float fader = 0f)
+        {
+            bar.Notes.Add(new Note
+            {
+                Section = section,
+                Pitch = Textures.Fit(section, pitch),
+                Start = start,
+                Length = length,
+                Loudness = Math.Clamp(loudness, 0.02f, 1f),
+                Fader = fader,
+                Articulation = articulation,
+            });
+        }
+
+        /// <summary>The index-th of count bars wound up on the dominant of the key whose tonic is given.</summary>
+        public static void Write(Bar bar, int tonic, Mode mode, float beat, int beats, int index, int count)
+        {
+            float total = beats * count;
+            float from = index * beats;
+            bool last = index == count - 1;
+            float Along(float at) => (from + at) / total;
+            float barSeconds = beats * beat;
+            float held = last ? (beats - Breath) * beat : barSeconds * 1.02f;
+            float rising = 0.5f + 0.45f * (index + 1) / count;
+            int dominant = tonic + 7;
+
+            // The floor: the dominant in the basses, cellos, tuba and trombones, swelling bar by bar.
+            Put(bar, Section.Basses, dominant - 36, 0f, held, rising, Articulation.Swell, -2f);
+            Put(bar, Section.Cellos, dominant - 24, 0f, held, rising, Articulation.Tremolo, -2f);
+            Put(bar, Section.Tuba, dominant - 36, 0f, held, rising - 0.05f, Articulation.Swell, -4f);
+            Put(bar, Section.Trombones, dominant - 24, 0f, held, rising - 0.05f, Articulation.Swell, -3f);
+            Put(bar, Section.Trombones, dominant - 17, 0f, held, rising - 0.05f, Articulation.Swell, -3f);
+            Put(bar, Section.Violas, dominant - 12, 0f, held, rising - 0.1f, Articulation.Tremolo, -3f);
+
+            // The horns and voices hold the dominant with its fourth hanging over, and only in the last half bar does it fall to the third.
+            float fall = last ? beats / 2f * beat : held;
+            foreach (int pitch in new[] { dominant - 12, dominant - 5 })
+            {
+                Put(bar, Section.Horns, pitch, 0f, held, rising, Articulation.Swell, -1f);
+                Put(bar, Section.Choir, pitch + 12, 0f, held, rising - 0.12f, Articulation.Swell, -4f);
+            }
+            Put(bar, Section.Horns, tonic, 0f, fall, rising, Articulation.Swell, -1f);
+            Put(bar, Section.Choir, tonic + 12, 0f, fall, rising - 0.12f, Articulation.Swell, -4f);
+            if (last)
+            {
+                Put(bar, Section.Horns, tonic - 1, fall, held - fall, rising + 0.05f, Articulation.Normal, -1f);
+                Put(bar, Section.Choir, tonic + 11, fall, held - fall, rising - 0.07f, Articulation.Normal, -4f);
+                Put(bar, Section.Trumpets, dominant, 0f, held, rising - 0.1f, Articulation.Swell, -2f);
+            }
+
+            // The violins climbing the scale in tremolo, from the dominant below the tonic to the note under it an octave up, louder as they go.
+            int steps = beats * 2;
+            int span = count * steps;
+            int lowest = count == 1 ? 0 : -3, highest = 6 + 7 * Math.Min(count - 1, 1);
+            while (mode.Pitch(tonic, lowest) < Textures.Ranges[(int)Section.Violins].low) lowest++;
+            for (int s = 0; s < steps; s++)
+            {
+                float at = s * 0.5f;
+                if (last && at >= beats - Breath) break;
+                int n = index * steps + s;
+                int degree = lowest + (int)MathF.Round((highest - lowest) * n / (float)Math.Max(span - 2, 1));
+                Put(bar, Section.Violins, mode.Pitch(tonic, degree), at * beat, 0.55f * beat, 0.32f + 0.55f * Along(at), Articulation.Tremolo, 0f);
+            }
+
+            // A timpani roll on the dominant closing in, the big drum counting the bars and then the last two beats in, and a cymbal breaking on the downbeat after the breath.
+            int strokes = beats * 6;
+            for (int s = 0; s < strokes; s++)
+            {
+                float rise = s / (float)strokes;
+                float at = beats * (1f - MathF.Pow(1f - rise, 1.25f));
+                if (last && at >= beats - 1f) break;
+                float along = Along(at);
+                Put(bar, Section.Timpani, dominant - 24, at * beat, 0.2f, 0.25f + 0.6f * along * along, Articulation.Normal, -3f);
+            }
+            Put(bar, Section.BigDrum, 36, 0f, 1f, 0.45f + 0.3f * Along(0f), Articulation.Normal, -4f);
+            if (last)
+            {
+                Put(bar, Section.BigDrum, 36, (beats - 1f) * beat, 0.5f, 0.85f, Articulation.Normal, -3f);
+                Put(bar, Section.BigDrum, 36, (beats - Breath - 0.05f) * beat, 0.5f, 0.95f, Articulation.Normal, -3f);
+                Put(bar, Section.Timpani, dominant - 24, (beats - 1f) * beat, 0.5f, 0.9f, Articulation.Normal, -2f);
+                Put(bar, Section.Timpani, dominant - 24, (beats - Breath - 0.05f) * beat, 0.5f, 1f, Articulation.Normal, -2f);
+                Put(bar, Section.Cymbal, 60, MathF.Max(barSeconds - CymbalPeak, 0f), 2f, 0.72f, Articulation.Normal, -1f);
+            }
+        }
+    }
+
+    /// <summary>
+    /// How an overture ends, after its last and broadest statement. The subdominant, broad and held, then the swell through the flat sixth and the flat seventh, the oldest way a
+    /// film score says that home is coming, with the violins and trumpets climbing by step to the tonic chord's third, a timpani roll closing in and a cymbal timed to break on the
+    /// downbeat. Then the tonic, struck by everyone at once with a harp swept up through it, held, and let go into the hall over its bass, as the recording it was measured from
+    /// fades for thirteen seconds. Written in major chords, as the overture is in a major mode.
     /// </summary>
     internal static class Close
     {
         private const float CymbalPeak = 1.6f;      // Seconds into its take that a cymbal roll is at its height.
-        private const float Ring = 5f;              // Seconds the last chord takes to die away once let go, and its bass longer.
+        private const float Ring = 7f;              // Seconds the last chord takes to die away once let go, and its bass longer.
 
         // Chords as semitones over the tonic, and the line climbing over them.
         private static readonly int[] Subdominant = { 5, 9, 12 };
+        private static readonly int[] FlatSixth = { 8, 12, 15 };
         private static readonly int[] FlatSeventh = { 10, 14, 17 };
         private static readonly int[] Home = { 0, 4, 7 };
 
@@ -567,16 +683,25 @@ namespace Dino_Engine.Sound.Music
             Put(bar, Section.Choir, tonic + chord[1], at, length, loudness - 0.1f, articulation, tail, -4f);
             Put(bar, Section.Choir, tonic + chord[2], at, length, loudness - 0.1f, articulation, tail, -4f);
             // The bass is the last thing heard, as the recording's fade is mostly its low end.
-            Put(bar, Section.Cellos, tonic + chord[0] - 24, at, length, loudness, articulation, tail * 1.5f, -2f);
-            Put(bar, Section.Basses, tonic + chord[0] - 36, at, length, loudness - 0.05f, articulation, tail * 2f, -3f);
-            Put(bar, Section.Tuba, tonic + chord[0] - 36, at, length, loudness - 0.1f, articulation, tail * 1.6f, -5f);
+            Put(bar, Section.Cellos, tonic + chord[0] - 24, at, length, loudness, articulation, tail * 1.3f, -2f);
+            Put(bar, Section.Basses, tonic + chord[0] - 36, at, length, loudness - 0.05f, articulation, tail * 1.6f, -3f);
+            Put(bar, Section.Tuba, tonic + chord[0] - 36, at, length, loudness - 0.1f, articulation, tail * 1.4f, -5f);
+        }
+
+        // The subdominant after the last statement, broad and held, struck on the drums.
+        public static void Broaden(Bar bar, int tonic, float beat, int beats)
+        {
+            Chord(bar, tonic, Subdominant, 12, 0f, beats * beat * 1.03f, 0.8f, Articulation.Normal, 0f);
+            Put(bar, Section.Timpani, tonic - 19, 0f, 1f, 0.85f, Articulation.Normal, 0f, -2f);
+            Put(bar, Section.BigDrum, 36, 0f, 1f, 0.75f, Articulation.Normal, 0f, -4f);
+            Put(bar, Section.Crash, 60, 0f, 2f, 0.55f, Articulation.Normal, 0f, -3f);
         }
 
         public static void Approach(Bar bar, int tonic, float beat, int beats)
         {
             float half = beats / 2f * beat;
-            Chord(bar, tonic, Subdominant, 12, 0f, half * 1.05f, 0.6f, Articulation.Swell, 0f);
-            Chord(bar, tonic, FlatSeventh, 14, half, half * 1.05f, 0.8f, Articulation.Normal, 0f);
+            Chord(bar, tonic, FlatSixth, 12, 0f, half * 1.05f, 0.78f, Articulation.Swell, 0f);
+            Chord(bar, tonic, FlatSeventh, 14, half, half * 1.05f, 0.9f, Articulation.Normal, 0f);
 
             // A roll on the fifth, closing up and getting louder, and a cymbal that breaks on the downbeat.
             int strokes = beats * 6;

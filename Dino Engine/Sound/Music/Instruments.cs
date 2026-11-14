@@ -46,6 +46,7 @@ namespace Dino_Engine.Sound.Music
         HandDrum,       // The deep stroke in the middle of a goblet drum's skin.
         RimDrum,        // And the sharp one at its edge.
         Shaker,
+        Crash,          // A pair of cymbals or a suspended one struck hard: the moment something arrives.
     }
 
     /// <summary>How a note is played.</summary>
@@ -89,6 +90,13 @@ namespace Dino_Engine.Sound.Music
         public float Chiff = 0.1f;      // The noise at the start of a note.
         public float Range = 20f;       // Decibels between pianissimo and fortissimo. A horn measured 13, a flute 10, strings far more.
         public float Tremor = 0.03f;    // How much loudness moves with the vibrato. On a flute vibrato is much more this than it is pitch.
+        public float Width = 0.75f;     // How far across the stage a section's players spread, either side of where it sits. A real section is a slice of the stage, not all of it.
+
+        // How a note speaks. A real note doesn't begin with all its colour: the low harmonics come first and the high ones after, most of all in brass, where the wave steepens
+        // as it builds up in the tube, which is the "blare" that makes a horn sound blown. And it darkens again as it dies. A wave that starts and stops at one brightness is the
+        // surest sign of a synthesizer, so the timbre follows the note: it starts this much less loud than it's played, and reaches it over BloomTime.
+        public float Bloom = 0.2f;
+        public float BloomTime = 0.08f;
     }
 
     /// <summary>A note sounding. Voices are made once and used again, so a long session allocates nothing.</summary>
@@ -113,7 +121,7 @@ namespace Dino_Engine.Sound.Music
     /// </summary>
     internal sealed class SustainedVoice : OrchestraVoice
     {
-        private const int Most = 5;
+        private const int Most = 8;
         private const float SampleTime = 1f / AudioFormat.SampleRate;
         private const int ControlStep = 32;
         private const float DecayConstants = 3f;    // Time constants in what's heard as a fade: three is down by 26 dB.
@@ -132,7 +140,7 @@ namespace Dino_Engine.Sound.Music
         private SustainedStyle _style = null!;
         private float _note, _bend, _bendFall;
         private float _level, _levelTarget, _levelRate, _swell, _releaseTime;
-        private float _loudness, _age, _chiff, _chiffFall, _shimmer = 1f;
+        private float _loudness, _age, _chiff, _chiffFall, _shimmer = 1f, _bite, _peak;
         private bool _tremolo;
         private float _tremoloPhase, _tremoloRate;
         private float[] _quiet = null!, _loud = null!;
@@ -158,6 +166,9 @@ namespace Dino_Engine.Sound.Music
             _loudness = note.Loudness;
             _level = 0f;
             _untilControl = 0;
+
+            // A note leaned on overshoots its colour for a moment, as a hard tongue or bow stroke does. One that swells in grows its colour with it.
+            _bite = note.Articulation == Articulation.Marcato ? 0.18f : note.Articulation == Articulation.Staccato ? 0.08f : 0f;
             _tremolo = note.Articulation == Articulation.Tremolo;
             _tremoloRate = _random.Range(11f, 14f);
 
@@ -169,6 +180,7 @@ namespace Dino_Engine.Sound.Music
             else if (note.Articulation == Articulation.Swell) attack = note.Length * 0.6f;
 
             _levelTarget = AudioFormat.DecibelsToGain(note.Fader - style.Range * (1f - note.Loudness));
+            _peak = _levelTarget;
 
             // A short note is stopped by the player, not left to ring.
             _releaseTime = note.Articulation == Articulation.Staccato ? style.Release * 0.28f : style.Release;
@@ -196,7 +208,7 @@ namespace Dino_Engine.Sound.Music
                 _delays[p] = style.Players > 1 ? _random.Range(0f, 0.03f) : 0f;
                 _drift[p] = 0f;
                 _driftTarget[p] = 0f;
-                float pan = style.Players > 1 ? (p / (players - 1f) * 2f - 1f) * 0.75f : 0f;
+                float pan = style.Players > 1 ? (p / (players - 1f) * 2f - 1f) * style.Width : 0f;
                 float angle = (pan + 1f) * MathF.PI * 0.25f;
                 _panLeft[p] = MathF.Cos(angle) * 1.2f / MathF.Sqrt(players);
                 _panRight[p] = MathF.Sin(angle) * 1.2f / MathF.Sqrt(players);
@@ -214,6 +226,7 @@ namespace Dino_Engine.Sound.Music
             _loudness = note.Loudness;
             Remaining = note.Length;
             _levelTarget = AudioFormat.DecibelsToGain(note.Fader - _style.Range * (1f - note.Loudness));
+            _peak = MathF.Max(_peak, _levelTarget);
         }
 
         /// <summary>Lets go slowly, over about this long, for when the band is making way and hasn't been stopped.</summary>
@@ -241,10 +254,14 @@ namespace Dino_Engine.Sound.Music
             _swell += (1f - _swell) * 0.02f;
             _bend *= 1f - _bendFall;
 
-            _style.Timbre.Select(_note, MathF.Min(_loudness + _level * 0.1f, 1f), out _quiet, out _loud, out _blend);
+            // The colour follows the note: dark as it speaks, its full colour once it has, a flash brighter on an accent, and darker again as it dies away.
+            SustainedStyle style = _style;
+            float speaking = MathF.Min(_age / MathF.Max(style.BloomTime, 0.005f), 1f);
+            float colour = _loudness * (1f - style.Bloom * (1f - speaking) * (1f - speaking)) + _bite * MathF.Exp(-_age / 0.07f);
+            if (Releasing && _peak > 0f) colour *= 0.55f + 0.45f * MathF.Min(_level / _peak, 1f);
+            _style.Timbre.Select(_note, Math.Clamp(colour + _level * 0.1f, 0f, 1f), out _quiet, out _loud, out _blend);
 
             // Vibrato comes in after the note has settled, as a player only then begins it, and grows with how hard they're playing.
-            SustainedStyle style = _style;
             float onset = Math.Clamp((_age - style.VibratoDelay) / 0.35f, 0f, 1f);
             float depth = style.VibratoDepth * (0.35f + 0.65f * _loudness) * onset;
             _shimmer = 1f + style.Tremor * onset * MathF.Sin(_vibratoPhase[0] * MathF.Tau + 0.8f);

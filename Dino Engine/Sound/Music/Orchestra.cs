@@ -75,6 +75,16 @@ namespace Dino_Engine.Sound.Music
         private Biquad _rumbleRight = Biquad.Highpass(38f, 0.71f);
         private Biquad _presenceLeft = Biquad.Peak(4000f, 0.9f, 2.5f);
         private Biquad _presenceRight = Biquad.Peak(4000f, 0.9f, 2.5f);
+
+        // What makes a recorded orchestra sound clear rather than thick. A hall's low end builds up far longer than its middle and blurs everything over it, so engineers keep
+        // what goes to the reverb above about 180 Hz, and the bass stays where it's played. A little less of the low middle, where twenty players' fundamentals pile up, and a
+        // little more air, where bows, breath and the edge of brass live.
+        private Biquad _sendCutLeft = Biquad.Highpass(180f, 0.6f);
+        private Biquad _sendCutRight = Biquad.Highpass(180f, 0.6f);
+        private Biquad _mudLeft = Biquad.Peak(300f, 0.8f, -1.5f);
+        private Biquad _mudRight = Biquad.Peak(300f, 0.8f, -1.5f);
+        private Biquad _airLeft = Biquad.HighShelf(9500f, 2f);
+        private Biquad _airRight = Biquad.HighShelf(9500f, 2f);
         private readonly Section[] _sustainedDesk = new Section[Sustained];
         private readonly Section[] _pluckedDesk = new Section[Plucked];
         private readonly Section[] _struckDesk = new Section[Struck];
@@ -169,9 +179,12 @@ namespace Dino_Engine.Sound.Music
             Shape(_desks[(int)Section.Horns], () => Filters(Biquad.HighShelf(3500f, -5f)));
 
             // The bridge hill: what makes a violin carry.
-            Shape(_desks[(int)Section.Violins], () => Filters(Biquad.Peak(2600f, 1.1f, 3f), Biquad.Peak(420f, 1.5f, 2f), Biquad.HighShelf(7000f, -3f)));
-            Shape(_desks[(int)Section.Violas], () => Filters(Biquad.Peak(1900f, 1.1f, 2f), Biquad.HighShelf(6000f, -3f)));
-            Shape(_desks[(int)Section.Cellos], () => Filters(Biquad.LowShelf(150f, 4f), Biquad.Peak(240f, 1.2f, 2f), Biquad.Peak(1200f, 1f, 1.5f)));
+            // And the body's own resonances, narrow and fixed: as vibrato moves each harmonic through them it swells and fades, which is most of what makes a bowed string shimmer
+            // and a synthesized one sound flat. The violin's air mode near 275 Hz, its main wood modes near 460 and 540 Hz, the dip between them and the bridge hill.
+            Shape(_desks[(int)Section.Violins], () => Filters(Biquad.Peak(2600f, 1.1f, 3f), Biquad.Peak(420f, 1.5f, 2f), Biquad.HighShelf(7000f, -3f), Biquad.Peak(275f, 5f, 2.5f), Biquad.Peak(540f, 6f, 2.5f), Biquad.Peak(1350f, 3f, -2f)));
+            Shape(_desks[(int)Section.Violas], () => Filters(Biquad.Peak(1900f, 1.1f, 2f), Biquad.HighShelf(6000f, -3f), Biquad.Peak(230f, 5f, 2.5f), Biquad.Peak(420f, 6f, 2f), Biquad.Peak(1000f, 3f, -2f)));
+            Shape(_desks[(int)Section.Cellos], () => Filters(Biquad.LowShelf(150f, 4f), Biquad.Peak(240f, 1.2f, 2f), Biquad.Peak(1200f, 1f, 1.5f), Biquad.Peak(105f, 5f, 2f), Biquad.Peak(205f, 6f, 2.5f), Biquad.Peak(600f, 3f, -2f)));
+            Shape(_desks[(int)Section.Basses], () => Filters(Biquad.Peak(62f, 4f, 2f), Biquad.Peak(115f, 5f, 2f), Biquad.Peak(330f, 3f, -1.5f)));
             Shape(_desks[(int)Section.Fiddle], () => Filters(Biquad.Peak(280f, 2f, 3f), Biquad.Peak(500f, 2.5f, -2f), Biquad.Peak(2700f, 1.4f, 4f)));
 
             Desk harp = Sit(Section.Harp, null, -0.6f, 0.78f, 0.34f);
@@ -234,6 +247,7 @@ namespace Dino_Engine.Sound.Music
             Strike(Section.HandDrum, 0.7f, kit.HandDrum, 48, 0.18f, 0.26f);
             Strike(Section.RimDrum, 0.45f, kit.RimDrum, 60, 0.24f, 0.24f);
             Strike(Section.Shaker, 0.28f, kit.Shaker, 60, -0.3f, 0.22f);
+            Strike(Section.Crash, 0.5f, kit.Crash, 60, 0.12f, 0.55f);
             Shape(_desks[(int)Section.HandDrum], () => Filters(Biquad.LowShelf(80f, -6f), Biquad.Peak(200f, 1f, 2f)));
 
             // Measured against recorded orchestras, drums with nothing done to them were the whole of the bottom two octaves, and every stroke drove the limiter down on everyone else.
@@ -349,6 +363,12 @@ namespace Dino_Engine.Sound.Music
             _rumbleRight.Reset();
             _presenceLeft.Reset();
             _presenceRight.Reset();
+            _sendCutLeft.Reset();
+            _sendCutRight.Reset();
+            _mudLeft.Reset();
+            _mudRight.Reset();
+            _airLeft.Reset();
+            _airRight.Reset();
             foreach (Desk desk in _desks)
             {
                 for (int f = 0; f < desk.Left.Length; f++)
@@ -545,13 +565,18 @@ namespace Dino_Engine.Sound.Music
                 _sendRight[i] += fromRight * 0.3f;
             }
 
+            for (int i = 0; i < count; i++)
+            {
+                _sendLeft[i] = _sendCutLeft.Process(_sendLeft[i]);
+                _sendRight[i] = _sendCutRight.Process(_sendRight[i]);
+            }
             _hall.Process(_sendLeft.AsSpan(0, count), _sendRight.AsSpan(0, count), left.AsSpan(offset, count), right.AsSpan(offset, count));
 
             // Nothing in a hall reaches a microphone from below this but rumble, which would only spend the limiter's headroom.
             for (int i = offset; i < offset + count; i++)
             {
-                left[i] = _presenceLeft.Process(_rumbleLeft.Process(left[i]));
-                right[i] = _presenceRight.Process(_rumbleRight.Process(right[i]));
+                left[i] = _airLeft.Process(_mudLeft.Process(_presenceLeft.Process(_rumbleLeft.Process(left[i]))));
+                right[i] = _airRight.Process(_mudRight.Process(_presenceRight.Process(_rumbleRight.Process(right[i]))));
             }
             _limiter.Process(left.AsSpan(offset, count), right.AsSpan(offset, count));
 
@@ -580,7 +605,7 @@ namespace Dino_Engine.Sound.Music
 
         public readonly SustainedStyle Flute, Oboe, Clarinet, Horns, Trombones, Trumpets, Violins, Violas, Cellos, Basses, Fiddle, Choir;
         public readonly SustainedStyle SoloCello, EnglishHorn, Bassoon, AltoFlute, BassFlute, Ocarina, Tuba, BassClarinet, MutedViolins, MutedCellos, Voices, Pad;
-        public readonly float[][] Celesta, Bells, Timpani, BigDrum, FrameDrum, Tambourine, Cymbal, HandDrum, RimDrum, Shaker;
+        public readonly float[][] Celesta, Bells, Timpani, BigDrum, FrameDrum, Tambourine, Cymbal, HandDrum, RimDrum, Shaker, Crash;
 
         private Instruments()
         {
@@ -589,34 +614,34 @@ namespace Dino_Engine.Sound.Music
             Timbre.Brightening strings = Timbre.StringBrightening;
 
             // The numbers are measured where they could be: flute vibrato at 4.7 to 5.1 Hz and 7 to 20 cents, a horn with almost none and a 100 ms attack.
-            Flute = new SustainedStyle { Timbre = Timbre.Build(MeasuredSpectra.Flute, wood, 58f, 98f, 1), Attack = 0.075f, Release = 0.14f, VibratoRate = 5f, VibratoDepth = 20f, VibratoDelay = 0.28f, Tremor = 0.26f, Breath = 0.085f, BreathPitch = 1.6f, Chiff = 0.1f, Range = 10f };
-            Oboe = new SustainedStyle { Timbre = Timbre.Build(MeasuredSpectra.Oboe, wood, 56f, 92f, 2), Attack = 0.05f, Release = 0.1f, VibratoRate = 5.2f, VibratoDepth = 11f, VibratoDelay = 0.3f, Tremor = 0.05f, Breath = 0.02f, BreathPitch = 3f, Chiff = 0.05f, Range = 12f };
-            Clarinet = new SustainedStyle { Timbre = Timbre.Build(MeasuredSpectra.Clarinet, wood, 50f, 92f, 3), Attack = 0.055f, Release = 0.1f, VibratoRate = 5f, VibratoDepth = 2f, VibratoDelay = 0.4f, Tremor = 0.03f, Breath = 0.02f, BreathPitch = 2.5f, Chiff = 0.04f, Range = 16f };
-            Horns = new SustainedStyle { Timbre = Timbre.Build(MeasuredSpectra.Horn, brass, 36f, 80f, 4), Players = 3, Scatter = 3f, Attack = 0.1f, Release = 0.2f, VibratoRate = 5f, VibratoDepth = 3f, VibratoDelay = 0.5f, Scoop = 28f, Breath = 0.016f, BreathPitch = 4f, Chiff = 0.05f, Range = 13f };
-            Trombones = new SustainedStyle { Timbre = Timbre.Build(MeasuredSpectra.Trombone, brass, 34f, 74f, 5), Players = 3, Scatter = 3f, Attack = 0.075f, Release = 0.17f, VibratoRate = 5f, VibratoDepth = 3f, VibratoDelay = 0.5f, Scoop = 22f, Breath = 0.03f, BreathPitch = 4f, Chiff = 0.06f, Range = 15f };
-            Trumpets = new SustainedStyle { Timbre = Timbre.Build(MeasuredSpectra.Trumpet, brass, 54f, 86f, 6), Players = 2, Scatter = 3f, Attack = 0.05f, Release = 0.13f, VibratoRate = 5.5f, VibratoDepth = 4f, VibratoDelay = 0.45f, Scoop = 18f, Breath = 0.02f, BreathPitch = 4f, Chiff = 0.08f, Range = 15f };
+            Flute = new SustainedStyle { Timbre = Timbre.Build(MeasuredSpectra.Flute, wood, 58f, 98f, 1), Attack = 0.075f, Release = 0.14f, VibratoRate = 5f, VibratoDepth = 20f, VibratoDelay = 0.28f, Tremor = 0.26f, Breath = 0.085f, BreathPitch = 1.6f, Chiff = 0.1f, Range = 10f, Bloom = 0.15f, BloomTime = 0.05f };
+            Oboe = new SustainedStyle { Timbre = Timbre.Build(MeasuredSpectra.Oboe, wood, 56f, 92f, 2), Attack = 0.05f, Release = 0.1f, VibratoRate = 5.2f, VibratoDepth = 11f, VibratoDelay = 0.3f, Tremor = 0.05f, Breath = 0.02f, BreathPitch = 3f, Chiff = 0.05f, Range = 12f, Bloom = 0.15f, BloomTime = 0.05f };
+            Clarinet = new SustainedStyle { Timbre = Timbre.Build(MeasuredSpectra.Clarinet, wood, 50f, 92f, 3), Attack = 0.055f, Release = 0.1f, VibratoRate = 5f, VibratoDepth = 2f, VibratoDelay = 0.4f, Tremor = 0.03f, Breath = 0.02f, BreathPitch = 2.5f, Chiff = 0.04f, Range = 16f, Bloom = 0.15f, BloomTime = 0.05f };
+            Horns = new SustainedStyle { Timbre = Timbre.Build(MeasuredSpectra.Horn, brass, 36f, 80f, 4), Players = 4, Scatter = 3f, Attack = 0.1f, Release = 0.2f, VibratoRate = 5f, VibratoDepth = 3f, VibratoDelay = 0.5f, Scoop = 28f, Breath = 0.016f, BreathPitch = 4f, Chiff = 0.05f, Range = 13f, Width = 0.3f, Bloom = 0.55f, BloomTime = 0.13f };
+            Trombones = new SustainedStyle { Timbre = Timbre.Build(MeasuredSpectra.Trombone, brass, 34f, 74f, 5), Players = 3, Scatter = 3f, Attack = 0.075f, Release = 0.17f, VibratoRate = 5f, VibratoDepth = 3f, VibratoDelay = 0.5f, Scoop = 22f, Breath = 0.03f, BreathPitch = 4f, Chiff = 0.06f, Range = 15f, Width = 0.3f, Bloom = 0.5f, BloomTime = 0.09f };
+            Trumpets = new SustainedStyle { Timbre = Timbre.Build(MeasuredSpectra.Trumpet, brass, 54f, 86f, 6), Players = 3, Scatter = 3f, Attack = 0.05f, Release = 0.13f, VibratoRate = 5.5f, VibratoDepth = 4f, VibratoDelay = 0.45f, Scoop = 18f, Breath = 0.02f, BreathPitch = 4f, Chiff = 0.08f, Range = 15f, Width = 0.25f, Bloom = 0.4f, BloomTime = 0.06f };
 
             // Sections scatter their pitch and don't agree on their vibrato: that's most of what an ensemble sounds like.
-            Violins = new SustainedStyle { Timbre = Timbre.Build(MeasuredSpectra.Violins, strings, 55f, 100f, 7), Players = 5, Scatter = 6f, Attack = 0.12f, Release = 0.28f, VibratoRate = 5.6f, VibratoDepth = 13f, VibratoDelay = 0.22f, Tremor = 0.08f, Breath = 0.035f, BreathPitch = 6f, Chiff = 0.05f, Range = 22f };
-            Violas = new SustainedStyle { Timbre = Timbre.Build(MeasuredSpectra.Violas, strings, 48f, 88f, 8), Players = 4, Scatter = 6f, Attack = 0.12f, Release = 0.28f, VibratoRate = 5.4f, VibratoDepth = 12f, VibratoDelay = 0.22f, Tremor = 0.08f, Breath = 0.03f, BreathPitch = 6f, Chiff = 0.05f, Range = 22f };
-            Cellos = new SustainedStyle { Timbre = Timbre.Build(MeasuredSpectra.Cellos, strings, 36f, 78f, 9), Players = 4, Scatter = 5f, Attack = 0.13f, Release = 0.3f, VibratoRate = 5.2f, VibratoDepth = 11f, VibratoDelay = 0.24f, Tremor = 0.08f, Breath = 0.015f, BreathPitch = 7f, Chiff = 0.05f, Range = 22f };
-            Basses = new SustainedStyle { Timbre = Timbre.Build(MeasuredSpectra.Basses, strings, 28f, 62f, 10), Players = 3, Scatter = 4f, Attack = 0.15f, Release = 0.3f, VibratoRate = 5f, VibratoDepth = 6f, VibratoDelay = 0.3f, Breath = 0.006f, BreathPitch = 9f, Chiff = 0.05f, Range = 22f };
-            Fiddle = new SustainedStyle { Timbre = Timbre.Build(MeasuredSpectra.Fiddle, strings, 55f, 100f, 11), Attack = 0.05f, Release = 0.1f, VibratoRate = 5.8f, VibratoDepth = 11f, VibratoDelay = 0.26f, Tremor = 0.1f, Breath = 0.04f, BreathPitch = 6f, Chiff = 0.1f, Range = 18f };
+            Violins = new SustainedStyle { Timbre = Timbre.Build(MeasuredSpectra.Violins, strings, 55f, 100f, 7), Players = 8, Scatter = 6f, Attack = 0.12f, Release = 0.28f, VibratoRate = 5.6f, VibratoDepth = 13f, VibratoDelay = 0.22f, Tremor = 0.08f, Breath = 0.035f, BreathPitch = 6f, Chiff = 0.05f, Range = 22f, Width = 0.4f, Bloom = 0.3f, BloomTime = 0.14f };
+            Violas = new SustainedStyle { Timbre = Timbre.Build(MeasuredSpectra.Violas, strings, 48f, 88f, 8), Players = 6, Scatter = 6f, Attack = 0.12f, Release = 0.28f, VibratoRate = 5.4f, VibratoDepth = 12f, VibratoDelay = 0.22f, Tremor = 0.08f, Breath = 0.03f, BreathPitch = 6f, Chiff = 0.05f, Range = 22f, Width = 0.35f, Bloom = 0.3f, BloomTime = 0.14f };
+            Cellos = new SustainedStyle { Timbre = Timbre.Build(MeasuredSpectra.Cellos, strings, 36f, 78f, 9), Players = 6, Scatter = 5f, Attack = 0.13f, Release = 0.3f, VibratoRate = 5.2f, VibratoDepth = 11f, VibratoDelay = 0.24f, Tremor = 0.08f, Breath = 0.015f, BreathPitch = 7f, Chiff = 0.05f, Range = 22f, Width = 0.35f, Bloom = 0.3f, BloomTime = 0.15f };
+            Basses = new SustainedStyle { Timbre = Timbre.Build(MeasuredSpectra.Basses, strings, 28f, 62f, 10), Players = 4, Scatter = 4f, Attack = 0.15f, Release = 0.3f, VibratoRate = 5f, VibratoDepth = 6f, VibratoDelay = 0.3f, Breath = 0.006f, BreathPitch = 9f, Chiff = 0.05f, Range = 22f, Width = 0.25f, Bloom = 0.3f, BloomTime = 0.17f };
+            Fiddle = new SustainedStyle { Timbre = Timbre.Build(MeasuredSpectra.Fiddle, strings, 55f, 100f, 11), Attack = 0.05f, Release = 0.1f, VibratoRate = 5.8f, VibratoDepth = 11f, VibratoDelay = 0.26f, Tremor = 0.1f, Breath = 0.04f, BreathPitch = 6f, Chiff = 0.1f, Range = 18f, Bloom = 0.25f, BloomTime = 0.06f };
 
-            Choir = new SustainedStyle { Timbre = Timbre.Build(ChoirSpectrum, 43f, 84f, 12), Players = 5, Scatter = 7f, Attack = 0.28f, Release = 0.5f, VibratoRate = 5.2f, VibratoDepth = 22f, VibratoDelay = 0.4f, Breath = 0.03f, BreathPitch = 7f, Chiff = 0f, Range = 16f };
+            Choir = new SustainedStyle { Timbre = Timbre.Build(ChoirSpectrum, 43f, 84f, 12), Players = 8, Scatter = 7f, Attack = 0.28f, Release = 0.5f, VibratoRate = 5.2f, VibratoDepth = 22f, VibratoDelay = 0.4f, Breath = 0.03f, BreathPitch = 7f, Chiff = 0f, Range = 16f, Width = 0.65f, Bloom = 0.25f, BloomTime = 0.22f };
 
             // A cello alone sings more than a section does: one player, a wider vibrato, and the bow heard on the string.
-            SoloCello = new SustainedStyle { Timbre = Timbre.Build(MeasuredSpectra.Cellos, strings, 36f, 78f, 13), Attack = 0.09f, Release = 0.26f, VibratoRate = 5.4f, VibratoDepth = 17f, VibratoDelay = 0.2f, Tremor = 0.07f, Breath = 0.024f, BreathPitch = 6f, Chiff = 0.06f, Range = 22f };
-            EnglishHorn = new SustainedStyle { Timbre = Timbre.Build(MeasuredSpectra.EnglishHorn, wood, 52f, 82f, 14), Attack = 0.05f, Release = 0.12f, VibratoRate = 5f, VibratoDepth = 10f, VibratoDelay = 0.3f, Tremor = 0.05f, Breath = 0.02f, BreathPitch = 3f, Chiff = 0.05f, Range = 12f };
-            Bassoon = new SustainedStyle { Timbre = Timbre.Build(MeasuredSpectra.Bassoon, wood, 34f, 76f, 15), Players = 2, Scatter = 4f, Attack = 0.05f, Release = 0.12f, VibratoRate = 5f, VibratoDepth = 7f, VibratoDelay = 0.35f, Tremor = 0.04f, Breath = 0.02f, BreathPitch = 3f, Chiff = 0.05f, Range = 14f };
-            AltoFlute = new SustainedStyle { Timbre = Timbre.Build(MeasuredSpectra.AltoFlute, wood, 55f, 92f, 16), Attack = 0.09f, Release = 0.16f, VibratoRate = 4.8f, VibratoDepth = 16f, VibratoDelay = 0.3f, Tremor = 0.22f, Breath = 0.11f, BreathPitch = 1.6f, Chiff = 0.1f, Range = 10f };
-            BassFlute = new SustainedStyle { Timbre = Timbre.Build(MeasuredSpectra.BassFlute, wood, 48f, 86f, 17), Attack = 0.1f, Release = 0.18f, VibratoRate = 4.6f, VibratoDepth = 12f, VibratoDelay = 0.32f, Tremor = 0.2f, Breath = 0.14f, BreathPitch = 1.4f, Chiff = 0.12f, Range = 9f };
+            SoloCello = new SustainedStyle { Timbre = Timbre.Build(MeasuredSpectra.Cellos, strings, 36f, 78f, 13), Attack = 0.09f, Release = 0.26f, VibratoRate = 5.4f, VibratoDepth = 17f, VibratoDelay = 0.2f, Tremor = 0.07f, Breath = 0.024f, BreathPitch = 6f, Chiff = 0.06f, Range = 22f, Bloom = 0.3f, BloomTime = 0.1f };
+            EnglishHorn = new SustainedStyle { Timbre = Timbre.Build(MeasuredSpectra.EnglishHorn, wood, 52f, 82f, 14), Attack = 0.05f, Release = 0.12f, VibratoRate = 5f, VibratoDepth = 10f, VibratoDelay = 0.3f, Tremor = 0.05f, Breath = 0.02f, BreathPitch = 3f, Chiff = 0.05f, Range = 12f, Bloom = 0.15f, BloomTime = 0.05f };
+            Bassoon = new SustainedStyle { Timbre = Timbre.Build(MeasuredSpectra.Bassoon, wood, 34f, 76f, 15), Players = 2, Scatter = 4f, Attack = 0.05f, Release = 0.12f, VibratoRate = 5f, VibratoDepth = 7f, VibratoDelay = 0.35f, Tremor = 0.04f, Breath = 0.02f, BreathPitch = 3f, Chiff = 0.05f, Range = 14f, Width = 0.2f, Bloom = 0.15f, BloomTime = 0.05f };
+            AltoFlute = new SustainedStyle { Timbre = Timbre.Build(MeasuredSpectra.AltoFlute, wood, 55f, 92f, 16), Attack = 0.09f, Release = 0.16f, VibratoRate = 4.8f, VibratoDepth = 16f, VibratoDelay = 0.3f, Tremor = 0.22f, Breath = 0.11f, BreathPitch = 1.6f, Chiff = 0.1f, Range = 10f, Bloom = 0.15f, BloomTime = 0.05f };
+            BassFlute = new SustainedStyle { Timbre = Timbre.Build(MeasuredSpectra.BassFlute, wood, 48f, 86f, 17), Attack = 0.1f, Release = 0.18f, VibratoRate = 4.6f, VibratoDepth = 12f, VibratoDelay = 0.32f, Tremor = 0.2f, Breath = 0.14f, BreathPitch = 1.4f, Chiff = 0.12f, Range = 9f, Bloom = 0.15f, BloomTime = 0.05f };
             Ocarina = new SustainedStyle { Timbre = Timbre.Build(OcarinaSpectrum, 60f, 92f, 18), Attack = 0.04f, Release = 0.09f, VibratoRate = 5.5f, VibratoDepth = 10f, VibratoDelay = 0.25f, Tremor = 0.15f, Breath = 0.07f, BreathPitch = 2f, Chiff = 0.12f, Range = 9f };
-            Tuba = new SustainedStyle { Timbre = Timbre.Build(MeasuredSpectra.Tuba, brass, 26f, 62f, 19), Players = 2, Scatter = 3f, Attack = 0.09f, Release = 0.2f, VibratoRate = 5f, VibratoDepth = 2f, VibratoDelay = 0.5f, Scoop = 16f, Breath = 0.02f, BreathPitch = 4f, Chiff = 0.06f, Range = 14f };
-            BassClarinet = new SustainedStyle { Timbre = Timbre.Build(MeasuredSpectra.BassClarinet, wood, 34f, 72f, 20), Attack = 0.06f, Release = 0.12f, VibratoRate = 5f, VibratoDepth = 1f, VibratoDelay = 0.4f, Breath = 0.03f, BreathPitch = 2.5f, Chiff = 0.05f, Range = 15f };
-            MutedViolins = new SustainedStyle { Timbre = Timbre.Build(MeasuredSpectra.MutedViolins, strings, 55f, 100f, 21), Players = 5, Scatter = 6f, Attack = 0.16f, Release = 0.32f, VibratoRate = 5.6f, VibratoDepth = 10f, VibratoDelay = 0.25f, Tremor = 0.06f, Breath = 0.045f, BreathPitch = 6f, Chiff = 0.03f, Range = 18f };
-            MutedCellos = new SustainedStyle { Timbre = Timbre.Build(MeasuredSpectra.MutedCellos, strings, 36f, 76f, 22), Players = 4, Scatter = 5f, Attack = 0.16f, Release = 0.32f, VibratoRate = 5.2f, VibratoDepth = 9f, VibratoDelay = 0.25f, Tremor = 0.06f, Breath = 0.02f, BreathPitch = 7f, Chiff = 0.03f, Range = 18f };
-            Voices = new SustainedStyle { Timbre = Timbre.Build(VoicesSpectrum, 43f, 84f, 23), Players = 6, Scatter = 8f, Attack = 0.5f, Release = 0.7f, VibratoRate = 5f, VibratoDepth = 14f, VibratoDelay = 0.5f, Breath = 0.04f, BreathPitch = 5f, Chiff = 0f, Range = 14f };
+            Tuba = new SustainedStyle { Timbre = Timbre.Build(MeasuredSpectra.Tuba, brass, 26f, 62f, 19), Players = 2, Scatter = 3f, Attack = 0.09f, Release = 0.2f, VibratoRate = 5f, VibratoDepth = 2f, VibratoDelay = 0.5f, Scoop = 16f, Breath = 0.02f, BreathPitch = 4f, Chiff = 0.06f, Range = 14f, Width = 0.15f, Bloom = 0.45f, BloomTime = 0.1f };
+            BassClarinet = new SustainedStyle { Timbre = Timbre.Build(MeasuredSpectra.BassClarinet, wood, 34f, 72f, 20), Attack = 0.06f, Release = 0.12f, VibratoRate = 5f, VibratoDepth = 1f, VibratoDelay = 0.4f, Breath = 0.03f, BreathPitch = 2.5f, Chiff = 0.05f, Range = 15f, Bloom = 0.15f, BloomTime = 0.05f };
+            MutedViolins = new SustainedStyle { Timbre = Timbre.Build(MeasuredSpectra.MutedViolins, strings, 55f, 100f, 21), Players = 8, Scatter = 6f, Attack = 0.16f, Release = 0.32f, VibratoRate = 5.6f, VibratoDepth = 10f, VibratoDelay = 0.25f, Tremor = 0.06f, Breath = 0.045f, BreathPitch = 6f, Chiff = 0.03f, Range = 18f, Width = 0.4f, Bloom = 0.25f, BloomTime = 0.16f };
+            MutedCellos = new SustainedStyle { Timbre = Timbre.Build(MeasuredSpectra.MutedCellos, strings, 36f, 76f, 22), Players = 6, Scatter = 5f, Attack = 0.16f, Release = 0.32f, VibratoRate = 5.2f, VibratoDepth = 9f, VibratoDelay = 0.25f, Tremor = 0.06f, Breath = 0.02f, BreathPitch = 7f, Chiff = 0.03f, Range = 18f, Width = 0.35f, Bloom = 0.25f, BloomTime = 0.16f };
+            Voices = new SustainedStyle { Timbre = Timbre.Build(VoicesSpectrum, 43f, 84f, 23), Players = 8, Scatter = 8f, Attack = 0.5f, Release = 0.7f, VibratoRate = 5f, VibratoDepth = 14f, VibratoDelay = 0.5f, Breath = 0.04f, BreathPitch = 5f, Chiff = 0f, Range = 14f, Width = 0.7f, Bloom = 0.2f, BloomTime = 0.3f };
             Pad = new SustainedStyle { Timbre = Timbre.Build(PadSpectrum, 36f, 92f, 24), Players = 4, Scatter = 9f, Attack = 1.2f, Release = 1.8f, VibratoRate = 0.3f, VibratoDepth = 0f, VibratoDelay = 0f, Tremor = 0f, Breath = 0f, BreathPitch = 2f, Chiff = 0f, Range = 14f };
 
             HandDrum = Takes(6, 28, MakeHandDrum);
@@ -630,6 +655,7 @@ namespace Dino_Engine.Sound.Music
             FrameDrum = Takes(6, 25, MakeFrameDrum);
             Tambourine = Takes(6, 26, MakeTambourine);
             Cymbal = Takes(3, 27, MakeCymbal);
+            Crash = Takes(3, 31, MakeCrash);
         }
 
         private static float[][] Takes(int count, ulong seed, Action<Take> recipe) => Content.GrainCloud.Make(seed * 1000UL, count, recipe);
@@ -790,6 +816,25 @@ namespace Dino_Engine.Sound.Music
             // A hoop of small cymbals, each a little metal disc: Cook's particles again.
             var jingles = new GrainStyle { LowHz = 5200f, HighHz = 12000f, MinDecay = 0.006f, MaxDecay = 0.03f, Partials = 3, Noise = 0.1f, Spread = 12f };
             take.Mix(Grains.Settle(take, 0.22f, 22f, 0.05f, jingles).Normalize(0f));
+        }
+
+        private static void MakeCrash(Take take)
+        {
+            SoundRandom random = take.Random;
+
+            // A cymbal struck hard: a bright splash that's gone in a fifth of a second, a wash of noise whose top dies first, and the plate's own modes ringing under it, many and
+            // inharmonic, the lower ones longest. A cymbal's sound is mostly between 3 and 12 kHz, which is where it cuts through a whole orchestra.
+            float seconds = 4f;
+            Signal crash = take.Track(seconds);
+            crash.Add(take.White(seconds).Highpass(2400f).Percussive(0.0004f, 0.16f), 0f, 0.7f);
+            crash.Add(take.White(seconds).Highpass(450f).Bandpass(Curve.Glide(8500f, 4200f, 1.4f), 0.45f).Percussive(0.0008f, 1.05f), 0f, 1f);
+            for (int p = 0; p < 18; p++)
+            {
+                float f = 320f * MathF.Exp(random.Range(0f, MathF.Log(14f)));
+                float ring = 1.6f / (1f + f / 2500f) * random.Range(0.7f, 1.2f);
+                crash.Add(take.Sine(seconds, f, random.Range(0f, 6f)).Percussive(0.001f, ring), 0f, 0.05f);
+            }
+            take.Mix(crash.Fade(0.0003f, 0.6f).Normalize(0f));
         }
 
         private static void MakeCymbal(Take take)

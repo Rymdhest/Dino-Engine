@@ -81,7 +81,9 @@ namespace Dino_Engine.Sound.Music
         Prelude,    // The theme alone, before the piece begins in earnest.
         Rising,     // The theme again once the bass has come in, softly.
         Statement,  // The theme with the whole band behind it.
-        Return,     // The theme at the height of the piece.
+        Return,     // The theme at the height of the piece: the drop the whole build was for.
+        Crest,      // The variation, still at full stretch, on warmer voices: the breath between two summits.
+        Glory,      // The theme a step higher and broader, everyone in octaves: the last and biggest statement.
     }
 
     /// <summary>
@@ -98,6 +100,8 @@ namespace Dino_Engine.Sound.Music
         public int Key;                 // Semitones from the home key.
         public float Pace = 1f;         // Share of the piece's tempo.
         public bool Close;              // The last chord, swelled into, struck and let ring.
+        public bool Surge;              // No tune: bars wound up on the dominant of Key, for the movement after to break on.
+        public int Bars = 2;            // How long a surge is.
     }
 
     public delegate void PartWriter(BarContext bar, Part part);

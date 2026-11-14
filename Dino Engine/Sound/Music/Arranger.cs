@@ -437,20 +437,27 @@ namespace Dino_Engine.Sound.Music
                 Language = HarmonicLanguage.Hymn,
                 Colour = 0.2f,
                 Tide = 0f,
-                RestBars = 6,
+                RestBars = 8,
                 TuneCandidates = 800,
             };
 
-            // The recording keeps its bass out for the first forty-seven seconds and goes over to the dominant about two thirds through, both of which these keep.
+            // The recording keeps its bass out for the first forty-seven seconds and goes over to the dominant about two thirds through, both of which these keep. Once it reaches its
+            // height it stays there for well over a minute, close to its loudest: it breaks, eases a little, climbs again and peaks twice more before its last chord. A person heard the
+            // first version, which reached its height for one statement and stopped, and said it ended just as it was about to begin. So the build is wound up into a real drop, and
+            // the drop is followed through: the theme, the variation on warmer voices, a lift a step up and the theme broadened on everyone, then a long cadence and a long ring.
             style.Plan = new[]
             {
                 new Movement { Name = "Prelude", Tune = MelodyUse.First, Use = MelodyUse.Prelude, From = 0.06f, To = 0.16f, Pace = 0.58f },
                 new Movement { Name = "Rising", Tune = MelodyUse.First, Use = MelodyUse.Rising, From = 0.26f, To = 0.42f },
                 new Movement { Name = "Answer", Tune = MelodyUse.Second, Use = MelodyUse.Second, From = 0.45f, To = 0.62f },
-                new Movement { Name = "Theme", Tune = MelodyUse.First, Use = MelodyUse.Statement, From = 0.66f, To = 0.9f, Curve = 1.4f },
-                new Movement { Name = "Away", Tune = MelodyUse.Contrast, Use = MelodyUse.Contrast, From = 0.3f, To = 0.86f, Curve = 1.6f, Key = -5 },
-                new Movement { Name = "Return", Tune = MelodyUse.First, Use = MelodyUse.Return, From = 0.93f, To = 1f, Pace = 0.92f },
-                new Movement { Name = "Close", Close = true, From = 1f, To = 1f, Pace = 0.8f },
+                new Movement { Name = "Theme", Tune = MelodyUse.First, Use = MelodyUse.Statement, From = 0.66f, To = 0.88f, Curve = 1.4f },
+                new Movement { Name = "Away", Tune = MelodyUse.Contrast, Use = MelodyUse.Contrast, From = 0.3f, To = 0.84f, Curve = 1.8f, Key = -5 },
+                new Movement { Name = "Surge", Surge = true, Bars = 2 },
+                new Movement { Name = "Return", Tune = MelodyUse.First, Use = MelodyUse.Return, From = 0.95f, To = 1f, Pace = 0.94f },
+                new Movement { Name = "Crest", Tune = MelodyUse.Second, Use = MelodyUse.Crest, From = 0.84f, To = 0.98f, Curve = 1.6f, Pace = 0.96f },
+                new Movement { Name = "Lift", Surge = true, Bars = 1, Key = 2 },
+                new Movement { Name = "Glory", Tune = MelodyUse.First, Use = MelodyUse.Glory, From = 1f, To = 1f, Key = 2, Pace = 0.86f },
+                new Movement { Name = "Close", Close = true, Key = 2, From = 1f, To = 1f, Pace = 0.72f },
             };
 
             Section prelude = Pick(random, (Section.Horns, 0.6f), (Section.EnglishHorn, 0.2f), (Section.Clarinet, 0.2f));
@@ -466,13 +473,13 @@ namespace Dino_Engine.Sound.Music
                 P(prelude, Textures.Melody, 0f, 0.14f, 0.3f, -6f, use: MelodyUse.Prelude),
 
                 // The pedal arrives, and with it the pulse: a harp and then the violas breaking the chord in eighths, busier as the piece grows.
-                Until(P(Section.Basses, Textures.Pedal, 0.24f, 0.3f, 0.2f, -3f, -1, "still"), 0.64f),
+                Until(P(Section.Basses, Textures.Pedal, 0.24f, 0.34f, 0.2f, -1.5f, -1, "still"), 0.64f),
                 P(Section.Harp, Textures.Arpeggio, 0.26f, 0.22f, 0.15f, -5f),
                 P(rising, Textures.Melody, 0.2f, 0.3f, 0.3f, 0f, use: MelodyUse.Rising),
                 P(Section.Violas, Textures.Arpeggio, 0.4f, 0.2f, 0.22f, -6f),
                 P(Section.Cellos, Textures.Hymn, 0.44f, 0.28f, 0.3f, -3f, name: "bass"),
                 P(Section.Clarinet, Textures.Hymn, 0.44f, 0.26f, 0.25f, -4f, name: "alto"),
-                P(Section.Timpani, Textures.Drums, 0.44f, 0.3f, 0.35f, -3f, name: "cadence"),
+                Until(P(Section.Timpani, Textures.Drums, 0.44f, 0.3f, 0.35f, -3f, name: "cadence"), 0.9f),
                 P(answer, Textures.Melody, 0.2f, 0.4f, 0.3f, 1f, use: MelodyUse.Second),
 
                 // The theme with the band behind it: the horns singing it with the violins an octave above, and a brass chorale moving with it.
@@ -485,13 +492,31 @@ namespace Dino_Engine.Sound.Music
                 P(away, Textures.Melody, 0.3f, 0.42f, 0.3f, 3.5f, use: MelodyUse.Contrast),
                 P(Section.Trombones, Textures.Hymn, 0.72f, 0.3f, 0.35f, -4f, name: "tenor"),
 
-                // At its height, everyone: trumpets on the tune, the choir, the tuba and the big drum under the cadences.
+                // At its height, everyone: the choir, the tuba, and the timpani and big drum no longer marking cadences but driving every bar.
                 P(Section.Choir, Textures.Pad, 0.8f, 0.3f, 0.35f, -4f),
                 P(Section.Tuba, Textures.Bass, 0.8f, 0.26f, 0.25f, -5f, -1, "long"),
-                P(Section.BigDrum, Textures.Drums, 0.9f, 0.3f, 0.3f, -5f, name: "cadence"),
-                P(Section.Trumpets, Textures.Melody, 0.9f, 0.36f, 0.35f, 0f, use: MelodyUse.Return),
-                P(Section.Horns, Textures.Melody, 0.9f, 0.48f, 0.4f, 4f, use: MelodyUse.Return),
-                P(Section.Violins, Textures.Melody, 0.9f, 0.44f, 0.35f, 2.5f, use: MelodyUse.Return),
+                P(Section.Timpani, Textures.Drums, 0.9f, 0.4f, 0.4f, -3f, name: "anthem"),
+                P(Section.BigDrum, Textures.Drums, 0.9f, 0.34f, 0.35f, -5f, name: "anthem"),
+
+                // The drop: the theme on trumpets, horns and violins, with the trombones two octaves under it, which is what makes a tune sound as if the whole hall is singing it.
+                P(Section.Trumpets, Textures.Melody, 0.9f, 0.4f, 0.35f, 0.5f, use: MelodyUse.Return),
+                P(Section.Horns, Textures.Melody, 0.9f, 0.5f, 0.4f, 4f, use: MelodyUse.Return),
+                P(Section.Violins, Textures.Melody, 0.9f, 0.46f, 0.35f, 2.5f, use: MelodyUse.Return),
+                P(Section.Trombones, Textures.Melody, 0.9f, 0.4f, 0.35f, -0.5f, -1, use: MelodyUse.Return),
+
+                // Between the summits the variation goes to warmer voices, horns, cellos and the choir, and the violins soar over them on a slower line of their own.
+                P(Section.Horns, Textures.Melody, 0.8f, 0.5f, 0.4f, 4f, use: MelodyUse.Crest),
+                P(Section.Cellos, Textures.Melody, 0.8f, 0.46f, 0.4f, 2f, -1, use: MelodyUse.Crest),
+                P(Section.Choir, Textures.Melody, 0.8f, 0.36f, 0.35f, 0f, use: MelodyUse.Crest),
+                P(Section.Violins, Textures.Countermelody, 0.8f, 0.4f, 0.35f, -1f, 1, use: MelodyUse.Crest),
+
+                // The last statement, a step higher and broader: everyone who can sing the tune sings it, in octaves from the trombones to the violins, and the violas go against it.
+                P(Section.Trumpets, Textures.Melody, 0.9f, 0.46f, 0.4f, 1f, use: MelodyUse.Glory),
+                P(Section.Horns, Textures.Melody, 0.9f, 0.54f, 0.4f, 4f, use: MelodyUse.Glory),
+                P(Section.Violins, Textures.Melody, 0.9f, 0.5f, 0.4f, 2.5f, use: MelodyUse.Glory),
+                P(Section.Trombones, Textures.Melody, 0.9f, 0.44f, 0.4f, 0f, -1, use: MelodyUse.Glory),
+                P(Section.Choir, Textures.Melody, 0.9f, 0.4f, 0.35f, 0f, use: MelodyUse.Glory),
+                P(Section.Violas, Textures.Countermelody, 0.9f, 0.4f, 0.35f, -2f, use: MelodyUse.Glory),
             };
             style.Parts = parts.ToArray();
             style.Leads = new[] { Section.Horns, Section.Violins, Section.Cellos, Section.Oboe, Section.Clarinet, Section.Flute };
