@@ -41,7 +41,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
                 shader.loadUniformInt("gNormal", 1);
                 shader.loadUniformInt("gMaterials", 2);
                 shader.loadUniformInt("gDepth", 3);
-                shader.loadUniformInt("ambientOcclusion", MsaaRenderer.AmbientOcclusionUnit);
+                MsaaRenderer.LinkScreenTerms(shader);
                 shader.loadUniformInt("shadowMap", 4);
                 shader.loadUniformInt("pcfRadius", 1);
                 shader.unBind();

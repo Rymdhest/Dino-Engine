@@ -1,0 +1,94 @@
+#version 430
+
+// The depth the occlusion passes read (Occlusion/Occlusion.glsl): metres along the view, negative on a canopy, with three coarser levels, from the
+// resolved G-buffer. That's each pixel's farthest sample, which is where the light passes shade a pixel whose samples lie on one surface
+// (Msaa_Resolve_GBuffer.frag), so what's read from here is for the point that's lit: the mean of the samples was tried, and flickered more in a field.
+// Each group does a 16 x 16 block and its levels down to 2 x 2. A coarser texel is its four below averaged with the farthest
+// counting most (XeGTAO's depth filter, Intel 2021): far samples on the trace take from these, and a thin thing in front of what's behind it at one
+// texel is less of what's there at a coarser one. A canopy is a canopy at a coarser level where the farthest of the four is.
+
+#include Globals.glsl
+#include gBufferUtil.glsl
+#include Occlusion/Occlusion.glsl
+
+layout(local_size_x = 8, local_size_y = 8) in;
+layout(r32f, binding = 0) uniform writeonly image2D level0;
+layout(r32f, binding = 1) uniform writeonly image2D level1;
+layout(r32f, binding = 2) uniform writeonly image2D level2;
+layout(r32f, binding = 3) uniform writeonly image2D level3;
+
+uniform sampler2D gDepth;
+uniform sampler2D gAlbedo;
+// Metres in front of the farthest of four past which one counts for nothing in the level above, and over which it fades.
+uniform float mipFalloff;
+
+shared float scratch[8][8];
+
+float storedAt(ivec2 pixel, ivec2 size)
+{
+    if (any(lessThan(pixel, ivec2(0))) || any(greaterThanEqual(pixel, size))) return OCCLUSION_SKY;
+    float depth = texelFetch(gDepth, pixel, 0).r;
+    if (depth >= 1.0) return OCCLUSION_SKY;
+    float distance = -ReconstructViewSpaceZ(depth, invProjectionMatrix);
+    bool thin = subsurfaceKind(texelFetch(gAlbedo, pixel, 0).a) == SSS_CANOPY;
+    return thin ? -distance : distance;
+}
+
+float filtered(float a, float b, float c, float d)
+{
+    float farthest = max(max(abs(a), abs(b)), max(abs(c), abs(d)));
+    vec4 depths = vec4(abs(a), abs(b), abs(c), abs(d));
+    vec4 weights = clamp(1.0 - (farthest - depths) / mipFalloff, 0.0, 1.0);
+    float distance = dot(depths, weights) / dot(weights, vec4(1.0));
+    // Whether the farthest is a canopy.
+    float thinOf = abs(a) == farthest ? a : abs(b) == farthest ? b : abs(c) == farthest ? c : d;
+    return thinOf < 0.0 ? -distance : distance;
+}
+
+void main()
+{
+    ivec2 size = textureSize(gDepth, 0);
+    ivec2 local = ivec2(gl_LocalInvocationID.xy);
+    ivec2 group = ivec2(gl_WorkGroupID.xy);
+    ivec2 corner = group * 16 + local * 2;
+
+    float a = storedAt(corner, size);
+    float b = storedAt(corner + ivec2(1, 0), size);
+    float c = storedAt(corner + ivec2(0, 1), size);
+    float d = storedAt(corner + ivec2(1, 1), size);
+
+    ivec2 size0 = imageSize(level0);
+    if (all(lessThan(corner, size0))) imageStore(level0, corner, vec4(a));
+    if (all(lessThan(corner + ivec2(1, 0), size0))) imageStore(level0, corner + ivec2(1, 0), vec4(b));
+    if (all(lessThan(corner + ivec2(0, 1), size0))) imageStore(level0, corner + ivec2(0, 1), vec4(c));
+    if (all(lessThan(corner + ivec2(1, 1), size0))) imageStore(level0, corner + ivec2(1, 1), vec4(d));
+
+    // Level 1: one texel a thread.
+    float one = filtered(a, b, c, d);
+    ivec2 at1 = group * 8 + local;
+    if (all(lessThan(at1, imageSize(level1)))) imageStore(level1, at1, vec4(one));
+    scratch[local.x][local.y] = one;
+    barrier();
+
+    // Level 2: one texel for every two by two threads, kept where level 3 can find it once everyone has read what they need. Barriers stay in
+    // uniform control flow.
+    bool doTwo = all(equal(local & 1, ivec2(0)));
+    float two = 0.0;
+    if (doTwo) two = filtered(scratch[local.x][local.y], scratch[local.x + 1][local.y], scratch[local.x][local.y + 1], scratch[local.x + 1][local.y + 1]);
+    barrier();
+    if (doTwo)
+    {
+        ivec2 at2 = group * 4 + local / 2;
+        if (all(lessThan(at2, imageSize(level2)))) imageStore(level2, at2, vec4(two));
+        scratch[local.x][local.y] = two;
+    }
+    barrier();
+
+    // Level 3: one texel for every four by four threads.
+    if (all(equal(local & 3, ivec2(0))))
+    {
+        float three = filtered(scratch[local.x][local.y], scratch[local.x + 2][local.y], scratch[local.x][local.y + 2], scratch[local.x + 2][local.y + 2]);
+        ivec2 at3 = group * 2 + local / 4;
+        if (all(lessThan(at3, imageSize(level3)))) imageStore(level3, at3, vec4(three));
+    }
+}

@@ -42,7 +42,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
                 shader.loadUniformInt("gNormal", 1);
                 shader.loadUniformInt("gMaterials", 2);
                 shader.loadUniformInt("gDepth", 3);
-                shader.loadUniformInt("ambientOcclusion", MsaaRenderer.AmbientOcclusionUnit);
+                MsaaRenderer.LinkScreenTerms(shader);
                 shader.loadUniformInt("skyMap", SkyMapUnit);
                 shader.loadUniformInt("giGathered", GatheredUnit);
                 DirectionalLightRenderer.LinkShadows(shader);
@@ -55,7 +55,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
                 shader.loadUniformInt("gNormal", 1);
                 shader.loadUniformInt("gMaterials", 2);
                 shader.loadUniformInt("gDepth", 3);
-                shader.loadUniformInt("ambientOcclusion", MsaaRenderer.AmbientOcclusionUnit);
+                MsaaRenderer.LinkScreenTerms(shader);
                 shader.loadUniformInt("fleshDepthMap", FleshDepth.Unit);
                 DirectionalLightRenderer.LinkShadows(shader);
                 shader.unBind();
@@ -90,6 +90,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
 
             DirectionalLightRenderer directional = renderEngine._directionalLightRenderer;
             bool sunUp = directional.TakeSun(out DirectionallightRenderCommand sun);
+            // Its block maps were made before this pass began (RenderEngine.LightPass), as GPU timers don't nest.
             if (sunUp) directional.BindShadows(sun, renderEngine);
             var gi = renderEngine._globalIllumination;
             GlobalIllumination.GlobalIlluminationSettings giSettings = renderEngine.GlobalIllumination;
@@ -104,6 +105,9 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
                 shader.loadUniformFloat("giMix", giMix);
                 shader.loadUniformFloat("giStrength", giSettings.Strength);
                 shader.loadUniformInt("giDebug", giMix > 0f ? giSettings.Debug : 0);
+                shader.loadUniformInt("occlusionDebug", renderEngine.Occlusion.Debug);
+                shader.loadUniformInt("contactDebug", renderEngine.ContactShadows.Debug);
+                shader.loadUniformInt("shadowDebug", sunUp ? renderEngine.SunShadows.Debug : 0);
                 shader.loadUniformVector3f("sunColour", sunUp ? sun.colour : Vector3.Zero);
                 if (sunUp)
                 {

@@ -59,9 +59,13 @@ namespace Dino_Engine.Rendering
             LoadAllUniformsFromShaderString(geometryString, geometryFile);
         }
         /// <summary>A compute program. Run it with GL.DispatchCompute while it is bound.</summary>
-        public ShaderProgram(string computeFile)
+        public ShaderProgram(string computeFile) : this(computeFile, Array.Empty<string>())
         {
-            string computeString = PreProccessShaderFromFile(computeFile);
+        }
+        /// <summary>A compute program compiled with each of <paramref name="defines"/> #defined, for variants of one source ("NAME" or "NAME value").</summary>
+        public ShaderProgram(string computeFile, string[] defines)
+        {
+            string computeString = AddDefines(PreProccessShaderFromFile(computeFile), defines);
             computeShaderID = CreateShader(computeString, ShaderType.ComputeShader);
             programID = GL.CreateProgram();
 

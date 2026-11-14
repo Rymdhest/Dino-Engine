@@ -237,6 +237,7 @@ namespace Dino_Defenders.Client
             if (session == null) return;
             HeroSimState hero = Predictor.Current;
             session.PlayerPosition = Predictor.DrawnPosition(Commands.Alpha);
+            if (State == ClientState.Playing) session.Explored.Reveal(session.PlayerPosition);
             session.Sim = hero;
             session.Intent = intent;
             session.UpdateCalling();
@@ -425,6 +426,7 @@ namespace Dino_Defenders.Client
 
             _ownGhost = ghost;
             Session.PlayerPosition = position;
+            Session.Explored.Reveal(position);
             State = ClientState.Playing;
             _host.Arrived(position);
         }

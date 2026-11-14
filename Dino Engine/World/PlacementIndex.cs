@@ -408,6 +408,12 @@ namespace Dino_Engine.World
             foreach (Entry entry in _entries) visit(entry.Footprint, entry.Layer, entry.Solid);
         }
 
+        /// <summary>Calls <paramref name="visit"/> for every footprint with how tall what stands on it is, for drawing the world as a map (World/Chart).</summary>
+        public void ForEach(Action<Footprint, PlacementLayer, bool, float> visit)
+        {
+            foreach (Entry entry in _entries) visit(entry.Footprint, entry.Layer, entry.Solid, entry.Height);
+        }
+
         private void CellRange(Vector2 centre, float reach, out int minX, out int minZ, out int maxX, out int maxZ)
         {
             minX = Clamp((int)MathF.Floor((centre.X - reach) / CellSize));

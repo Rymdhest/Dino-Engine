@@ -205,12 +205,7 @@ namespace Dino_Defenders.Server
 
                 state.Discovered = true;
                 state.Changed = true;
-
-                // Home is never found, as it's never been lost: whoever's there has already been told where they are.
-                if (IsHaven) continue;
-                Server.Broadcast(new SoundEvent { Cue = SoundCue.Discovered }, state.Site.Position);
-                Server.Announce(null, state.Site.Name, Chronicle.Describe(state.Site, World), 4.5f);
-                foreach (ServerPlayer hero in Heroes) GiveExperience(hero, 6 * World.Plan.Level);
+                // Nothing is said, heard or given for it: a banner for every place walked into came all the time and was too much, and a sound or experience with no words to go with it only puzzled.
             }
 
             // A waygate wakes when someone comes near it, and from then on can be travelled to. The one at the landing wakes as heroes step out of it.

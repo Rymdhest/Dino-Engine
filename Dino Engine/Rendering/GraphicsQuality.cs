@@ -32,7 +32,12 @@ namespace Dino_Engine.Rendering
     /// <param name="ShellLayers">Layers of moss and fur to each pixel their length covers (SHELLS.md). They stay at every level, as they're what moss and fur look like:
     /// fewer of them only show as steps at a silhouette, close up.</param>
     /// <param name="ShellGround">Whether the ground's moss stands up as shells too: in a mossy wood it's most of the screen, and it's the least of them seen from up here.</param>
-    public readonly record struct QualityPreset(int Samples, float GrassDensity, float GrassWidth, float GrassDistance, float GrassShadowDistance, float GrassShadowDensity, int ShadowMap, int ShadowedLights, int FogSteps, int ReflectionSteps, int Creatures, int Leaves, float Anisotropy, float Relief, float ShellLayers, bool ShellGround, int StillLights);
+    /// <param name="OcclusionSlices">Slices through the hemisphere each pixel's ambient occlusion takes (OCCLUSION.md): its 4 x 4 tile takes sixteen times as many between them.</param>
+    /// <param name="OcclusionSteps">Samples along each side of a slice.</param>
+    /// <param name="ShadowSoftest">The radius in the sun's shadow map's texels that no shadow softens beyond (SHADOWS.md): the same in metres at every level, as a smaller map's
+    /// texels are wider, and what a pixel can cost goes with its square.</param>
+    public readonly record struct QualityPreset(int Samples, float GrassDensity, float GrassWidth, float GrassDistance, float GrassShadowDistance, float GrassShadowDensity, int ShadowMap, int ShadowedLights, int FogSteps, int ReflectionSteps, int Creatures, int Leaves, float Anisotropy, float Relief, float ShellLayers, bool ShellGround, int StillLights,
+        int OcclusionSlices, int OcclusionSteps, float ShadowSoftest);
 
     /// <summary>
     /// What each level of quality comes to. Everything here was chosen by what it buys for what it costs to look at, measured at the most expensive kind of place there is: what the player sees from the game's own camera
@@ -42,9 +47,9 @@ namespace Dino_Engine.Rendering
     {
         private static readonly QualityPreset[] Presets =
         {
-            new(2, 70f, 1.3f, 85f, 30f, 0.15f, 2048, 1, 16, 0, 80, 500, 1f, 0f, 1f, false, 8),
-            new(2, 100f, 1.15f, 100f, 50f, 0.25f, 3072, 2, 24, 32, 140, 900, 2f, 1f, 1.25f, true, 16),
-            new(4, 140f, 1f, 115f, 70f, 0.35f, 4096, 4, 32, 56, 200, 1400, 4f, 1f, 1.5f, true, 32),
+            new(2, 70f, 1.3f, 85f, 30f, 0.15f, 2048, 1, 16, 0, 80, 500, 1f, 0f, 1f, false, 8, 1, 2, 4f),
+            new(2, 100f, 1.15f, 100f, 50f, 0.25f, 3072, 2, 24, 32, 140, 900, 2f, 1f, 1.25f, true, 16, 1, 3, 6f),
+            new(4, 140f, 1f, 115f, 70f, 0.35f, 4096, 4, 32, 56, 200, 1400, 4f, 1f, 1.5f, true, 32, 1, 3, 8f),
         };
 
         public static QualityPreset Of(GraphicsQuality quality) => Presets[(int)quality];
@@ -63,6 +68,9 @@ namespace Dino_Engine.Rendering
             render.Shells.Settings.Ground = preset.ShellGround;
             render.Reflections.ScreenRays = preset.ReflectionSteps > 0;
             if (preset.ReflectionSteps > 0) render.Reflections.MaxSteps = preset.ReflectionSteps;
+            render.Occlusion.Slices = preset.OcclusionSlices;
+            render.Occlusion.Steps = preset.OcclusionSteps;
+            render.SunShadows.Softest = preset.ShadowSoftest;
         }
 
         /// <summary>What is kept in a world, which goes when that does, so a new one has to be told.</summary>

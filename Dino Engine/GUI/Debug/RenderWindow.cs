@@ -20,6 +20,7 @@ namespace Dino_Engine.GUI.Debug
         private static readonly string[] WeatherNames = { "The world's own", "clear", "cloudy", "overcast", "wet", "drizzle", "rain", "storm", "snow", "blizzard", "dust", "ash", "fog" };
         private static readonly string[] ReflectionViews = { "Final image", "Rays that found something", "Sky a ray can see", "Everything reflected", "The sky map" };
         private static readonly string[] GlobalIlluminationViews = { "Final image", "Voxel colours", "Light leaving the voxels", "Its light alone, on white", "Where the probes reach", "Each probe on its own" };
+        private static readonly string[] ShadeViews = { "Final image", "Ambient occlusion alone", "Contact shadows alone", "How soft the sun's shadow is", "The sun's shadow alone" };
 
         public static GuiWindow Build()
         {
@@ -373,6 +374,38 @@ namespace Dino_Engine.GUI.Debug
             var giView = new Dropdown(GlobalIlluminationViews, 0);
             giView.SelectionChanged += index => { if (index >= 0) giSettings.Debug = index; };
             gi.Content.Add(DebugUi.LabeledRow("Show", giView));
+
+            // ---------------------------------------------------------------- shadows and occlusion (SHADOWS.md, OCCLUSION.md)
+            var shade = window.Content.Add(new Foldout("Shadows and occlusion"));
+            var sunShadows = Engine.RenderEngine.SunShadows;
+            var contact = Engine.RenderEngine.ContactShadows;
+            var occlusion = Engine.RenderEngine.Occlusion;
+            shade.Content.Add(DebugUi.Muted("The sun's shadow is as soft as its disc is wide where it's cast from: hard where something meets the ground, soft from far off.", wrap: true));
+            shade.Content.Add(DebugUi.Heading("The sun's shadow"));
+            shade.Content.Add(new Checkbox("Softer the further its caster").Bind(() => sunShadows.Soft, value => sunShadows.Soft = value));
+            shade.Content.Add(LightingSlider("Sun across", 0f, 3f, "0.00°", () => sunShadows.SunSize, v => sunShadows.SunSize = v));
+            shade.Content.Add(LightingSlider("Sharpest", 1f, 6f, "0.00 texels", () => sunShadows.Sharpest, v => sunShadows.Sharpest = v));
+            shade.Content.Add(LightingSlider("Softest", 2f, 16f, "0.0 texels", () => sunShadows.Softest, v => sunShadows.Softest = v));
+            shade.Content.Add(DebugUi.Heading("Contact shadows"));
+            shade.Content.Add(new Checkbox("On").Bind(() => contact.Enabled, value => contact.Enabled = value));
+            shade.Content.Add(LightingSlider("Thickness", 0.001f, 0.03f, "0.000", () => contact.Thickness, v => contact.Thickness = v));
+            shade.Content.Add(LightingSlider("Fade from", 0f, 32f, "0 px", () => contact.FadeFrom, v => contact.FadeFrom = v, step: 1f));
+            shade.Content.Add(LightingSlider("Gone by", 1f, 33f, "0 px", () => contact.FadeTo, v => contact.FadeTo = v, step: 1f));
+            shade.Content.Add(DebugUi.Heading("Ambient occlusion"));
+            shade.Content.Add(new Checkbox("On").Bind(() => occlusion.Enabled, value => occlusion.Enabled = value));
+            shade.Content.Add(LightingSlider("Reach without GI", 0.1f, 3f, "0.00 m", () => occlusion.Radius, v => occlusion.Radius = v));
+            shade.Content.Add(LightingSlider("Solid depth", 0.05f, 2f, "0.00 m", () => occlusion.Thickness, v => occlusion.Thickness = v));
+            shade.Content.Add(LightingSlider("Canopy depth", 0f, 0.5f, "0.00 m", () => occlusion.ThinThickness, v => occlusion.ThinThickness = v));
+            shade.Content.Add(LightingSlider("Slices", 1f, 4f, "0", () => occlusion.Slices, v => occlusion.Slices = (int)v, step: 1f));
+            shade.Content.Add(LightingSlider("Steps", 1f, 6f, "0", () => occlusion.Steps, v => occlusion.Steps = (int)v, step: 1f));
+            var shadeView = new Dropdown(ShadeViews, 0);
+            shadeView.SelectionChanged += index =>
+            {
+                occlusion.Debug = index == 1 ? 1 : 0;
+                contact.Debug = index == 2 ? 1 : 0;
+                sunShadows.Debug = index == 3 ? 1 : index == 4 ? 2 : 0;
+            };
+            shade.Content.Add(DebugUi.LabeledRow("Show", shadeView));
 
             // ---------------------------------------------------------------- shells
             var shellFold = window.Content.Add(new Foldout("Moss and fur (shells)"));

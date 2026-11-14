@@ -1,0 +1,34 @@
+#version 430
+
+// The sun's soft shadow a pixel at a time, at the resolved depth (Lighting/SunShadow.glsl, SHADOWS.md).
+
+#include Globals.glsl
+#include Occlusion/Occlusion.glsl
+#include Lighting/SunShadow.glsl
+
+layout(local_size_x = 8, local_size_y = 8) in;
+layout(rg16f, binding = 0) uniform writeonly image2D shadowOut;
+layout(r8, binding = 1) uniform writeonly image2D softnessOut;
+
+uniform sampler2D linearDepth;
+
+void main()
+{
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 size = textureSize(linearDepth, 0);
+    if (any(greaterThanEqual(pixel, size))) return;
+
+    float distance = occlusionDistance(texelFetch(linearDepth, pixel, 0).r);
+    if (distance >= OCCLUSION_SKY * 0.5)
+    {
+        imageStore(shadowOut, pixel, vec4(1.0, 0.0, 0.0, 0.0));
+        imageStore(softnessOut, pixel, vec4(0.0));
+        return;
+    }
+
+    vec3 position = occlusionViewPosition(vec2(pixel) + 0.5, distance, vec2(size));
+    float softness;
+    vec2 parts = calcShadowPartsSoftness(position, softness);
+    imageStore(shadowOut, pixel, vec4(parts, 0.0, 0.0));
+    imageStore(softnessOut, pixel, vec4(softness));
+}

@@ -1,0 +1,206 @@
+#version 430
+
+// The sun's contact shadows, traced in screen space (ContactShadowRenderer, SHADOWS.md): what the shadow map is too coarse and too biased to see,
+// a foot on the ground, a stone in the grass, the folds of a body.
+//
+// A port to GLSL of Bend Studio's screen space shadows, as used in Days Gone (Graham Aldridge, "Screen Space Shadows", SIGGRAPH 2023):
+//
+//     Copyright 2023 Sony Interactive Entertainment.
+//
+//     Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may
+//     obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0
+//
+//     Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS,
+//     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and
+//     limitations under the License.
+//
+// Changed from bend_sss_gpu.h: written in GLSL for OpenGL's depth, which runs from 0 at the near plane to 1 at the far; the depth is read from the
+// occlusion's (Occlusion/Occlusion.glsl), so that a canopy, leaves and blades, casts nothing, as its shadow is the shadow map's to draw softly and
+// blade by blade it's noise; and a sample's weight fades over a stretch of the ray rather than its contrast, so that the shadow hands over to the
+// shadow map's, which is soft where it's cast from far, instead of carrying a hard edge out over it; anything standing less than minHeight in front
+// of the ray casts nothing, as at this camera's distance the depth's own relief (the ground's parallax, Terrain.frag) would otherwise sprinkle the
+// ground with single pixels of shadow, which the relief's own shadow already has (Surface/Relief.glsl); only the first two samples, not four, can
+// shade a pixel on their own; and what comes out is smoothed over the pixels round each that are on one surface (ContactShadows_Blur.comp), as a
+// shadow a pixel sharp crawls as the camera moves. Early-out, the debug views and the other bilinear mode are left out.
+//
+// Every thread of a 64-wide group is one pixel of one ray towards the light's projection, the rays of a group lined up so that each reads one
+// sample and they share them through shared memory. Nothing is random, so it's as steady as the depth it's traced through.
+
+#include Globals.glsl
+#include Occlusion/Occlusion.glsl
+
+#define WAVE_SIZE 64
+#define SAMPLE_COUNT 32
+#define HARD_SHADOW_SAMPLES 2
+#define READ_COUNT (SAMPLE_COUNT / WAVE_SIZE + 2)
+
+layout(local_size_x = WAVE_SIZE) in;
+layout(r8, binding = 0) uniform writeonly image2D shadowOut;
+
+uniform sampler2D linearDepth;
+// Where the light projects to on the screen in pixels, and its depth, as ContactShadowRenderer.DispatchList works it out: w is 1 where it's in front
+// of the camera and -1 behind it.
+uniform vec4 lightCoordinate;
+// Where this dispatch's waves start, relative to the light, in pixels.
+uniform ivec2 waveOffset;
+uniform float surfaceThickness;
+uniform float bilinearThreshold;
+uniform float shadowContrast;
+// Metres in front of the ray, along the view, that something must stand to cast anything.
+uniform float minHeight;
+// Samples along the ray past which one counts for less, and where it counts for nothing.
+uniform float fadeFrom;
+uniform float fadeTo;
+
+shared float depthData[READ_COUNT * WAVE_SIZE];
+
+// A pixel's depth as the depth buffer had it, 0 near to 1 far, and whether it's a canopy. Off the screen it's the far plane, which shades nothing.
+float depthAt(ivec2 pixel, ivec2 size, out bool thin)
+{
+    thin = false;
+    if (any(lessThan(pixel, ivec2(0))) || any(greaterThanEqual(pixel, size))) return 1.0;
+    float stored = texelFetch(linearDepth, pixel, 0).r;
+    float distance = occlusionDistance(stored);
+    if (distance >= OCCLUSION_SKY * 0.5) return 1.0;
+    thin = occlusionThin(stored);
+    // z / w of the projection, at a distance along the view.
+    float ndc = -projectionMatrix[2][2] + projectionMatrix[3][2] / distance;
+    return ndc * 0.5 + 0.5;
+}
+
+// Where this thread's pixel is, which way its ray steps through the group's samples, and how far it is from the light's projection along the axis
+// the ray mostly runs.
+void wavefrontExtents(ivec3 group, int thread, out vec2 deltaXY, out vec2 pixelXY, out float pixelDistance, out bool xAxisMajor)
+{
+    ivec2 xy = group.yz * WAVE_SIZE + waveOffset;
+
+    vec2 lightXY = floor(lightCoordinate.xy) + 0.5;
+    vec2 lightXYFraction = lightCoordinate.xy - lightXY;
+    bool reverseDirection = lightCoordinate.w > 0.0;
+
+    ivec2 signXY = sign(xy);
+    bool horizontal = abs(xy.x + signXY.y) < abs(xy.y - signXY.x);
+
+    ivec2 axis;
+    axis.x = horizontal ? signXY.y : 0;
+    axis.y = horizontal ? 0 : -signXY.x;
+
+    xy = axis * group.x + xy;
+    vec2 xyF = vec2(xy);
+
+    bool xMajor = abs(xyF.x) > abs(xyF.y);
+    float majorAxis = xMajor ? xyF.x : xyF.y;
+    float majorAxisStart = abs(majorAxis);
+    float majorAxisEnd = abs(majorAxis) - float(WAVE_SIZE);
+
+    float majorLightFraction = xMajor ? lightXYFraction.x : lightXYFraction.y;
+    majorLightFraction = majorAxis > 0.0 ? -majorLightFraction : majorLightFraction;
+
+    vec2 startXY = xyF + lightXY;
+    // The innermost ring is drawn in to the light's own pixel, so that rounding to pixels doesn't skip any.
+    vec2 endXY = mix(lightCoordinate.xy, startXY, (majorAxisEnd + majorLightFraction) / (majorAxisStart + majorLightFraction));
+    vec2 xyDelta = startXY - endXY;
+
+    float threadStep = float(thread ^ (reverseDirection ? 0 : (WAVE_SIZE - 1)));
+
+    pixelXY = mix(startXY, endXY, threadStep / float(WAVE_SIZE));
+    pixelDistance = majorAxisStart - threadStep + majorLightFraction;
+    deltaXY = xyDelta;
+    xAxisMajor = xMajor;
+}
+
+void main()
+{
+    ivec3 group = ivec3(gl_WorkGroupID);
+    int thread = int(gl_LocalInvocationID.x);
+    ivec2 size = textureSize(linearDepth, 0);
+
+    vec2 xyDelta;
+    vec2 pixelXY;
+    float pixelDistance;
+    bool xMajor;
+    wavefrontExtents(group, thread, xyDelta, pixelXY, pixelDistance, xMajor);
+
+    float samplingDepth[READ_COUNT];
+    float shadowingDepth[READ_COUNT];
+    float depthThicknessScale[READ_COUNT];
+    float sampleDistance[READ_COUNT];
+
+    float direction = -lightCoordinate.w;
+    // OpenGL's depth grows away from the camera.
+    const float zSign = 1.0;
+    // What a sample that casts nothing is pushed out to.
+    const float noCaster = 1e20;
+
+    vec2 writeXY = floor(pixelXY);
+
+    for (int i = 0; i < READ_COUNT; i++)
+    {
+        // Two depths a sample, along the minor axis of the ray, blended unless they're on different surfaces; the major axis is at pixel centres.
+        ivec2 readXY = ivec2(floor(pixelXY));
+        float minorAxis = xMajor ? pixelXY.y : pixelXY.x;
+        float bilinear = fract(minorAxis) - 0.5;
+        int bias = bilinear > 0.0 ? 1 : -1;
+        ivec2 offsetXY = ivec2(xMajor ? 0 : bias, xMajor ? bias : 0);
+
+        bool thin;
+        bool thinNeighbour;
+        vec2 depths = vec2(depthAt(readXY, size, thin), depthAt(readXY + offsetXY, size, thinNeighbour));
+
+        // Thresholds are a share of the depth left to the far plane.
+        depthThicknessScale[i] = abs(1.0 - depths.x);
+        bool usePointFilter = abs(depths.x - depths.y) > depthThicknessScale[i] * bilinearThreshold;
+
+        // The pixel starts its ray at its own depth; it casts from a little further, as far as anywhere the blend between the two could put it.
+        samplingDepth[i] = depths.x;
+        float shadowDepth = depths.x + abs(depths.x - depths.y) * zSign;
+        shadowingDepth[i] = usePointFilter ? depths.x : shadowDepth;
+        if (thin) shadowingDepth[i] = noCaster;
+
+        sampleDistance[i] = pixelDistance + float(WAVE_SIZE * i) * direction;
+        pixelXY += xyDelta * direction;
+    }
+
+    for (int i = 0; i < READ_COUNT; i++)
+    {
+        // Divided by the distance to the light's projection, every ray is parallel.
+        float stored = (shadowingDepth[i] - lightCoordinate.z) / sampleDistance[i];
+        // Reads that run past the light's own pixel mean nothing.
+        if (i != 0) stored = sampleDistance[i] > 0.0 ? stored : 1e10;
+        depthData[i * WAVE_SIZE + thread] = stored;
+    }
+
+    memoryBarrierShared();
+    barrier();
+
+    // Nothing drawn, nothing to shade.
+    if (samplingDepth[0] >= 1.0) return;
+
+    float startDepth = (samplingDepth[0] - lightCoordinate.z) / sampleDistance[0];
+    int sampleIndex = thread + 1;
+
+    // How wide the window a sample has to fall in is, in the parallel space: the thickness, a share of the depth left, scaled back from it. In
+    // these units a sample stands from 0 (on the ray) to 2 (as far in front of it as anything is taken to be thick) in front of the ray, and one of
+    // them is about the thickness times the distance from the camera.
+    float depthScale = min(sampleDistance[0] + direction, 1.0 / surfaceThickness) * sampleDistance[0] / depthThicknessScale[0];
+    startDepth = startDepth * depthScale;
+    float receiverDistance = projectionMatrix[3][2] / ((samplingDepth[0] * 2.0 - 1.0) + projectionMatrix[2][2]);
+    float least = minHeight / max(surfaceThickness * receiverDistance, 1e-6);
+
+    // The first two samples can shade the pixel on their own, which is what grounds what stands on something. The rest are kept in four sets of
+    // every fourth, which are averaged, so that one sample can't shade a pixel by itself and the depth's own steps aren't thrown out as a shadow.
+    // A sample counts from least in front of the ray to two units, coming in and going out over a quarter of one each way at a contrast of 4.
+    float hard = 0.0;
+    vec4 shaded = vec4(0.0);
+    for (int i = 0; i < SAMPLE_COUNT; i++)
+    {
+        float inFront = startDepth - depthData[sampleIndex + i] * depthScale;
+        float occluded = clamp((inFront - least) * shadowContrast, 0.0, 1.0) * clamp((2.0 - inFront) * shadowContrast, 0.0, 1.0);
+        occluded *= clamp((fadeTo - float(i)) / max(fadeTo - fadeFrom, 1.0), 0.0, 1.0);
+        if (i < HARD_SHADOW_SAMPLES) hard = max(hard, occluded);
+        else shaded[i & 3] = max(shaded[i & 3], occluded);
+    }
+
+    float result = 1.0 - max(hard, dot(shaded, vec4(0.25)));
+    imageStore(shadowOut, ivec2(writeXY), vec4(result));
+}

@@ -33,6 +33,13 @@ namespace Dino_Engine.Rendering.Renderers.AntiAliasing
         public const int EdgeAttachment = 3;
         /// <summary>Texture unit the light passes read the screen-space ambient occlusion from (Lighting/gBufferSample.glsl).</summary>
         public const int AmbientOcclusionUnit = 14;
+        /// <summary>Texture unit the light passes read the occlusion's depth from, to find which pixel's screen-space terms an edge sample takes.</summary>
+        public const int OcclusionDepthUnit = 13;
+        /// <summary>Texture unit the ambient pass reads the sun's contact shadows from.</summary>
+        public const int ContactShadowUnit = 15;
+        /// <summary>Texture units the ambient pass reads the sun's soft shadow from, a pixel at a time, and how soft it is.</summary>
+        public const int SunShadowUnit = 16;
+        public const int SunShadowSoftnessUnit = 17;
         private const int MaxSamples = 8;
 
         private readonly ShaderProgram _resolveGeometryShader = new ShaderProgram("Simple.vert", "AntiAliasing/Msaa_Resolve_GBuffer.frag");
@@ -248,7 +255,28 @@ namespace Dino_Engine.Rendering.Renderers.AntiAliasing
             BindTexture(3, _geometryBuffer.getDepthAttachment());
             GL.ActiveTexture(TextureUnit.Texture0 + AmbientOcclusionUnit);
             GL.BindTexture(TextureTarget.Texture2D, ambientOcclusionTexture);
+            GL.ActiveTexture(TextureUnit.Texture0 + OcclusionDepthUnit);
+            GL.BindTexture(TextureTarget.Texture2D, Engine.RenderEngine.OcclusionDepthTexture);
+            GL.ActiveTexture(TextureUnit.Texture0 + ContactShadowUnit);
+            GL.BindTexture(TextureTarget.Texture2D, Engine.RenderEngine.ContactShadowTexture);
+            GL.ActiveTexture(TextureUnit.Texture0 + SunShadowUnit);
+            GL.BindTexture(TextureTarget.Texture2D, Engine.RenderEngine._directionalLightRenderer.SunShadowTexture);
+            GL.ActiveTexture(TextureUnit.Texture0 + SunShadowSoftnessUnit);
+            GL.BindTexture(TextureTarget.Texture2D, Engine.RenderEngine._directionalLightRenderer.SunShadowSoftnessTexture);
             GL.ActiveTexture(TextureUnit.Texture0);
+        }
+
+        /// <summary>
+        /// Points a light pass's screen-space samplers at the units <see cref="BindGeometrySamples"/> fills, beyond the G-buffer's own: the occlusion,
+        /// its depth, and the sun's contact shadows and soft shadow where the shader reads them. Call it with the shader bound.
+        /// </summary>
+        public static void LinkScreenTerms(ShaderProgram shader)
+        {
+            shader.loadUniformInt("ambientOcclusion", AmbientOcclusionUnit);
+            shader.loadUniformInt("occlusionDepth", OcclusionDepthUnit);
+            if (shader.HasUniform("contactShadows")) shader.loadUniformInt("contactShadows", ContactShadowUnit);
+            if (shader.HasUniform("sunShadow")) shader.loadUniformInt("sunShadow", SunShadowUnit);
+            if (shader.HasUniform("sunShadowSoftness")) shader.loadUniformInt("sunShadowSoftness", SunShadowSoftnessUnit);
         }
 
         /// <summary>Binds one of the multisampled buffers' textures (as a sampler2DMS) to a texture unit.</summary>

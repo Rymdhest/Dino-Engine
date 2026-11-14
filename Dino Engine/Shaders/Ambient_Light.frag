@@ -26,6 +26,20 @@ uniform vec3 groundLight;
 uniform float emissionScale;
 uniform vec3 sunDirectionViewSpace;
 uniform vec3 sunColour;
+// The sun's contact shadows, 1 lit and 0 shaded (ContactShadowRenderer, SHADOWS.md), per pixel like the occlusion.
+uniform sampler2D contactShadows;
+// The sun's soft shadow a pixel at a time, x what reaches it directly and y what fills its shadow (Shadows/SunShadow_Mask.comp), and how soft it is.
+uniform sampler2D sunShadow;
+uniform sampler2D sunShadowSoftness;
+
+// How far, as a share of its depth, a sample can be from the pixel whose sun shadow it takes and still take it. A sample further from every pixel round
+// it than that, on something thin and solid in front of all of them, a wire or a twig, works its own out (calcShadowParts); a canopy's, a blade or a
+// leaf over the ground, takes the ground's, as the lighting of a field is its masses' and not its blades'.
+const float SUN_SHADOW_APART = 0.006;
+// The debug pictures: --render aodebug=1, contactdebug=1, shadowdebug=1 or 2 (OCCLUSION.md, SHADOWS.md). 0 for the picture.
+uniform int occlusionDebug;
+uniform int contactDebug;
+uniform int shadowDebug;
 
 // How wide the sun's highlight is, as alpha squared added to a surface's lobe (lightSurfaceSpread). Its disc is about half a degree, but a highlight that narrow on
 // water as smooth as a puddle is a point, and rain rings a pixel across broke it into white fragments that jumped about whenever the camera moved: so it never
@@ -34,6 +48,16 @@ const float SUN_SPREAD = 0.0064;
 // And how far clouds spread it on top of that, when they let none of it through as a disc. A sun behind cloud lights the whole sky; it doesn't stand in a puddle
 // as a white hole, as it did in the Haven's rain, a dimmed sun still being a point.
 const float CLOUD_SPREAD = 0.35;
+
+// What the occluded part of a surface still gets of the light that bounces between it and what occludes it, so that occlusion doesn't grey out
+// what's bright (Jimenez et al., "Practical Real-Time Strategies for Accurate Indirect Occlusion", 2016: a fit to the ground truth, by albedo).
+vec3 occlusionMultiBounce(float visibility, vec3 albedo)
+{
+    vec3 a = 2.0404 * albedo - 0.3324;
+    vec3 b = -4.7951 * albedo + 0.6417;
+    vec3 c = 2.7552 * albedo + 0.6903;
+    return max(vec3(visibility), ((visibility * a + b) * visibility + c) * visibility);
+}
 
 // Global illumination (GI.md): what GlobalIlluminationRenderer gathered, at half the resolution each way, a layer for each colour's
 // irradiance A + B.n and a fourth with each texel's depth and how sure it is. 0 for giMix leaves the flat sky and ground.
@@ -128,7 +152,7 @@ void main(void)
     vec3 specular = environmentBRDF(F0, roughness, NdotV);
     vec3 diffuse = s.albedo * (1.0 - s.metallic) * (1.0 - specular);
 
-    vec3 ambient = diffuse * surrounding * g.ambient;
+    vec3 ambient = diffuse * surrounding * occlusionMultiBounce(g.ambient, s.albedo);
     // A leaf, a blade or a cloth lets through what lights its back: in the shade and under cloud it's most of what makes it glow (SUBSURFACE.md).
     if (s.scatter > 0.0 && s.scatterKind <= SSS_CANOPY) ambient += sssAmbientThin(s, behind) * g.ambient;
     if (!reflectionWanted(s.roughness, g.albedo.a))
@@ -159,11 +183,45 @@ void main(void)
         return;
     }
 
-    if (sunColour != vec3(0.0))
+    // --render aodebug=1: the screen-space occlusion alone, on white.
+    if (occlusionDebug == 1)
     {
-        // The relief's own shadow is the sun's alone: it was cast along the sun's way, and no other light's.
+        out_Colour = vec4(vec3(texelFetch(ambientOcclusion, g.screenPixel, 0).r) * 2.4, 1.0);
+        return;
+    }
+    // --render contactdebug=1: the sun's contact shadows alone, on white.
+    if (contactDebug == 1)
+    {
+        out_Colour = vec4(vec3(texelFetch(contactShadows, g.screenPixel, 0).r) * 2.4, 1.0);
+        return;
+    }
+
+    if (sunColour != vec3(0.0) || shadowDebug != 0)
+    {
+        // How much of the sun gets here: the soft shadow (x) with what fills a long shadow from the air (y, Lighting/SunShadow.glsl), a pixel at a
+        // time; the contact shadows only take what reaches it directly. The relief's own shadow is the sun's alone: it was cast along the sun's way,
+        // and no other light's.
+        vec2 shadow = texelFetch(sunShadow, g.screenPixel, 0).rg;
+#ifdef PER_SAMPLE
+        // Nothing to say for a face turned away, unless light gets through it from behind.
+        bool facing = dot(s.normal, sunDirectionViewSpace) > 0.0 || s.scatter > 0.0;
+        if (g.screenApart > SUN_SHADOW_APART && s.scatterKind != SSS_CANOPY && facing) shadow = calcShadowParts(g.position);
+#endif
+        float contact = texelFetch(contactShadows, g.screenPixel, 0).r;
+        float lit = clamp(min(shadow.x, contact) + shadow.y, 0.0, 1.0);
+        // --render shadowdebug=1: how soft the shadow here is, black sharpest and white softest; 2: the sun's shadow alone, on white.
+        if (shadowDebug == 1)
+        {
+            out_Colour = vec4(vec3(texelFetch(sunShadowSoftness, g.screenPixel, 0).r) * 2.4, 1.0);
+            return;
+        }
+        if (shadowDebug == 2)
+        {
+            out_Colour = vec4(vec3(lit) * 2.4, 1.0);
+            return;
+        }
         float through = weatherSunVisibility((invViewMatrix * vec4(g.position, 1.0)).xz);
-        vec3 radiance = sunColour * clamp(calcShadow(g.position), 0.0, 1.0) * g.materials.a * through;
+        vec3 radiance = sunColour * lit * g.materials.a * through;
         colour += lightSurfaceSpread(s, sunDirectionViewSpace, radiance, SUN_SPREAD + CLOUD_SPREAD * (1.0 - clamp(through, 0.0, 1.0)));
     }
     out_Colour = vec4(colour, 1.0);

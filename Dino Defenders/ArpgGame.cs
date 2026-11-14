@@ -33,7 +33,7 @@ namespace Dino_Defenders
         private const float ViewSpreadAtTop = 0.967f;   // Half-width of the view at the top of the screen, per metre of camera height and of aspect ratio.
         private const float FurthestZoomAllowed = 1.25f;
 
-        private readonly record struct PreparedWorld(WorldData World, byte[] Map);
+        private readonly record struct PreparedWorld(WorldData World, Dino_Engine.World.Chart.Chart Map);
 
         // Metres round the landing the rock's skin is grown in while a land loads: what the camera sees from there.
         private const float SkinAtLanding = 44f;
@@ -448,7 +448,8 @@ namespace Dino_Defenders
                     render_.AntiAliasing.Samples = int.Parse(parts[1]);
                     continue;
                 }
-                if (parts.Length != 2 || !(render_.Lighting.Set(parts[0], parts[1]) || render_.Reflections.Set(parts[0], parts[1]) || render_.GlobalIllumination.Set(parts[0], parts[1]) || render_.Shells.Settings.Set(parts[0], parts[1]) || render_.Subsurface.Set(parts[0], parts[1]))) Console.WriteLine($"No render setting '{setting}'.");
+                if (parts.Length != 2 || !(render_.Lighting.Set(parts[0], parts[1]) || render_.Reflections.Set(parts[0], parts[1]) || render_.GlobalIllumination.Set(parts[0], parts[1]) || render_.Shells.Settings.Set(parts[0], parts[1]) || render_.Subsurface.Set(parts[0], parts[1])
+                    || render_.Occlusion.Set(parts[0], parts[1]) || render_.ContactShadows.Set(parts[0], parts[1]) || render_.SunShadows.Set(parts[0], parts[1]))) Console.WriteLine($"No render setting '{setting}'.");
             }
         }
 
@@ -1024,7 +1025,7 @@ namespace Dino_Defenders
             Task growing = Task.Run(() => _assets.Grow(WorldAssetLibrary.AssetsOf(world)));
             // The rock round the landing is clad before anyone sees it, and the rest comes in around the camera (RockSkinStream).
             Task cladding = _options.Skin ? Task.Run(() => RockSkinStream.Prepare(world, world.Sites[0].Landing, SkinAtLanding)) : Task.CompletedTask;
-            byte[] map = await Task.Run(() => WorldMapImage.Render(world, MapPanel.Resolution, showSites: false));
+            Dino_Engine.World.Chart.Chart map = await Task.Run(() => Dino_Engine.World.Chart.WorldChart.Draw(world, MapPanel.Resolution));
             await growing;
             await cladding;
             Console.WriteLine($"Generated {world.Plan.Name} ({world.Plan.Archetype.Name}, {world.Plan.Mood.Name}) in {clock.Elapsed.TotalSeconds:0.00} s");
@@ -1064,7 +1065,7 @@ namespace Dino_Defenders
             session.UpdateGuidance();
             GameSession.Current = session;
             if (session.IsHaven && !Nature.Off) _giants = GiantShow.InHaven(Engine.world, world, _characters, HerdSeed());
-            _ui.Map.SetImage(prepared.Map);
+            _ui.Map.SetChart(prepared.Map);
             _followingHero = false;
 
             // Up from here, until the hero arrives: everything that draws wants a camera to draw through.

@@ -64,12 +64,13 @@ Up to five heroes can share a world, with no server to run: in the pause menu, *
 - **Physically Based Rendering (PBR)**
 - **Normal mapping**
 - **parallax mapping**
-- **Screen Space Ambient Occlusion**
+- **Ground truth ambient occlusion with visibility bitmasks**
 - **Screen Space Reflections**
 - **animated, height-based fog**
 
 ### Lighting
-- **Directional lights** with **cascaded shadow mapping**
+- **Directional lights** with **cascaded shadow mapping**, soft by how far off each caster is (umbra, penumbra and antumbra)
+- **Screen-space contact shadows** for the sun
 - **Point and spot lights with shadow mapping**
 - **Light rays** for volumetric effects
 - **Geometric subsurface scattering**

@@ -90,7 +90,8 @@ namespace Dino_Engine.Rendering
         public PointLightRenderer _pointLightRenderer;
         private ToneMapRenderer _toneMapRenderer;
         private FXAARenderer _fXAARenderer;
-        private SSAORenderer _sSAORenderer;
+        private OcclusionRenderer _occlusion;
+        private ContactShadowRenderer _contactShadows;
         private BloomRenderer _bloomRenderer;
         private SkyRenderer _skyRenderer;
         public VolumetricFogRenderer _volumetricFogRenderer;
@@ -102,7 +103,6 @@ namespace Dino_Engine.Rendering
         private LightningRenderer _lightningRenderer;
         private ScreenSpaceReflectionRenderer _screenSpaceReflectionRenderer;
         private GaussianBlurRenderer _gaussianBlurRenderer;
-        private DepthBasedBlurRenderer _depthBasedBlurRenderer;
         public SpotLightRenderer _spotLightRenderer;
         public ParticleRenderer _particleRenderer;
         public BeamRenderer _beamRenderer;
@@ -127,7 +127,6 @@ namespace Dino_Engine.Rendering
         public TextureGenerator textureGenerator = new TextureGenerator();
 
         public GaussianBlurRenderer GaussianBlurRenderer { get => _gaussianBlurRenderer; }
-        public DepthBasedBlurRenderer DepthBasedBlurRenderer { get => _depthBasedBlurRenderer; }
         /// <summary>
         /// The single-sample G-buffer the light and screen-space passes read, resolved from the multisampled one each frame (the
         /// average of a pixel's samples, or the farthest on edge pixels, which attachment <see cref="MsaaRenderer.EdgeAttachment"/> flags).
@@ -148,10 +147,20 @@ namespace Dino_Engine.Rendering
         public ReflectionSettings Reflections { get; } = new ReflectionSettings();
         /// <summary>How light bounces, read each frame (GI.md).</summary>
         public GlobalIlluminationSettings GlobalIllumination { get; } = new GlobalIlluminationSettings();
+        /// <summary>How the ambient occlusion is worked out, read each frame (OCCLUSION.md).</summary>
+        public OcclusionSettings Occlusion { get; } = new OcclusionSettings();
+        /// <summary>How the sun's shadows are filled in at contacts in screen space, read each frame (SHADOWS.md).</summary>
+        public ContactShadowSettings ContactShadows { get; } = new ContactShadowSettings();
+        /// <summary>How soft the sun's shadows are, by how far each caster is from what it shades, read each frame (SHADOWS.md).</summary>
+        public SunShadowSettings SunShadows { get; } = new SunShadowSettings();
         /// <summary>The multisampled G-buffer and scene, and the passes that resolve them.</summary>
         public MsaaRenderer Msaa { get => _msaa; }
         /// <summary>This frame's screen-space ambient occlusion, for the light passes.</summary>
-        public int AmbientOcclusionTexture { get => _sSAORenderer.OcclusionTexture; }
+        public int AmbientOcclusionTexture { get => _occlusion.OcclusionTexture; }
+        /// <summary>This frame's depth as metres along the view, negative on a canopy (Occlusion/Occlusion.glsl), for the light passes and contact shadows.</summary>
+        public int OcclusionDepthTexture { get => _occlusion.DepthTexture; }
+        /// <summary>This frame's contact shadows from the sun, 1 lit and 0 shadowed, for the ambient pass.</summary>
+        public int ContactShadowTexture { get => _contactShadows.ShadowTexture; }
         /// <summary>This frame's lit scene as a soft mip chain, once the light passes have run.</summary>
         public int SceneBlurTexture { get => _screenSpaceReflectionRenderer.SceneBlurTexture; }
 
@@ -205,7 +214,8 @@ namespace Dino_Engine.Rendering
             _pointLightRenderer = new PointLightRenderer();
             _toneMapRenderer = new ToneMapRenderer();
             _fXAARenderer = new FXAARenderer();
-            _sSAORenderer = new SSAORenderer();
+            _occlusion = new OcclusionRenderer();
+            _contactShadows = new ContactShadowRenderer();
             _bloomRenderer = new BloomRenderer();
             _skyRenderer = new SkyRenderer();
             _volumetricFogRenderer = new VolumetricFogRenderer();
@@ -219,7 +229,6 @@ namespace Dino_Engine.Rendering
             _lightningRenderer = new LightningRenderer();
             _screenSpaceReflectionRenderer = new ScreenSpaceReflectionRenderer();
             _gaussianBlurRenderer = new GaussianBlurRenderer();
-            _depthBasedBlurRenderer = new DepthBasedBlurRenderer();
             _spotLightRenderer = new SpotLightRenderer();
             _particleRenderer = new ParticleRenderer();
             _beamRenderer = new BeamRenderer();
@@ -397,7 +406,7 @@ namespace Dino_Engine.Rendering
 
             // Bounced light first: the ambient pass reads what it gathers, and the occlusion only has the contact left to do while it's on.
             _globalIllumination.RenderPass(this);
-            _sSAORenderer.RenderPass(this);
+            ScreenTerms();
 
             // Lighting adds up in the multisampled scene, which shares the G-buffer's depth and edge stencil.
             _msaa.SceneBuffer.bind();
@@ -414,6 +423,37 @@ namespace Dino_Engine.Rendering
             _screenSpaceReflectionRenderer.RenderPass(this);
             _globalIllumination.DrawDebug(this);
         }
+        /// <summary>
+        /// What the light passes read of the screen and of the sun's shadow, a pixel at a time (OCCLUSION.md, SHADOWS.md): the ambient occlusion, the
+        /// sun's contact shadows and its soft shadow. Each is a few compute passes, and a barrier waits for everything before it, so they go in four
+        /// steps, each holding whatever doesn't read what the others in it make, with one barrier after each step rather than one after every pass.
+        /// </summary>
+        private void ScreenTerms()
+        {
+            // The depth as metres along the view, which everything after reads; the sun's block maps; and what's to be traced into, cleared.
+            _occlusion.Depth(this);
+            _directionalLightRenderer.BeginSunShadow(this);
+            _contactShadows.Begin(this);
+            ScreenBarrier();
+            // The occlusion, the contact shadows' rays and the soft shadow, all from the depth.
+            _occlusion.Trace(this);
+            _contactShadows.Trace(this);
+            _directionalLightRenderer.TraceSunShadow(this);
+            ScreenBarrier();
+            // The occlusion's denoise across, and the contact shadows smoothed.
+            _occlusion.DenoiseAcross(this);
+            _contactShadows.Smooth(this);
+            ScreenBarrier();
+            // And up.
+            _occlusion.DenoiseUp(this);
+            ScreenBarrier();
+        }
+
+        private static void ScreenBarrier()
+        {
+            GL.MemoryBarrier(MemoryBarrierFlags.TextureFetchBarrierBit | MemoryBarrierFlags.ShaderImageAccessBarrierBit);
+        }
+
         private void PostGeometryPass()
         {
             _skyRenderer.RenderPass(this);

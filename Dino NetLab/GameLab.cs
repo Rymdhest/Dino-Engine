@@ -1492,6 +1492,16 @@ namespace Dino_NetLab
                 lab.Run(1);
                 report.Check("And for the client", player.Client.Session!.Sites[index].Kindled);
                 report.Check("And blesses whoever kindled it", truth.Actor.Buffs.Any(b => BuffCatalog.Blessings.Contains(b.Buff)));
+                lab.Run(2);
+                BuffDefinition given = EncounterSystem.BlessingOf(session, held);
+                Banner shown = player.Client.Session.Banners.LastOrDefault(b => b.Title == given.Name);
+                report.Check("And names the blessing and what it gives in the middle of the screen", shown.Title == given.Name && shown.Subtitle == EncounterSystem.BlessingText(given), shown.Subtitle ?? "no banner");
+                Console.WriteLine($"        {shown.Title}: {shown.Subtitle}");
+                report.Check("And is spent: it's no longer there to use", !(FindNear(InteractKind.Shrine, altar.Value) is Vector2 still && (still - altar.Value).Length < 1f));
+                truth.Hero.Flasks = 0;
+                truth.SummaryChanged = true;
+                Use(altar.Value);
+                report.Check("So pressing use there again gives nothing", truth.Hero.Flasks == 0);
                 bool moved = session.Chronicle.Objectives.Any(o => o.Kind == ObjectiveKind.FreePlaces && o.Progress > 0) && player.Client.Session.Chronicle.Objectives.Any(o => o.Kind == ObjectiveKind.FreePlaces && o.Progress > 0);
                 if (asked) report.Check("And freeing it moved the chronicle on, for both", moved);
                 else report.Check("And freeing one the land didn't name moves nothing on", !session.Chronicle.Objectives.Any(o => o.Kind == ObjectiveKind.FreePlaces && o.Progress > 0));

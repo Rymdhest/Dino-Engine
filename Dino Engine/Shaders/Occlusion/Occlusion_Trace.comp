@@ -1,0 +1,265 @@
+#version 430
+
+// How much of the sky each pixel sees, as ground truth ambient occlusion with visibility bitmasks (OCCLUSION.md):
+//
+// Jimenez et al.'s GTAO ("Practical Real-Time Strategies for Accurate Indirect Occlusion", 2016) takes slices through the hemisphere over a point,
+// each a plane through the eye, and walks out along each side over the depth to find what's in the way. GTAO keeps the highest horizon on each side,
+// which takes everything in front of the depth to be infinitely deep: a blade of grass or a fence post hides the whole sky behind it, and leaves a dark
+// halo. Therrien, Levesque and Gilet ("Screen Space Indirect Lighting with Visibility Bitmask", 2023) give every sample a thickness instead and keep
+// which of 32 sectors of the slice anything covers, so light gets in behind something thin. Here the sectors are spaced so that each carries the same
+// share of the cosine-weighted visibility (the integral GTAO evaluates in closed form), so counting them is that integral, and with nothing thin
+// about it is GTAO's own answer. Canopies, leaves and blades, are thin; everything else is as thick as the occlusion reaches.
+//
+// A canopy hides nothing from a canopy: a field darkens itself by how deep in it each blade is (fragCanopy, in Grass.frag), in the world and
+// steadily, and blade by blade through the screen the same darkening was noise that swayed with them and doubled what the field already has. So on a
+// blade or a leaf only what's solid counts, a wall, a stone, a foot, the lie of the ground, while blades still hide the sky from the ground and the
+// stones among them. A field is one surface to the denoise too (OCCLUSION_THIN_EDGES), as nearly every pixel of it is a blade against the ground or
+// another blade, and an edge between each would leave the trace's pattern in it.
+//
+// Nothing here is random: there's no temporal accumulation to average noise away. Each pixel of a 4 x 4 tile takes its slices at angles offset by a
+// sixteenth of the gap between them, and its steps at distances likewise, so the tile between them takes sixteen times as many, evenly spread; the
+// denoise (Occlusion_Denoise.comp) is a [1 2 2 2 1] filter each way, which gives every one of the sixteen the same weight and so takes the pattern out
+// exactly, wherever there are no edges in the way.
+
+#include Globals.glsl
+#include Occlusion/Occlusion.glsl
+
+// Slices a pixel and samples along each side of one: fixed when it's compiled (OcclusionRenderer keeps a program for each pair it's asked for),
+// so that the loops unroll and a slice's samples are all fetched before any is waited on.
+#ifndef OCCLUSION_SLICES
+#define OCCLUSION_SLICES 2
+#endif
+#ifndef OCCLUSION_STEPS
+#define OCCLUSION_STEPS 3
+#endif
+
+layout(local_size_x = 8, local_size_y = 8) in;
+layout(r16f, binding = 0) uniform writeonly image2D visibilityOut;
+layout(r8, binding = 1) uniform writeonly image2D edgesOut;
+
+uniform sampler2D linearDepth;
+// Metres the occlusion reaches, and how far in from there it starts to fade.
+uniform float radius;
+uniform float fadeFrom;
+// Metres deep anything solid is taken to be behind what's seen of it, and a canopy.
+uniform float thickness;
+uniform float thinThickness;
+// Samples further out than 2^(this) pixels read a coarser level of the depth.
+uniform float coarseFrom;
+
+// How much further apart than anything solid a canopy and whatever's next to it can be and still be one surface to the denoise: a blade's tip and the
+// ground beside it are well under its height apart along the view, and a crown and the ground under it well over.
+const float OCCLUSION_THIN_EDGES = 4.0;
+
+const float OCCLUSION_PI = 3.14159265359;
+const float OCCLUSION_HALF_PI = 1.57079632679;
+
+// The order the sixteen pixels of a tile take their offsets in: a Bayer matrix, so that neighbours are as different as can be.
+const float TILE_ORDER[16] = float[16](0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0, 3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0);
+
+// Arc cosine to within 7e-5 radians (Abramowitz and Stegun 4.4.45), for the samples' angles.
+float occlusionAcos(float x)
+{
+    float a = abs(x);
+    float r = sqrt(max(1.0 - a, 0.0)) * (1.5707288 + a * (-0.2121144 + a * (0.0742610 - 0.0187293 * a)));
+    return x >= 0.0 ? r : OCCLUSION_PI - r;
+}
+
+float storedAt(ivec2 pixel, ivec2 size, int level)
+{
+    pixel = clamp(pixel, ivec2(0), size - 1);
+    return texelFetch(linearDepth, pixel >> level, level).r;
+}
+
+// The cosine-weighted visibility of a slice from its middle out to an angle theta from the view (signed, towards the side of the slice's direction),
+// for a projected normal at angle n: the integral of cos(t - n) |sin t| dt from 0 to theta, which is GTAO's arc integral with its sign.
+float sliceIntegral(float theta, float n, float cosN, float sinN)
+{
+    float arc = 0.25 * (cosN + 2.0 * theta * sinN - cos(2.0 * theta - n));
+    return theta >= 0.0 ? arc : -arc;
+}
+
+// The same, for a direction given by its angle and its cosine, without a cosine of its own: cos(2t - n) = cos 2t cos n + sin 2t sin n, and cos 2t and
+// sin 2t follow from cos t, with the sign of t.
+float sliceIntegralOf(float theta, float cosTheta, float cosN, float sinN)
+{
+    float sinTheta = sign(theta) * sqrt(max(1.0 - cosTheta * cosTheta, 0.0));
+    float cosTwice = 2.0 * cosTheta * cosTheta - 1.0;
+    float sinTwice = 2.0 * sinTheta * cosTheta;
+    float arc = 0.25 * (cosN + 2.0 * theta * sinN - (cosTwice * cosN + sinTwice * sinN));
+    return theta >= 0.0 ? arc : -arc;
+}
+
+// Where in the slice's sectors a direction falls, 0 at the low edge of the hemisphere and 1 at the high, by how much of the cosine-weighted visibility
+// lies below it. Past either edge it's that edge.
+float sectorOf(float theta, float cosTheta, float low, float high, float cosN, float sinN, float integralLow, float perWhole)
+{
+    if (theta <= low) return 0.0;
+    if (theta >= high) return 1.0;
+    return (sliceIntegralOf(theta, cosTheta, cosN, sinN) - integralLow) * perWhole;
+}
+
+uint sectorsBetween(float lo, float hi)
+{
+    // A sector is covered when at least half of it is (the paper's rounding).
+    uint a = uint(clamp(round(lo * 32.0), 0.0, 32.0));
+    uint b = uint(clamp(round(hi * 32.0), 0.0, 32.0));
+    if (b <= a) return 0u;
+    uint count = b - a;
+    return count >= 32u ? 0xFFFFFFFFu : ((1u << count) - 1u) << a;
+}
+
+void main()
+{
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 size = textureSize(linearDepth, 0);
+    if (any(greaterThanEqual(pixel, size))) return;
+    vec2 sizeF = vec2(size);
+
+    float centreStored = storedAt(pixel, size, 0);
+    float storedLeft = storedAt(pixel + ivec2(-1, 0), size, 0);
+    float storedRight = storedAt(pixel + ivec2(1, 0), size, 0);
+    float storedUp = storedAt(pixel + ivec2(0, 1), size, 0);
+    float storedDown = storedAt(pixel + ivec2(0, -1), size, 0);
+    float z = occlusionDistance(centreStored);
+    float zLeft = occlusionDistance(storedLeft);
+    float zRight = occlusionDistance(storedRight);
+    float zUp = occlusionDistance(storedUp);
+    float zDown = occlusionDistance(storedDown);
+    vec4 edges = occlusionEdges(z, zLeft, zRight, zUp, zDown, 1.0);
+    // What the denoise reads: wherever a canopy is on either side, a field and the ground in it are one surface. Both ends of a step agree, as each
+    // looks at both.
+    bool thinHere = occlusionThin(centreStored);
+    vec4 thinBeside = vec4(occlusionThin(storedLeft), occlusionThin(storedRight), occlusionThin(storedUp), occlusionThin(storedDown));
+    vec4 loose = occlusionEdges(z, zLeft, zRight, zUp, zDown, OCCLUSION_THIN_EDGES);
+    vec4 denoiseEdges = thinHere ? loose : mix(edges, loose, thinBeside);
+    imageStore(edgesOut, pixel, vec4(occlusionPackEdges(denoiseEdges)));
+
+    if (z >= OCCLUSION_SKY * 0.5)
+    {
+        imageStore(visibilityOut, pixel, vec4(1.0));
+        return;
+    }
+
+    vec2 centre = vec2(pixel) + 0.5;
+    vec3 position = occlusionViewPosition(centre, z, sizeF);
+    vec3 view = normalize(-position);
+
+    // The surface's own normal, from the depth: the shading normal's bumps aren't in the depth, and against them the flat geometry would seem to rise
+    // above its own horizon. Each of the four triangles round the pixel counts by how surely both its neighbours are on the same surface (XeGTAO's).
+    vec3 towardsLeft = normalize(occlusionViewPosition(centre + vec2(-1.0, 0.0), zLeft, sizeF) - position);
+    vec3 towardsRight = normalize(occlusionViewPosition(centre + vec2(1.0, 0.0), zRight, sizeF) - position);
+    vec3 towardsUp = normalize(occlusionViewPosition(centre + vec2(0.0, 1.0), zUp, sizeF) - position);
+    vec3 towardsDown = normalize(occlusionViewPosition(centre + vec2(0.0, -1.0), zDown, sizeF) - position);
+    vec4 sure = clamp(vec4(edges.x * edges.z, edges.z * edges.y, edges.y * edges.w, edges.w * edges.x) + 0.01, 0.0, 1.0);
+    vec3 normal = normalize(sure.x * cross(towardsUp, towardsLeft) + sure.y * cross(towardsRight, towardsUp)
+                          + sure.z * cross(towardsDown, towardsRight) + sure.w * cross(towardsLeft, towardsDown));
+    // A normal turned away from the eye has no hemisphere it can see; one nearly so is brought back to just facing it.
+    normal = normalize(normal + max(0.0, 0.02 - dot(normal, view)) * view);
+
+    // How many pixels the reach covers here.
+    float pixelMetres = 2.0 * z / (projectionMatrix[1][1] * sizeF.y);
+    float reachPixels = radius / pixelMetres;
+    // Under a couple of pixels there's nothing to find: what's that far off is fine detail the material's own occlusion has.
+    float shown = clamp((reachPixels - 1.5) / 2.5, 0.0, 1.0);
+    if (shown <= 0.0)
+    {
+        imageStore(visibilityOut, pixel, vec4(1.0));
+        return;
+    }
+
+    // This pixel's place in its tile, and the offsets that go with it.
+    int tile = (pixel.x & 3) + ((pixel.y & 3) << 2);
+    int across = (pixel.y & 3) + ((pixel.x & 3) << 2);
+    float sliceOffset = (TILE_ORDER[tile] + 0.5) / 16.0;
+    float stepOffset = (TILE_ORDER[across] + 0.5) / 16.0;
+
+    // The nearest sample is just over a pixel away: the pixel itself says nothing. Every slice takes its samples at the same distances, each side
+    // its own, so they're worked out once, with the level of the depth each reads.
+    const float nearestPixels = 1.3;
+    float offsets[2 * OCCLUSION_STEPS];
+    int levels[2 * OCCLUSION_STEPS];
+    for (int side = 0; side < 2; side++)
+    {
+        for (int i = 0; i < OCCLUSION_STEPS; i++)
+        {
+            float t = (float(i) + fract(stepOffset + float(side) * 0.5)) / float(OCCLUSION_STEPS);
+            float offsetPixels = nearestPixels + t * t * (reachPixels - nearestPixels);
+            offsets[side * OCCLUSION_STEPS + i] = offsetPixels;
+            levels[side * OCCLUSION_STEPS + i] = int(clamp(round(log2(offsetPixels) - coarseFrom), 0.0, 3.0));
+        }
+    }
+    float perFade = 1.0 / max(radius - fadeFrom, 1e-4);
+    // Where in view space a pixel is, at a distance d along the view: (pixelCentre * viewScale + viewOffset, -1) * d.
+    vec2 viewScale = vec2(2.0 / (sizeF.x * projectionMatrix[0][0]), 2.0 / (sizeF.y * projectionMatrix[1][1]));
+    vec2 viewOffset = vec2(-1.0 / projectionMatrix[0][0], -1.0 / projectionMatrix[1][1]);
+
+    float visibility = 0.0;
+    for (int s = 0; s < OCCLUSION_SLICES; s++)
+    {
+        float phi = OCCLUSION_PI * (float(s) + sliceOffset) / float(OCCLUSION_SLICES);
+        vec2 omega = vec2(cos(phi), sin(phi));
+        vec3 direction = vec3(omega, 0.0);
+
+        // The slice's plane holds the view and this direction; the normal's shadow on it is what the hemisphere is round.
+        vec3 orthoDirection = direction - dot(direction, view) * view;
+        vec3 axis = normalize(cross(orthoDirection, view));
+        vec3 projectedNormal = normal - axis * dot(normal, axis);
+        float projectedLength = length(projectedNormal);
+        if (projectedLength < 1e-4) continue;
+        float signN = dot(orthoDirection, projectedNormal) >= 0.0 ? 1.0 : -1.0;
+        float cosN = clamp(dot(projectedNormal, view) / projectedLength, 0.0, 1.0);
+        float n = signN * occlusionAcos(cosN);
+        float sinN = sin(n);
+
+        // The hemisphere runs from n - pi/2 to n + pi/2. Its sectors are spaced evenly in how much they're worth.
+        float low = n - OCCLUSION_HALF_PI;
+        float high = n + OCCLUSION_HALF_PI;
+        float integralLow = sliceIntegral(low, n, cosN, sinN);
+        float whole = cosN + n * sinN;
+        float perWhole = 1.0 / whole;
+
+        uint covered = 0u;
+        for (int side = 0; side < 2; side++)
+        {
+            float sideSign = side == 0 ? 1.0 : -1.0;
+            for (int i = 0; i < OCCLUSION_STEPS; i++)
+            {
+                vec2 offset = round(sideSign * offsets[side * OCCLUSION_STEPS + i] * omega);
+                ivec2 samplePixel = pixel + ivec2(offset);
+                if (any(lessThan(samplePixel, ivec2(0))) || any(greaterThanEqual(samplePixel, size))) continue;
+
+                int level = levels[side * OCCLUSION_STEPS + i];
+                float stored = texelFetch(linearDepth, samplePixel >> level, level).r;
+                float sampleZ = occlusionDistance(stored);
+                if (sampleZ >= OCCLUSION_SKY * 0.5) continue;
+                // A canopy hides nothing from a canopy.
+                if (thinHere && occlusionThin(stored)) continue;
+
+                vec3 front = vec3((vec2(samplePixel) + 0.5) * viewScale + viewOffset, -1.0) * sampleZ - position;
+                float frontLength2 = dot(front, front);
+                float perFront = inversesqrt(max(frontLength2, 1e-12));
+                float frontLength = frontLength2 * perFront;
+                // Fading out towards the reach, by how thick it's taken to be: what's at the edge covers nothing, and nothing pops in.
+                float fade = clamp((radius - frontLength) * perFade, 0.0, 1.0);
+                if (fade <= 0.0 || frontLength < 1e-5) continue;
+                float deep = (occlusionThin(stored) ? thinThickness : thickness) * fade;
+
+                // The back is the front pushed away from the eye by how deep it is: back = front - view * deep, worked out from the front's own.
+                float alongView = dot(front, view);
+                float backLength2 = frontLength2 - 2.0 * deep * alongView + deep * deep;
+                float cosFront = clamp(alongView * perFront, -1.0, 1.0);
+                float cosBack = clamp((alongView - deep) * inversesqrt(max(backLength2, 1e-12)), -1.0, 1.0);
+                float thetaFront = sideSign * occlusionAcos(cosFront);
+                float thetaBack = sideSign * occlusionAcos(cosBack);
+                float uFront = sectorOf(thetaFront, cosFront, low, high, cosN, sinN, integralLow, perWhole);
+                float uBack = sectorOf(thetaBack, cosBack, low, high, cosN, sinN, integralLow, perWhole);
+                covered |= sectorsBetween(min(uFront, uBack), max(uFront, uBack));
+            }
+        }
+        visibility += projectedLength * whole * (1.0 - float(bitCount(covered)) / 32.0);
+    }
+    visibility /= float(OCCLUSION_SLICES);
+    visibility = mix(1.0, visibility, shown);
+    imageStore(visibilityOut, pixel, vec4(visibility));
+}

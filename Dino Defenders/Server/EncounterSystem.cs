@@ -2,6 +2,7 @@ using Dino_Defenders.Books;
 using Dino_Defenders.Gameplay;
 using Dino_Defenders.Progression;
 using Dino_Defenders.Stats;
+using Dino_Defenders.Tooltips;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.Networking;
@@ -118,6 +119,8 @@ namespace Dino_Defenders.Server
                         PlaceChest(world, _server, session, state, siteIndex, i, opening: false);
                         break;
                     case SpawnRole.Altar:
+                        // A shrine blesses once, and is spent: nothing is left to use.
+                        if (state.Kindled) break;
                         SpawnMarker(world, session, state, siteIndex, i, spawn, InteractKind.Shrine, ShrinePrompt(session, state), ShrineReach);
                         break;
                     case SpawnRole.Waygate:
@@ -149,7 +152,7 @@ namespace Dino_Defenders.Server
             }
         }
 
-        /// <summary>What a shrine offers: kindling, if the Reich put it out and it hasn't been lit again, and its blessing once it's lit or in a village, where it never went out.</summary>
+        /// <summary>What a shrine offers: kindling, if the Reich put it out, and its blessing in a village, where it never went out. Either is once, and then it's spent.</summary>
         public static string ShrinePrompt(ServerSession session, SiteState state)
         {
             BuffDefinition blessing = BlessingOf(session, state);
@@ -166,6 +169,10 @@ namespace Dino_Defenders.Server
             var random = new WorldRandom(session.World.Plan.Seed).Fork("blessing").Fork(state.Site.Id);
             return random.Pick(BuffCatalog.Blessings);
         }
+
+        /// <summary>What a blessing gives and for how long, as one line under its name.</summary>
+        public static string BlessingText(BuffDefinition blessing) =>
+            $"{string.Join(", ", blessing.Mods.Select(mod => ModText.Describe(mod)))} for {Say.Seconds(blessing.Duration)}. Your flasks are full.";
 
         // Everyone of a folk at one place answers to the same orders.
         private static PackOrders Orders(ServerSession session, SiteState state, in SiteSpawn spawn, WorldRandom random, Dictionary<SpawnRole, PackOrders> musters)
@@ -803,7 +810,7 @@ namespace Dino_Defenders.Server
             switch (interactable.Kind)
             {
                 case InteractKind.Shrine:
-                    UseShrine(session, hero, state, view);
+                    UseShrine(world, session, hero, state, view);
                     break;
                 case InteractKind.Chest:
                     state.Opened.Add(interactable.SpawnIndex);
@@ -831,8 +838,11 @@ namespace Dino_Defenders.Server
             return tier;
         }
 
-        private void UseShrine(ServerSession session, ServerPlayer hero, SiteState state, EntityView view)
+        private const float BlessingBanner = 6f;   // Seconds the banner stays: long enough to read a few lines of bonuses.
+
+        private void UseShrine(ECSWorld world, ServerSession session, ServerPlayer hero, SiteState state, EntityView view)
         {
+            if (state.Kindled) return;
             Vector3 position = view.Get<PositionComponent>().value;
 
             // The Reich keeps its shrines out with its own people, who have to go first.
@@ -849,19 +859,21 @@ namespace Dino_Defenders.Server
             session.Combat.AddBuff(hero.Actor, blessing, blessing.Duration);
             _server.Broadcast(new SparkEvent { Position = position + Vector3.UnitY * 3f, Kind = SparkKind.Shrine, Count = 26, Speed = 7f }, position.Xz);
 
-            if (EncounterSystem.Keeps(state.Site.Kind) || state.Kindled)
+            // Used once, and spent: its mark goes with it, and it isn't made again when the place wakes.
+            bool keeps = EncounterSystem.Keeps(state.Site.Kind);
+            state.Kindled = true;
+            state.Changed = true;
+            state.Live.Remove(view.Entity);
+            world.DestroyEntity(view.Entity);
+
+            // The blessing and what it gives, in the middle of the screen as a place's name is, in the words its card uses.
+            _server.Announce(hero, blessing.Name, EncounterSystem.BlessingText(blessing), BlessingBanner);
+            if (keeps)
             {
-                _server.Note(hero, $"{blessing.Name}. Your flasks are full.");
                 _server.Broadcast(new SoundEvent { Position = position, Cue = SoundCue.Blessed }, position.Xz);
                 return;
             }
-            state.Kindled = true;
             _server.Broadcast(new SoundEvent { Position = position, Cue = SoundCue.ShrineKindled }, position.Xz);
-            state.Changed = true;
-            var interactable = view.Get<InteractableComponent>();
-            interactable.Prompt = EncounterSystem.ShrinePrompt(session, state);
-            view.Set(interactable);
-            _server.Announce(hero, "Shrine kindled", $"{blessing.Name}, and your flasks are full. Pray here again whenever you pass.");
             foreach (ServerPlayer everyone in session.Heroes) session.GiveExperience(everyone, 25 * session.World.Plan.Level);
         }
 

@@ -363,12 +363,13 @@ namespace Dino_Defenders.UI
             Ui.Text(Context!, draw, "Calling the waygates", 14f, new GuiRect(bar.X, bar.Y - 22f, bar.Width, 18f), Ui.Parchment, Alignment.Center);
         }
 
-        // The corner where what the land asks is kept: its name, what's to be done, and under that its level and its omens, each of which a rested eye can read in full. In the Haven, the climb.
+        // The corner where what the land asks is kept: the minimap, and under it the land's name, what's to be done, and under that its level and its omens, each of which a rested
+        // eye can read in full. In the Haven, the climb.
         private void DrawChronicle(GuiDrawList draw, GameSession session, GuiRect screen)
         {
             float width = CornerWidth;
             float x = screen.Width - width - Margin;
-            float y = Margin;
+            float y = Minimap.Draw(Context!, draw, session, new Vector2(screen.Width - Margin, Margin)) + 4f;
             float wrap = width - 14f;
 
             if (session.IsHaven)

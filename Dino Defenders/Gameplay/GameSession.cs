@@ -89,12 +89,16 @@ namespace Dino_Defenders.Gameplay
         public string? InteractPrompt;
         public InteractKind? Offered;
         public Entity OfferedThing;     // What the key would use: the same one the server will pick.
+        /// <summary>Where this player has been in the land, for the map: theirs alone, never sent (Client/Discoveries.cs).</summary>
+        public readonly Dino_Engine.World.Chart.ChartDiscovery Explored;
 
         public GameSession(GameClient client, WorldData world, WorldRequest request, LandTerms terms) : base(world, request, terms)
         {
             Client = client;
             Health = Sheet.MaxHealth;
             PlayerPosition = world.Sites[0].Landing;
+            Explored = Discoveries.For(request, world, IsHaven);
+            Explored.Reveal(PlayerPosition);
             _twin = Terms.Has(OrdersCatalog.TwinPens) && !world.Plan.Archetype.Arena ? Chronicle.TwinSite(world) : null;
         }
 

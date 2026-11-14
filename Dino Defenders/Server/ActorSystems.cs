@@ -187,7 +187,8 @@ namespace Dino_Defenders.Server
             int shrines = 0;
             foreach (SiteState state in session.Sites)
             {
-                if (state.Kindled) shrines++;
+                // Only those the Reich put out and a hero lit again: a village's, prayed at, was never out.
+                if (state.Kindled && !EncounterSystem.Keeps(state.Site.Kind)) shrines++;
             }
 
             int allies = 0;

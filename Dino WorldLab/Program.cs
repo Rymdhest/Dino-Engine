@@ -10,6 +10,8 @@ namespace Dino_WorldLab
     /// <summary>
     /// Generates worlds without a window or a GPU, to look at them and to check that they hold up.
     ///   map     [--seed N] [--archetype id] [--out file.png] [--size pixels]   One world as a map.
+    ///   chart   [--seed N] [--archetype id] [--out file.png] [--size pixels] [--walked share]  One world drawn as the game's map, and as it looks with only the ground within
+    ///           that share of the walk from the landing seen (written beside it, as file.walked.png).
     ///   sheet   [--seed N] [--count N] [--archetype id] [--out file.png]       A contact sheet of many worlds.
     ///   plan    [--seed N] [--archetype id] [--site kind] [--nth N] [--span m] [--out f] A surveyor's plan of one site, the Nth of its kind.
     ///   check   [--seed N] [--count N] [--archetype id] [--layout linear|open] Generates worlds and validates them. Exit code 1 on any problem.
@@ -32,6 +34,8 @@ namespace Dino_WorldLab
             {
                 case "map":
                     return Map(options);
+                case "chart":
+                    return ChartOf(options);
                 case "where":
                     return Where(options);
                 case "sheet":
@@ -135,6 +139,48 @@ namespace Dino_WorldLab
             string path = options.Text("out") ?? $"world_{seed}.png";
             PngWriter.Write(path, WorldMapImage.Render(world, resolution), resolution, resolution);
             Console.WriteLine($"Wrote {path}");
+            return 0;
+        }
+
+        private static int ChartOf(Options options)
+        {
+            int seed = SeedFor(options);
+            WorldData world = new WorldGenerator().Generate(new WorldRequest(seed, options.Text("archetype"), options.Int("level", 1)));
+            Describe(world, 0);
+
+            int resolution = options.Int("size", 2048);
+            var clock = Stopwatch.StartNew();
+            Dino_Engine.World.Chart.Chart chart = Dino_Engine.World.Chart.WorldChart.Draw(world, resolution);
+            Console.WriteLine($"Drew the chart in {clock.Elapsed.TotalSeconds:0.00} s, {chart.Labels.Count} regions named: {string.Join(", ", chart.Labels.Select(label => label.Text))}");
+            string path = options.Text("out") ?? $"chart_{seed}.png";
+            PngWriter.Write(path, chart.Colour, resolution, resolution);
+            Console.WriteLine($"Wrote {path}");
+
+            // As a hero sees it who's walked the roads that far from the landing.
+            float walked = float.Parse(options.Text("walked") ?? "0.45", System.Globalization.CultureInfo.InvariantCulture);
+            var seen = new Dino_Engine.World.Chart.ChartDiscovery(world.Size);
+            foreach (WorldRoad road in world.Roads)
+            {
+                foreach (Vector3 point in road.Points)
+                {
+                    if (world.Remoteness == null || world.Remoteness.Sample(point.Xz) <= walked) seen.Reveal(point.Xz);
+                }
+            }
+            seen.Reveal(world.Sites[0].Landing);
+            clock.Restart();
+            byte[] fog = (byte[])chart.Sketch.Clone();
+            Dino_Engine.World.Chart.ChartFog.Compose(chart, seen, fog, 0, 0, resolution - 1, resolution - 1);
+            Console.WriteLine($"Laid the fog in {clock.Elapsed.TotalMilliseconds:0} ms");
+            byte[] shown = new byte[fog.Length];
+            for (int i = 0; i < fog.Length; i += 4)
+            {
+                float a = fog[i + 3] / 255f;
+                for (int c = 0; c < 3; c++) shown[i + c] = (byte)(chart.Colour[i + c] * (1f - a) + fog[i + c] * a + 0.5f);
+                shown[i + 3] = 255;
+            }
+            string walkedPath = Path.ChangeExtension(path, ".walked.png");
+            PngWriter.Write(walkedPath, shown, resolution, resolution);
+            Console.WriteLine($"Wrote {walkedPath}");
             return 0;
         }
 

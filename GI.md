@@ -21,7 +21,7 @@ Radiance cascades (Sannikov, 2023) suit this better than the alternatives. Probe
  G-buffer ──> gathered at half resolution (the probes in front of each surface that it can see) ──> ambient pass: diffuse and rough specular
 ```
 
-Everything is on the GPU, and the CPU never waits on it, except for the debug views' report. `GlobalIlluminationRenderer` (in three files: the frame, the voxels, the probes) runs from `RenderEngine.LightPass`, after the G-buffer and before SSAO; `GlobalIlluminationSystem` tells it the world, its objects and which chunks have come; `Ambient_Light.frag` reads what it gathered.
+Everything is on the GPU, and the CPU never waits on it, except for the debug views' report. `GlobalIlluminationRenderer` (in three files: the frame, the voxels, the probes) runs from `RenderEngine.LightPass`, after the G-buffer and before the ambient occlusion and the sun's shadows (`RenderEngine.ScreenTerms`, OCCLUSION.md, SHADOWS.md); `GlobalIlluminationSystem` tells it the world, its objects and which chunks have come; `Ambient_Light.frag` reads what it gathered.
 
 ## The voxels
 
@@ -72,7 +72,7 @@ Directions are HEALPix cells (`HealPix.cs`), nested, so each cell of a cascade i
 
 Where none of them counts, the next cascade's do, and where none of those do, the texel says it has no answer.
 
-Whether a texel sees a probe is a yes or a no from one point, and as the camera slides that point slides over the world, so along a fence's rails the answers would flicker. **What's gathered settles**: each texel takes in what was gathered last frame where the same spot of the world was then, by last frame's camera, over `Settle` (0.12 s, by the time between frames, so it means the same at any rate), and only from texels that lay at the same distance from that camera, so nothing is carried onto what's just come out from behind something. A flickering yes or no becomes how much of the spot sees the probe. `Ambient_Light.frag` fills in the pixels between by depth (`giIrradiance`), so light never runs across the edge of what's in front, and uses what it finds for diffuse light and for the reflections of surfaces too rough for the reflection pass, and the flat sky and ground for whatever has no answer. GI fades in over 0.6 s when it's ready (`Presence`). While it's in, SSAO only reaches 0.35 m (`ContactReach`), as GI has everything further.
+Whether a texel sees a probe is a yes or a no from one point, and as the camera slides that point slides over the world, so along a fence's rails the answers would flicker. **What's gathered settles**: each texel takes in what was gathered last frame where the same spot of the world was then, by last frame's camera, over `Settle` (0.12 s, by the time between frames, so it means the same at any rate), and only from texels that lay at the same distance from that camera, so nothing is carried onto what's just come out from behind something. A flickering yes or no becomes how much of the spot sees the probe. `Ambient_Light.frag` fills in the pixels between by depth (`giIrradiance`), so light never runs across the edge of what's in front, and uses what it finds for diffuse light and for the reflections of surfaces too rough for the reflection pass, and the flat sky and ground for whatever has no answer. GI fades in over 0.6 s when it's ready (`Presence`). While it's in, the ambient occlusion only reaches 0.35 m (`ContactReach`, `OcclusionRenderer.ReachOf`), as GI has everything further (OCCLUSION.md).
 
 ## Rules
 

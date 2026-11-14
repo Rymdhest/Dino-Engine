@@ -24,8 +24,41 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
         private const int CloudShadowUnit = 9;
         private const int FirstCascadeUnit = 4;
         private const int MostCascades = 5;
+        // Where each cascade's block map goes (Lighting/SunShadow.glsl's shadowRanges), clear of everything the light passes bind.
+        private const int FirstRangeUnit = 20;
+        // Where the block maps are made from, which has to leave everything the light passes have bound where it is: the ambient pass makes them
+        // after it has bound the G-buffer.
+        private const int RangeSourceUnit = 26;
+
+        /// <summary>Texels to a side of a block of the block maps: Lighting/SunShadow.glsl's SHADOW_RANGE_BLOCK and Shadows/SunShadow_Ranges.comp's.</summary>
+        public const int RangeBlock = 16;
+        // What the mask holds where nothing is shadowed (all of the sun, none of it filling a shadow), and how soft that is, for clearing it.
+        private static readonly float[] Unshadowed = { 1f, 0f };
+        private static readonly float[] Unsoftened = { 0f };
+        // Each cascade's matrix's name, made once rather than every frame.
+        private static readonly string[] SunSpaceMatrixNames = Enumerable.Range(0, MostCascades).Select(i => "sunSpaceMatrices[" + i + "]").ToArray();
 
         private int shadowSampler;
+
+        // The nearest and farthest depth in each block of each cascade's map, by the map's own texture (Shadows/SunShadow_Ranges.comp).
+        private readonly ShaderProgram _rangeShader = new ShaderProgram("Shadows/SunShadow_Ranges.comp");
+        private readonly Dictionary<int, (int texture, Vector2i size)> _ranges = new();
+        private readonly List<int> _rangesUsed = new();
+        private readonly int[] _rangeOf = new int[MostCascades];
+
+        // The sun's soft shadow a pixel at a time, and how soft it is for the debug picture (Shadows/SunShadow_Mask.comp).
+        private readonly ShaderProgram _maskShader = new ShaderProgram("Shadows/SunShadow_Mask.comp");
+        private int _mask;
+        private int _softness;
+        private Vector2i _maskSize;
+
+        /// <summary>
+        /// This frame's sun shadow a pixel at a time, x what reaches it directly and y what fills its shadow (Shadows/SunShadow_Mask.comp): all lit with
+        /// no sun.
+        /// </summary>
+        public int SunShadowTexture => _mask;
+        /// <summary>How soft this frame's sun shadow is at each pixel, 0 sharpest to 1 softest, for the debug picture.</summary>
+        public int SunShadowSoftnessTexture => _softness;
 
         public DirectionalLightRenderer() : base("Directional Light")
         {
@@ -36,7 +69,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
                 shader.loadUniformInt("gNormal", 1);
                 shader.loadUniformInt("gMaterials", 2);
                 shader.loadUniformInt("gDepth", 3);
-                shader.loadUniformInt("ambientOcclusion", MsaaRenderer.AmbientOcclusionUnit);
+                MsaaRenderer.LinkScreenTerms(shader);
                 LinkShadows(shader);
                 shader.unBind();
             }
@@ -51,6 +84,141 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             GL.SamplerParameter(shadowSampler, SamplerParameterName.TextureWrapT, (int)TextureWrapMode.ClampToBorder);
             GL.SamplerParameter(shadowSampler, SamplerParameterName.TextureBorderColor, new[] { 1f, 1f, 1f, 1f });
             GL.SamplerParameter(shadowSampler, SamplerParameterName.TextureCompareMode, (int)All.None);
+
+            _rangeShader.bind();
+            _rangeShader.loadUniformInt("shadowMap", RangeSourceUnit);
+            _maskShader.bind();
+            _maskShader.loadUniformInt("linearDepth", 0);
+            LinkShadows(_maskShader);
+            _maskShader.unBind();
+            CreateMask(Engine.Resolution);
+        }
+
+        private void CreateMask(Vector2i size)
+        {
+            if (_mask != 0) GL.DeleteTexture(_mask);
+            if (_softness != 0) GL.DeleteTexture(_softness);
+            _maskSize = new Vector2i(Math.Max(size.X, 1), Math.Max(size.Y, 1));
+            _mask = MaskTexture(SizedInternalFormat.Rg16f);
+            _softness = MaskTexture(SizedInternalFormat.R8);
+            GL.ClearTexImage(_mask, 0, PixelFormat.Rg, PixelType.Float, Unshadowed);
+            GL.ClearTexImage(_softness, 0, PixelFormat.Red, PixelType.Float, Unsoftened);
+        }
+
+        private int MaskTexture(SizedInternalFormat format)
+        {
+            int texture = GL.GenTexture();
+            GL.BindTexture(TextureTarget.Texture2D, texture);
+            GL.TexStorage2D(TextureTarget2d.Texture2D, 1, format, _maskSize.X, _maskSize.Y);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
+            GL.BindTexture(TextureTarget.Texture2D, 0);
+            return texture;
+        }
+
+        public override void OnResize(ResizeEventArgs eventArgs)
+        {
+            CreateMask(eventArgs.Size);
+        }
+
+        // Whether this frame has a sun to work the soft shadow out for, as BeginSunShadow found.
+        private bool _shadowed;
+        private DirectionallightRenderCommand _shadowSun;
+
+        /// <summary>
+        /// The sun's soft shadow for this frame, before the light passes, in the stages RenderEngine.ScreenTerms runs: first each cascade's block map
+        /// (<see cref="PrepareRanges"/>), or with no sun, all lit.
+        /// </summary>
+        public void BeginSunShadow(RenderEngine renderEngine)
+        {
+            _shadowed = PeekSun(out _shadowSun) && _shadowSun.cascades.Length > 0;
+            if (_shadowed) PrepareRanges(_shadowSun);
+            else GL.ClearTexImage(_mask, 0, PixelFormat.Rg, PixelType.Float, Unshadowed);
+        }
+
+        /// <summary>
+        /// Then, once a barrier has come after that and after the occlusion's depth, the shadow a pixel at a time at that depth (Shadows/SunShadow_Mask.comp),
+        /// which the ambient pass reads as it reads the occlusion.
+        /// </summary>
+        public void TraceSunShadow(RenderEngine renderEngine)
+        {
+            if (!_shadowed) return;
+            Engine.PerformanceMonitor.startGPUTask("Sun Shadow");
+            _maskShader.bind();
+            BindShadows(_shadowSun, renderEngine);
+            LoadShadows(_maskShader, _shadowSun, renderEngine);
+            GL.ActiveTexture(TextureUnit.Texture0);
+            GL.BindTexture(TextureTarget.Texture2D, renderEngine.OcclusionDepthTexture);
+            GL.BindImageTexture(0, _mask, 0, false, 0, TextureAccess.WriteOnly, SizedInternalFormat.Rg16f);
+            GL.BindImageTexture(1, _softness, 0, false, 0, TextureAccess.WriteOnly, SizedInternalFormat.R8);
+            GL.DispatchCompute((_maskSize.X + 7) / 8, (_maskSize.Y + 7) / 8, 1);
+            ReleaseShadows(_shadowSun);
+            GL.BindTexture(TextureTarget.Texture2D, 0);
+            GL.UseProgram(0);
+            Engine.PerformanceMonitor.finishGPUTask("Sun Shadow");
+        }
+
+        /// <summary>
+        /// Works out each cascade's block map of the nearest and farthest depth in it, which the soft shadow reads to know what can reach a point
+        /// (Lighting/SunShadow.glsl). Once a frame, after the shadow maps are drawn: what it makes is there once a barrier has come after it.
+        /// </summary>
+        public void PrepareRanges(DirectionallightRenderCommand command)
+        {
+            Engine.PerformanceMonitor.startGPUTask("Sun Shadow Ranges");
+            _rangesUsed.Clear();
+            _rangeShader.bind();
+            GL.ActiveTexture(TextureUnit.Texture0 + RangeSourceUnit);
+            BindSampler(RangeSourceUnit, shadowSampler);
+            for (int i = 0; i < command.cascades.Length && i < MostCascades; i++)
+            {
+                FrameBuffer map = command.cascades[i].shadowFrameBuffer;
+                int depth = map.getDepthAttachment();
+                Vector2i resolution = map.getResolution();
+                Vector2i blocks = new Vector2i((resolution.X + RangeBlock - 1) / RangeBlock, (resolution.Y + RangeBlock - 1) / RangeBlock);
+                if (!_ranges.TryGetValue(depth, out var range) || range.size != blocks)
+                {
+                    if (range.texture != 0) GL.DeleteTexture(range.texture);
+                    range = (CreateRangeTexture(blocks), blocks);
+                    _ranges[depth] = range;
+                }
+                _rangesUsed.Add(depth);
+                _rangeOf[i] = range.texture;
+
+                BindTexture(TextureTarget.Texture2D, depth);
+                GL.BindImageTexture(0, range.texture, 0, false, 0, TextureAccess.WriteOnly, SizedInternalFormat.Rg32f);
+                GL.DispatchCompute(blocks.X, blocks.Y, 1);
+            }
+            BindSampler(RangeSourceUnit, 0);
+            BindTexture(TextureTarget.Texture2D, 0);
+            GL.ActiveTexture(TextureUnit.Texture0);
+            GL.UseProgram(0);
+
+            // Maps that are gone, as when the quality changes, take theirs with them.
+            if (_ranges.Count > _rangesUsed.Count)
+            {
+                foreach (int depth in new List<int>(_ranges.Keys))
+                {
+                    if (_rangesUsed.Contains(depth)) continue;
+                    GL.DeleteTexture(_ranges[depth].texture);
+                    _ranges.Remove(depth);
+                }
+            }
+            Engine.PerformanceMonitor.finishGPUTask("Sun Shadow Ranges");
+        }
+
+        private static int CreateRangeTexture(Vector2i size)
+        {
+            int texture = GL.GenTexture();
+            GL.BindTexture(TextureTarget.Texture2D, texture);
+            GL.TexStorage2D(TextureTarget2d.Texture2D, 1, SizedInternalFormat.Rg32f, size.X, size.Y);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
+            GL.BindTexture(TextureTarget.Texture2D, 0);
+            return texture;
         }
 
         internal override void Prepare(RenderEngine renderEngine)
@@ -68,6 +236,12 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
         {
             _directionalLightShader.cleanUp();
             _directionalLightSampleShader.cleanUp();
+            _rangeShader.cleanUp();
+            _maskShader.cleanUp();
+            foreach (var range in _ranges.Values) GL.DeleteTexture(range.texture);
+            _ranges.Clear();
+            if (_mask != 0) GL.DeleteTexture(_mask);
+            if (_softness != 0) GL.DeleteTexture(_softness);
             GL.DeleteSampler(shadowSampler);
         }
 
@@ -87,6 +261,19 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             return true;
         }
 
+        /// <summary>
+        /// This frame's sun before <see cref="TakeSun"/> has had it, for what has to be ready for the ambient pass: the sun's shadow mask and the contact
+        /// shadows. Leaves it where it is.
+        /// </summary>
+        public bool PeekSun(out DirectionallightRenderCommand sun)
+        {
+            sun = default;
+            int index = commands.FindLastIndex(command => command.cascades.Length > 0);
+            if (index < 0) return false;
+            sun = commands[index];
+            return true;
+        }
+
         /// <summary>This frame's sun, once <see cref="TakeSun"/> has had it, for what's drawn after the light passes and is lit by it too: particles.</summary>
         public DirectionallightRenderCommand? Sun { get; private set; }
 
@@ -99,10 +286,17 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
         public static void LinkShadows(ShaderProgram shader)
         {
             for (int i = 0; i < MostCascades; i++) shader.loadUniformInt("shadowMaps[" + i + "]", FirstCascadeUnit + i);
-            shader.loadUniformInt("cloudShadowMap", CloudShadowUnit);
+            if (shader.HasUniform("shadowRanges"))
+            {
+                for (int i = 0; i < MostCascades; i++) shader.loadUniformInt("shadowRanges[" + i + "]", FirstRangeUnit + i);
+            }
+            if (shader.HasUniform("cloudShadowMap")) shader.loadUniformInt("cloudShadowMap", CloudShadowUnit);
         }
 
-        /// <summary>Binds what a light's shadow is read from, until <see cref="ReleaseShadows"/>.</summary>
+        /// <summary>
+        /// Binds what a light's shadow is read from, until <see cref="ReleaseShadows"/>. A sun's block maps are this frame's from
+        /// <see cref="PrepareRanges"/>.
+        /// </summary>
         public void BindShadows(DirectionallightRenderCommand command, RenderEngine renderEngine)
         {
             for (int i = 0; i < command.cascades.Length; i++)
@@ -110,21 +304,42 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
                 ActiveTexture(TextureUnit.Texture0 + FirstCascadeUnit + i);
                 BindTexture(TextureTarget.Texture2D, command.cascades[i].shadowFrameBuffer.getDepthAttachment());
                 BindSampler(FirstCascadeUnit + i, shadowSampler);
+                if (i < MostCascades)
+                {
+                    ActiveTexture(TextureUnit.Texture0 + FirstRangeUnit + i);
+                    BindTexture(TextureTarget.Texture2D, _rangeOf[i]);
+                }
             }
             ActiveTexture(TextureUnit.Texture0 + CloudShadowUnit);
             BindTexture(TextureTarget.Texture2D, renderEngine._weatherRenderer.CloudShadowTexture);
             ActiveTexture(TextureUnit.Texture0);
         }
 
-        /// <summary>Loads where a light's cascades lie, for a shader that's bound.</summary>
+        /// <summary>
+        /// Texels the softest shadow can be, whatever the settings say: every pixel near a shadow's edge reads every texel within it of the point,
+        /// so it bounds what one can cost (F3's slider goes no further).
+        /// </summary>
+        public const float MostSoftness = 16f;
+
+        /// <summary>Loads where a light's cascades lie, and how soft its shadows are, for a shader that's bound.</summary>
         public static void LoadShadows(ShaderProgram shader, DirectionallightRenderCommand command, RenderEngine renderEngine)
         {
-            shader.loadUniformInt("numberOfCascades", command.cascades.Length);
-            for (int i = 0; i < command.cascades.Length; i++)
+            // The shaders hold no more than MostCascades.
+            int cascades = Math.Min(command.cascades.Length, MostCascades);
+            shader.loadUniformInt("numberOfCascades", cascades);
+            for (int i = 0; i < cascades; i++)
             {
                 Shadow cascade = command.cascades[i];
                 Matrix4 shadowMatrix = renderEngine.context.invViewMatrix * cascade.lightViewMatrix * cascade.shadowProjectionMatrix;
-                shader.loadUniformMatrix4f("sunSpaceMatrices[" + i + "]", shadowMatrix);
+                shader.loadUniformMatrix4f(SunSpaceMatrixNames[i], shadowMatrix);
+            }
+            if (shader.HasUniform("sunShadowShape"))
+            {
+                SunShadowSettings soft = renderEngine.SunShadows;
+                float sunRadius = MathHelper.DegreesToRadians(Math.Clamp(soft.SunSize, 0f, 20f) * 0.5f);
+                float sharpest = Math.Clamp(soft.Sharpest, 1f, MostSoftness);
+                float softest = Math.Clamp(soft.Softest, sharpest, MostSoftness);
+                shader.loadUniformVector4f("sunShadowShape", new Vector4(MathF.Tan(sunRadius), sharpest, softest, soft.Soft ? 1f : 0f));
             }
         }
 

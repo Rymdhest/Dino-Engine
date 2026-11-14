@@ -14,6 +14,7 @@ using Dino_Engine.Sound;
 using Dino_Engine.Sound.Content;
 using Dino_Engine.Util;
 using Dino_Engine.World;
+using Dino_Engine.World.Chart;
 using Dino_Engine.World.Content;
 using OpenTK.Graphics.OpenGL;
 using OpenTK.Mathematics;
@@ -21,30 +22,43 @@ using OpenTK.Mathematics;
 namespace Dino_Defenders.UI
 {
     /// <summary>
-    /// The land as a map, turned the way the land is seen: the hero knows its shape, and on it are what the land still asks of them, from the start, and the waygates that are lit, and nothing else:
-    /// the places it names that are still held, and once those are free, where its tyrant is. Opened at a waygate, it's also the way to travel: every gate found in the land can be clicked, and so can the way home
-    /// to the Haven, which asks first if the land isn't free.
+    /// The land as a map, drawn as an old chart of what's really in it (read CHART.md), turned the way the land is seen: what the hero has walked is in colour, and the rest of the
+    /// land they could walk an uncoloured sketch, so it's plain where they've been. On it are what the land still asks of them, from the start, and the waygates that are lit, and
+    /// nothing else: the places it names that are still held, and once those are free, where its tyrant is. Opened at a waygate, it's also the way to travel: every gate found in
+    /// the land can be clicked, and so can the way home to the Haven, which asks first if the land isn't free.
     /// </summary>
     internal sealed class MapPanel : GuiElement
     {
-        public const int Resolution = 1024;
+        public const int Resolution = 2048;
         private const float PickRadius = 16f;
         private const float GateIcon = 7f;
         private const float GoalIcon = 7f;
         private const float TyrantIcon = 10f;
         private const float HeroIcon = 11f;
         private const float PulseRate = 2.2f;
+        private const float FogEvery = 0.25f;   // Seconds between redrawing the fog while the map's open and the hero walks.
         private static readonly Colour GoalColour = GuiColors.Rgba(255, 190, 70);
         private static readonly Colour HeroColour = GuiColors.Rgba(255, 255, 255);
         private static readonly Colour Halo = GuiColors.Rgba(0, 0, 0, 210);
+        private static readonly Colour MapInk = GuiColors.Rgba(52, 36, 22);
 
         private int _texture;
+        private int _fogTexture;
+        private Chart? _chart;
+        private byte[]? _fog;
+        private ChartDiscovery? _fogOf;
+        private float _fogWait;
         private readonly Action _close;
         private readonly Button _home;
         private readonly LeavePrompt _prompt;
 
         /// <summary>Whether it was opened at a waygate, from which the land's roads can be taken.</summary>
         public bool Travelling { get; private set; }
+
+        /// <summary>The land's chart and its two textures, which the minimap draws a piece of (<see cref="Minimap"/>).</summary>
+        public Chart? Chart => _chart;
+        public int ChartTexture => _texture;
+        public int FogTexture => _fogTexture;
 
         public MapPanel(Action close)
         {
@@ -104,17 +118,69 @@ namespace Dino_Defenders.UI
             _close();
         }
 
-        public void SetImage(byte[] pixels)
+        /// <summary>The chart of the land just entered: its colours go up at once, and its fog is drawn when the map is first looked at.</summary>
+        public void SetChart(Chart chart)
         {
+            _chart = chart;
             if (_texture != 0) GL.DeleteTexture(_texture);
-            _texture = GL.GenTexture();
+            if (_fogTexture != 0) GL.DeleteTexture(_fogTexture);
+            _texture = Upload(chart.Colour, chart.Resolution);
+            _fog = (byte[])chart.Sketch.Clone();
+            _fogTexture = Upload(_fog, chart.Resolution);
+            _fogOf = null;
+        }
+
+        private static int Upload(byte[] pixels, int size)
+        {
+            int texture = GL.GenTexture();
             GL.ActiveTexture(TextureUnit.Texture0);
-            GL.BindTexture(TextureTarget.Texture2D, _texture);
-            GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba8, Resolution, Resolution, 0, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
+            GL.BindTexture(TextureTarget.Texture2D, texture);
+            GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba8, size, size, 0, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
+            // Mipmapped, as the chart is drawn smaller than it is and its pen lines would shimmer.
+            GL.GenerateMipmap(GenerateMipmapTarget.Texture2D);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.LinearMipmapLinear);
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
+            GL.BindTexture(TextureTarget.Texture2D, 0);
+            return texture;
+        }
+
+        /// <summary>Redraws the fog over whatever's been seen since it was last drawn, and sends only those rows up. Asked every frame by whatever shows it, the map or the minimap.</summary>
+        public void TendFog(ChartDiscovery seen)
+        {
+            if (_chart == null || _fog == null) return;
+            bool fresh = _fogOf != seen;
+            _fogWait -= Engine.Delta;
+            if (!fresh && _fogWait > 0f) return;
+            _fogWait = FogEvery;
+            if (fresh)
+            {
+                _fogOf = seen;
+                seen.Touch();
+            }
+            if (!seen.TakeChanged(out Vector2 min, out Vector2 max)) return;
+
+            int size = _chart.Resolution;
+            Vector2 a = _chart.Frame.ToPixel(min), b = _chart.Frame.ToPixel(max);
+            int x0 = Math.Max((int)MathF.Floor(MathF.Min(a.X, b.X)), 0), x1 = Math.Min((int)MathF.Ceiling(MathF.Max(a.X, b.X)), size - 1);
+            int y0 = Math.Max((int)MathF.Floor(MathF.Min(a.Y, b.Y)), 0), y1 = Math.Min((int)MathF.Ceiling(MathF.Max(a.Y, b.Y)), size - 1);
+            if (x0 > x1 || y0 > y1) return;
+            ChartFog.Compose(_chart, seen, _fog, x0, y0, x1, y1);
+
+            GL.ActiveTexture(TextureUnit.Texture0);
+            GL.BindTexture(TextureTarget.Texture2D, _fogTexture);
+            var pinned = System.Runtime.InteropServices.GCHandle.Alloc(_fog, System.Runtime.InteropServices.GCHandleType.Pinned);
+            try
+            {
+                IntPtr rows = pinned.AddrOfPinnedObject() + y0 * size * 4;
+                GL.TexSubImage2D(TextureTarget.Texture2D, 0, 0, y0, size, y1 - y0 + 1, PixelFormat.Rgba, PixelType.UnsignedByte, rows);
+            }
+            finally
+            {
+                pinned.Free();
+            }
+            GL.GenerateMipmap(GenerateMipmapTarget.Texture2D);
             GL.BindTexture(TextureTarget.Texture2D, 0);
         }
 
@@ -125,10 +191,11 @@ namespace Dino_Defenders.UI
             return new GuiRect((Bounds.Width - side) * 0.5f, 70f, side, side);
         }
 
-        // +x runs to the left of the screen in play, so the map runs that way too, and what's ahead on the land is up on the map.
-        private static Vector2 ToMap(GuiRect map, Vector2 position, float worldSize)
+        // The chart is drawn turned as the land is seen in play: +x to the left and what's ahead up (ChartFrame).
+        private Vector2 ToMap(GuiRect map, Vector2 position)
         {
-            return new Vector2(map.Right - position.X / worldSize * map.Width, map.Bottom - position.Y / worldSize * map.Height);
+            Vector2 share = _chart != null ? _chart.Frame.ToShare(position) : new Vector2(0.5f);
+            return new Vector2(map.X + share.X * map.Width, map.Y + share.Y * map.Height);
         }
 
         private void OnPick(GuiMouseEventArgs e)
@@ -140,7 +207,7 @@ namespace Dino_Defenders.UI
             {
                 SiteState state = session.Sites[i];
                 if (!CanTravelTo(state)) continue;
-                Vector2 at = ToMap(map, state.Site.Position, session.World.Size);
+                Vector2 at = ToMap(map, state.Site.Position);
                 if ((at - e.Position).Length > PickRadius) continue;
 
                 session.Client.TravelToSite(i);
@@ -155,12 +222,14 @@ namespace Dino_Defenders.UI
         {
             base.OnDraw(draw);
             GameSession session = GameSession.Current;
-            if (session == null || _texture == 0 || Context == null) return;
+            if (session == null || _texture == 0 || _chart == null || Context == null) return;
+            TendFog(session.Explored);
 
             GuiRect map = MapRect();
-            float size = session.World.Size;
-            draw.AddRect(new GuiRect(map.X - 3f, map.Y - 3f, map.Width + 6f, map.Height + 6f), Ui.Ink, 2f, 1f, GuiColors.Rgba(120, 96, 58));
-            draw.AddImage(_texture, map, new Vector2(1f, 0f), new Vector2(0f, 1f), GuiColors.White);
+            draw.AddRect(new GuiRect(map.X - 2f, map.Y + 6f, map.Width + 12f, map.Height + 4f), GuiColors.Rgba(0, 0, 0, 120), 4f, softness: 14f);
+            draw.AddImage(_texture, map, Vector2.Zero, Vector2.One, GuiColors.White);
+            draw.AddImage(_fogTexture, map, Vector2.Zero, Vector2.One, GuiColors.White);
+            DrawNames(draw, map, session);
 
             Ui.Text(Context, draw, session.World.Plan.Name, 26f, new GuiRect(0f, map.Y - 62f, Bounds.Width, 32f), Ui.Parchment, Alignment.Center);
 
@@ -170,7 +239,7 @@ namespace Dino_Defenders.UI
             foreach (SiteState state in session.Sites)
             {
                 if (!CanTravelTo(state) || session.IsGoal(state)) continue;
-                Vector2 at = ToMap(map, state.Site.Position, size);
+                Vector2 at = ToMap(map, state.Site.Position);
                 bool hovered = (at - mouse).Length <= PickRadius;
                 DrawGate(draw, at, hovered && Travelling ? GuiColors.Rgba(190, 236, 255) : GuiColors.Rgba(104, 206, 255));
                 if (hovered) Ui.Text(Context, draw, state.Site.Name, 13f, new GuiRect(at.X - 110f, at.Y + 9f, 220f, 18f), Ui.Bright, Alignment.Center);
@@ -181,7 +250,7 @@ namespace Dino_Defenders.UI
             foreach (SiteState state in session.Sites)
             {
                 if (!session.IsGoal(state)) continue;
-                Vector2 at = ToMap(map, state.Site.Position, size);
+                Vector2 at = ToMap(map, state.Site.Position);
                 bool tyrant = !placesAsked;
                 float radius = tyrant ? TyrantIcon : GoalIcon;
                 if (session.Guidance is Vector2 goal && (goal - state.Site.Position).LengthSquared < 1f)
@@ -198,13 +267,44 @@ namespace Dino_Defenders.UI
                 Ui.Text(Context, draw, state.Site.Name, 14f, new GuiRect(at.X - 120f, at.Y + radius + 3f, 240f, 18f), hovered ? Ui.Bright : GoalColour, Alignment.Center);
             }
 
-            DrawHero(draw, ToMap(map, session.PlayerPosition, size), session.Sim.Yaw);
+            DrawHero(draw, ToMap(map, session.PlayerPosition), session.Sim.Yaw);
             DrawLegend(draw, map, !placesAsked);
 
             string help = Travelling
                 ? "Click a lit waygate to go there."
                 : session.IsHaven ? $"{Bindings.Label(GameAction.Map)} to close." : $"{Bindings.Label(GameAction.Map)} to close.  A waygate lights as you come near it.  {Bindings.Label(GameAction.Roads)} calls the lit ones, from anywhere.";
             Ui.Text(Context, draw, help, 14f, new GuiRect(0f, map.Y - 28f, Bounds.Width, 20f), Ui.Faded, Alignment.Center);
+        }
+
+        /// <summary>The kinds of place whose name is written on the map in ink once the hero has been there.</summary>
+        private static bool Named(SiteKind kind) => kind is SiteKind.Village or SiteKind.Hamlet or SiteKind.FishingHamlet or SiteKind.LumberCamp or SiteKind.Keep or SiteKind.Ruins
+            or SiteKind.Graveyard or SiteKind.Watchtower or SiteKind.Haven;
+
+        // In the cartographer's own hand, as part of the drawing and not a mark on it: each region's name spaced across where it has most room, and each place the hero has
+        // been to under it, faint enough that what the land asks and the gates read over them.
+        private void DrawNames(GuiDrawList draw, GuiRect map, GameSession session)
+        {
+            float scale = map.Width / 1180f;
+            foreach (ChartLabel label in _chart!.Labels)
+            {
+                float size = Math.Clamp(11f + label.Room * 70f, 13f, 21f) * scale;
+                string spaced = string.Join("   ", label.Text.ToUpperInvariant().Split(' ').Select(word => string.Join(" ", word.ToCharArray())));
+                Vector2 at = new Vector2(map.X + label.Share.X * map.Width, map.Y + label.Share.Y * map.Height);
+                GuiRect line = new GuiRect(at.X - 300f, at.Y - size, 600f, size * 2f);
+                GuiText.Draw(Context!, draw, spaced, Ui.Face, size, new GuiRect(line.X + 1f, line.Y + 1f, line.Width, line.Height), GuiColors.Rgba(240, 228, 200, 110), Alignment.Center, Alignment.Center);
+                GuiText.Draw(Context!, draw, spaced, Ui.Face, size, line, MapInk.MultiplyAlpha(0.72f), Alignment.Center, Alignment.Center);
+            }
+            foreach (SiteState state in session.Sites)
+            {
+                WorldSite site = state.Site;
+                if (!Named(site.Kind) || session.IsGoal(state) || CanTravelTo(state)) continue;
+                if (session.Explored.Sample(site.Position) < 0.5f) continue;
+                Vector2 at = ToMap(map, site.Position);
+                float size = (site.Kind is SiteKind.Village or SiteKind.Keep or SiteKind.Haven ? 16f : 13.5f) * scale;
+                GuiRect line = new GuiRect(at.X - 160f, at.Y + site.Radius * 0.35f * map.Width / _chart.Frame.Span, 320f, size * 1.5f);
+                GuiText.Draw(Context!, draw, site.Name, Ui.Face, size, new GuiRect(line.X + 1f, line.Y + 1f, line.Width, line.Height), GuiColors.Rgba(240, 228, 200, 150), Alignment.Center, Alignment.Center);
+                GuiText.Draw(Context!, draw, site.Name, Ui.Face, size, line, MapInk.MultiplyAlpha(0.9f), Alignment.Center, Alignment.Center);
+            }
         }
 
         // A place still to free: a bright gold disc with a dark rim, which nothing else on the map is.
@@ -246,7 +346,9 @@ namespace Dino_Defenders.UI
         private void DrawLegend(GuiDrawList draw, GuiRect map, bool tyrants)
         {
             const float Row = 24f;
-            GuiRect box = new GuiRect(map.X + 10f, map.Y + 10f, 160f, Row * 3f + 10f);
+            // Beside the map where there's room, so it covers none of it.
+            float left = map.X >= 190f ? map.X - 176f : map.X + 10f;
+            GuiRect box = new GuiRect(left, map.Y + 10f, 160f, Row * 3f + 10f);
             draw.AddRect(box, GuiColors.Rgba(8, 6, 5, 200), 4f, 1f, GuiColors.Rgba(120, 96, 58));
             float x = box.X + 22f, y = box.Y + 5f + Row * 0.5f;
 

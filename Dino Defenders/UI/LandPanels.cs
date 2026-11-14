@@ -35,7 +35,7 @@ namespace Dino_Defenders.UI
         private const float SlotSize = 52f;
         private const float SlotGap = 8f;
         private const int SlotsAcross = 5;
-        private const int PreviewResolution = 256;
+        private const int PreviewResolution = 512;
         private const int MostPreviewsKept = 12;
 
         private static readonly Colour Line = GuiColors.Rgba(84, 68, 46);
@@ -357,10 +357,11 @@ namespace Dino_Defenders.UI
         private static Grown Grow(WorldRequest request, LandTerms terms)
         {
             WorldData world = new Dino_Engine.World.Generation.WorldGenerator().Generate(request);
-            byte[] pixels = WorldMapImage.Render(world, PreviewResolution, showSites: false);
+            // The land as its map will show it, before anyone's been there, so in colour all over.
+            Dino_Engine.World.Chart.Chart chart = Dino_Engine.World.Chart.WorldChart.Draw(world, PreviewResolution);
             WorldSite? tyrant = world.Sites.FirstOrDefault(site => site.Kind is SiteKind.Keep or SiteKind.Arena);
-            Vector2 landing = world.Sites[0].Position / world.Size;
-            return new Grown(pixels, landing, tyrant != null ? tyrant.Position / world.Size : landing, LandCensus.Of(world, terms));
+            Vector2 landing = chart.Frame.ToShare(world.Sites[0].Position);
+            return new Grown(chart.Colour, landing, tyrant != null ? chart.Frame.ToShare(tyrant.Position) : landing, LandCensus.Of(world, terms));
         }
 
         // Grown maps go to the GPU here, on the thread that owns it, and the oldest that aren't shown go, so that clicking through levels doesn't fill the card's memory.
@@ -399,7 +400,8 @@ namespace Dino_Defenders.UI
             GL.ActiveTexture(TextureUnit.Texture0);
             GL.BindTexture(TextureTarget.Texture2D, texture);
             GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba8, PreviewResolution, PreviewResolution, 0, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
+            GL.GenerateMipmap(GenerateMipmapTarget.Texture2D);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.LinearMipmapLinear);
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
@@ -511,9 +513,9 @@ namespace Dino_Defenders.UI
                     return;
                 }
 
-                // +x runs to the left of the screen in play, so the map runs that way too, as the travel map does.
-                draw.AddImage(preview.Texture, map, new Vector2(1f, 0f), new Vector2(0f, 1f), GuiColors.White, cornerRadius: 2f);
-                Vector2 At(Vector2 share) => new Vector2(map.Right - share.X * map.Width, map.Bottom - share.Y * map.Height);
+                // Turned as the land is seen in play, as the travel map is (ChartFrame).
+                draw.AddImage(preview.Texture, map, Vector2.Zero, Vector2.One, GuiColors.White, cornerRadius: 2f);
+                Vector2 At(Vector2 share) => new Vector2(map.X + share.X * map.Width, map.Y + share.Y * map.Height);
                 draw.AddCircle(At(preview.Landing), 4.5f, GuiColors.Rgba(240, 236, 224), 1.5f, GuiColors.Rgba(20, 16, 12));
                 draw.AddCircle(At(preview.Tyrant), 5.5f, ArenaInk, 1.5f, GuiColors.Rgba(20, 16, 12));
             }
