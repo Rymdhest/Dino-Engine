@@ -28,6 +28,9 @@ namespace Dino_Engine.World
         Workbench,      // Where gear is worked on, in the Haven's forge.
         GamingTable,    // Where gold is played for, in the Haven's gaming house.
         Keeper,         // Someone who keeps a hall and stands at their work in it, in the Haven.
+        Captive,        // A beast held where it stands, in a cage or a paddock (PlacePlan), which isn't anyone's to fight, and goes free when its place is freed (PLACES.md).
+        Returning,      // Someone of a place who comes back once it's been freed, and not before.
+        Trader,         // Someone who trades at a place once it's been freed, and not before.
     }
 
     public static class SpawnRoles
@@ -76,6 +79,9 @@ namespace Dino_Engine.World
         public HauntKind Haunt;     // For a pack: why it's here.
         public SpawnRole Folk;      // For a pack: who it is.
 
+        /// <summary>A number drawn when the place was chosen, which its name and its builder both read, so that a wreck named for one of the Reich's ships is one (PLACES.md).</summary>
+        public uint Story;
+
         /// <summary>
         /// Where its people stand, if not its middle: the Haven's middle is a raised bed with a tree in it (SQUARE.md), and everything walkable is flooded out from the landing's
         /// footing (<see cref="Generation.FinalizeStage"/>), so it has to be open ground.
@@ -88,6 +94,9 @@ namespace Dino_Engine.World
 
         /// <summary>A churchyard's wall, gates and church (CHURCHYARD.md).</summary>
         public YardPlan? Yard;
+
+        /// <summary>The frame of a place with a story of its own, and what in it moves once it's freed (PLACES.md).</summary>
+        public PlacePlan? Place;
 
         /// <summary>Where a game should put characters and things. Worldgen only says where and what for.</summary>
         public readonly List<SiteSpawn> Spawns = new();

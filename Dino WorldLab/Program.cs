@@ -75,6 +75,8 @@ namespace Dino_WorldLab
                     return SquareCheck.Run();
                 case "yard":
                     return YardCheck.Run(options.Int("seed", 1), options.Int("count", 12), options.Text("archetype"));
+                case "places":
+                    return PlaceCheck.Run(options.Int("seed", 1), options.Int("count", 12), options.Text("archetype"), options.Text("kind"));
                 case "arenas":
                     if (options.Text("land") is string land) return ArenaCheck.Keep(options.Int("seed", 1), land);
                     return ArenaCheck.Run(options.Int("seed", 1), options.Text("archetype"));

@@ -148,7 +148,80 @@ namespace Dino_Defenders.Server
                         SpawnDummy(world, session, state, spawn, dummies == 0 ? 0 : dummies <= SmallGroup ? 1 : 2);
                         dummies++;
                         break;
+                    case SpawnRole.Captive:
+                        // What was held at a place is gone once it's been freed: only its cage's open door is left.
+                        if (!state.Cleared) SpawnCaptive(world, session, state, siteIndex, spawn, spawnRandom);
+                        break;
+                    case SpawnRole.Returning:
+                        if (state.Cleared) SpawnVillager(world, session, state, siteIndex, spawn, spawnRandom, stationary: false);
+                        break;
+                    case SpawnRole.Trader:
+                        if (state.Cleared) SpawnMerchant(world, session, state, siteIndex, i, spawn, spawnRandom);
+                        break;
                 }
+            }
+            HangDoors(world, session, state, siteIndex);
+        }
+
+        /// <summary>
+        /// A place has just been freed (PLACES.md): whoever of it comes back once it is comes out now, and anyone who trades there opens up. What was caged there goes by itself, as its cage
+        /// opens (CaptiveSystem).
+        /// </summary>
+        public void Freed(ECSWorld world, ServerSession session, SiteState state)
+        {
+            if (!state.Active) return;
+            int siteIndex = session.Sites.IndexOf(state);
+            if (siteIndex < 0) return;
+            var random = new WorldRandom(session.World.Plan.Seed).Fork("people").Fork(siteIndex);
+            for (int i = 0; i < state.Site.Spawns.Count; i++)
+            {
+                SiteSpawn spawn = state.Site.Spawns[i];
+                if (spawn.Role == SpawnRole.Returning) SpawnVillager(world, session, state, siteIndex, spawn, random.Fork(i), stationary: false);
+                else if (spawn.Role == SpawnRole.Trader) SpawnMerchant(world, session, state, siteIndex, i, spawn, random.Fork(i));
+            }
+        }
+
+        // A beast in a cage or chained in the open (PlacePlan.Cages): it isn't anyone's to fight, so it has no body in the rules, only its look, and it stands where it's held until the
+        // place is freed.
+        private void SpawnCaptive(ECSWorld world, ServerSession session, SiteState state, int siteIndex, SiteSpawn spawn, WorldRandom random)
+        {
+            PlacePlan? plan = state.Site.Place;
+            if (plan == null) return;
+            int cage = -1;
+            for (int k = 0; k < plan.Cages.Count; k++)
+            {
+                if ((plan.Cages[k].Captive - spawn.Position).LengthSquared < 0.36f) { cage = k; break; }
+            }
+            if (cage < 0) return;
+            PlaceCage held = plan.Cages[cage];
+            Vector3 position = new Vector3(spawn.Position.X, session.World.Height.Sample(spawn.Position), spawn.Position.Y);
+            state.Live.Add(world.CreateEntity("Captive",
+                new NetIdentityComponent(_server.Ghosts.NextId(), importance: 0.6f),
+                new PositionComponent(position),
+                new RotationComponent(Quaternion.FromAxisAngle(Vector3.UnitY, held.Facing)),
+                new ScaleComponent(new Vector3(held.Scale)),
+                new VisualComponent(held.Look, VisualKind.Character),
+                new VelocityComponent(),
+                new FixToTerrainHeightComponent(),
+                new CaptiveComponent { SiteIndex = siteIndex, Cage = cage, Wait = random.Range(0f, 4f) }));
+        }
+
+        // Every cage's door, shut while the place is held and open once it's been freed; they swing open as it is (CaptiveSystem).
+        private void HangDoors(ECSWorld world, ServerSession session, SiteState state, int siteIndex)
+        {
+            if (state.Site.Place is not PlacePlan plan) return;
+            foreach (PlaceCage cage in plan.Cages)
+            {
+                if (cage.Door.Length == 0) continue;
+                float height = session.World.Height.Sample(cage.Middle);
+                float open = state.Cleared ? 1f : 0f;
+                state.Live.Add(world.CreateEntity("Cage door",
+                    new NetIdentityComponent(_server.Ghosts.NextId(), importance: 0.5f),
+                    new PositionComponent(new Vector3(cage.Hinge.X, height, cage.Hinge.Y)),
+                    new RotationComponent(Quaternion.FromAxisAngle(Vector3.UnitY, cage.Yaw + cage.Swing * open)),
+                    new ScaleComponent(new Vector3(1f)),
+                    new VisualComponent(cage.Door, VisualKind.Prop),
+                    new CageDoorComponent { SiteIndex = siteIndex, Shut = cage.Yaw, Swing = cage.Swing, Open = open }));
             }
         }
 

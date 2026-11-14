@@ -339,7 +339,8 @@ namespace Dino_WorldLab
                 foreach (SiteSpawn spawn in site.Spawns)
                 {
                     if (spawn.Role == SpawnRole.Spectator) Problem($"{site.Name} has someone watching in it, which only a boss map's arena has");
-                    if (!world.Passable.IsSet(spawn.Position)) Problem($"{spawn.Role} of {site.Name} can't be reached at {spawn.Position}");
+                    // A beast in a cage is where nobody can get at it until its door opens (PLACES.md).
+                    if (spawn.Role != SpawnRole.Captive && !world.Passable.IsSet(spawn.Position)) Problem($"{spawn.Role} of {site.Name} can't be reached at {spawn.Position}");
                 }
             }
         }

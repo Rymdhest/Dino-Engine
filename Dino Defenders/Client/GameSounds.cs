@@ -917,8 +917,10 @@ namespace Dino_Defenders.Client
                 ReverbSettings built = state.Site.Kind switch
                 {
                     SiteKind.Graveyard => Churchyard,
-                    SiteKind.Keep or SiteKind.Ruins or SiteKind.Watchtower => Stonework,
-                    SiteKind.Village or SiteKind.Hamlet or SiteKind.FishingHamlet or SiteKind.BanditCamp or SiteKind.LumberCamp => Yards,
+                    // A quarry's faces and the stone of the old halls throw sound back as a keep's walls do; the Reich's yards and a post's ring of stores as a village's yards.
+                    SiteKind.Keep or SiteKind.Ruins or SiteKind.Watchtower or SiteKind.Quarry or SiteKind.Laboratory => Stonework,
+                    SiteKind.Village or SiteKind.Hamlet or SiteKind.FishingHamlet or SiteKind.BanditCamp or SiteKind.LumberCamp or SiteKind.Prison or SiteKind.Farm or SiteKind.Tradepost => Yards,
+                    SiteKind.SnowCastle => Snowfield,
                     _ => place,
                 };
                 place = ReverbSettings.Lerp(place, built, Math.Clamp(inside * 2f, 0f, 1f));

@@ -121,6 +121,11 @@ namespace Dino_Defenders.Client
 
         private static IEnumerable<string> PreparedKeys()
         {
+            // What a prison holds, which isn't anyone's to fight and so isn't in the bestiary, but is sent like anything else (PLACES.md).
+            foreach ((string look, int variants, _, _) in Dino_Engine.World.Content.PlaceStory.Captives)
+            {
+                for (int variant = 0; variant < variants; variant++) yield return $"{look}{variant}";
+            }
             foreach (Server.EnemyKind kind in Server.Bestiary.Everyone)
             {
                 if (kind.Look == "bandit")
@@ -226,6 +231,8 @@ namespace Dino_Defenders.Client
             if (key == "turret") return (key, Turret);
             // Whatever of an arena moves is one of its pieces, grown from its id as the rest of it is (ARENAS.md).
             if (Dino_Engine.Modelling.Procedural.Architecture.Arena.ArenaSpec.TryParse(key, out var arena)) return (key, () => Dino_Engine.Modelling.Procedural.Architecture.Arena.ArenaForge.Make(arena, new List<Dino_Engine.World.Content.AssetLight>()));
+            // And whatever of a place with a story moves, a cage's door, is one of its pieces (PLACES.md).
+            if (Dino_Engine.Modelling.Procedural.Architecture.Places.PlaceSpec.TryParse(key, out var place)) return (key, () => Dino_Engine.Modelling.Procedural.Architecture.Places.PlaceForge.Make(place, new List<Dino_Engine.World.Content.AssetLight>()));
             if (key == Progression.LootModels.Gold) return (key, () => Ball(new Colour(1f, 0.78f, 0.25f, 2.2f)));
             if (key == Progression.LootModels.Find) return (key, () => Ball(new Colour(0f, 0f, 0f)));
             if (key.StartsWith(BoltPrefix) && Enum.TryParse(key.AsSpan(BoltPrefix.Length), out Stats.DamageType look))

@@ -77,6 +77,10 @@ namespace Dino_Engine.Textures
             if (spec == MaterialCatalog.Skin) return Skin(c);
             if (spec == MaterialCatalog.Hide) return Hide(c);
             if (spec == MaterialCatalog.PaintedBoards) return PaintedBoards(c);
+            if (spec == MaterialCatalog.RivetedPlate) return RivetedPlate(c);
+            if (spec == MaterialCatalog.CutStone) return CutStone(c);
+            if (spec == MaterialCatalog.Netting) return Netting(c);
+            if (spec == MaterialCatalog.PackedSnow) return PackedSnow(c);
 
             throw new InvalidOperationException($"No recipe for {spec.Name}.");
         }

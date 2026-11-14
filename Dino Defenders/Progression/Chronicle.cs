@@ -299,12 +299,25 @@ namespace Dino_Defenders.Progression
                 SiteKind.Village => new[] { $"Market town of the {biome}. Its people hide from {Faction} behind barred doors, and trade with anyone who isn't the Reich.", "Its people bar their doors when the roaring starts.", $"It was here first, and means to be here after {Commander}." },
                 SiteKind.Hamlet => new[] { "A few families who would not leave. The raptors came for them anyway.", "Too small for the Reich to burn. It sent its beasts instead." },
                 SiteKind.Farmstead => new[] { "One family's stubborn acres, and what's eating them now.", "The raptors took the oxen last spring. Then they came back." },
-                SiteKind.FishingHamlet => new[] { "They watched the iron ships come in from here. The crews stayed.", "Nobody puts out at dawn any more." },
-                SiteKind.LumberCamp => new[] { "Timber for the Reich's pens, cut by those it took.", "The axes never stop, and the greycoats never leave." },
+                SiteKind.FishingHamlet => new[] { "They watched the iron ships come in from here. The crews stayed.", "Nobody puts out at dawn any more.", "The boats are drawn up and the nets are rotting. The Reich eats the catch." },
+                SiteKind.LumberCamp => new[] { "Timber for the Reich's pens, cut by those it took.", "The axes never stop, and the greycoats never leave.", "The wood is coming down a stump at a time. The pens need more." },
                 SiteKind.Shrine => new[] { "Its light has gone out, and the Reich keeps it out. It can be kindled again.", "The Reich tore down what it could. The rest held.", "The path here is older than the road." },
                 SiteKind.StandingStones => new[] { "Raised by no people anyone remembers, over bones nobody was meant to find.", "The stones hum faintly, like held breath." },
                 SiteKind.Watchtower => new[] { "From here you can see the next fire, when they are lit.", "The beacon has been cold since the ships came." },
-                SiteKind.Ruins => new[] { "Whoever lived here left in a hurry, long ago.", "The Reich's diggers have been at the old foundations." },
+                SiteKind.Ruins => new[] { "Raised by the same hands as the waygates, and fallen long before anyone came.", "The Reich's diggers have been at the old foundations.", "The runes on these stones are the waygates' own. Nobody can read them." },
+                SiteKind.Shipwreck => PlaceStory.WreckIsReich(site.Story)
+                    ? new[] { "One of the iron ships, broken on the sand. What was in its cages got out.", "The sea gave her back in pieces. Something walked out of her hold." }
+                    : new[] { "A ship of the land's own, run down by the iron ships. The turncoats are stripping her.", "Whatever she carried is the wreckers' now, and the Reich's after that." },
+                SiteKind.Quarry => new[] { $"{Commander} builds with stolen stone. This is where it's stolen from.", "The land's people cut the stone. The greycoats count every block." },
+                SiteKind.SnowCastle => new[] { "The children built it every winter. The frost's cult keeps it now.", "A castle of snow, older than this winter. Someone still lights its lanterns." },
+                SiteKind.Tradepost => new[] { "The roads met here, and so did the land's merchants. The turncoats sell to the Reich from it now.", "The land's own grain waits in the store for the Reich's wagons." },
+                SiteKind.Excavation => new[] { "The Ossuary found one of the great beasts in the ground, and is lifting it out whole.", "Something old is coming up out of the rock. Its eyes are already lit." },
+                SiteKind.Laboratory => new[] { "An outstation of the Amber Institute. The blood-doctors grow beasts here from what's in the amber.", "Where the eggs are kept warm, and what fails is kept for the Ossuary." },
+                SiteKind.Farm => new[] { "Where the Institute's young are raised until they're big enough for harness.", "The land's farmers work it now, for the Reich." },
+                SiteKind.Nest => PlaceStory.NestOf(world, site) == NestKind.Weaver
+                    ? new[] { "The Institute's worst idea has made a nest of the trees.", "Mind the threads. Everything caught in them was alive once." }
+                    : new[] { "What got out of the pens found it could breed.", "Don't stand over the eggs." },
+                SiteKind.Prison => new[] { "Where the Reich breaks what was born free. Free them before the collar's on.", "Iron cages round a breaking yard. The beasts in them were never anyone's." },
                 SiteKind.BanditCamp => new[] { $"A pen of {Faction}: cages, chains and the smell of blood.", "Where the Reich keeps its beasts between hunts." },
                 SiteKind.Graveyard => new[] { "The dead here do not lie quiet.", "The Ossuary has been digging here. It is always night in that churchyard." },
                 SiteKind.Keep => new[] { $"The seat of {Commander}, and the pen of {Beast}.", "Built with stolen stone, held with teeth." },

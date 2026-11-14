@@ -5,6 +5,7 @@ using Dino_Engine.Modelling.Procedural.Architecture;
 using Dino_Engine.Modelling.Procedural.Architecture.Arena;
 using Dino_Engine.Modelling.Procedural.Architecture.Churchyard;
 using Dino_Engine.Modelling.Procedural.Architecture.Halls;
+using Dino_Engine.Modelling.Procedural.Architecture.Places;
 using Dino_Engine.Modelling.Procedural.Architecture.Plaza;
 using Dino_Engine.Modelling.Procedural.Fence;
 using Dino_Engine.Modelling.Procedural.Flora;
@@ -55,6 +56,7 @@ namespace Dino_Engine.World
             var forging = new List<(string id, PlazaSpec spec)>();
             var raising = new List<(string id, ArenaSpec spec)>();
             var carving = new List<(string id, YardSpec spec)>();
+            var building = new List<(string id, PlaceSpec spec)>();
             foreach (string id in ids)
             {
                 if (_models.ContainsKey(id) || _grown.ContainsKey(id) || _forged.ContainsKey(id)) continue;
@@ -74,6 +76,12 @@ namespace Dino_Engine.World
                 if (YardSpec.TryParse(id, out YardSpec yard))
                 {
                     carving.Add((id, yard));
+                    continue;
+                }
+                // And those of every place with a story of its own (PLACES.md).
+                if (PlaceSpec.TryParse(id, out PlaceSpec place))
+                {
+                    building.Add((id, place));
                     continue;
                 }
                 if (FenceSpec.TryParse(id, out FenceSpec fence))
@@ -112,6 +120,13 @@ namespace Dino_Engine.World
                 Mesh mesh = YardForge.Make(item.spec, lights);
                 _forged[item.id] = (mesh, lights);
             });
+            // The biggest first, as a hull or a laboratory takes a hundred times as long as a crate.
+            Parallel.ForEach(Partitioner.Create(building.OrderByDescending(item => PlaceForge.Slowness(item.spec.Kind)), EnumerablePartitionerOptions.NoBuffering), new ParallelOptions { MaxDegreeOfParallelism = Math.Max(Environment.ProcessorCount - 1, 1) }, item =>
+            {
+                var lights = new List<AssetLight>();
+                Mesh mesh = PlaceForge.Make(item.spec, lights);
+                _forged[item.id] = (mesh, lights);
+            });
         }
 
         /// <summary>Lets go of what neither this world nor the one before it uses. By the time a world is two worlds old, nothing can still be drawing its plants.</summary>
@@ -121,7 +136,7 @@ namespace Dino_Engine.World
             foreach (string id in _models.Keys)
             {
                 // Every arena and keep has pieces of its own, so they go too once no world uses them.
-                if (thisWorld.Contains(id) || _lastWorld.Contains(id) || !(id.Contains('#') || FenceSpec.IsFence(id) || ArenaSpec.IsArena(id) || YardSpec.IsYard(id))) continue;
+                if (thisWorld.Contains(id) || _lastWorld.Contains(id) || !(id.Contains('#') || FenceSpec.IsFence(id) || ArenaSpec.IsArena(id) || YardSpec.IsYard(id) || PlaceSpec.IsPlace(id))) continue;
                 if (_models.TryRemove(id, out glModel? model)) model.cleanUp();
                 _lights.Remove(id);
                 _chimneys.Remove(id);
@@ -234,6 +249,18 @@ namespace Dino_Engine.World
                     return carved.Mesh;
                 }
                 return YardForge.Make(yard, lights);
+            }
+            if (PlaceSpec.TryParse(id, out PlaceSpec place))
+            {
+                imposterDistance = 0f;
+                if (_forged.TryRemove(id, out var built))
+                {
+                    lights.AddRange(built.Lights);
+                    chimneys.AddRange(PlaceForge.ChimneysOf(place));
+                    return built.Mesh;
+                }
+                chimneys.AddRange(PlaceForge.ChimneysOf(place));
+                return PlaceForge.Make(place, lights);
             }
             StructureDefinition definition = StructureCatalog.Parse(id, out BuildingStyle style, out int variant);
             imposterDistance = definition.ImposterDistance;

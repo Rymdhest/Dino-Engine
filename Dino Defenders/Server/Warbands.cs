@@ -148,6 +148,13 @@ namespace Dino_Defenders.Server
         private static readonly Recipe Fen = new(new[] { Bestiary.Wader }, new[] { Bestiary.Raptor }, new[] { Bestiary.FeralSpitter }, 0.2f);
         private static readonly Recipe Swarm = new(new[] { Bestiary.Raptor }, new[] { Bestiary.Skitter }, Array.Empty<EnemyKind>(), 0f);
 
+        // What breeds at a nesting ground (PLACES.md): raptors round their mounds with a ripper or a ravager over them, a ravager's own brood at its scrape.
+        private static readonly Recipe RaptorNest = new(new[] { Bestiary.Ripper, Bestiary.WildRavager }, new[] { Bestiary.Raptor, Bestiary.Raptor, Bestiary.Skitter }, new[] { Bestiary.FeralSpitter }, 0.18f);
+        private static readonly Recipe RavagerNest = new(new[] { Bestiary.WildRavager }, new[] { Bestiary.Raptor, Bestiary.Skitter, Bestiary.Skitter }, Array.Empty<EnemyKind>(), 0f);
+
+        // What got out of a wrecked ship's cages, and what's come to pick over what drowned.
+        private static readonly Recipe Escaped = new(new[] { Bestiary.WildRavager, Bestiary.Ripper }, new[] { Bestiary.Raptor, Bestiary.Raptor, Bestiary.Skitter }, new[] { Bestiary.FeralSpitter }, 0.2f);
+
         private static readonly Recipe Wolves = new(new[] { Bestiary.DireWolf }, new[] { Bestiary.Wolf }, Array.Empty<EnemyKind>(), 0f);
         private static readonly Recipe WinterWolves = new(new[] { Bestiary.DireWolf, Bestiary.Bear, Bestiary.WildShagback }, new[] { Bestiary.Wolf }, Array.Empty<EnemyKind>(), 0f);
         private static readonly Recipe Boars = new(new[] { Bestiary.Bear }, new[] { Bestiary.Boar }, new[] { Bestiary.Wolf }, 0.2f);
@@ -183,6 +190,9 @@ namespace Dino_Defenders.Server
             yield return Flock;
             yield return Fen;
             yield return Swarm;
+            yield return RaptorNest;
+            yield return RavagerNest;
+            yield return Escaped;
             yield return Wolves;
             yield return WinterWolves;
             yield return Boars;
@@ -192,6 +202,7 @@ namespace Dino_Defenders.Server
         public static Recipe RecipeFor(WorldData world, WorldSite site, SpawnRole folk, WorldRandom random)
         {
             BiomeDefinition biome = world.Plan.Biomes[Math.Clamp(site.Biome, 0, world.Plan.Biomes.Count - 1)];
+            if (PlaceRecipe(world, site, folk, biome, random) is Recipe place) return place;
             switch (folk)
             {
                 case SpawnRole.Undead:
@@ -212,6 +223,45 @@ namespace Dino_Defenders.Server
                 default:
                     if (random.Chance(TurncoatShare)) return Outlaws;
                     return biome.Temperature <= 0.3f ? ReichInSnow : Reich;
+            }
+        }
+
+        // Who holds a place with a story of its own, which says whose it is (PLACES.md): the Reich keeps its own works with its own people and never a turncoat, the turncoats keep what they
+        // took for it, a nest is whatever nests there, and what got out of a wreck's cages hunts its beach. Anything this doesn't settle goes by the land as anywhere else.
+        private static Recipe? PlaceRecipe(WorldData world, WorldSite site, SpawnRole folk, BiomeDefinition biome, WorldRandom random)
+        {
+            bool cold = biome.Temperature <= 0.3f;
+            switch (site.Kind)
+            {
+                case SiteKind.Prison:
+                case SiteKind.Farm:
+                case SiteKind.Quarry:
+                case SiteKind.LumberCamp:
+                    return folk is SpawnRole.Raider or SpawnRole.Guard ? (cold ? ReichInSnow : Reich) : null;
+                case SiteKind.Laboratory:
+                    // The Institute's failures, kept in its pens until the Ossuary takes them.
+                    if (folk == SpawnRole.Undead) return Rotting;
+                    return folk is SpawnRole.Raider or SpawnRole.Guard ? (cold ? ReichInSnow : Reich) : null;
+                case SiteKind.Excavation:
+                    if (folk == SpawnRole.Undead) return random.Chance(ChurchyardGhosts) ? Ghosts : Dead;
+                    return folk is SpawnRole.Raider or SpawnRole.Guard ? (cold ? ReichInSnow : Reich) : null;
+                case SiteKind.Tradepost:
+                    return folk == SpawnRole.Raider ? Outlaws : null;
+                case SiteKind.Shipwreck:
+                    if (folk == SpawnRole.Beast) return cold ? WinterWolves : Escaped;
+                    return folk == SpawnRole.Raider ? Outlaws : null;
+                case SiteKind.Nest when folk == SpawnRole.Beast:
+                    return PlaceStory.NestOf(world, site) switch
+                    {
+                        NestKind.Weaver => Nest,
+                        NestKind.Wader => Fen,
+                        NestKind.Ravager => RavagerNest,
+                        _ => RaptorNest,
+                    };
+                case SiteKind.SnowCastle when folk == SpawnRole.Beast:
+                    return WinterWolves;
+                default:
+                    return null;
             }
         }
 

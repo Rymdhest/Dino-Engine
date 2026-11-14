@@ -64,6 +64,21 @@ namespace Dino_Engine.World.Content
 
         private static Language LanguageOf(int worldSeed) => Languages[LanguageIndex(worldSeed)];
 
+        // The Reich's tongue, which sounds German and names what the Reich owns, as its tyrants and broods are named (LORE.md): plain words run together, nothing of any real army's.
+        private static readonly string[] ReichStarts = { "Eisen", "Grau", "Stahl", "Donner", "Nacht", "Knochen", "Stein", "Wolken", "Brand", "Frost", "Asche", "Salz", "Teer", "Dorn", "Hagel", "Rauch" };
+
+        /// <summary>What the Reich names its iron ships: a keel, a breaker, a claw.</summary>
+        public static readonly string[] ShipEndings = { "kiel", "brecher", "klaue", "falke", "horn", "schild", "wolf", "zahn", "faust", "dorn" };
+
+        /// <summary>What it names a prison for beasts: a kennel, as a bear pit is.</summary>
+        public static readonly string[] PrisonEndings = { "zwinger" };
+
+        /// <summary>What it names a farm it rears its beasts on.</summary>
+        public static readonly string[] FarmEndings = { "hof" };
+
+        /// <summary>A name in the Reich's tongue, a start and one of <paramref name="endings"/>.</summary>
+        public static string Reich(WorldRandom random, string[] endings) => random.Pick(ReichStarts) + random.Pick(endings);
+
         private static string Root(Language language, WorldRandom random)
         {
             string start = random.Pick(language.Starts);

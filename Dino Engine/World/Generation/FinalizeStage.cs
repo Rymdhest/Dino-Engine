@@ -172,8 +172,8 @@ namespace Dino_Engine.World.Generation
                     SiteSpawn spawn = site.Spawns[i];
                     if (passable.IsSet(spawn.Position)) continue;
 
-                    // Whoever watches from an arena's stands stands where nobody else can go, and is meant to.
-                    if (spawn.Role == SpawnRole.Spectator) continue;
+                    // Whoever watches from an arena's stands stands where nobody else can go, and is meant to, and so does a beast in a cage (PLACES.md).
+                    if (spawn.Role is SpawnRole.Spectator or SpawnRole.Captive) continue;
 
                     // A churchyard's dead stay inside its wall: moved within it, or not there at all (CHURCHYARD.md).
                     YardPlan? yard = site.Yard;

@@ -143,6 +143,21 @@ namespace Dino_Engine.Textures
         // other material's layer.
         public static readonly MaterialSpec PaintedBoards = Add("boards-painted", 2.4f, 0.07f, 0.55f);
 
+        // What the places with a story of their own are made of (PLACES.md), last, so that adding them moved no other material's layer. Each is a surface nothing else has, and pale, as its
+        // colour is in the vertices.
+
+        // The Reich's iron in plates, lapped in courses and riveted along every lap, as its ships, its doors and the Institute's walls are: a plate's lapped edge stands proud, which is the relief.
+        public static readonly MaterialSpec RivetedPlate = Add("plate-riveted", 3.2f, 0.022f, 0f);
+
+        // Stone freshly split out of its bed: the half-round channels of the holes it was drilled along, the faces of the splits, and the scars of the picks, as a quarry's faces are.
+        public static readonly MaterialSpec CutStone = Add("stone-cut", 4f, 0.09f, 0.4f);
+
+        // A fishing net: knotted twine in a diamond mesh over the dark between it, as a net seen against what it's hung on.
+        public static readonly MaterialSpec Netting = Add("netting", 1.2f, 0.02f, 0.9f);
+
+        // Snow packed into blocks and smoothed with a spade, the blocks' joints soft and the spade's strokes across them, as a castle of snow is built: it scatters light as snow does.
+        public static readonly MaterialSpec PackedSnow = Add("snow-packed", 3f, 0.05f, 0f, SubsurfaceKind.Frost);
+
         public static IReadOnlyList<MaterialSpec> All => _all;
 
         public static int Count => _all.Count;

@@ -115,6 +115,7 @@ namespace Dino_Defenders.Server
             _systems.Add(new DyingSystem());
             _systems.Add(_interaction);
             _systems.Add(_encounters = new EncounterSystem(this));
+            _systems.Add(new CaptiveSystem(this));
             _systems.Add(new ArenaSystem(this));
             _systems.Add(new BodySystem(this));
             _systems.Add(new CharacterMotorSystem());
@@ -777,6 +778,12 @@ namespace Dino_Defenders.Server
                 packet ??= Ghosts.Encode(value, Tick);
                 Ghosts.Queue(hero.View, packet);
             }
+        }
+
+        /// <summary>A place has just been freed: whoever comes back to it once it is comes out now (PLACES.md).</summary>
+        public void PlaceFreed(SiteState state)
+        {
+            if (Session != null) _encounters.Freed(Ecs, Session, state);
         }
 
         public void Announce(ServerPlayer? to, string title, string subtitle = "", float life = 4f)

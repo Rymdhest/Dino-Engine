@@ -26,6 +26,9 @@ namespace Dino_Engine.World.Generation
             public float Domination;    // How far it stands above its surroundings, about -1..1.
             public float Fertility;     // Open farmland, 0..1.
             public float Remoteness;
+            public float Woods;         // How thick the woods are round it, 25 to 60 m out, 0..1.
+            public float Rise;          // Metres the walkable ground climbs to its north within 50 m, at the most: what a quarry is cut into.
+            public int Biome;           // Which of the plan's biomes it's most of.
         }
 
         public string Description => "Founding settlements";
@@ -68,6 +71,10 @@ namespace Dino_Engine.World.Generation
             foreach (SiteDefinition definition in SiteCatalog.All)
             {
                 if (definition.Kind == SiteKind.Landing) continue;
+
+                // The places with a story of their own choose their ground before the ruins, the towers and the shrines, which every land has, so that a land always has room for
+                // what makes it unlike the last one. Their own fork, so nothing they draw moves anything else's.
+                if (definition.Kind == SiteKind.Ruins) PlaceStories(world, candidates, random.Fork("stories"));
 
                 WorldRandom kindRandom = random.Fork(definition.Label);
                 int count = TargetCount(world.Plan.Archetype, definition, landSquareKilometres, kindRandom);
@@ -135,6 +142,43 @@ namespace Dino_Engine.World.Generation
                 if (!TryPick(world, loose, candidates, random.Fork("gate").Fork(attempt), out Candidate pick)) continue;
                 AddSite(world, SiteCatalog.Waygate, pick, random.Fork("gate").Fork(attempt));
                 gates++;
+            }
+        }
+
+        /// <summary>How many places with a story of their own a land of a square kilometre has, before what it can find room for.</summary>
+        private const float StoriesPerSquareKilometre = 10f;
+        private const int FewestStories = 2;
+        private const int MostStories = 5;
+
+        // A few of the places with a story of their own (PLACES.md), drawn by weight from those the land has the ground for: a wreck only where there's a beach, a quarry where
+        // the ground rises to the north, a castle of snow only on the snow. What doesn't find room makes way for the next, so a land always has what it can.
+        private static void PlaceStories(WorldData world, List<Candidate> candidates, WorldRandom random)
+        {
+            float squareKilometres = world.ReachableArea / 1_000_000f;
+            int wanted = Math.Clamp((int)MathF.Round(squareKilometres * StoriesPerSquareKilometre * random.Range(0.85f, 1.2f)), FewestStories, MostStories);
+            var pool = new List<SiteDefinition>();
+            var weights = new List<float>();
+            foreach (SiteDefinition definition in SiteCatalog.Stories)
+            {
+                if (world.Sites.Any(site => site.Kind == definition.Kind)) continue;
+                if (!candidates.Any(candidate => GroundSuits(world, definition.Relaxed(), candidate))) continue;
+                pool.Add(definition);
+                weights.Add(definition.StoryWeight);
+            }
+
+            int placed = 0;
+            while (placed < wanted && pool.Count > 0)
+            {
+                int i = random.PickWeighted(weights);
+                if (i < 0) break;
+                SiteDefinition definition = pool[i];
+                pool.RemoveAt(i);
+                weights.RemoveAt(i);
+                WorldRandom kindRandom = random.Fork(definition.Label);
+                if (TryPick(world, definition, candidates, kindRandom, out Candidate pick)) AddSite(world, definition, pick, kindRandom);
+                else if (TryPick(world, definition.Relaxed(), candidates, kindRandom.Fork("relaxed"), out pick)) AddSite(world, definition, pick, kindRandom.Fork("relaxed"));
+                else continue;
+                placed++;
             }
         }
 
@@ -235,10 +279,12 @@ namespace Dino_Engine.World.Generation
                         around += height.Sample(position + direction * 85f);
                     }
 
-                    float forest = 0f;
-                    for (int b = 0; b < world.BiomeWeights.Length; b++)
+                    float forest = ForestAt(world, position);
+                    float woods = 0f;
+                    for (int i = 0; i < 8; i++)
                     {
-                        forest += world.Plan.Biomes[b].ForestCover * world.BiomeWeights[b].Sample(position);
+                        Vector2 direction = SiteBuilder.Direction(i * (MathF.Tau / 8f) + 0.39f);
+                        woods += ForestAt(world, position + direction * 28f) + ForestAt(world, position + direction * 55f);
                     }
 
                     candidates.Add(new Candidate
@@ -249,10 +295,39 @@ namespace Dino_Engine.World.Generation
                         Slope = steepest,
                         Domination = Math.Clamp((h - around / 8f) / 9f, -1f, 1f),
                         Fertility = (1f - forest) * (1f - Smoothstep(0.05f, 0.3f, steepest)),
+                        Woods = woods / 16f,
+                        Rise = RiseNorth(world, position, h),
+                        Biome = world.DominantBiome(position),
                     });
                 }
             }
             return candidates;
+        }
+
+        private static float ForestAt(WorldData world, Vector2 position)
+        {
+            if (!world.InBounds(position)) return 0f;
+            float forest = 0f;
+            for (int b = 0; b < world.BiomeWeights.Length; b++) forest += world.Plan.Biomes[b].ForestCover * world.BiomeWeights[b].Sample(position);
+            return forest;
+        }
+
+        // How far the ground climbs to the north, the way the camera looks, within a stone's throw: the most along any of three ways a little either side of north, over
+        // ground someone could walk, as rock a quarry can't be cut into is the mountains' (RockSculpt makes it rock), and stops the way it's measured.
+        private static float RiseNorth(WorldData world, Vector2 position, float height)
+        {
+            float best = 0f;
+            foreach (float turn in new[] { -0.55f, 0f, 0.55f })
+            {
+                Vector2 way = new Vector2(MathF.Sin(turn), MathF.Cos(turn));
+                for (float d = 12f; d <= 50f; d += 6f)
+                {
+                    Vector2 at = position + way * d;
+                    if (!world.InBounds(at) || world.Reachable.Sample(at) < 0.5f) break;
+                    best = MathF.Max(best, world.Elevation.Sample(at) - height);
+                }
+            }
+            return best;
         }
 
         // Flat, open ground well in from the shore, near the middle of the land, with room all round for a village and its fields.
@@ -426,13 +501,23 @@ namespace Dino_Engine.World.Generation
             return a;
         }
 
-        private static bool MeetsLimits(WorldData world, SiteDefinition definition, Candidate candidate, float radius)
+        // Whether the ground itself suits a kind of site, whatever else is there.
+        private static bool GroundSuits(WorldData world, SiteDefinition definition, in Candidate candidate)
         {
             if (candidate.Slope > definition.MaxSlope) return false;
             if (candidate.Inland < definition.MinInland || candidate.Inland > definition.MaxInland) return false;
             if (candidate.Remoteness < definition.Remoteness.Min || candidate.Remoteness > definition.Remoteness.Max) return false;
             // A linear land's keep is at the end of its way, so that nothing is left behind it to come back for.
             if (definition.Kind == SiteKind.Keep && world.Plan.Linear && candidate.Remoteness < LinearKeepRemoteness) return false;
+            if (candidate.Woods < definition.LeastWoods || candidate.Rise < definition.LeastRise) return false;
+            if (candidate.Height - WorldPlan.SeaLevel > definition.MostAboveSea) return false;
+            if (definition.Climate != null && (candidate.Biome < 0 || candidate.Biome >= world.Plan.Biomes.Count || !definition.Climate(world.Plan.Biomes[candidate.Biome]))) return false;
+            return true;
+        }
+
+        private static bool MeetsLimits(WorldData world, SiteDefinition definition, Candidate candidate, float radius)
+        {
+            if (!GroundSuits(world, definition, candidate)) return false;
 
             foreach (WorldSite site in world.Sites)
             {
@@ -458,6 +543,8 @@ namespace Dino_Engine.World.Generation
                 + definition.HighGround * candidate.Domination * 2f
                 + definition.WaterNearby * water
                 + definition.Fertility * fertile
+                + definition.WoodsNearby * (candidate.Woods * 2f - 1f)
+                + (definition.LeastRise > 0f ? Saturate((candidate.Rise - definition.LeastRise) / 10f) : 0f)
                 + remoteFit * 0.4f;
             return MathF.Max(interest + 1.5f, 0.01f);
         }
@@ -465,6 +552,7 @@ namespace Dino_Engine.World.Generation
         private static void AddSite(WorldData world, SiteDefinition definition, Candidate candidate, WorldRandom random)
         {
             int id = world.Sites.Count;
+            uint story = (uint)random.Fork("story").NextULong();
             world.Sites.Add(new WorldSite
             {
                 Id = id,
@@ -474,15 +562,35 @@ namespace Dino_Engine.World.Generation
                 Height = MathF.Max(candidate.Height, WorldPlan.SeaLevel + 1f),
                 Remoteness = world.Remoteness?.Sample(candidate.Position) ?? 0f,
                 Biome = world.DominantBiome(candidate.Position),
-                Name = NameFor(world, definition, random.Fork("name")),
+                Story = story,
+                Name = NameFor(world, definition, random.Fork("name"), story),
             });
         }
 
-        private static string NameFor(WorldData world, SiteDefinition definition, WorldRandom random)
+        private static string NameFor(WorldData world, SiteDefinition definition, WorldRandom random, uint story)
         {
             int seed = world.Plan.Seed;
             switch (definition.Kind)
             {
+                // Places with a story of their own (PLACES.md): what the Reich owns it names in its own tongue, and what's the land's keeps the land's names.
+                case SiteKind.Shipwreck:
+                    return "Wreck of the " + (PlaceStory.WreckIsReich(story) ? PlaceNames.Reich(random, PlaceNames.ShipEndings) : PlaceNames.Root(seed, random));
+                case SiteKind.Quarry:
+                    return PlaceNames.Root(seed, random) + " Quarry";
+                case SiteKind.SnowCastle:
+                    return PlaceNames.Root(seed, random) + " Snow Castle";
+                case SiteKind.Tradepost:
+                    return PlaceNames.Root(seed, random) + " Trading Post";
+                case SiteKind.Excavation:
+                    return "The " + PlaceNames.Root(seed, random) + " Dig";
+                case SiteKind.Laboratory:
+                    return "The Institute at " + PlaceNames.Root(seed, random);
+                case SiteKind.Farm:
+                    return PlaceNames.Reich(random, PlaceNames.FarmEndings);
+                case SiteKind.Nest:
+                    return "The " + PlaceNames.Wood(seed, random) + " Nests";
+                case SiteKind.Prison:
+                    return "The " + PlaceNames.Reich(random, PlaceNames.PrisonEndings);
                 case SiteKind.Village:
                 case SiteKind.Hamlet:
                 case SiteKind.FishingHamlet:

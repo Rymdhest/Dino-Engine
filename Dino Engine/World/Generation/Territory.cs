@@ -48,7 +48,21 @@ namespace Dino_Engine.World.Generation
                 {
                     case SiteKind.BanditCamp:
                     case SiteKind.Keep:
+                    case SiteKind.Prison:
+                    case SiteKind.Laboratory:
+                    case SiteKind.Farm:
+                    case SiteKind.Quarry:
+                    case SiteKind.Tradepost:
                         outlaws += 1.3f * Reach(away, 240f);
+                        break;
+                    case SiteKind.Excavation:
+                        dead += 1.4f * Reach(away, 200f);
+                        break;
+                    case SiteKind.Nest:
+                        beasts += 1.4f * Reach(away, 220f);
+                        break;
+                    case SiteKind.SnowCastle:
+                        cult += 0.8f * Reach(away, 170f);
                         break;
                     case SiteKind.Graveyard:
                         dead += 1.9f * Reach(away, 240f);

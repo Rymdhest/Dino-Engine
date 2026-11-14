@@ -110,8 +110,11 @@ namespace Dino_Engine.World.Generation
                 {
                     SiteKind.Keep => 3f,
                     SiteKind.BanditCamp => 1.3f,
-                    SiteKind.Graveyard or SiteKind.Ruins or SiteKind.Hamlet => 1f,
-                    SiteKind.FishingHamlet or SiteKind.LumberCamp or SiteKind.StandingStones => 0.9f,
+                    // The Reich's own works are garrisoned as its pens are, and a laboratory more, as it's what the Institute can't lose (PLACES.md).
+                    SiteKind.Laboratory => 1.3f,
+                    SiteKind.Prison or SiteKind.Farm or SiteKind.Quarry or SiteKind.Excavation => 1.1f,
+                    SiteKind.Graveyard or SiteKind.Ruins or SiteKind.Hamlet or SiteKind.Nest or SiteKind.Shipwreck => 1f,
+                    SiteKind.FishingHamlet or SiteKind.LumberCamp or SiteKind.StandingStones or SiteKind.Tradepost or SiteKind.SnowCastle => 0.9f,
                     SiteKind.Watchtower or SiteKind.Shrine or SiteKind.Farmstead => 0.8f,
                     _ => 0f,
                 };
@@ -128,14 +131,17 @@ namespace Dino_Engine.World.Generation
                 WorldRandom random = _random.Fork("sites").Fork(site.Id);
                 int wanted = (int)MathF.Round(UsualSize(_world.Plan.Level, site.Remoteness) * share * _crowd);
                 float reach = site.Radius * 0.72f;
-                // A churchyard's are inside its wall, which is pulled in from bad ground and roads, so may not reach as far as its radius (CHURCHYARD.md).
-                Vector2 middle = site.Yard?.Centre ?? site.Position;
+                // A churchyard's are inside its wall, which is pulled in from bad ground and roads, so may not reach as far as its radius (CHURCHYARD.md), and a place with a story's
+                // within its own frame (PLACES.md).
+                Vector2 middle = site.Yard?.Centre ?? site.Place?.Centre ?? site.Position;
                 if (site.Yard is YardPlan yard) reach = yard.Reach;
+                else if (site.Place is PlacePlan place) reach = MathF.Min(place.Reach, site.Radius) * 0.85f;
                 int placed = 0;
                 for (int attempt = 0; attempt < wanted * 8 && placed < wanted; attempt++)
                 {
                     Vector2 spot = middle + SiteBuilder.Direction(random.Float() * MathF.Tau) * (reach * MathF.Sqrt(random.Float()));
                     if (site.Yard is YardPlan walled && !walled.Inside(spot, -4f)) continue;
+                    if (site.Place is PlacePlan framed && !framed.Inside(spot, -2f)) continue;
                     if (!CanStand(spot)) continue;
                     // A keep's garrison camps round the yard its tyrant waits in, and leaves the yard to it.
                     if (site.Kind == SiteKind.Keep && (spot - site.Position).Length < SettlementStage.KeepYard(site) + 1.5f) continue;
@@ -171,7 +177,16 @@ namespace Dino_Engine.World.Generation
                 {
                     float angle = first + i * (MathF.Tau / pickets) + random.Range(-0.3f, 0.3f);
                     Vector2 spot = site.Position + SiteBuilder.Direction(angle) * (site.Radius + DangerMargin + random.Range(4f, 18f));
-                    SpawnRole folk = site.Kind == SiteKind.Graveyard ? SpawnRole.Undead : site.Kind == SiteKind.Ruins ? _territory.FolkAt(spot, random) : SpawnRole.Raider;
+                    SpawnRole folk = site.Kind switch
+                    {
+                        SiteKind.Graveyard => SpawnRole.Undead,
+                        SiteKind.Ruins => _territory.FolkAt(spot, random),
+                        // What breeds at a nest keeps watch round it, and a wreck's beach is what got out of it, or the wreckers'.
+                        SiteKind.Nest => SpawnRole.Beast,
+                        SiteKind.Shipwreck => site.Spawns.Any(s => s.Role == SpawnRole.Beast) ? SpawnRole.Beast : SpawnRole.Raider,
+                        SiteKind.SnowCastle => SpawnRole.Cultist,
+                        _ => SpawnRole.Raider,
+                    };
                     TryPack(HauntKind.Picket, spot, folk, Next());
                 }
             }

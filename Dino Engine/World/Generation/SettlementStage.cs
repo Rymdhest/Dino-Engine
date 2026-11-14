@@ -35,6 +35,8 @@ namespace Dino_Engine.World.Generation
                 if (site.Kind is SiteKind.Shrine or SiteKind.StandingStones) EndRoadsShortOf(world, site.Position, StructureCatalog.Altar.HalfExtents.X + AltarForecourt);
                 if (site.Kind == SiteKind.Waygate) EndRoadsShortOf(world, site.Position, StructureCatalog.Waygate.HalfExtents.Y + AltarForecourt);
                 if (site.Kind == SiteKind.Keep) EndRoadsShortOf(world, site.Position, site.Radius * KeepRoadEnd);
+                // A walled place with a story of its own (PLACES.md) is come into by its gate, which its builder puts where the road comes: the road stops there.
+                if (WalledStory(site.Kind)) EndRoadsShortOf(world, site.Position, site.Radius * 0.92f);
             }
             foreach (WorldRoad road in world.Roads) ReserveRoad(world, road);
 
@@ -74,12 +76,18 @@ namespace Dino_Engine.World.Generation
                     case SiteKind.Waygate: BuildWaygate(builder); break;
                     case SiteKind.Haven: HavenBuilder.Build(builder); break;
                     case SiteKind.Arena: ArenaBuilder.Build(builder); break;
+                    // Places with a story of their own, each laid out by a builder of its own (PLACES.md).
+                    case SiteKind.Shipwreck: Places.WreckBuilder.Build(builder); break;
+                    case SiteKind.Prison: Places.PrisonBuilder.Build(builder); break;
                 }
             }
 
             PlaceWayside(world, random.Fork("wayside"));
             PlaceLandmarks(world, random.Fork("landmarks"));
         }
+
+        /// <summary>The places with a story of their own that have a wall or a fence round them with a gate in it, which a road stops at.</summary>
+        internal static bool WalledStory(SiteKind kind) => kind is SiteKind.Prison or SiteKind.Laboratory or SiteKind.Farm or SiteKind.Tradepost;
 
         // The way out of a land, and the altars a hero kindles: a site is nothing without them, and WorldValidator fails one that lost its own.
         private static bool BuiltFirst(SiteKind kind) => kind is SiteKind.Landing or SiteKind.Waygate or SiteKind.Shrine or SiteKind.StandingStones;

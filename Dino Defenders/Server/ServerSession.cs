@@ -533,6 +533,7 @@ namespace Dino_Defenders.Server
             if (state.Wild) return;
 
             Server.Note(null, $"{state.Site.Name} is freed.");
+            Server.PlaceFreed(state);
             if (Chronicle.Asks(state.Site)) Advance(ObjectiveKind.FreePlaces, $"{state.Site.Name} is freed");
         }
 

@@ -22,6 +22,17 @@ namespace Dino_Engine.World.Content
         Haven,          // The one village the Reich has never found, which is the whole of the Haven.
         Arena,          // Where a land's boss is fought, every tenth level: the whole of an arena's world.
         Overlook,       // Where the hero stands behind the main menu, the one place in its world, with nothing built.
+
+        // Places with a story of their own, each chosen for a land from what it has ground for (SiteStage.PlaceStories): read PLACES.md.
+        Shipwreck,      // One of the Reich's iron ships, or the land's own, broken on a beach, its cargo strewn down the sand.
+        Quarry,         // Benches cut into a hillside where the Reich takes the stone for its keeps.
+        SnowCastle,     // A castle of snow the north's children raise every winter, which the frost's cult keeps now.
+        Tradepost,      // Where the land's merchants traded, which the turncoats hold for the Reich.
+        Excavation,     // Where the Ossuary is lifting one of the great beasts out of the ground whole.
+        Laboratory,     // An outstation of the Amber Institute, where beasts are grown from what's in the amber.
+        Farm,           // A rearing farm, where the Institute's young beasts are raised in paddocks until they're big enough for harness.
+        Nest,           // Where what got out of the pens breeds in the deep woods.
+        Prison,         // Where the Reich breaks beasts born free, chained in cages round a breaking yard.
     }
 
     public enum RoadClass
@@ -64,6 +75,20 @@ namespace Dino_Engine.World.Content
         public float RoadChance = 1f;       // Below 1, some are left off the map of roads for the curious to find.
         public float Levelling = 0.8f;      // How flat its ground is made, 0..1.
 
+        // --- What a place with a story needs of the land (PLACES.md), each a hard limit, and nothing for anything else ---
+        /// <summary>Weight among the places with a story of their own a land chooses from (SiteStage.PlaceStories), or 0 for a kind that isn't one.</summary>
+        public float StoryWeight;
+        /// <summary>What the land at its middle has to be, if anything: the snow, for a castle of it.</summary>
+        public Func<BiomeDefinition, bool>? Climate;
+        /// <summary>How thick the woods round it have to be, 0..1, as a camp that fells them stands at their edge and a nest deep in them.</summary>
+        public float LeastWoods;
+        /// <summary>Above 0, it wants woods thick round it.</summary>
+        public float WoodsNearby;
+        /// <summary>Metres the ground has to rise to the north of it, within a stone's throw, as a quarry is cut into a hillside the camera looks at.</summary>
+        public float LeastRise;
+        /// <summary>Metres above the sea its middle may stand at most, as a wreck lies on a beach.</summary>
+        public float MostAboveSea = float.PositiveInfinity;
+
         /// <summary>The same, looked for less fussily: further from the far end, steeper, nearer the water and at its smallest, for a land too small to hold it otherwise.</summary>
         public SiteDefinition Relaxed()
         {
@@ -74,11 +99,17 @@ namespace Dino_Engine.World.Content
             relaxed.Radius = new FloatRange(Radius.Min, Radius.Min);
             relaxed.Margin = Margin * 0.6f;
             relaxed.Spacing = Spacing * 0.5f;
+            relaxed.LeastWoods = LeastWoods * 0.7f;
+            relaxed.LeastRise = LeastRise * 0.75f;
+            relaxed.MostAboveSea = MostAboveSea + 1f;
             return relaxed;
         }
 
         public bool IsSettlement => Kind is SiteKind.Village or SiteKind.Hamlet or SiteKind.Farmstead or SiteKind.FishingHamlet or SiteKind.LumberCamp or SiteKind.Haven;
-        public bool IsDanger => Kind is SiteKind.BanditCamp or SiteKind.Graveyard or SiteKind.Ruins or SiteKind.Keep;
+        public bool IsDanger => Kind is SiteKind.BanditCamp or SiteKind.Graveyard or SiteKind.Ruins or SiteKind.Keep or SiteKind.Prison or SiteKind.Laboratory or SiteKind.Excavation or SiteKind.Nest;
+
+        /// <summary>Whether it's one of the places with a story of its own (PLACES.md), laid out by a builder of its own and drawn from ids of its own.</summary>
+        public bool IsStory => StoryWeight > 0f || Kind is SiteKind.Ruins;
     }
 
     /// <summary>Every kind of site, in the order they claim land: the ones that shape a world pick first.</summary>
@@ -132,21 +163,24 @@ namespace Dino_Engine.World.Content
             Levelling = 0.55f,
         };
 
+        // A fishing village, laid out along its shore with its jetties out over the water (PLACES.md). A land has one only if it's chosen from those with a story (SiteStage.PlaceStories).
         public static readonly SiteDefinition FishingHamlet = new SiteDefinition
         {
             Kind = SiteKind.FishingHamlet,
             Label = "Fishing hamlet",
             MapColour = new Vector3(0.6f, 0.85f, 0.85f),
-            Radius = new FloatRange(38f, 50f),
+            Radius = new FloatRange(38f, 46f),
             PerSquareKilometre = 0.8f,
-            Limits = new IntRange(0, 3),
+            Limits = new IntRange(0, 1),
             Spacing = 340f,
+            Margin = 44f,
             MaxSlope = 0.3f,
-            MinInland = 14f,
-            MaxInland = 48f,
+            MinInland = 12f,
+            MaxInland = 38f,
             Remoteness = new FloatRange(0.05f, 0.9f),
             WaterNearby = 1f,
-            Levelling = 0.6f,
+            Levelling = 0.45f,
+            StoryWeight = 1f,
         };
 
         public static readonly SiteDefinition Hamlet = new SiteDefinition
@@ -183,19 +217,24 @@ namespace Dino_Engine.World.Content
             Levelling = 0.75f,
         };
 
+        // A logging camp at the edge of a wood it's felling (PLACES.md). A land has one only if it's chosen from those with a story (SiteStage.PlaceStories).
         public static readonly SiteDefinition LumberCamp = new SiteDefinition
         {
             Kind = SiteKind.LumberCamp,
             Label = "Lumber camp",
             MapColour = new Vector3(0.62f, 0.45f, 0.26f),
-            Radius = new FloatRange(28f, 36f),
+            Radius = new FloatRange(30f, 36f),
             PerSquareKilometre = 0.7f,
-            Limits = new IntRange(0, 3),
+            Limits = new IntRange(0, 1),
             Spacing = 380f,
-            MaxSlope = 0.36f,
-            MinInland = 30f,
-            Fertility = -0.9f,
+            Margin = 40f,
+            MaxSlope = 0.32f,
+            MinInland = 28f,
+            Fertility = -0.4f,
+            WoodsNearby = 1.4f,
+            LeastWoods = 0.32f,
             Levelling = 0.7f,
+            StoryWeight = 1f,
         };
 
         public static readonly SiteDefinition BanditCamp = new SiteDefinition
@@ -335,6 +374,206 @@ namespace Dino_Engine.World.Content
             Levelling = 0.85f,
         };
 
+        // ---------------------------------------------------------------- Places with a story of their own (PLACES.md)
+        //
+        // None of these is in All: a land chooses a few of them from those it has the ground for (SiteStage.PlaceStories), so no two lands have the same. Each label seeds its kind's
+        // fork, as any site's does, so renaming one moves every one of them.
+
+        /// <summary>A ship broken on a beach: a strand of sand, low, by the sea, with room along the shore for its hull and what came out of it.</summary>
+        public static readonly SiteDefinition Shipwreck = new SiteDefinition
+        {
+            Kind = SiteKind.Shipwreck,
+            Label = "Wreck",
+            MapColour = new Vector3(0.52f, 0.6f, 0.66f),
+            Radius = new FloatRange(28f, 34f),
+            Limits = new IntRange(0, 1),
+            Spacing = 300f,
+            Margin = 36f,
+            MaxSlope = 0.3f,
+            MinInland = 6f,
+            MaxInland = 26f,
+            MostAboveSea = 3.4f,
+            Remoteness = new FloatRange(0.08f, 1f),
+            Flatness = 0.6f,
+            WaterNearby = 1.2f,
+            Road = RoadClass.Footpath,
+            RoadChance = 0.6f,
+            Levelling = 0.12f,         // The beach is what it lies on: it keeps its fall to the sea.
+            StoryWeight = 1.1f,
+        };
+
+        /// <summary>A quarry is cut into ground that rises to its north, so that the camera, which looks north, sees its faces.</summary>
+        public static readonly SiteDefinition Quarry = new SiteDefinition
+        {
+            Kind = SiteKind.Quarry,
+            Label = "Quarry",
+            MapColour = new Vector3(0.78f, 0.74f, 0.66f),
+            Radius = new FloatRange(30f, 35f),
+            Limits = new IntRange(0, 1),
+            Spacing = 300f,
+            Margin = 40f,
+            MaxSlope = 0.5f,
+            MinInland = 22f,
+            Remoteness = new FloatRange(0.15f, 1f),
+            Flatness = 0.2f,
+            LeastRise = 5f,
+            Fertility = -0.3f,
+            Road = RoadClass.Track,
+            Levelling = 0.35f,         // Its floor is levelled where it's cut (QuarryBuilder), and the hill behind it has to stay a hill.
+            StoryWeight = 1.1f,
+        };
+
+        /// <summary>A castle of snow, in the snow and nowhere else.</summary>
+        public static readonly SiteDefinition SnowCastle = new SiteDefinition
+        {
+            Kind = SiteKind.SnowCastle,
+            Label = "Snow castle",
+            MapColour = new Vector3(0.86f, 0.92f, 0.98f),
+            Radius = new FloatRange(22f, 27f),
+            Limits = new IntRange(0, 1),
+            Spacing = 300f,
+            Margin = 36f,
+            MaxSlope = 0.24f,
+            MinInland = 20f,
+            Remoteness = new FloatRange(0.12f, 1f),
+            Flatness = 1.2f,
+            Climate = biome => biome.Ground == SurfaceMaterial.Snow,
+            Road = RoadClass.Footpath,
+            RoadChance = 0.7f,
+            Levelling = 0.85f,
+            StoryWeight = 1.6f,         // A land has snow far less often than it has a coast or a wood, so where it has, the castle is likelier.
+        };
+
+        /// <summary>A trading post on the high road, on open ground between the land's places.</summary>
+        public static readonly SiteDefinition Tradepost = new SiteDefinition
+        {
+            Kind = SiteKind.Tradepost,
+            Label = "Trading post",
+            MapColour = new Vector3(0.92f, 0.74f, 0.48f),
+            Radius = new FloatRange(28f, 33f),
+            Limits = new IntRange(0, 1),
+            Spacing = 300f,
+            Margin = 44f,
+            MaxSlope = 0.28f,
+            MinInland = 24f,
+            Remoteness = new FloatRange(0.15f, 0.8f),
+            Flatness = 1.1f,
+            Fertility = 0.3f,
+            Road = RoadClass.Highway,
+            Levelling = 0.8f,
+            StoryWeight = 0.9f,
+        };
+
+        /// <summary>The Ossuary's excavation: dry, open ground away from the landing, where the bones it's lifting came up.</summary>
+        public static readonly SiteDefinition Excavation = new SiteDefinition
+        {
+            Kind = SiteKind.Excavation,
+            Label = "Excavation",
+            MapColour = new Vector3(0.7f, 0.62f, 0.5f),
+            Radius = new FloatRange(26f, 31f),
+            Limits = new IntRange(0, 1),
+            Spacing = 300f,
+            Margin = 40f,
+            MaxSlope = 0.3f,
+            MinInland = 24f,
+            Remoteness = new FloatRange(0.25f, 1f),
+            Flatness = 0.9f,
+            HighGround = 0.2f,
+            Fertility = -0.3f,
+            Road = RoadClass.Track,
+            RoadChance = 0.85f,
+            Levelling = 0.8f,
+            StoryWeight = 1f,
+        };
+
+        /// <summary>The Amber Institute's outstation, deep in the land, on flat ground near water.</summary>
+        public static readonly SiteDefinition Laboratory = new SiteDefinition
+        {
+            Kind = SiteKind.Laboratory,
+            Label = "Laboratory",
+            MapColour = new Vector3(0.82f, 0.5f, 0.18f),
+            Radius = new FloatRange(32f, 37f),
+            Limits = new IntRange(0, 1),
+            Spacing = 300f,
+            Margin = 46f,
+            MaxSlope = 0.26f,
+            MinInland = 26f,
+            Remoteness = new FloatRange(0.4f, 1f),
+            Flatness = 1.2f,
+            WaterNearby = 0.3f,
+            Road = RoadClass.Highway,
+            Levelling = 0.88f,
+            StoryWeight = 0.9f,
+        };
+
+        /// <summary>A rearing farm, on good flat land with room for its paddocks.</summary>
+        public static readonly SiteDefinition Farm = new SiteDefinition
+        {
+            Kind = SiteKind.Farm,
+            Label = "Rearing farm",
+            MapColour = new Vector3(0.74f, 0.66f, 0.36f),
+            Radius = new FloatRange(34f, 40f),
+            Limits = new IntRange(0, 1),
+            Spacing = 300f,
+            Margin = 44f,
+            MaxSlope = 0.24f,
+            MinInland = 26f,
+            Remoteness = new FloatRange(0.15f, 0.85f),
+            Flatness = 1.3f,
+            Fertility = 1f,
+            Road = RoadClass.Track,
+            Levelling = 0.75f,
+            StoryWeight = 0.9f,
+        };
+
+        /// <summary>A nesting ground deep in the woods, far from anyone.</summary>
+        public static readonly SiteDefinition Nest = new SiteDefinition
+        {
+            Kind = SiteKind.Nest,
+            Label = "Nest",
+            MapColour = new Vector3(0.62f, 0.5f, 0.3f),
+            Radius = new FloatRange(22f, 27f),
+            Limits = new IntRange(0, 1),
+            Spacing = 300f,
+            Margin = 40f,
+            MaxSlope = 0.34f,
+            MinInland = 20f,
+            Remoteness = new FloatRange(0.3f, 1f),
+            Flatness = 0.5f,
+            Fertility = -1f,
+            WoodsNearby = 1.4f,
+            LeastWoods = 0.38f,
+            Road = RoadClass.Footpath,
+            RoadChance = 0.25f,
+            Levelling = 0.45f,
+            StoryWeight = 1f,
+        };
+
+        /// <summary>The Reich's prison for beasts, on flat ground away from the landing.</summary>
+        public static readonly SiteDefinition Prison = new SiteDefinition
+        {
+            Kind = SiteKind.Prison,
+            Label = "Prison",
+            MapColour = new Vector3(0.7f, 0.18f, 0.16f),
+            Radius = new FloatRange(30f, 35f),
+            Limits = new IntRange(0, 1),
+            Spacing = 300f,
+            Margin = 44f,
+            MaxSlope = 0.26f,
+            MinInland = 24f,
+            Remoteness = new FloatRange(0.3f, 1f),
+            Flatness = 1.1f,
+            Road = RoadClass.Track,
+            Levelling = 0.85f,
+            StoryWeight = 1f,
+        };
+
+        /// <summary>Every kind a land can choose its places with a story from, in the order they're considered when two would want the same ground.</summary>
+        public static readonly IReadOnlyList<SiteDefinition> Stories = new[]
+        {
+            Shipwreck, FishingHamlet, Quarry, LumberCamp, Nest, SnowCastle, Prison, Laboratory, Excavation, Tradepost, Farm,
+        };
+
         /// <summary>The Haven, which is only ever placed in the Haven's own world, by itself. It isn't in <see cref="All"/>.</summary>
         public static readonly SiteDefinition Haven = new SiteDefinition
         {
@@ -390,6 +629,10 @@ namespace Dino_Engine.World.Content
         public static SiteDefinition Get(SiteKind kind)
         {
             foreach (SiteDefinition definition in All)
+            {
+                if (definition.Kind == kind) return definition;
+            }
+            foreach (SiteDefinition definition in Stories)
             {
                 if (definition.Kind == kind) return definition;
             }
