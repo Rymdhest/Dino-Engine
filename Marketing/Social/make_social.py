@@ -266,14 +266,20 @@ def round_badge(badge, size):
 
 # ---------------------------------------------------------------- the set
 
-def reddit_banner(badge):
-    size = (1920, 384)
-    img = vista((820, 420, 2000), size)
-    img = shade(img, np.maximum(horizontal(size, 300, 1230, 0.9), glow(size, (760, 200), (520, 190), 0.75)))
+def reddit_wide(size, name, cap):
+    """Reddit's own banner shape, about 8.4:1 (1072x128 desktop, 1080x128 app), at twice that.
+    The title on the left under the menu's scrim, the giants on the right. No badge: the community
+    icon is already there, over the bottom left corner (about the first 10% across and the lower 30%),
+    so the title starts past it and sits a little high."""
+    w, h = size
+    img = vista((820, 440, 2380), size)
+    img = shade(img, np.maximum(horizontal(size, w * 0.20, w * 0.52, 0.88),
+                                glow(size, (w * 0.27, h * 0.45), (w * 0.24, h * 0.8), 0.6)))
     img = img.convert("RGBA")
-    put(img, round_badge(badge, 230), (290, 192))
-    put(img, wordmark(46), (760, 196))
-    img.convert("RGB").save(OUT / "reddit_banner_1920x384.png", optimize=True)
+    mark = wordmark(cap)
+    left = int(w * 0.105) - int(cap * 0.6)  # the wordmark's own padding
+    img.paste(mark, (left, int(h * 0.45 - mark.height / 2)), mark)
+    img.convert("RGB").save(OUT / name, optimize=True)
 
 
 def discord_banner(badge):
@@ -320,7 +326,8 @@ def main():
     save_icon(badge, 512, "discord_icon_512.png")
     save_icon(badge, 800, "youtube_avatar_800.png")
     save_icon(badge, 1024, "emblem_1024.png")
-    reddit_banner(badge)
+    reddit_wide((2144, 256), "reddit_banner_desktop_2144x256.png", 52)
+    reddit_wide((2160, 256), "reddit_banner_mobile_2160x256.png", 52)
     discord_banner(badge)
     discord_splash(badge)
     youtube_banner(badge)
