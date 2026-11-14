@@ -18,6 +18,9 @@ namespace Dino_Defenders.Server
         public int Step;
         public float Gone;              // Seconds since it set off.
         public Vector2 Looking;         // Where it's looking while it's held.
+        public int Paddock;             // Which of its place's paddocks it wanders while it's held (PlacePlan.Paddocks), or -1 if it's in a cage or chained.
+        public Vector2 Toward;          // Where in its paddock it's walking to.
+        public bool Walking;
     }
 
     /// <summary>A cage's door: shut while its place is held, swinging open on its hinge once it's freed.</summary>
@@ -30,8 +33,9 @@ namespace Dino_Defenders.Server
     }
 
     /// <summary>
-    /// What a place with cages does once it's freed (PLACES.md): every cage's door swings open, and what was in it walks out of the door and the gate and on into the wild, where it's gone. While its
-    /// place is held a beast stands in its cage and looks about, at the yard and at whoever comes near. Nothing it does is anyone's to fight, and nothing in the rules reads it.
+    /// What a place with cages does once it's freed (PLACES.md): every cage's door and paddock's gate swings open, and what was in it walks out of the door and the gate and on into the wild,
+    /// where it's gone. While its place is held a beast stands in its cage and looks about, at the yard and at whoever comes near, or wanders its paddock and grazes. Nothing it does is anyone's
+    /// to fight, and nothing in the rules reads it.
     /// </summary>
     public sealed class CaptiveSystem : SystemBase
     {
@@ -40,6 +44,7 @@ namespace Dino_Defenders.Server
         private const float TrotSpeed = 7.5f;       // And off, once it's clear of the place.
         private const float LongestGone = 50f;      // Seconds after which it's out in the wild whether it got there or not.
         private const float Reached = 1.6f;
+        private const float GrazeSpeed = 1.1f;     // Wandering its paddock, head down.
 
         private readonly GameServer _server;
         private readonly WorldPathfinder _paths = new WorldPathfinder(exact: true);
@@ -96,7 +101,13 @@ namespace Dino_Defenders.Server
                     captive.Leaving = true;
                     captive.Wait = OpenSeconds * 0.8f + _random.Range(0.2f, 2.6f);
                     captive.Route = RouteFor(session.World, position, cage);
+                    // Out of a paddock by its gate, from inside it first.
+                    if (captive.Paddock >= 0) captive.Route.Insert(0, cage.Middle);
                     captive.Step = 0;
+                }
+                else if (captive.Paddock >= 0 && captive.Paddock < plan.Paddocks.Count)
+                {
+                    Graze(entity, ref captive, plan.Paddocks[captive.Paddock], position, deltaTime);
                 }
                 else
                 {
@@ -137,6 +148,31 @@ namespace Dino_Defenders.Server
             entity.Set(new VelocityComponent(new Vector3(velocity.X, 0f, velocity.Y)));
             EnemyBrainSystem.Face(entity, velocity, deltaTime, 5f);
             entity.Set(captive);
+        }
+
+        // Held in a paddock: it stands grazing a while, then wanders to somewhere else in it, slowly.
+        private void Graze(EntityView entity, ref CaptiveComponent captive, PlacePaddock paddock, Vector2 position, float deltaTime)
+        {
+            if (captive.Walking)
+            {
+                Vector2 toward = captive.Toward - position;
+                if (toward.LengthSquared < 0.64f)
+                {
+                    captive.Walking = false;
+                    captive.Wait = _random.Range(4f, 12f);
+                    entity.Set(new VelocityComponent());
+                    return;
+                }
+                Vector2 velocity = toward / toward.Length * GrazeSpeed;
+                entity.Set(new VelocityComponent(new Vector3(velocity.X, 0f, velocity.Y)));
+                EnemyBrainSystem.Face(entity, velocity, deltaTime, 1.6f);
+                return;
+            }
+            entity.Set(new VelocityComponent());
+            if (captive.Wait > 0f) return;
+            Vector2 ax = new Vector2(MathF.Cos(paddock.Yaw), -MathF.Sin(paddock.Yaw)), az = new Vector2(MathF.Sin(paddock.Yaw), MathF.Cos(paddock.Yaw));
+            captive.Toward = paddock.Centre + ax * _random.Range(-paddock.Half.X + 2.5f, paddock.Half.X - 2.5f) + az * _random.Range(-paddock.Half.Y + 2.5f, paddock.Half.Y - 2.2f);
+            captive.Walking = true;
         }
 
         // Out of the door, then the way out of the place to the wild round whatever stands in the way, pulled straight wherever it can see further along.

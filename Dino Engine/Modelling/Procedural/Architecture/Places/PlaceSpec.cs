@@ -66,14 +66,14 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Places
         Skidder,        // A pair of high wheels a log is slung under to be dragged out: whose.
 
         // ---- A quarry (Quarry.cs). Its stone is the world's (Geology), as every stone in a land is.
-        Face,           // A stepped face of cut stone, its benches up to the hill behind: width, rise of each bench, benches, shade, warmth.
-        Block,          // A block of dressed stone: width, height, depth, shade, warmth, finish (0 split, 1 dressed).
-        BlockStack,     // Blocks stacked to be carted: count, shade, warmth.
-        Crane,          // A treadwheel crane with a block slung from its jib: height.
-        Sledge,         // A block on a sledge on rollers: shade, warmth.
-        Banker,         // A mason's banker with a block half worked on it, and the chips round it: shade, warmth.
-        Rubble,         // A heap of spalls and chips: radius, shade, warmth.
-        SplitLine,      // A block on the bench with wedges driven in along the line it'll split: length, shade, warmth.
+        Face,           // A stepped face of cut stone, its benches up to the hill behind: width, height, benches, ledge, how far its top runs back past its lip, stone (r, g, b per mille).
+        Block,          // A block of the land's stone: width, height, depth, stone (r, g, b), finish (0 split, 1 dressed), daubed for the Reich (0, 1).
+        BlockStack,     // Blocks stacked on bearers to be carted: count, stone (r, g, b).
+        Crane,          // A treadwheel crane with a block slung from its jib: height, stone (r, g, b).
+        Sledge,         // A block roped on a sledge on rollers: stone (r, g, b).
+        Banker,         // A mason's banker with a block half worked on it, and the chips round it: stone (r, g, b).
+        Rubble,         // A heap of spalls and chips: radius, stone (r, g, b).
+        SplitLine,      // A block on the floor with wedges driven in along the line it'll split on: length, stone (r, g, b).
 
         // ---- A fishing village (Fishing.cs).
         Jetty,          // A jetty of planks on posts out over the water: length, width, depth of water at its end (cm).
@@ -105,6 +105,7 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Places
         FeedRack,       // A paddock's rack of hay over a trough: length.
         HatchingShed,   // A low shed where eggs are kept warm in straw over braziers: length.
         WaterTank,      // A trough fed from a cistern on legs.
+        FarmGate,       // A paddock's timber gate, hinged at x = 0 and shutting along +x, chained by the Reich: width, height.
 
         // ---- A castle of snow (Snow.cs).
         SnowWall,       // A wall of packed snow with merlons cut along its top: length, height.

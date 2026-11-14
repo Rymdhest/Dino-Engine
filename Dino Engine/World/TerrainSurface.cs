@@ -125,6 +125,7 @@ namespace Dino_Engine.World
             float sand = world.Sanded ? world.Sand.Sample(x, z) : 0f;
             float mud = world.Mudded ? world.Mud.Sample(x, z) : 0f;
             float ash = world.Ashen ? world.Ash.Sample(x, z) : 0f;
+            float chips = world.Chipped ? world.Chippings.Sample(x, z) : 0f;
             paving *= 1f - garden;
             plaza *= 1f - garden;
             yard *= 1f - garden;
@@ -222,7 +223,7 @@ namespace Dino_Engine.World
 
             // A floor of sand, mud or ash is laid over whatever was there too, paving and all, with an edge a stride wide that frays a little, as anything loose does. Sand is raked, but trodden
             // dark in patches where the fighting goes, and ash is broken by the cracked crust of what's cooled.
-            float floor = Saturate(sand + mud + ash);
+            float floor = Saturate(sand + mud + ash + chips);
             if (floor > 0f)
             {
                 float fray = (breakup * 0.3f + drift * 0.15f) * Saturate(floor * 3f) * Saturate((1f - floor) * 3f);
@@ -236,6 +237,10 @@ namespace Dino_Engine.World
                 weights[_slot[(int)SurfaceMaterial.Mud]] += mud * share;
                 weights[_slot[(int)SurfaceMaterial.Ash]] += ash * share * (1f - crust);
                 weights[_slot[(int)SurfaceMaterial.CrackedEarth]] += ash * share * crust;
+                // A quarry's floor is its stone in chips, and the bedrock bare through them in sheets where they've been cleared off.
+                float bedrock = Smoothstep(0.6f, 0.8f, _noise.Fbm01(x + 263f, z + 519f, 7f, 2)) * 0.6f;
+                weights[_slot[(int)SurfaceMaterial.Gravel]] += chips * share * (1f - bedrock);
+                weights[_slot[(int)SurfaceMaterial.Rock]] += chips * share * bedrock;
             }
 
             float small = 0.8f + 0.2f * _noise.Fbm01(x, z, 2.2f, 2);
@@ -245,7 +250,7 @@ namespace Dino_Engine.World
             grows *= Smoothstep(0.02f, 0.5f, above);
 
             // Sand and ash drink whatever falls on them, and mud holds it, as a pen's floor does.
-            float hollow = Hollow(position, height, slope, MathF.Max(MathF.Max(MathF.Max(onRoad, paving), MathF.Max(MathF.Max(yard, plaza), farm)), mud), shore) * (1f - Saturate(sand + ash));
+            float hollow = Hollow(position, height, slope, MathF.Max(MathF.Max(MathF.Max(onRoad, paving), MathF.Max(MathF.Max(yard, plaza), farm)), MathF.Max(mud, chips)), shore) * (1f - Saturate(sand + ash));
 
             // A track carts seldom use keeps a crown of short grass between its ruts (RoadProfile, where Terrain.frag draws the ruts themselves).
             float crown = RoadProfile.CrownGrass(road, trail * (1f - paved)) * (1f - paving);
@@ -338,6 +343,7 @@ namespace Dino_Engine.World
             float trodden = MathF.Max(MathF.Max(_world.PavedRoad.Sample(x, z), _world.TrailRoad.Sample(x, z)), MathF.Max(MathF.Max(_world.Yard.Sample(x, z), _world.Plaza.Sample(x, z)), _world.Farmland.Sample(x, z)));
             if (_world.Paved) trodden = MathF.Max(trodden, _world.Paving.Sample(x, z));
             if (_world.Mudded) trodden = MathF.Max(trodden, _world.Mud.Sample(x, z));
+            if (_world.Chipped) trodden = MathF.Max(trodden, _world.Chippings.Sample(x, z));
             float drinks = (_world.Sanded ? _world.Sand.Sample(x, z) : 0f) + (_world.Ashen ? _world.Ash.Sample(x, z) : 0f);
             float shore = 1f - Smoothstep(0.3f, 1.8f, height - _world.Height.Sample(position) + _world.ShoreHeightAt(position));
             return Hollow(position, height, slope, trodden, shore) * (1f - _world.Garden.Sample(x, z)) * (1f - Saturate(drinks));

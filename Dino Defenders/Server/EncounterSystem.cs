@@ -194,6 +194,15 @@ namespace Dino_Defenders.Server
             }
             if (cage < 0) return;
             PlaceCage held = plan.Cages[cage];
+            // Penned rather than caged, it wanders its paddock.
+            int paddock = -1;
+            for (int k = 0; k < plan.Paddocks.Count; k++)
+            {
+                PlacePaddock pen = plan.Paddocks[k];
+                Vector2 offset = spawn.Position - pen.Centre;
+                Vector2 ax = new Vector2(MathF.Cos(pen.Yaw), -MathF.Sin(pen.Yaw)), az = new Vector2(MathF.Sin(pen.Yaw), MathF.Cos(pen.Yaw));
+                if (MathF.Abs(Vector2.Dot(offset, ax)) <= pen.Half.X && MathF.Abs(Vector2.Dot(offset, az)) <= pen.Half.Y) { paddock = k; break; }
+            }
             Vector3 position = new Vector3(spawn.Position.X, session.World.Height.Sample(spawn.Position), spawn.Position.Y);
             state.Live.Add(world.CreateEntity("Captive",
                 new NetIdentityComponent(_server.Ghosts.NextId(), importance: 0.6f),
@@ -203,7 +212,7 @@ namespace Dino_Defenders.Server
                 new VisualComponent(held.Look, VisualKind.Character),
                 new VelocityComponent(),
                 new FixToTerrainHeightComponent(),
-                new CaptiveComponent { SiteIndex = siteIndex, Cage = cage, Wait = random.Range(0f, 4f) }));
+                new CaptiveComponent { SiteIndex = siteIndex, Cage = cage, Wait = random.Range(0f, 4f), Paddock = paddock }));
         }
 
         // Every cage's door, shut while the place is held and open once it's been freed; they swing open as it is (CaptiveSystem).

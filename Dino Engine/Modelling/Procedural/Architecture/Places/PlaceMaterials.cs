@@ -119,7 +119,7 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Places
         public static (int R, int G, int B) StoneOf(Geology? geology)
         {
             Vector3 rock = geology?.Colour ?? new Vector3(0.32f, 0.31f, 0.29f);
-            Vector3 cut = Vector3.Clamp(rock * 1.9f, Vector3.Zero, new Vector3(0.82f));
+            Vector3 cut = Vector3.Clamp(rock * 1.55f, Vector3.Zero, new Vector3(0.6f));
             return ((int)MathF.Round(cut.X * 1000f), (int)MathF.Round(cut.Y * 1000f), (int)MathF.Round(cut.Z * 1000f));
         }
 

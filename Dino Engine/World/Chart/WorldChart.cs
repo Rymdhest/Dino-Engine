@@ -209,6 +209,7 @@ namespace Dino_Engine.World.Chart
                             if (_world.Sanded) colour = Vector3.Lerp(colour, paper * new Vector3(1f, 0.92f, 0.74f), _world.Sand.Sample(p) * 0.8f);
                             if (_world.Mudded) colour = Vector3.Lerp(colour, paper * new Vector3(0.72f, 0.6f, 0.48f), _world.Mud.Sample(p) * 0.8f);
                             if (_world.Ashen) colour = Vector3.Lerp(colour, paper * new Vector3(0.56f, 0.54f, 0.52f), _world.Ash.Sample(p) * 0.8f);
+                            if (_world.Chipped) colour = Vector3.Lerp(colour, paper * new Vector3(0.84f, 0.82f, 0.78f), _world.Chippings.Sample(p) * 0.7f);
                             if (fields[i] > 0) colour = Field(colour, paper, x, y, fields[i]);
                             if (shore > -10f * _s && _world.ShoreHeightAt(p) < 0.7f) colour = Vector3.Lerp(colour, paper * new Vector3(1f, 0.95f, 0.8f), 0.6f);
                             // Paint gathers along the coast.

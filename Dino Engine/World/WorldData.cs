@@ -111,8 +111,10 @@ namespace Dino_Engine.World
         public ByteField Sand = null!;
         public ByteField Mud = null!;
         public ByteField Ash = null!;
-        /// <summary>Which of those anything is laid with, so that a world with none keeps their slots in its palette for what it has.</summary>
-        public bool Sanded, Mudded, Ashen;
+        /// <summary>A quarry's floor (GroundPaint.Chippings), its stone broken small over the bedrock, which nothing grows through either.</summary>
+        public ByteField Chippings = null!;
+        /// <summary>Which of those anything is laid with, so that a world with none keeps their slots in its palette for what it has, and doesn't read what it hasn't got.</summary>
+        public bool Sanded, Mudded, Ashen, Chipped;
         /// <summary>1 on bare mountain, where nobody goes. Everything else is ground as it always was.</summary>
         public ByteField Rock = null!;
         /// <summary>1 where broken rock has gathered, down the creases of a mountain.</summary>
@@ -197,6 +199,7 @@ namespace Dino_Engine.World
             if (Sanded && Sand.Sample(x, z) > 0.5f) return SurfaceMaterial.Sand;
             if (Mudded && Mud.Sample(x, z) > 0.5f) return SurfaceMaterial.Mud;
             if (Ashen && Ash.Sample(x, z) > 0.5f) return SurfaceMaterial.Ash;
+            if (Chipped && Chippings.Sample(x, z) > 0.5f) return SurfaceMaterial.Gravel;
             if (PavedRoad.Sample(x, z) > 0.5f) return SurfaceMaterial.Cobble;
 
             BiomeDefinition biome = BiomeAt(position);

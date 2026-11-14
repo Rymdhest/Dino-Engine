@@ -35,10 +35,11 @@ namespace Dino_Engine.World.Generation
                 if (site.Kind is SiteKind.Shrine or SiteKind.StandingStones) EndRoadsShortOf(world, site.Position, StructureCatalog.Altar.HalfExtents.X + AltarForecourt);
                 if (site.Kind == SiteKind.Waygate) EndRoadsShortOf(world, site.Position, StructureCatalog.Waygate.HalfExtents.Y + AltarForecourt);
                 if (site.Kind == SiteKind.Keep) EndRoadsShortOf(world, site.Position, site.Radius * KeepRoadEnd);
-                // A walled place with a story of its own (PLACES.md) is come into by its gate, which its builder puts where the road comes: the road stops there. A dig's road stops at
-                // its camp, short of the pit.
-                if (WalledStory(site.Kind)) EndRoadsShortOf(world, site.Position, site.Radius * 0.92f);
-                if (site.Kind == SiteKind.Excavation) EndRoadsShortOf(world, site.Position, site.Radius * 0.85f);
+                // A walled place with a story of its own (PLACES.md) is come into by its gate, which its builder puts where the road comes: the road stops there, and at a quarry's mouth.
+                // A dig's road stops at its camp, short of the pit, a road to ruins at their gateway, short of the hall, one to a snow castle short of its gate, and one to a
+                // nesting ground at the edge of its clearing, as nobody goes further who means to come back.
+                if (WalledStory(site.Kind) || site.Kind == SiteKind.Quarry) EndRoadsShortOf(world, site.Position, site.Radius * 0.92f);
+                if (site.Kind is SiteKind.Excavation or SiteKind.Ruins or SiteKind.SnowCastle or SiteKind.Nest) EndRoadsShortOf(world, site.Position, site.Radius * 0.85f);
             }
             foreach (WorldRoad road in world.Roads) ReserveRoad(world, road);
 
@@ -60,15 +61,12 @@ namespace Dino_Engine.World.Generation
                         BuildFarmstead(builder);
                         Overrun(builder, SpawnRole.Beast, builder.Random.Int(3, 4));
                         break;
-                    case SiteKind.FishingHamlet:
-                        BuildFishingHamlet(builder);
-                        Overrun(builder, SpawnRole.Raider, builder.Random.Int(3, 4));
-                        break;
+                    case SiteKind.FishingHamlet: Places.FishingBuilder.Build(builder); break;
                     case SiteKind.LumberCamp: Places.LoggingBuilder.Build(builder); break;
                     case SiteKind.Shrine: BuildShrine(builder); break;
                     case SiteKind.StandingStones: BuildStandingStones(builder); break;
                     case SiteKind.Watchtower: BuildWatchtower(builder); break;
-                    case SiteKind.Ruins: BuildRuins(builder); break;
+                    case SiteKind.Ruins: Places.RuinsBuilder.Build(builder); break;
                     case SiteKind.BanditCamp: BuildBanditCamp(builder); break;
                     case SiteKind.Graveyard: ChurchyardBuilder.Build(builder); break;
                     case SiteKind.Keep: BuildKeep(builder); break;
@@ -81,6 +79,10 @@ namespace Dino_Engine.World.Generation
                     case SiteKind.Laboratory: Places.LaboratoryBuilder.Build(builder); break;
                     case SiteKind.Excavation: Places.ExcavationBuilder.Build(builder); break;
                     case SiteKind.Nest: Places.NestBuilder.Build(builder); break;
+                    case SiteKind.Quarry: Places.QuarryBuilder.Build(builder); break;
+                    case SiteKind.Farm: Places.FarmBuilder.Build(builder); break;
+                    case SiteKind.Tradepost: Places.TradepostBuilder.Build(builder); break;
+                    case SiteKind.SnowCastle: Places.SnowCastleBuilder.Build(builder); break;
                 }
             }
 
@@ -884,43 +886,6 @@ namespace Dino_Engine.World.Generation
             }
         }
 
-        private static void BuildFishingHamlet(SiteBuilder b)
-        {
-            Vector2 toWater = b.FindWater(90f, out Vector2 water, out float distance) ? water : -b.Site.RoadDirection;
-            Vector2 side = new Vector2(-toWater.Y, toWater.X);
-            b.Paint(GroundPaint.Yard, Footprint.Circle(b.Centre, b.Site.Radius * 0.38f), 14f);
-
-            int huts = b.Random.Int(3, 6);
-            for (int i = 0; i < huts; i++)
-            {
-                float along = (i - (huts - 1) * 0.5f) * 13f + b.Random.Range(-1.5f, 1.5f);
-                Vector2 spot = b.Centre + side * along - toWater * b.Random.Range(3f, 9f);
-                if (b.Place(StructureCatalog.Hut, spot, YawFacing(toWater), padding: 0.8f) && b.Random.Chance(0.6f))
-                {
-                    b.Spawn(SpawnRole.Villager, spot + toWater * 6f);
-                }
-            }
-
-            for (int i = 0; i < 3; i++) b.Scatter(StructureCatalog.DryingRack, b.Centre + toWater * 12f, 14f);
-            b.Scatter(StructureCatalog.Barrels, b.Centre, 14f);
-            b.Scatter(StructureCatalog.Crates, b.Centre, 14f);
-            WorldRandom yard = b.Random.Fork("yard");
-            if (yard.Chance(0.5f)) b.Scatter(StructureCatalog.Laundry, b.Centre - toWater * 10f, 8f, padding: 0.4f);
-            if (yard.Chance(0.4f)) b.Scatter(StructureCatalog.Sacks, b.Centre, 12f, padding: 0.3f);
-
-            if (distance < 90f)
-            {
-                // Boats are drawn up where the sand meets the water; the jetty starts at the same line and runs out.
-                Vector2 shore = b.Centre + toWater * (distance - 3f);
-                b.World.Pending.Add(new PendingObject(StructureCatalog.Jetty.Id, shore + toWater * 8f, YawFacing(toWater), Vector3.One, 0.9f));
-                for (int i = -1; i <= 1; i += 2)
-                {
-                    Vector2 boat = shore + side * (i * b.Random.Range(8f, 14f)) - toWater * 4f;
-                    b.Place(StructureCatalog.Boat, boat, YawFacing(side) + b.Random.Range(-0.3f, 0.3f), padding: 0.4f, maxSlope: 0.5f);
-                }
-            }
-        }
-
         private static void BuildShrine(SiteBuilder b)
         {
             Vector2 toRoad = b.Site.RoadDirection;
@@ -966,41 +931,6 @@ namespace Dino_Engine.World.Generation
             b.Scatter(StructureCatalog.Barrels, b.Centre, b.Site.Radius);
             b.SpawnAround(SpawnRole.Guard, b.Centre + toRoad * 7f, 5f, b.Random.Int(2, 3));
             SpawnChest(b, b.Centre - toRoad * 7f, 3f);
-        }
-
-        private static void BuildRuins(SiteBuilder b)
-        {
-            WorldSite site = b.Site;
-            float angle = b.Random.Float() * MathF.PI;
-            int rooms = b.Random.Int(2, 4);
-            for (int room = 0; room < rooms; room++)
-            {
-                Vector2 middle = b.Centre + Direction(b.Random.Float() * MathF.Tau) * b.Random.Range(0f, site.Radius * 0.5f);
-                Vector2 half = new Vector2(b.Random.Range(6f, 12f), b.Random.Range(5f, 9f));
-                Footprint outline = Footprint.Box(middle, half, angle);
-                // Walls of a square room, with the gaps of what has fallen.
-                int doorway = b.Random.Int(4);
-                for (int edge = 0; edge < 4; edge++)
-                {
-                    if (edge == doorway) continue;
-                    bool alongX = edge % 2 == 0;
-                    float length = alongX ? half.X : half.Y;
-                    float across = (edge < 2 ? -1f : 1f) * (alongX ? half.Y : half.X);
-                    for (float t = -length + 4.5f; t <= length - 4.5f + 0.01f; t += 9f)
-                    {
-                        if (b.Random.Chance(0.3f)) continue;
-                        Vector2 local = alongX ? new Vector2(t, across) : new Vector2(across, t);
-                        b.Place(StructureCatalog.RuinWall, outline.ToWorld(local), alongX ? angle : angle + MathF.PI * 0.5f, padding: 0f);
-                    }
-                }
-            }
-
-            int columns = b.Random.Int(4, 8);
-            for (int i = 0; i < columns; i++) b.Scatter(StructureCatalog.RuinColumn, b.Centre, site.Radius * 0.85f);
-            for (int i = 0; i < 6; i++) b.Scatter(StructureCatalog.Rubble, b.Centre, site.Radius * 0.9f);
-
-            b.SpawnAround(b.Random.Chance(0.5f) ? SpawnRole.Undead : SpawnRole.Raider, b.Centre, site.Radius * 0.75f, b.Random.Int(3, 5));
-            SpawnChest(b, b.Centre, site.Radius * 0.4f);
         }
 
         private static void BuildBanditCamp(SiteBuilder b)

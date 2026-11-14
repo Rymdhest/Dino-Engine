@@ -153,7 +153,7 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Places
 
         // A face of her side laid through four points, from a0 to b0 along her and from a0 to a1 up her side (or across her deck), wound to face out, and mapped so that its texture runs
         // along her as a hull's strakes do: a material whose boards run along its v (planks, boards) has its v along her, and one whose courses run along its u (plates) its u.
-        private static void Along(MeshBuilder b, Vector3 a0, Vector3 b0, Vector3 b1, Vector3 a1, Vector3 outward, VertexMaterial m)
+        internal static void Along(MeshBuilder b, Vector3 a0, Vector3 b0, Vector3 b1, Vector3 a1, Vector3 outward, VertexMaterial m)
         {
             bool boards = m.materialTextureIndex != Textures.MaterialCatalog.RivetedPlate.Index;
             // MeshBuilder runs a texture's u from the first corner to the second and its v towards the fourth.

@@ -77,6 +77,7 @@ namespace Dino_Engine.World.Generation
                 {
                     SiteKind.Keep => site.Radius * SettlementStage.KeepRoadEnd,
                     SiteKind.Graveyard => site.Radius * 1.32f,    // Out past the corners of its wall, which reach further than its radius.
+                    SiteKind.Quarry => site.Radius * 1.1f,        // Its face and the ground laid level behind it (PLACES.md).
                     _ => 0f,
                 };
                 if (core > 0f && (site.Position - at).LengthSquared < core * core) return KeepCoreCost;

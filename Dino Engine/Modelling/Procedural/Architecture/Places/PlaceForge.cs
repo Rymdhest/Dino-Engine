@@ -68,6 +68,52 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Places
                 case PlacePiece.CharcoalClamp: Logging.CharcoalClamp(b, spec, random); break;
                 case PlacePiece.Skidder: Logging.Skidder(b, spec, random); break;
 
+                case PlacePiece.Face: Quarry.Face(b, spec, random); break;
+                case PlacePiece.Block: Quarry.Block(b, spec, random); break;
+                case PlacePiece.BlockStack: Quarry.BlockStack(b, spec, random); break;
+                case PlacePiece.Crane: Quarry.Crane(b, spec, random); break;
+                case PlacePiece.Sledge: Quarry.Sledge(b, spec, random); break;
+                case PlacePiece.Banker: Quarry.Banker(b, spec, random); break;
+                case PlacePiece.Rubble: Quarry.Rubble(b, spec, random); break;
+                case PlacePiece.SplitLine: Quarry.SplitLine(b, spec, random); break;
+
+                case PlacePiece.Jetty: Fishing.Jetty(b, spec, random, lights); break;
+                case PlacePiece.Boat: Fishing.Boat(b, spec, random); break;
+                case PlacePiece.NetRack: Fishing.NetRack(b, spec, random); break;
+                case PlacePiece.FishRack: Fishing.FishRack(b, spec, random); break;
+                case PlacePiece.Smokehouse: Fishing.Smokehouse(b, spec, random); break;
+                case PlacePiece.BoatStocks: Fishing.BoatStocks(b, spec, random); break;
+                case PlacePiece.Pots: Fishing.Pots(b, spec, random); break;
+                case PlacePiece.Capstan: Fishing.Capstan(b, spec, random); break;
+
+                case PlacePiece.HatchingShed: Farm.HatchingShed(b, spec, random, lights); break;
+                case PlacePiece.FeedRack: Farm.FeedRack(b, spec, random); break;
+                case PlacePiece.WaterTank: Farm.WaterTank(b, spec, random); break;
+                case PlacePiece.FarmGate: Farm.Gate(b, spec, random); break;
+
+                case PlacePiece.Scales: Trading.Scales(b, spec, random); break;
+                case PlacePiece.Bales: Trading.Bales(b, spec, random); break;
+                case PlacePiece.Ledger: Trading.Ledger(b, spec, random); break;
+                case PlacePiece.HitchingRail: Trading.HitchingRail(b, spec, random); break;
+                case PlacePiece.NoticeBoard: Trading.NoticeBoard(b, spec, random); break;
+
+                case PlacePiece.RuinWall: Ruins.Wall(b, spec, random); break;
+                case PlacePiece.RuinColumn: Ruins.Column(b, spec, random); break;
+                case PlacePiece.FallenColumn: Ruins.FallenColumn(b, spec, random); break;
+                case PlacePiece.RuinArch: Ruins.Arch(b, spec, random); break;
+                case PlacePiece.RuinSteps: Ruins.Steps(b, spec, random); break;
+                case PlacePiece.RuneStone: Ruins.RuneStone(b, spec, random); break;
+                case PlacePiece.Statue: Ruins.Statue(b, spec, random); break;
+
+                case PlacePiece.SnowWall: SnowWorks.Wall(b, spec, random); break;
+                case PlacePiece.SnowTower: SnowWorks.Tower(b, spec, random); break;
+                case PlacePiece.SnowGate: SnowWorks.Gate(b, spec, random); break;
+                case PlacePiece.Snowman: SnowWorks.Snowman(b, spec, random); break;
+                case PlacePiece.SnowLantern: SnowWorks.SnowLantern(b, spec, random, lights); break;
+                case PlacePiece.Sledges: SnowWorks.Sledges(b, spec, random); break;
+                case PlacePiece.Pennant: SnowWorks.Pennant(b, spec, random); break;
+                case PlacePiece.IceAltar: SnowWorks.IceAltar(b, spec, random, lights); break;
+
                 case PlacePiece.Crates: Common.Crates(b, spec, random); break;
                 case PlacePiece.Barrels: Common.Barrels(b, spec, random); break;
                 case PlacePiece.Tent: Common.Tent(b, spec, random); break;
@@ -84,6 +130,7 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Places
         {
             PlacePiece.LabHall => Laboratory.ChimneyTops(Math.Clamp(spec.Metres(0), 10f, 26f), Math.Clamp(spec.Metres(1), 8f, 16f)),
             PlacePiece.CharcoalClamp => Logging.VentsOf(Logging.ClampRadius(spec)),
+            PlacePiece.Smokehouse => Fishing.SmokeOf(),
             _ => Array.Empty<Vector3>(),
         };
 
