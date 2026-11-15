@@ -168,12 +168,14 @@ namespace Dino_Release
                 new(Feed.LauncherName, launcher),
                 new(Feed.ManifestName, signedPath),
             };
+            // Everywhere first and checked after: GitHub can take minutes to serve a release, and a check that gave up early mustn't leave
+            // the old place without the release that sends launchers on.
             foreach (IReleaseStore store in Stores)
             {
                 if (_old != null) Console.WriteLine(store == _old ? "Into the old place, which sends launchers to the new one" : "Into the new place");
                 store.Publish(tag, $"Dino Defenders {version}", notes, commit, true, assets);
-                Confirm(store, manifest, uploadRuntime != null ? manifest.Packs : new[] { gamePack });
             }
+            foreach (IReleaseStore store in Stores) Confirm(store, manifest, uploadRuntime != null ? manifest.Packs : new[] { gamePack });
             Console.WriteLine($"\nReleased {version}. Testers get it the next time they open the launcher.");
             if (_old != null) Console.WriteLine("Leave the old place's releases up until every tester has opened their launcher once since this.");
             Console.WriteLine($"New testers: {Feed.LauncherLink}");
