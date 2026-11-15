@@ -25,6 +25,9 @@
     <PublishTrimmed>true</PublishTrimmed>
     <TrimMode>partial</TrimMode>
     <JsonSerializerIsReflectionEnabledByDefault>true</JsonSerializerIsReflectionEnabledByDefault>
+    <!-- Sound talks to WASAPI through COM interfaces (Sound/Output/WasapiInterop.cs), which trimming turns off unless asked: the first trimmed build had
+         no sound and stopped as soon as it started, and nothing scripted caught it, as scripted runs keep quiet. -->
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
     <!-- Its warnings are about reflection over the game's own code, which partial trimming never touches: they'd only bury real ones in every build. -->
     <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
   </PropertyGroup>

@@ -308,7 +308,8 @@ namespace Dino_Release
 
         /// <summary>
         /// Every tester gets whatever this makes, so it has to have been seen working first: the exact files, started somewhere else,
-        /// through a world and a screenshot. A build that can't start is the worst thing this could send out.
+        /// through a world and a screenshot, with its sound on, as a scripted run otherwise keeps quiet and never opens a device: the first trimmed
+        /// build stopped the moment its sound started, and a smoke run without it passed. A build that can't start is the worst thing this could send out.
         /// </summary>
         private static void SmokeTest(string game, string work)
         {
@@ -317,7 +318,7 @@ namespace Dino_Release
             Directory.CreateDirectory(folder);
             string shot = Path.Combine(folder, "smoke.png");
 
-            var start = new ProcessStartInfo(Path.Combine(game, Executable), $"--bot true --seed 303 --archetype isle --frames 60 --shot \"{shot}\"")
+            var start = new ProcessStartInfo(Path.Combine(game, Executable), $"--bot true --seed 303 --archetype isle --sound true --frames 60 --shot \"{shot}\"")
             {
                 WorkingDirectory = folder,
                 UseShellExecute = false,
