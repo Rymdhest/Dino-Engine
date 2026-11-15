@@ -371,6 +371,7 @@ namespace Dino_Defenders.UI
             float x = screen.Width - width - Margin;
             float y = Minimap.Draw(Context!, draw, session, new Vector2(screen.Width - Margin, Margin)) + 4f;
             float wrap = width - 14f;
+            if (session.IsLexicon) return;     // Lexicon (developer tool, LEXICON.md): the room asks nothing, and says what it is in a corner of its own.
 
             if (session.IsHaven)
             {

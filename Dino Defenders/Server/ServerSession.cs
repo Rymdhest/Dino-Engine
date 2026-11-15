@@ -359,7 +359,7 @@ namespace Dino_Defenders.Server
         /// </summary>
         public void HeroFell(ServerPlayer player)
         {
-            if (IsHaven) return;
+            if (IsHaven || IsLexicon) return;     // Lexicon (developer tool, LEXICON.md): falling in the room is as falling in the Haven.
 
             player.Out = true;
             Fallen.Add(player.Name);
@@ -391,7 +391,7 @@ namespace Dino_Defenders.Server
         /// <summary>What a land means for someone's climb, only ever once: freeing it opens the next level, and losing it costs nothing.</summary>
         public void Judge(ServerPlayer player, bool freed)
         {
-            if (player.Judged || IsHaven) return;
+            if (player.Judged || IsHaven || IsLexicon) return;     // Lexicon (developer tool, LEXICON.md): nothing done in the room counts.
             player.Judged = true;
             if (!freed)
             {
@@ -586,7 +586,7 @@ namespace Dino_Defenders.Server
         /// <summary>Writes where the world stands into a save. The hero goes in on the player's own machine. The Haven is always the same, so there's nothing to write, and a land that's over is over.</summary>
         public void Capture(SaveGame save)
         {
-            save.InLand = !IsHaven && !Lost && HomeAt == null;
+            save.InLand = !IsHaven && !IsLexicon && !Lost && HomeAt == null;     // Lexicon (developer tool, LEXICON.md): the room is never saved, so a hero who leaves the game in it comes back home.
             if (!save.InLand) return;
 
             // The request, not what it became: drawing an archetype is part of what a seed makes, so naming it would make another world.

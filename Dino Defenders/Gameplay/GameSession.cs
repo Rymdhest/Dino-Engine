@@ -97,7 +97,7 @@ namespace Dino_Defenders.Gameplay
             Client = client;
             Health = Sheet.MaxHealth;
             PlayerPosition = world.Sites[0].Landing;
-            Explored = Discoveries.For(request, world, IsHaven);
+            Explored = Discoveries.For(request, world, IsHaven || IsLexicon);     // Lexicon (developer tool, LEXICON.md): the room's map is known from the first step, as home's is.
             Explored.Reveal(PlayerPosition);
             _twin = Terms.Has(OrdersCatalog.TwinPens) && !world.Plan.Archetype.Arena ? Chronicle.TwinSite(world) : null;
         }
@@ -192,7 +192,7 @@ namespace Dino_Defenders.Gameplay
         /// </summary>
         public bool IsGoal(SiteState state)
         {
-            if (state.Wild || state.Cleared || IsHaven || Liberated || Client.Out) return false;
+            if (state.Wild || state.Cleared || IsHaven || IsLexicon || Liberated || Client.Out) return false;     // Lexicon (developer tool, LEXICON.md): the room asks nothing.
             if (PlacesAsked) return Chronicle.Asks(state.Site);
             return state.Site.Kind is SiteKind.Keep or SiteKind.Arena || state.Site == _twin;
         }
@@ -204,6 +204,7 @@ namespace Dino_Defenders.Gameplay
         public void UpdateGuidance()
         {
             Guidance = null;
+            if (IsLexicon) return;     // Lexicon (developer tool, LEXICON.md): nowhere to be sent in the room but where the index sends you.
             Vector2 at = PlayerPosition;
             if (IsHaven)
             {

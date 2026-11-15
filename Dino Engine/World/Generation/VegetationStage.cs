@@ -269,7 +269,7 @@ namespace Dino_Engine.World.Generation
 
         // What sites asked for, first, so that the woods grow around a garden and not through it. They keep to the same room as anything planted, so a tree too big for its spot is grown smaller,
         // and one that still won't fit isn't planted.
-        private static void PlantOnPurpose(WorldData world, WorldObjects objects)
+        internal static void PlantOnPurpose(WorldData world, WorldObjects objects)
         {
             PlacementIndex placement = world.Placement;
             foreach (Planting planting in world.Plantings)

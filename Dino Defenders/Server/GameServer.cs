@@ -213,6 +213,7 @@ namespace Dino_Defenders.Server
             (_structureHash, _groundHash) = Protocol.WorldHash(world);
 
             Ecs.RegisterSingleton<WorldDataSingleton>(Ecs.CreateEntity(new WorldDataSingleton(world)));
+            if (Session.IsLexicon) AssetLexicon.LexiconServer.Stock(this, Session);     // Lexicon (developer tool, LEXICON.md).
             Ecs.ApplyDeferredCommands();
 
             foreach (ServerPlayer player in _players.Values)
@@ -671,13 +672,15 @@ namespace Dino_Defenders.Server
                 player.Hero.Gold -= lost;
                 player.SummaryChanged = true;
                 bool freed = Session!.Liberated;
-                Announce(player, "You have fallen", Session.IsHaven ? "" : freed ? "The land is already free." : _heroes.Count > 1 && _heroes.Any(hero => hero != player && !hero.Out) ? "You're out of this land. Your friends fight on." : "The land is lost.");
+                // Lexicon (developer tool, LEXICON.md): the room, as the Haven, isn't lost by falling in it.
+                Announce(player, "You have fallen", Session.IsHaven || Session.IsLexicon ? "" : freed ? "The land is already free." : _heroes.Count > 1 && _heroes.Any(hero => hero != player && !hero.Out) ? "You're out of this land. Your friends fight on." : "The land is lost.");
                 if (lost > 0) Note(player, $"{lost} gold lost.");
                 Session.HeroFell(player);
             }
 
+            // Lexicon (developer tool, LEXICON.md): in the room, as in the Haven, a fallen hero is only knocked down for a moment.
             player.DownFor += NetTime.TickSeconds;
-            if (!Session!.IsHaven || player.DownFor < HeroRules.DeathDelay) return;
+            if (!(Session!.IsHaven || Session.IsLexicon) || player.DownFor < HeroRules.DeathDelay) return;
 
             player.Sim.Down = false;
             player.Actor.Dead = false;
@@ -699,6 +702,17 @@ namespace Dino_Defenders.Server
 
         // Where everyone goes next, once this tick is over: a world can't change under what's stepping through this one.
         private (WorldRequest Request, LandTerms Terms)? _next;
+
+        /// <summary>
+        /// Lexicon (developer tool, LEXICON.md): everyone to another world once this tick is over, into the asset lexicon from the Haven or home from it, with nothing about the world they
+        /// leave to settle, as there's nothing to in either.
+        /// </summary>
+        internal void Travel(WorldRequest request)
+        {
+            if (_next != null) return;
+            SendHeroesNow();
+            _next = (request, new LandTerms());
+        }
 
         // Whatever's changed about a hero goes out before the world does, so that their machine has it to keep.
         private void SendHeroesNow()
@@ -1249,6 +1263,11 @@ namespace Dino_Defenders.Server
 
                 case HeroAction.PickUp:
                     Session!.Ground.Ask(player, reader.ReadVarInt());
+                    break;
+
+                case HeroAction.Lexicon:
+                    // Lexicon (developer tool, LEXICON.md).
+                    AssetLexicon.LexiconServer.Act(this, player, reader);
                     break;
 
                 default:

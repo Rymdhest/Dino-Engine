@@ -98,6 +98,15 @@ namespace Dino_Defenders.UI
             reroll.Width = 180f;
             reroll.Height = 30f;
 
+            // Lexicon (developer tool, LEXICON.md): the way into the asset lexicon, a room with one of everything the game has on show, labelled.
+            if (AssetLexicon.LexiconServer.Open)
+            {
+                Button lexicon = Add(Ui.Action("Go to the asset test level: one of everything, labelled", GoToLexicon));
+                lexicon.Height = 30f;
+                lexicon.BorderColor = Ui.Gold.MultiplyAlpha(0.7f);
+                lexicon.Label.Color = Ui.Gold;
+            }
+
             _shelf = Add(Kit.Scroll());
             _shelf.MouseDown += e => panel.PressOn(_shelf, e);
             var grid = _shelf.Content.Add(new GridPanel(Columns, CellGap, CellGap) { Width = Columns * CellSize + (Columns - 1) * CellGap });
@@ -270,6 +279,14 @@ namespace Dino_Defenders.UI
             Audio.Play(Interface.Click);
             _roll = NewRoll();
             Restock();
+        }
+
+        // Lexicon (developer tool, LEXICON.md): everyone into the asset lexicon. The server decides whether this hero can, which is only ever from the Haven.
+        private static void GoToLexicon()
+        {
+            Audio.Play(Interface.Click);
+            GameUi.Current.CloseAll();
+            GameSession.Current?.Client.AskLexicon(AssetLexicon.LexiconAsk.Visit);
         }
 
         private void Choose(LookupType type)

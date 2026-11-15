@@ -22,6 +22,8 @@ namespace Dino_WorldLab
     ///   wind                                                                   Puts the wind through what a game does to it. Exit code 1 on any problem.
     ///   halls                                                                  Builds every hall's models and says what they cost. Exit code 1 if one costs too much.
     ///   square                                                                 Builds every piece of the Haven's square and says what it costs. Exit code 1 on any problem.
+    ///   lexicon [--out file.png] [--size pixels] [--game dll] [--find words]   Grows the asset lexicon (LEXICON.md), holds it to its promises and draws its plan, or lists where what's
+    ///           found stands. Exit code 1 on any problem.
     /// </summary>
     internal static class Program
     {
@@ -73,6 +75,8 @@ namespace Dino_WorldLab
                     return HallCheck.Run();
                 case "square":
                     return SquareCheck.Run();
+                case "lexicon":     // Lexicon (developer tool, LEXICON.md).
+                    return LexiconCheck.Run(options.Text("out"), options.Int("size", 1600), options.Text("game"), options.Text("find"));
                 case "yard":
                     return YardCheck.Run(options.Int("seed", 1), options.Int("count", 12), options.Text("archetype"));
                 case "places":

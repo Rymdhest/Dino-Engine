@@ -61,6 +61,7 @@ namespace Dino_Defenders.Net
         CallRoads,      // Begin calling the old roads open from wherever the hero stands, in a land.
         Reroll,         // At the Haven's map table: three other lands for a level, for gold.
         Fuse,           // At the Forge's crafting bench: two Magic things of a sort into one Rare, for gold.
+        Lexicon,        // Lexicon (developer tool, LEXICON.md): into the asset lexicon from the beta vendor, home from it, or about in it, as a LexiconAsk says.
     }
 
     public enum NoticeKind : byte

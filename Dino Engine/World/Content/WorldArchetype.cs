@@ -81,8 +81,14 @@ namespace Dino_Engine.World.Content
         /// </summary>
         public bool Vista;
 
+        /// <summary>
+        /// Lexicon (developer tool, LEXICON.md): the asset lexicon, a room where one of everything stands on show, laid out by <see cref="World.Lexicon.LexiconWorld"/> rather than drawn. Never drawn
+        /// from a seed, as it isn't in <see cref="ArchetypeCatalog.All"/>.
+        /// </summary>
+        public bool Lexicon;
+
         /// <summary>A world of one place and nothing else, which is any of the three above.</summary>
-        public bool Enclosed => Peaceful || Arena || Vista;
+        public bool Enclosed => Peaceful || Arena || Vista || Lexicon;   // Lexicon (developer tool, LEXICON.md): the room is one too, laid out to the metre.
 
         /// <summary>The light it's always seen in, by name, and where the sun stands, in place of what's drawn from the seed. Only for a place that has to look one way.</summary>
         public string? Light;
@@ -335,6 +341,7 @@ namespace Dino_Engine.World.Content
             }
             if (id == Haven.Id) return Haven;
             if (id == Vista.Id) return Vista;
+            if (id == World.Lexicon.LexiconWorld.Id) return World.Lexicon.LexiconWorld.Archetype;   // Lexicon (developer tool, LEXICON.md).
             foreach (WorldArchetype arena in ArenaCatalog.All)
             {
                 if (arena.Id == id) return arena;

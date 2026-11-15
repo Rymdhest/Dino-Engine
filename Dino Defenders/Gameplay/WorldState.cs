@@ -50,6 +50,9 @@ namespace Dino_Defenders.Gameplay
         /// <summary>Whether this is the Haven, where nothing can reach anyone, rather than a land.</summary>
         public readonly bool IsHaven;
 
+        /// <summary>Lexicon (developer tool, LEXICON.md): whether this is the asset lexicon, which is neither the Haven nor a land: nothing in it is to be fought, done or saved.</summary>
+        public readonly bool IsLexicon;
+
         public bool Liberated;      // Everything the land asks has been done, and it's free.
         public bool Lost;           // Everyone here has fallen, or they left it unfree.
         public int Falls;           // Heroes who've fallen here.
@@ -60,7 +63,10 @@ namespace Dino_Defenders.Gameplay
             Request = request;
             Terms = terms ?? new LandTerms();
             IsHaven = Lands.IsHaven(request);
-            Chronicle = Chronicle.Write(world, Terms, IsHaven);
+            IsLexicon = Dino_Engine.World.Lexicon.LexiconWorld.Is(request);
+            // Lexicon (developer tool, LEXICON.md): the room asks nothing, as the Haven doesn't, and says what it is.
+            Chronicle = Chronicle.Write(world, Terms, IsHaven || IsLexicon);
+            if (IsLexicon) Chronicle.Prologue = Dino_Engine.World.Lexicon.LexiconWorld.Prologue;
 
             foreach (WorldSite site in world.Sites) Sites.Add(CreateState(site, wild: false, Terms));
             foreach (WorldSite haunt in world.Haunts) Sites.Add(CreateState(haunt, wild: true, Terms));

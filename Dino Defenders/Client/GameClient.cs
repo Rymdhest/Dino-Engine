@@ -807,6 +807,19 @@ namespace Dino_Defenders.Client
         /// <summary>From a waygate, home to the Haven. The server decides whether this hero is at one.</summary>
         public void ReturnHome() => Send(Action(HeroAction.ReturnHome));
 
+        /// <summary>Lexicon (developer tool, LEXICON.md): into the asset lexicon, home from it, or to a point in it. The server decides whether this hero can.</summary>
+        public void AskLexicon(Dino_Defenders.AssetLexicon.LexiconAsk ask, Vector2 to = default)
+        {
+            BitWriter writer = Action(HeroAction.Lexicon);
+            writer.WriteByte((byte)ask);
+            if (ask == Dino_Defenders.AssetLexicon.LexiconAsk.GoTo)
+            {
+                writer.WriteFloat(to.X);
+                writer.WriteFloat(to.Y);
+            }
+            Send(writer);
+        }
+
         /// <summary>Begins calling the old roads open from where the hero stands. The server watches it, and opens the map to travel by if it isn't broken.</summary>
         public void CallRoads() => Send(Action(HeroAction.CallRoads));
 

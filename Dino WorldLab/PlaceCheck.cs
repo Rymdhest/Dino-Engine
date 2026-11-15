@@ -24,7 +24,7 @@ namespace Dino_WorldLab
         /// What makes each place what it is, and how many of it there have to be: a wreck with no hull, a prison with no cages or a nesting ground with one nest in it says nothing, however
         /// much else stands there. Any one of the pieces listed counts.
         /// </summary>
-        private static readonly Dictionary<SiteKind, (PlacePiece[] Pieces, int Least)> Signatures = new()
+        internal static readonly Dictionary<SiteKind, (PlacePiece[] Pieces, int Least)> Signatures = new()
         {
             [SiteKind.Shipwreck] = (new[] { PlacePiece.Hull }, 1),
             [SiteKind.Prison] = (new[] { PlacePiece.Cage }, 3),

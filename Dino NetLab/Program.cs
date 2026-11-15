@@ -18,6 +18,7 @@ namespace Dino_NetLab
     ///   crafting [--seed N]                         The Forge's crafting bench: a fuse is made at once and exactly the same on both ends, for the same gold, only in the Haven, and survives a bad line.
     ///   vendor [--seed N]                           The beta vendor: what's taken is what was shown, at once and on both ends, only in the Haven, and nothing lost or doubled on a bad line.
     ///   combat                                      What a fight promises: what's marked is what's hit, on the tick it says, what's called off is seen to be, and a dodge is there when it's asked for.
+    ///   lexicon [--seed N]                          The asset lexicon (LEXICON.md): in from the beta vendor and only from the Haven, every creature stood and sent, nothing hostile, counted or saved, the index, and home.
     /// Exit code 1 on any failure.
     /// </summary>
     internal static class Program
@@ -65,6 +66,8 @@ namespace Dino_NetLab
                     return CraftingTests.Run(options);
                 case "places":
                     return PlaceTests.Run(options);
+                case "lexicon":     // Lexicon (developer tool, LEXICON.md).
+                    return LexiconTests.Run(options);
                 default:
                     Console.Error.WriteLine($"Unknown command '{command}'.");
                     return 2;

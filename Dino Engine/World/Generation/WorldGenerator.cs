@@ -19,9 +19,11 @@ namespace Dino_Engine.World.Generation
     public sealed class WorldGenerator
     {
         private readonly List<IWorldStage> _stages;
+        private readonly bool _default;     // Lexicon (developer tool, LEXICON.md): only a generator with a land's own stages lays out the room by its own.
 
         public WorldGenerator() : this(DefaultStages())
         {
+            _default = true;     // Lexicon (developer tool, LEXICON.md).
         }
 
         public WorldGenerator(IEnumerable<IWorldStage> stages)
@@ -55,13 +57,15 @@ namespace Dino_Engine.World.Generation
         public WorldData Generate(WorldRequest request, Action<float, string>? progress = null)
         {
             var world = new WorldData(WorldPlan.Create(request));
+            // Lexicon (developer tool, LEXICON.md): the asset lexicon is laid out by stages of its own wherever a land's would draw.
+            List<IWorldStage> stages = _default && Lexicon.LexiconWorld.Is(request) ? Lexicon.LexiconWorld.Stages() : _stages;
 
             float totalCost = 0f;
-            foreach (IWorldStage stage in _stages) totalCost += stage.Cost;
+            foreach (IWorldStage stage in stages) totalCost += stage.Cost;
 
             float done = 0f;
             var clock = new Stopwatch();
-            foreach (IWorldStage stage in _stages)
+            foreach (IWorldStage stage in stages)
             {
                 progress?.Invoke(done / totalCost, stage.Description);
                 clock.Restart();

@@ -140,7 +140,7 @@ namespace Dino_Defenders.Progression
         /// <summary>The brood of the Reich that keeps this land.</summary>
         public string Faction { get; private set; } = "";
 
-        public string Prologue { get; private set; } = "";
+        public string Prologue { get; internal set; } = "";
         public readonly List<Objective> Objectives = new();
 
         /// <summary>The second tyrant, on a land whose orders gave it two: its name and what it is.</summary>

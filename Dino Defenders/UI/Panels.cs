@@ -410,6 +410,14 @@ namespace Dino_Defenders.UI
                 _body.Add(Ui.Line("", 13f, Ui.Faded).Bind(() => $"{Bindings.Label(GameAction.Chronicle)} to close"));
                 return;
             }
+            if (session.IsLexicon)
+            {
+                // Lexicon (developer tool, LEXICON.md): the room has no story, only what it is.
+                _body.Add(Ui.Paragraph(chronicle.Prologue, 16f));
+                _body.Add(new Spacer(height: 4f));
+                _body.Add(Ui.Line("", 13f, Ui.Faded).Bind(() => $"{Bindings.Label(GameAction.Chronicle)} to close"));
+                return;
+            }
             _body.Add(Ui.Line($"{session.World.Plan.Archetype.Name}, under {chronicle.Faction}. Level {session.World.Plan.Level}.", 14f, Ui.Faded));
             foreach ((OmenDefinition omen, float value) in session.Terms.Chosen()) _body.Add(Ui.Paragraph($"{omen.Name}. {omen.Describe(value)}", 13f, Ui.Faded));
             foreach (UniqueOrders unique in session.Terms.Uniques()) _body.Add(Ui.Paragraph($"{unique.Name}. {unique.Gives}. {unique.Costs}.", 13f, Ui.RarityColour(Rarity.Unique)));
@@ -517,6 +525,10 @@ namespace Dino_Defenders.UI
         public readonly Crescent Crescent;
         public readonly MenuScreen Menu;
 
+        // Lexicon (developer tool, LEXICON.md): the asset lexicon's plaques and corner, and its index.
+        public readonly AssetLexicon.LexiconIndex LexiconIndex = new();
+        public readonly AssetLexicon.LexiconLayer LexiconLayer;
+
         private readonly GuiElement[] _panels;
 
         public GameUi(GuiContext gui, ArpgGame game, Action quit, Action heroSelect)
@@ -531,12 +543,14 @@ namespace Dino_Defenders.UI
             Bar = new ActionBar(Hero);
             Crescent = new Crescent(Bar);
             Menu = new MenuScreen(game);
-            _panels = new GuiElement[] { Map, Hero, Hero.Side, Talents, Book, Glossary, Chronicle, MapTable, HallTable, Pause, Multiplayer, Settings };
+            LexiconLayer = new AssetLexicon.LexiconLayer(LexiconIndex);     // Lexicon (developer tool, LEXICON.md), and its index at the end of the panels.
+            _panels = new GuiElement[] { Map, Hero, Hero.Side, Talents, Book, Glossary, Chronicle, MapTable, HallTable, Pause, Multiplayer, Settings, LexiconIndex };
 
             gui.Root.Add(Marks);
             gui.Root.Add(Plaques);
             gui.Root.Add(Hud);
             gui.Root.Add(Labels);
+            gui.Root.Add(LexiconLayer);     // Lexicon (developer tool, LEXICON.md).
             gui.Root.Add(Ground);
             foreach (GuiElement panel in _panels) gui.Root.Add(panel);
             gui.Root.Add(Bar);
@@ -604,6 +618,7 @@ namespace Dino_Defenders.UI
             Plaques.Visible = showing;
             Labels.Visible = showing;
             Ground.Visible = showing;
+            LexiconLayer.Visible = showing;     // Lexicon (developer tool, LEXICON.md).
         }
 
         public bool AnyOpen => _panels.Any(p => p.Visible);

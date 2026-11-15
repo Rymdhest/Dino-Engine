@@ -26,7 +26,8 @@ namespace Dino_Defenders.Client
     {
         public const string BoltPrefix = "bolt:";
 
-        private const int VillagerLooks = 6;
+        /// <summary>How many different villagers there are: whatever a server numbers one by is one of these.</summary>
+        internal const int VillagerLooks = 6;
         private const int BanditLooks = 4;
 
         // So that friends can tell each other apart in a fight.
@@ -35,6 +36,9 @@ namespace Dino_Defenders.Client
             new Vector3(0.09f, 0.14f, 0.26f), new Vector3(0.26f, 0.08f, 0.07f), new Vector3(0.08f, 0.2f, 0.11f),
             new Vector3(0.24f, 0.18f, 0.05f), new Vector3(0.18f, 0.08f, 0.24f),
         };
+
+        /// <summary>How many heroes look different, one in each player's colours.</summary>
+        internal static int HeroLooks => HeroDyes.Length;
 
         private readonly Dictionary<string, glModel> _models = new();
 

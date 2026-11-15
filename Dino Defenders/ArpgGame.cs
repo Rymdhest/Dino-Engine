@@ -885,6 +885,7 @@ namespace Dino_Defenders
                     _ui.Open(InteractKind.BetaVendor, GameSession.Current.Sites[0]);
                     _ui.Hero.Vendor.ShowLookup();
                     break;
+                case "lexicon": _ui.LexiconIndex.Open(); break;     // Lexicon (developer tool, LEXICON.md): the asset lexicon's index, in the room.
                 case "merchant":
                     // Through the server, as what's on a table is its to say.
                     int village = GameSession.Current.Sites.FindIndex(s => s.Site.Kind == SiteKind.Village);
@@ -1006,6 +1007,7 @@ namespace Dino_Defenders
             if (GameSession.Current != null) Audio.Play(Treasure.Waygate);
             WorldPlan plan = WorldPlan.Create(request);
             if (Lands.IsHaven(request)) ShowLoading(plan.Name, "Home, where the Reich has never been");
+            else if (Dino_Engine.World.Lexicon.LexiconWorld.Is(request)) ShowLoading(plan.Name, "A developer's room: one of everything the game has, labelled");     // Lexicon (developer tool, LEXICON.md).
             else ShowLoading(plan.Name, terms.Count > 0 ? $"{plan.Archetype.Name}, level {plan.Level}. {terms.Count} {(terms.Count == 1 ? "omen" : "omens")}: {string.Join(", ", terms.Chosen().Select(chosen => chosen.Omen.Name))}" : $"{plan.Archetype.Name}, level {plan.Level}");
 
             LoadingScreen screen = _ui.Loading;
@@ -1065,6 +1067,7 @@ namespace Dino_Defenders
             session.UpdateGuidance();
             GameSession.Current = session;
             if (session.IsHaven && !Nature.Off) _giants = GiantShow.InHaven(Engine.world, world, _characters, HerdSeed());
+            if (session.IsLexicon) _characters.TryGiants(out _);     // Lexicon (developer tool, LEXICON.md): the giant on show is the Haven's, already grown, rather than grown again on the frame it's first seen.
             _ui.Map.SetChart(prepared.Map);
             _followingHero = false;
 
@@ -1101,6 +1104,11 @@ namespace Dino_Defenders
                 bool first = _hero.Level == 1 && _hero.Experience == 0 && _hero.WorldsCleared == 0;
                 if (first && _options.Tour == null) session.Announce(session.World.Plan.Name, $"{session.Chronicle.Prologue} Choose a land at the map table, and the waygate will take you there.", 10f);
                 else if (!_firstWorldOfThisSession) session.Announce(session.World.Plan.Name, $"Home. The map table opens any level up to {_hero.LandLevel}.", 5f);
+            }
+            else if (session.IsLexicon)
+            {
+                // Lexicon (developer tool, LEXICON.md).
+                session.Announce(session.World.Plan.Name, "One of everything the game has, each with its name on a plaque. The index in the top left corner takes you to anything, and home.", 7f);
             }
             else if (!session.Liberated && _options.Tour == null)
             {
