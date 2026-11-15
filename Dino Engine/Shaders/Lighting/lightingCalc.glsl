@@ -60,6 +60,52 @@ vec3 fresnelSchlick(float cosTheta, vec3 F0)
     return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
 }
 
+// GGX by the lobe's alpha squared, which is what a spread adds to.
+float distributionGGXAlpha2(float NdotH, float alpha2)
+{
+    float denominator = NdotH * NdotH * (alpha2 - 1.0) + 1.0;
+    return alpha2 / (LIGHT_PI * denominator * denominator);
+}
+
+// The masking and shadowing of GGX's microfacets as Heitz has it exactly ("Understanding the Masking-Shadowing Function in Microfacet-Based BRDFs", 2014), height
+// correlated, with the microfacet model's 4 N.L N.V taken into it: what GeometrySmith gives over that, but GeometrySmith is Schlick's fit with UE4's remapping of
+// roughness for analytic lights, made to calm the roughest, which darkens every smooth surface at a grazing angle as if it were half rough: a low sun's glint on wet
+// stone came out at two thirds of itself. The reflection pass's own masking (Reflections/Reflection.glsl) is this one's, so the two now agree.
+float visibilitySmithCorrelated(float NdotV, float NdotL, float alpha2)
+{
+    float lightSide = NdotV * sqrt(NdotL * NdotL * (1.0 - alpha2) + alpha2);
+    float viewSide = NdotL * sqrt(NdotV * NdotV * (1.0 - alpha2) + alpha2);
+    return 0.5 / max(lightSide + viewSide, 1e-5);
+}
+
+// The split sum of image-based lighting for exact GGX (Rendering/Renderers/Lighting/SpecularLookup.cs): x what F0 is multiplied by and y what's added to it, so a surface
+// reflects F0 x + y of its whole surroundings and a perfect mirror's microfacets x + y of what falls on them, once. Bound once to its own unit, which nothing else uses.
+layout(binding = 31) uniform sampler2D specularLookup;
+
+vec2 specularScaleBias(float roughness, float NdotV)
+{
+    return textureLod(specularLookup, vec2(clamp(NdotV, 0.0, 1.0), max(roughness, MIN_ROUGHNESS)), 0.0).rg;
+}
+
+// What GGX loses by letting light reflect only once: a rough surface's microfacets shade each other, and the light that would have bounced on between them and out is
+// missing, so rough metal goes dark and dull, by half at the roughest (Kulla and Conty, "Revisiting Physically Based Shading at Imageworks", 2017). This puts it back as a
+// multiple of the single-scattered highlight, by what the lobe's microfacets lose at all (one less the split sum's x + y), coloured by how much the surface reflects
+// (Filament's energy compensation). For a dielectric it's a few percent at the most.
+vec3 specularMultipleScattering(vec3 F0, vec2 scaleBias)
+{
+    return 1.0 + F0 * (1.0 / max(scaleBias.x + scaleBias.y, 0.1) - 1.0);
+}
+
+// The same for light from all round (Fdez-Agüera, "A Multiple-Scattering Microfacet Model for Real-Time Image-based Lighting", 2019): what bounces on between the
+// microfacets and out again, as a share of what arrives from everywhere, which is lit by the surroundings' irradiance and not their reflection, as it's lost its way.
+// singleScattered is F0 x + y. A diffuse surface's own light is what's left after both.
+vec3 specularMultipleAmbient(vec3 F0, vec2 scaleBias, vec3 singleScattered)
+{
+    float lost = 1.0 - (scaleBias.x + scaleBias.y);
+    vec3 average = F0 + (1.0 - F0) / 21.0;
+    return singleScattered * average * lost / (1.0 - lost * average);
+}
+
 // How much a surface reflects head-on. A film of water would add almost nothing to this: seen from a low camera it's the grazing angle that makes wet ground shine, and this camera looks
 // nearly straight down at it, where water reflects 2%. So anything as smooth as water gets more than physics gives it, as Ghost of Tsushima lets its look override what's correct. Smoothness
 // is the sign of it, as the G-buffer has nowhere else to say so, and little that's dry is this smooth.
@@ -74,6 +120,19 @@ float specularOcclusion(float NdotV, float ambient, float roughness)
     return clamp(pow(NdotV + ambient, exp2(-16.0 * roughness - 1.0)) - 1.0 + ambient, 0.0, 1.0);
 }
 
+// How big a local light looks in what reflects it: a lantern's glass and flame, not a point. A highlight is the reflection of the light, so on smooth wet ground a point light
+// was a pin of a pixel that sparkled and jumped as the camera moved, where a real lantern shows as a soft glowing blob as big as itself.
+const float LIGHT_GLOW_RADIUS = 0.2;
+
+// What a local light at this distance adds to a surface's lobe as alpha squared (lightSurfaceSpread), as Karis's sphere lights widen it ("Real Shading in Unreal Engine 4",
+// 2013): a sphere seen at an angle a across reflects through a lobe about a half of that wide, added in quadrature, which keeps what the light gives back the same and only
+// spreads it, and leaves anything rough enough already as it was.
+float lightSpreadAt(float distanceToLight)
+{
+    float across = min(LIGHT_GLOW_RADIUS / max(distanceToLight, 1e-3), 1.0);
+    return 0.25 * across * across;
+}
+
 // What reaches a point from a local light of intensity 1: inverse square from a source of some size, windowed to reach
 // exactly zero at the light's radius, so that its volume can end there with no visible edge. The window is the gentler
 // sibling of the usual (1 - (d/r)^4)^2 (Karis, "Real Shading in Unreal Engine 4", 2013): that one holds on until almost
@@ -85,15 +144,11 @@ float lightFalloff(float distanceToLight, float radius)
     return window * window / (distanceToLight * distanceToLight + LIGHT_SOURCE_RADIUS * LIGHT_SOURCE_RADIUS);
 }
 
-// What a surface reflects of a whole environment, from its colour at normal incidence (Karis, "Physically Based Shading
-// on Mobile", 2014): the split-sum lookup of image-based lighting as a fit, with no texture.
+// What a surface reflects of a whole environment, once, from its colour at normal incidence: the split sum (specularScaleBias). It once came from Karis's analytic fit
+// ("Physically Based Shading on Mobile", 2014), which was made for UE4's masking and read a fifth dark on half-rough metal.
 vec3 environmentBRDF(vec3 F0, float roughness, float NdotV)
 {
-    const vec4 c0 = vec4(-1.0, -0.0275, -0.572, 0.022);
-    const vec4 c1 = vec4(1.0, 0.0425, 1.04, -0.04);
-    vec4 r = roughness * c0 + c1;
-    float a004 = min(r.x * r.x, exp2(-9.28 * NdotV)) * r.x + r.y;
-    vec2 scaleBias = vec2(-1.04, 1.04) * a004 + r.zw;
+    vec2 scaleBias = specularScaleBias(roughness, NdotV);
     return F0 * scaleBias.x + scaleBias.y;
 }
 
@@ -106,6 +161,7 @@ struct Surface
     float metallic;
     int scatterKind;        // What light does once it's in under the surface (SSS_ in Lighting/SubsurfaceKinds.glsl).
     float scatter;          // How much: for a sheet or a canopy what gets through, for flesh or frost how far light goes in it, 0 to 1. 0 for anything solid.
+    vec2 scaleBias;         // The split sum at its roughness and the angle it's seen at (specularScaleBias), looked up once for every light.
 };
 
 // ---------------------------------------------------------------- Subsurface scattering (SUBSURFACE.md)
@@ -226,14 +282,14 @@ vec3 lightSurfaceSplit(Surface s, vec3 L, vec3 radiance, vec3 underRadiance, flo
     vec3 V = s.view;
     vec3 H = normalize(V + L);
     float lobe = max(s.roughness, MIN_ROUGHNESS);
-    float roughness = sqrt(sqrt(lobe * lobe * lobe * lobe + spread));
+    float alpha2 = lobe * lobe * lobe * lobe + spread;
     float NdotL = max(dot(N, L), 0.0);
+    float NdotV = clamp(dot(N, V), 1e-4, 1.0);
 
     vec3 F0 = surfaceF0(s.albedo, s.metallic, s.roughness);
     vec3 F = fresnelSchlick(max(dot(H, V), 0.0), F0);
-    float NDF = DistributionGGX(N, H, roughness);
-    float G = GeometrySmith(N, V, L, roughness);
-    vec3 specular = (NDF * G * F) / max(4.0 * max(dot(N, V), 0.0) * NdotL, 0.0001);
+    float lobeShape = distributionGGXAlpha2(max(dot(N, H), 0.0), alpha2) * visibilitySmithCorrelated(NdotV, NdotL, alpha2);
+    vec3 specular = F * lobeShape * specularMultipleScattering(F0, s.scaleBias);
     vec3 diffuse = (1.0 - F) * (1.0 - s.metallic) * s.albedo / LIGHT_PI;
 
     // What gets in under the surface: flesh and frost carry it on past the terminator, snow and ice send it on forwards, and a thin thing lets it through to its other

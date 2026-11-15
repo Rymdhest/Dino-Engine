@@ -70,7 +70,7 @@ void main(void){
 	vec3 radiance = lightColor * strength;
 	float visibility = isShadow ? clamp(1.0 - calcShadow(g.position), 0.0, 1.0) : 1.0;
 
-	vec3 colour = lightSurface(s, lightDir, radiance * visibility);
-	colour += s.albedo * radiance * (lightFill * g.ambient / LIGHT_PI);
+	vec3 colour = lightSurfaceSpread(s, lightDir, radiance * visibility, lightSpreadAt(distanceToLight));
+	colour += s.albedo * (1.0 - s.metallic) * radiance * (lightFill * g.ambient / LIGHT_PI);
 	out_Colour = vec4(colour, 0.0);
 }

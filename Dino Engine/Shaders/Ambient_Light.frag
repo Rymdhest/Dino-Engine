@@ -218,11 +218,13 @@ void main(void)
     surrounding += hallRoomLight((invViewMatrix * vec4(g.position, 1.0)).xyz, skyLight, sunColour);
 
     vec3 F0 = surfaceF0(s.albedo, s.metallic, s.roughness);
-    vec3 specular = environmentBRDF(F0, roughness, NdotV);
-    vec3 diffuse = s.albedo * (1.0 - s.metallic) * (1.0 - specular);
+    vec3 specular = F0 * s.scaleBias.x + s.scaleBias.y;
+    // What bounces on between a rough surface's microfacets before it leaves, lit like diffuse light by everything round it, and the diffuse light only what neither took.
+    vec3 specularMultiple = specularMultipleAmbient(F0, s.scaleBias, specular);
+    vec3 diffuse = s.albedo * (1.0 - s.metallic) * (1.0 - specular - specularMultiple);
 
     bool frost = s.scatterKind == SSS_FROST && s.scatter > 0.0 && sssSwitches.x > 0.0;
-    vec3 ambient = diffuse * surrounding * occlusionMultiBounce(g.ambient, frost ? frostHollowAlbedo(s) : s.albedo);
+    vec3 ambient = (diffuse + specularMultiple) * surrounding * occlusionMultiBounce(g.ambient, frost ? frostHollowAlbedo(s) : s.albedo);
     // A leaf, a blade or a cloth lets through what lights its back: in the shade and under cloud it's most of what makes it glow (SUBSURFACE.md).
     if (s.scatter > 0.0 && s.scatterKind <= SSS_CANOPY) ambient += sssAmbientThin(s, behind) * g.ambient;
     if (!reflectionWanted(s.roughness, g.albedo.a))

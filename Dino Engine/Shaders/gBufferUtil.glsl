@@ -42,12 +42,26 @@ float transmittance(float translucency, float thickness) {
 
 #include Lighting/SubsurfaceKinds.glsl
 
+// A unit normal as the G-buffer keeps it, in its three 8-bit channels: folded onto an octahedron (Cigolle et al., "A Survey of Efficient Representations for Independent
+// Unit Vectors", 2014), its two coordinates 12 bits each, split 8, 4 and 4, 8 across the channels. Stored as x, y and z it was a step of half a degree, which a wet stone's or
+// a blade's highlight a few degrees wide showed as contours and a reflection ray as steps; this is a twentieth of a degree for the same bytes. Nothing may filter or blend
+// it, as a channel's bits only mean anything whole: read it with texelFetch, and the MSAA resolve averages what it decodes (Msaa_Resolve_GBuffer.frag).
+const float NORMAL_STEPS = 4095.0;
+
 vec3 compressNormal(vec3 normal) {
-    return normal*0.5f+0.5f;
+    vec3 n = normal / max(abs(normal.x) + abs(normal.y) + abs(normal.z), 1e-6);
+    vec2 folded = n.z >= 0.0 ? n.xy : (1.0 - abs(n.yx)) * vec2(n.x >= 0.0 ? 1.0 : -1.0, n.y >= 0.0 ? 1.0 : -1.0);
+    uvec2 q = uvec2(round(clamp(folded * 0.5 + 0.5, 0.0, 1.0) * NORMAL_STEPS));
+    return vec3(float(q.x >> 4u), float(((q.x & 15u) << 4u) | (q.y >> 8u)), float(q.y & 255u)) / 255.0;
 }
 
-vec3 unCompressNormal(vec3 normal) {
-    return normal * 2.0f - 1.0f;
+vec3 unCompressNormal(vec3 stored) {
+    uvec3 b = uvec3(round(clamp(stored, 0.0, 1.0) * 255.0));
+    vec2 folded = vec2(uvec2((b.x << 4u) | (b.y >> 4u), ((b.y & 15u) << 8u) | b.z)) / NORMAL_STEPS * 2.0 - 1.0;
+    vec3 n = vec3(folded, 1.0 - abs(folded.x) - abs(folded.y));
+    float under = max(-n.z, 0.0);
+    n.xy += vec2(n.x >= 0.0 ? -under : under, n.y >= 0.0 ? -under : under);
+    return normalize(n);
 }
 
 // Emission as the G-buffer holds it. A surface shines at its albedo times this, up to MAX_EMISSION; the 8 bits of the

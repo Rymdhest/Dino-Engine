@@ -36,6 +36,13 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
         /// <summary>Applied before tone mapping. The MSAA resolve weighs samples by how bright this makes them look.</summary>
         public float Exposure = 0.42f;
 
+        /// <summary>
+        /// The curve from the scene's light to the screen's (HDR_Mapper.frag): 0 ACES, as Stephen Hill fitted it, 1 AgX, 2 Khronos PBR Neutral. Each is exposed so a
+        /// middle grey comes out the same, and they differ in contrast and in what happens to bright colours: ACES clips them a channel at a time, turning a flame
+        /// yellow, and the other two take them to white keeping their hue. --render tonemap=N.
+        /// </summary>
+        public int ToneMapper = 0;
+
         /// <summary>How bright light must be, in scene radiance, to bloom. Sunlit surfaces stay under it, or the picture hazes over.</summary>
         public float BloomThreshold = 4.5f;
         public float BloomKnee = 1.5f;
@@ -80,6 +87,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
                 case "lightscale": LocalLightScale = number; break;
                 case "emissionscale": EmissionScale = number; break;
                 case "exposure": Exposure = number; break;
+                case "tonemap": ToneMapper = (int)number; break;
                 case "bloomthreshold": BloomThreshold = number; break;
                 case "bloomstrength": BloomStrength = number; break;
                 case "shadows": ShadowedPointLights = (int)number; break;

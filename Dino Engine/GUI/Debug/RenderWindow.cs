@@ -18,6 +18,7 @@ namespace Dino_Engine.GUI.Debug
         private static readonly string[] MsaaModes = { "Off", "2x", "4x", "8x" };
         private static readonly int[] MsaaSamples = { 1, 2, 4, 8 };
         private static readonly string[] WeatherNames = { "The world's own", "clear", "cloudy", "overcast", "wet", "drizzle", "rain", "storm", "snow", "blizzard", "dust", "ash", "fog" };
+        private static readonly string[] ToneMappers = { "ACES (Hill fit)", "AgX", "Khronos PBR Neutral" };
         private static readonly string[] ReflectionViews = { "Final image", "Rays that found something", "Sky a ray can see", "Everything reflected", "The sky map" };
         private static readonly string[] GlobalIlluminationViews = { "Final image", "Voxel colours", "Light leaving the voxels", "Its light alone, on white", "Where the probes reach", "Each probe on its own" };
         private static readonly string[] ShadeViews = { "Final image", "Ambient occlusion alone", "Contact shadows alone", "How soft the sun's shadow is", "The sun's shadow alone" };
@@ -90,6 +91,9 @@ namespace Dino_Engine.GUI.Debug
             light.Content.Add(new Checkbox("Bloom").Bind(() => lighting.Bloom, value => lighting.Bloom = value));
             light.Content.Add(DebugUi.Heading("Levels"));
             light.Content.Add(LightingSlider("Exposure", 0.1f, 2f, "0.00", () => lighting.Exposure, v => lighting.Exposure = v));
+            var toneMapper = new Dropdown(ToneMappers, lighting.ToneMapper);
+            toneMapper.SelectionChanged += index => { if (index >= 0) lighting.ToneMapper = index; };
+            light.Content.Add(DebugUi.LabeledRow("Tone mapping", toneMapper));
             light.Content.Add(LightingSlider("Sky fill", 0f, 3f, "0.00", () => lighting.SkyFill, v => lighting.SkyFill = v));
             light.Content.Add(LightingSlider("Sun fill", 0f, 0.2f, "0.000", () => lighting.SunFill, v => lighting.SunFill = v));
             light.Content.Add(LightingSlider("Ground bounce", 0f, 1f, "0.00", () => lighting.GroundAlbedo, v => lighting.GroundAlbedo = v));

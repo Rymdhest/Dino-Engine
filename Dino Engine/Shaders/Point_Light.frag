@@ -137,7 +137,8 @@ void main(void)
 
             vec3 L = toLight / max(distanceToLight, 1e-4);
             vec3 radiance = colourFill.rgb * falloff;
-            colour += s.albedo * radiance * (colourFill.a * g.ambient / LIGHT_PI);
+            // The fill stands for light bounced about the lamp, which a bare metal has no diffuse colour to show.
+            colour += s.albedo * (1.0 - s.metallic) * radiance * (colourFill.a * g.ambient / LIGHT_PI);
 
             // A surface facing away from the light takes none of it unless light gets in under it, so neither the light nor its shadow can matter.
             if (dot(s.normal, L) <= 0.0 && !(s.scatter > 0.0 && sssSwitches.x > 0.0)) continue;
@@ -147,7 +148,7 @@ void main(void)
                 vec4 worldShadow = pointLights[i].worldShadow;
                 if (worldShadow.w >= 0.0) visibility = mix(1.0, calcShadow(worldPos, normalWorld, worldShadow.xyz, worldShadow.w), shadowHalls.x);
             }
-            colour += lightSurface(s, L, radiance * visibility);
+            colour += lightSurfaceSpread(s, L, radiance * visibility, lightSpreadAt(distanceToLight));
         }
     }
     if (!finished) discard;

@@ -106,6 +106,7 @@ Surface surfaceOf(GBufferSample g)
     s.metallic = g.materials.b;
     s.scatterKind = subsurfaceKind(g.albedo.a);
     s.scatter = subsurfaceAmount(g.albedo.a);
+    s.scaleBias = specularScaleBias(s.roughness, dot(s.normal, s.view));
     return s;
 }
 

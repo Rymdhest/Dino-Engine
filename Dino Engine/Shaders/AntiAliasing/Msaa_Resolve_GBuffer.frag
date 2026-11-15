@@ -16,7 +16,7 @@
 
 #include Globals.glsl
 #include AntiAliasing/Msaa.glsl
-#include Lighting/SubsurfaceKinds.glsl
+#include gBufferUtil.glsl
 
 uniform sampler2DMS gAlbedoSamples;
 uniform sampler2DMS gNormalSamples;
@@ -51,7 +51,9 @@ void main(void)
     vec4 materials = texelFetch(gMaterialsSamples, pixel, 0);
     float depth0 = texelFetch(gDepthSamples, pixel, 0).r;
     float viewDepth0 = viewDepth(depth0);
-    vec3 normal0 = normal.xyz * 2.0 - 1.0;
+    // Normals are packed (gBufferUtil.glsl's compressNormal), so they're averaged as vectors and packed again.
+    vec3 normal0 = unCompressNormal(normal.xyz);
+    vec3 normalSum = normal0;
     float emission0 = materials.g;
 
     // How much each kind scatters, among the samples.
@@ -74,14 +76,16 @@ void main(void)
         vec4 sampleNormal = texelFetch(gNormalSamples, pixel, i);
         vec4 sampleMaterials = texelFetch(gMaterialsSamples, pixel, i);
         albedo += sampleAlbedo;
-        normal += sampleNormal;
+        vec3 sampleDirection = unCompressNormal(sampleNormal.xyz);
+        normal.a += sampleNormal.a;
+        normalSum += sampleDirection;
         materials += sampleMaterials;
 
         byKind[subsurfaceKind(sampleAlbedo.a)] += subsurfaceAmount(sampleAlbedo.a);
 
         float sampleViewDepth = viewDepth(depth);
         edge = edge
-            || dot(sampleNormal.xyz * 2.0 - 1.0, normal0) < NORMAL_TOLERANCE
+            || dot(sampleDirection, normal0) < NORMAL_TOLERANCE
             || abs(sampleMaterials.g - emission0) > EMISSION_TOLERANCE
             || abs(sampleViewDepth - viewDepth0) > DEPTH_TOLERANCE * min(sampleViewDepth, viewDepth0);
     }
@@ -98,7 +102,7 @@ void main(void)
         int kind = SSS_SHEET;
         for (int k = SSS_CANOPY; k <= SSS_FROST; k++) kind = byKind[k] > byKind[kind] ? k : kind;
         gAlbedo = vec4(albedo.rgb * share, encodeSubsurface(kind, (byKind.x + byKind.y + byKind.z + byKind.w) * share));
-        gNormal = normal * share;
+        gNormal = vec4(compressNormal(length(normalSum) > 1e-4 ? normalSum : normal0), normal.a * share);
         gMaterials = materials * share;
     }
     gEdge = vec4(edge ? 1.0 : 0.0);

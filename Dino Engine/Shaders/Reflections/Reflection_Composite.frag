@@ -94,7 +94,8 @@ void main(void)
     vec3 world = (invViewMatrix * vec4(g.position, 1.0)).xyz;
 
     vec3 F0 = surfaceF0(s.albedo, s.metallic, s.roughness);
-    vec3 strength = environmentBRDF(F0, roughness, NdotV) * specularOcclusion(NdotV, g.ambient, roughness);
+    // What it reflects once; what bounces on between its microfacets is the ambient pass's, lit by everything round it (specularMultipleAmbient).
+    vec3 strength = (F0 * s.scaleBias.x + s.scaleBias.y) * specularOcclusion(NdotV, g.ambient, roughness);
 
     vec3 ground = groundLight;
     vec3 sky = skyEnvironment(worldReflection, roughness, ground);

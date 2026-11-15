@@ -412,6 +412,8 @@ namespace Dino_Engine.Rendering
         {
             // How each kind of surface lets light in under it, for every pass that lights one.
             SubsurfaceProfiles.Upload(Subsurface);
+            // What GGX reflects of light from all round, which every pass that lights a surface reads by its binding (Shaders/Lighting/lightingCalc.glsl).
+            SpecularLookup.Bind();
 
             // Bounced light first: the ambient pass reads what it gathers, and the occlusion only has the contact left to do while it's on.
             _globalIllumination.RenderPass(this);
