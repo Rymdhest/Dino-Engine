@@ -46,12 +46,12 @@ namespace Dino_Defenders.Server
         private const float Reached = 1.6f;
         private const float GrazeSpeed = 1.1f;     // Wandering its paddock, head down.
 
-        private readonly GameServer _server;
+        private readonly ServerRoom _server;
         private readonly WorldPathfinder _paths = new WorldPathfinder(exact: true);
         private readonly WorldRandom _random = new WorldRandom(Environment.TickCount);
         private static readonly BitMask DoorMask = new BitMask(typeof(CageDoorComponent), typeof(RotationComponent));
 
-        public CaptiveSystem(GameServer server)
+        public CaptiveSystem(ServerRoom server)
             : base(new BitMask(typeof(CaptiveComponent), typeof(PositionComponent), typeof(VelocityComponent)))
         {
             _server = server;

@@ -736,7 +736,7 @@ namespace Dino_NetLab
             {
                 Vector2 at = centre + new Vector2(random.NextSingle() - 0.5f, random.NextSingle() - 0.5f) * 90f;
                 var actor = new Actor(Team.Enemies, horde, at, 1.1f) { Body = "skeleton", Site = server.Session.Sites[0] };
-                actor.Entity = server.Ecs.CreateEntity(Bodies.Walking(server, "skeleton", new Vector3(at.X, 0f, at.Y), 1f, 1.5f,
+                actor.Entity = server.Ecs.CreateEntity(Bodies.Walking(server.Main, "skeleton", new Vector3(at.X, 0f, at.Y), 1f, 1.5f,
                     new EnemyComponent { Name = "Restless Dead", Level = 1 },
                     new EnemyBrainComponent { SiteIndex = 0, SpawnIndex = -1, Home = at, AggroRadius = 200f, LeashRadius = 500f, Experience = 0 },
                     new HealthComponent(actor.Sheet.MaxHealth), new ActionComponent(), new AfflictedComponent(), new ActorComponent(actor)));
@@ -849,12 +849,25 @@ namespace Dino_NetLab
             int goldBefore = lab.Players[0].Client.Hero.Gold;
             worlds.Get(Lands.Haven).Wait();
             LabPlayer walker = lab.Players[1];
-            walker.Client.TravelTo(GameServer.WaygateSpawn(lab.Server.Session!.World, lab.Server.Session.World.Sites[0])!.Value);
+            Vector2 gate = GameServer.WaygateSpawn(lab.Server.Session!.World, lab.Server.Session.World.Sites[0])!.Value;
+            walker.Client.TravelTo(gate);
             lab.Run(1.5);
             walker.Client.ReturnHome();
+            for (int i = 0; i < 900 && walker.Arrivals < 2; i++)
+            {
+                lab.Run(0.1);
+                Thread.Sleep(2);
+            }
+            lab.Run(6);
+            report.Check("One hero going home through a waygate goes alone", walker.Arrivals == 2 && lab.Players.Where(p => p != walker).All(p => p.Arrivals == 1), string.Join(",", lab.Players.Select(p => p.Arrivals)));
+            foreach (LabPlayer other in lab.Players.Where(p => p != walker))
+            {
+                other.Client.TravelTo(gate);
+                lab.Run(1.5);
+                other.Client.ReturnHome();
+            }
             Arrive(2);
-            report.Check("One hero going home through a waygate brings the party", lab.Players.All(p => p.Arrivals == 2), string.Join(",", lab.Players.Select(p => p.Arrivals)));
-            report.Check("They all play on in the Haven", lab.Players.All(p => p.Client.State == ClientState.Playing && p.Client.Session!.IsHaven));
+            report.Check("And each who follows them plays on in the Haven", lab.Players.All(p => p.Client.State == ClientState.Playing && p.Client.Session!.IsHaven));
 
             // And out again, by the way one of them opens.
             LandOffer offer = Lands.Offer(walker.Client.Hero, walker.Client.Hero.LandLevel)[0];
@@ -863,8 +876,8 @@ namespace Dino_NetLab
             lab.Run(2);
             lab.Server.StepThrough();
             Arrive(3);
-            report.Check("One hero stepping through the open way brings the party", lab.Players.All(p => p.Arrivals == 3), string.Join(",", lab.Players.Select(p => p.Arrivals)));
-            report.Check("They all play on in the new land", lab.Players.All(p => p.Client.State == ClientState.Playing && p.Client.Session!.World.Plan.Seed == offer.Request.Seed));
+            report.Check("Everyone stepping through the open way comes out in the land", lab.Players.All(p => p.Arrivals == 3), string.Join(",", lab.Players.Select(p => p.Arrivals)));
+            report.Check("Where they all play on together", lab.Players.All(p => p.Client.State == ClientState.Playing && p.Client.Session!.World.Plan.Seed == offer.Request.Seed));
             report.Check("Nothing from the old world came along", lab.Players.All(p => p.Client.Ghosts.Mismatches == 0));
             report.Check("What they carried came with them", lab.Players[0].Client.Hero.Gold >= goldBefore);
         }

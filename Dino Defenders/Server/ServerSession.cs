@@ -27,7 +27,7 @@ namespace Dino_Defenders.Server
         private readonly List<Actor> _risen = new();
         private readonly LootBoon _boon;
 
-        public readonly GameServer Server;
+        public readonly ServerRoom Server;
         public readonly Combat Combat;
         public readonly GroundLoot Ground;
         public readonly Bestiary Bestiary;
@@ -83,16 +83,13 @@ namespace Dino_Defenders.Server
         /// <summary>The way's been opened, or shut, and the portal and everyone's heads-up need to catch up.</summary>
         public bool PortalChanged;
 
-        /// <summary>When everyone has fallen, the moment they all go home.</summary>
-        public double? HomeAt;
-
-        /// <summary>Everyone here has fallen, so the land is over: they stay with what happened to them for as long as they like, and go home when one of them says so (DEATHS.md).</summary>
+        /// <summary>Everyone here has fallen, so the land is over: they stay with what happened to them for as long as they like, and each goes home when they say so (DEATHS.md).</summary>
         public bool Over;
 
         /// <summary>Who has fallen here, by name, so that leaving and coming back in isn't a second life.</summary>
         public readonly HashSet<string> Fallen = new();
 
-        public ServerSession(GameServer server, WorldData world, WorldRequest request, LandTerms? terms = null) : base(world, request, terms)
+        public ServerSession(ServerRoom server, WorldData world, WorldRequest request, LandTerms? terms = null) : base(world, request, terms)
         {
             Server = server;
             Bestiary = new Bestiary(Terms.FoeMods());
@@ -189,13 +186,10 @@ namespace Dino_Defenders.Server
             GiveExperience(hero, (int)MathF.Ceiling(needed / gain) + 1);
         }
 
-        /// <summary>A fight shared is a reward shared: everyone close enough to have been in it gets the whole of it.</summary>
+        /// <summary>Whatever's slain anywhere in the land is worth all of it to everyone in the land, wherever they are, as if each were alone.</summary>
         public void ShareExperience(Vector2 position, int amount)
         {
-            foreach (ServerPlayer hero in Heroes)
-            {
-                if ((hero.Sim.Position - position).LengthSquared <= Rulebook.FlaskReach * Rulebook.FlaskReach) GiveExperience(hero, amount);
-            }
+            foreach (ServerPlayer hero in Heroes) GiveExperience(hero, amount);
         }
 
         // A fight goes on far from any shrine now, so flasks have to come back from fighting.
@@ -368,8 +362,8 @@ namespace Dino_Defenders.Server
         }
 
         /// <summary>
-        /// A hero has fallen. There's one life to a land, so they're out of it, and can't free it with the others: that's settled at once, so that closing the game can't take it back. Once everyone
-        /// has fallen the land is lost and they all go home, which costs nothing but the try: the map table shows the same lands for that level until one is freed.
+        /// A hero has fallen. There's one life to a land, so they're out of it, and can't free it with the others unless a friend raises them: that's settled at once, so that closing the game can't
+        /// take it back. Once everyone has fallen the land is lost, which costs nothing but the try: the map table shows the same lands for that level until one is freed.
         /// </summary>
         public void HeroFell(ServerPlayer player)
         {
@@ -384,7 +378,7 @@ namespace Dino_Defenders.Server
             Console.WriteLine($"{player.Name} fell in {World.Plan.Name}, level {World.Plan.Level}{(Liberated ? ", which was already free" : "")}.");
             if (!Liberated) Judge(player, freed: false);
             if (SettleIfAllOut()) return;
-            if (!Liberated) Server.Note(null, $"{player.Name} has fallen, and is out of this land.");
+            if (!Liberated) Server.Note(null, $"{player.Name} has fallen. Walk up to them to raise them.");
         }
 
         /// <summary>
@@ -418,11 +412,8 @@ namespace Dino_Defenders.Server
             Console.WriteLine($"{player.Name} freed {World.Plan.Name}: the map table opens any level up to {player.Hero.LandLevel}.");
         }
 
-        /// <summary>Everyone is going home through a waygate. Anyone whose land isn't free can try it again.</summary>
-        public void Leave()
-        {
-            foreach (ServerPlayer hero in Heroes) Judge(hero, Liberated);
-        }
+        /// <summary>Someone is going home, through a waygate or fallen. If the land isn't free they can try it again.</summary>
+        public void Leave(ServerPlayer hero) => Judge(hero, Liberated);
 
         /// <summary>Puts someone's minions on their feet, as many as they're allowed, oldest going first.</summary>
         public void Summon(Actor owner, PageProfile page, Vector2 at)
@@ -600,7 +591,7 @@ namespace Dino_Defenders.Server
         /// <summary>Writes where the world stands into a save. The hero goes in on the player's own machine. The Haven is always the same, so there's nothing to write, and a land that's over is over.</summary>
         public void Capture(SaveGame save)
         {
-            save.InLand = !IsHaven && !IsLexicon && !Lost && !Over && HomeAt == null;     // Lexicon (developer tool, LEXICON.md): the room is never saved, so a hero who leaves the game in it comes back home.
+            save.InLand = !IsHaven && !IsLexicon && !Lost && !Over;     // Lexicon (developer tool, LEXICON.md): the room is never saved, so a hero who leaves the game in it comes back home.
             if (!save.InLand) return;
 
             // The request, not what it became: drawing an archetype is part of what a seed makes, so naming it would make another world.

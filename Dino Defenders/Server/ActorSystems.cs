@@ -85,11 +85,11 @@ namespace Dino_Defenders.Server
 
         private static readonly BitMask Mask = new BitMask(typeof(ActorComponent), typeof(PositionComponent), typeof(HealthComponent));
 
-        private readonly GameServer _server;
+        private readonly ServerRoom _server;
         private readonly List<Actor> _near = new();
         private float _nextLand;
 
-        public ActorSystem(GameServer server)
+        public ActorSystem(ServerRoom server)
             : base(Mask)
         {
             _server = server;
@@ -252,9 +252,9 @@ namespace Dino_Defenders.Server
     /// <summary>Flies everything until it finds someone, something solid, or the end of its strength.</summary>
     public class ProjectileSystem : SystemBase
     {
-        private readonly GameServer _server;
+        private readonly ServerRoom _server;
 
-        public ProjectileSystem(GameServer server)
+        public ProjectileSystem(ServerRoom server)
             : base(new BitMask(typeof(ProjectileComponent), typeof(BallisticComponent), typeof(PositionComponent)))
         {
             _server = server;
@@ -300,9 +300,9 @@ namespace Dino_Defenders.Server
         private static readonly BitMask Marks = new BitMask(typeof(TelegraphLifeComponent), typeof(TelegraphComponent));
         private static readonly BitMask Actions = new BitMask(typeof(ActionComponent));
 
-        private readonly GameServer _server;
+        private readonly ServerRoom _server;
 
-        public TelegraphSystem(GameServer server)
+        public TelegraphSystem(ServerRoom server)
             : base(Marks)
         {
             _server = server;
@@ -353,9 +353,9 @@ namespace Dino_Defenders.Server
     /// <summary>Works out what lasting ground does, and clears it when it's done.</summary>
     public class ZoneSystem : SystemBase
     {
-        private readonly GameServer _server;
+        private readonly ServerRoom _server;
 
-        public ZoneSystem(GameServer server)
+        public ZoneSystem(ServerRoom server)
             : base(new BitMask(typeof(ZoneStateComponent)))
         {
             _server = server;

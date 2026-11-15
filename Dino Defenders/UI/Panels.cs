@@ -7,6 +7,7 @@ using Dino_Defenders.Stats;
 using Dino_Defenders.Talents;
 using Dino_Defenders.Tooltips;
 using Dino_Engine.Core;
+using Dino_Engine.ECS.Components;
 using Dino_Engine.GUI;
 using Dino_Engine.GUI.Rendering;
 using Dino_Engine.GUI.Widgets;
@@ -24,8 +25,8 @@ namespace Dino_Defenders.UI
     /// <summary>
     /// The land as a map, drawn as an old chart of what's really in it (read CHART.md), turned the way the land is seen: what the hero has walked is in colour, and the rest of the
     /// land they could walk an uncoloured sketch, so it's plain where they've been. On it are what the land still asks of them, from the start, and the waygates that are lit, and
-    /// nothing else: the places it names that are still held, and once those are free, where its tyrant is. Opened at a waygate, it's also the way to travel: every gate found in
-    /// the land can be clicked, and so can the way home to the Haven, which asks first if the land isn't free.
+    /// nothing else: the places it names that are still held, and once those are free, where its tyrant is, and friends in the same land. Opened at a waygate, it's also the way to
+    /// travel: every gate found in the land can be clicked, and so can a friend on their feet, and the way home to the Haven, which asks first if the land isn't free.
     /// </summary>
     internal sealed class MapPanel : GuiElement
     {
@@ -41,6 +42,10 @@ namespace Dino_Defenders.UI
         private static readonly Colour HeroColour = GuiColors.Rgba(255, 255, 255);
         private static readonly Colour Halo = GuiColors.Rgba(0, 0, 0, 210);
         private static readonly Colour MapInk = GuiColors.Rgba(52, 36, 22);
+        private static readonly Colour FriendColour = GuiColors.Rgba(196, 168, 255);
+        private const float FriendIcon = 8f;
+        private static readonly Dino_Engine.ECS.ECS_Architecture.BitMask FriendMask = new(typeof(HeroComponent), typeof(HealthComponent), typeof(PositionComponent));
+        private readonly List<(int Player, string Name, Vector2 At, bool Down)> _friends = new();
 
         private int _texture;
         private int _fogTexture;
@@ -203,6 +208,17 @@ namespace Dino_Defenders.UI
             GameSession session = GameSession.Current;
             if (!Travelling || _prompt.Visible || session.IsHaven) return;
             GuiRect map = MapRect();
+
+            // A friend over a gate, as a friend's where the fighting is.
+            GatherFriends(session);
+            foreach ((int player, _, Vector2 friendAt, bool down) in _friends)
+            {
+                if (down || (ToMap(map, friendAt) - e.Position).Length > PickRadius) continue;
+                session.Client.TravelToHero(player);
+                _close();
+                return;
+            }
+
             for (int i = 0; i < session.Sites.Count; i++)
             {
                 SiteState state = session.Sites[i];
@@ -267,11 +283,22 @@ namespace Dino_Defenders.UI
                 Ui.Text(Context, draw, state.Site.Name, 14f, new GuiRect(at.X - 120f, at.Y + radius + 3f, 240f, 18f), hovered ? Ui.Bright : GoalColour, Alignment.Center);
             }
 
+            GatherFriends(session);
+            foreach ((_, string name, Vector2 friendAt, bool down) in _friends)
+            {
+                Vector2 at = ToMap(map, friendAt);
+                bool hovered = Travelling && !down && (at - mouse).Length <= PickRadius;
+                DrawFriend(draw, at, name[..Math.Min(1, name.Length)], down ? Ui.Faded : hovered ? Ui.Bright : FriendColour);
+                float wide = GuiText.MeasureWidth(Context, name, Ui.Face, 13f) + 10f;
+                draw.AddRect(new GuiRect(at.X - wide * 0.5f, at.Y + FriendIcon + 4f, wide, 16f), GuiColors.Rgba(8, 6, 5, 190), 3f);
+                Ui.Text(Context, draw, down ? $"{name}, fallen" : name, 13f, new GuiRect(at.X - 110f, at.Y + FriendIcon + 3f, 220f, 18f), hovered ? Ui.Bright : down ? Ui.Faded : FriendColour, Alignment.Center);
+            }
+
             DrawHero(draw, ToMap(map, session.PlayerPosition), session.Sim.Yaw);
-            DrawLegend(draw, map, !placesAsked);
+            DrawLegend(draw, map, !placesAsked, _friends.Count > 0);
 
             string help = Travelling
-                ? "Click a lit waygate to go there."
+                ? _friends.Count > 0 ? "Click a lit waygate, or a friend, to go there." : "Click a lit waygate to go there."
                 : session.IsHaven ? $"{Bindings.Label(GameAction.Map)} to close." : $"{Bindings.Label(GameAction.Map)} to close.  A waygate lights as you come near it.  {Bindings.Label(GameAction.Roads)} calls the lit ones, from anywhere.";
             Ui.Text(Context, draw, help, 14f, new GuiRect(0f, map.Y - 28f, Bounds.Width, 20f), Ui.Faded, Alignment.Center);
         }
@@ -343,13 +370,37 @@ namespace Dino_Defenders.UI
             }
         }
 
+        // Everyone else in this land, from what's drawn of them: where they are, and whether they're down.
+        private void GatherFriends(GameSession session)
+        {
+            _friends.Clear();
+            if (session.Client.Party.Count <= 1) return;
+            foreach (var archetype in Engine.Instance!.world.QueryArchetypes(FriendMask, Dino_Engine.ECS.ECS_Architecture.BitMask.Empty))
+            {
+                foreach (var entity in new Dino_Engine.ECS.ECS_Architecture.ComponentAccessor(archetype))
+                {
+                    var hero = entity.Get<HeroComponent>();
+                    if (hero.Player == session.Client.PlayerId) continue;
+                    _friends.Add((hero.Player, hero.Name, entity.Get<PositionComponent>().value.Xz, entity.Get<HealthComponent>().Current <= 0f));
+                }
+            }
+        }
+
+        // A friend: a disc in their colour with the first letter of their name, which nothing else on the map is.
+        private void DrawFriend(GuiDrawList draw, Vector2 at, string initial, Colour colour)
+        {
+            draw.AddCircle(at, FriendIcon + 2.5f, Halo);
+            draw.AddCircle(at, FriendIcon, colour, 1.5f, GuiColors.Rgba(30, 20, 50));
+            GuiText.Draw(Context!, draw, initial.ToUpperInvariant(), Ui.Face, 11f, new GuiRect(at.X - FriendIcon, at.Y - FriendIcon + 0.5f, FriendIcon * 2f, FriendIcon * 2f), GuiColors.Rgba(30, 20, 50), Alignment.Center, Alignment.Center);
+        }
+
         // What each mark is, in a corner of the map.
-        private void DrawLegend(GuiDrawList draw, GuiRect map, bool tyrants)
+        private void DrawLegend(GuiDrawList draw, GuiRect map, bool tyrants, bool friends)
         {
             const float Row = 24f;
             // Beside the map where there's room, so it covers none of it.
             float left = map.X >= 190f ? map.X - 176f : map.X + 10f;
-            GuiRect box = new GuiRect(left, map.Y + 10f, 160f, Row * 3f + 10f);
+            GuiRect box = new GuiRect(left, map.Y + 10f, 160f, Row * (friends ? 4f : 3f) + 10f);
             draw.AddRect(box, GuiColors.Rgba(8, 6, 5, 200), 4f, 1f, GuiColors.Rgba(120, 96, 58));
             float x = box.X + 22f, y = box.Y + 5f + Row * 0.5f;
 
@@ -362,6 +413,10 @@ namespace Dino_Defenders.UI
             y += Row;
             DrawGate(draw, new Vector2(x, y), GuiColors.Rgba(104, 206, 255));
             Ui.Text(Context!, draw, "Waygate", 14f, new GuiRect(x + 22f, y - 9f, 120f, 18f), Ui.Parchment);
+            if (!friends) return;
+            y += Row;
+            DrawFriend(draw, new Vector2(x, y), "", FriendColour);
+            Ui.Text(Context!, draw, "Friend", 14f, new GuiRect(x + 22f, y - 9f, 120f, 18f), FriendColour);
         }
 
         // A little arch, as the mark on a gate is, so that a gate reads as one wherever it is.

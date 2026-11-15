@@ -19,10 +19,10 @@ namespace Dino_Defenders.Server
         private const float MostHeroShove = 14f;    // Out of a hero's way, which has to be faster than a hero runs, or they'd walk into it.
         private const float BiggestBody = 3.2f;     // Further than any body reaches, so a look round finds whoever it could be touching.
 
-        private readonly GameServer _server;
+        private readonly ServerRoom _server;
         private readonly List<Actor> _near = new();
 
-        public BodySystem(GameServer server)
+        public BodySystem(ServerRoom server)
             : base(new BitMask(typeof(ActorComponent), typeof(VelocityComponent), typeof(PositionComponent)))
         {
             _server = server;

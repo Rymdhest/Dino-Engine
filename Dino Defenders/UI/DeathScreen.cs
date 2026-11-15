@@ -53,6 +53,7 @@ namespace Dino_Defenders.UI
         private GuiRect _list;
         private GuiRect _primary;
         private GuiRect _secondary;
+        private GuiRect _home;      // Going home alone, while friends are still on their feet and could raise them.
         private GuiRect _strip;
         private float _listHeight;
 
@@ -115,6 +116,7 @@ namespace Dino_Defenders.UI
             }
 
             if (_primary.Contains(e.Position)) Act(session, Primary(session));
+            else if (_home.Contains(e.Position)) Act(session, Choice.Home);
             else if (_secondary.Contains(e.Position))
             {
                 _details = !_details;
@@ -131,7 +133,7 @@ namespace Dino_Defenders.UI
             Watch,
         }
 
-        // What the one thing to do next is: get up where nothing's lost, take everyone home from a land that's over, or watch friends who are still at it.
+        // What the one thing to do next is: get up where nothing's lost, go home from a land that's over, or watch friends who are still at it, who can raise them. Going home is there too then.
         private static Choice Primary(GameSession session) =>
             session.IsHaven || session.IsLexicon ? Choice.Rise : session.Client.Over ? Choice.Home : Choice.Watch;
 
@@ -303,12 +305,17 @@ namespace Dino_Defenders.UI
 
         private void DrawButtons(GuiDrawList draw, GameSession session)
         {
+            Choice primary = Primary(session);
+            bool home = primary == Choice.Watch;
+            int count = home ? 3 : 2;
             float y = _panel.Bottom - Pad - ButtonHeight;
-            float left = _panel.X + (_panel.Width - ButtonWidth * 2f - ButtonGap) * 0.5f;
+            float left = _panel.X + (_panel.Width - ButtonWidth * count - ButtonGap * (count - 1)) * 0.5f;
             _secondary = new GuiRect(left, y, ButtonWidth, ButtonHeight);
-            _primary = new GuiRect(left + ButtonWidth + ButtonGap, y, ButtonWidth, ButtonHeight);
+            _home = home ? new GuiRect(left + ButtonWidth + ButtonGap, y, ButtonWidth, ButtonHeight) : default;
+            _primary = new GuiRect(left + (ButtonWidth + ButtonGap) * (count - 1), y, ButtonWidth, ButtonHeight);
             Button(draw, _secondary, _details ? "Back" : "Details", false);
-            Button(draw, _primary, Label(Primary(session)), true);
+            if (home) Button(draw, _home, Label(Choice.Home), false);
+            Button(draw, _primary, Label(primary), true);
         }
 
         private void Button(GuiDrawList draw, GuiRect rect, string label, bool main)
@@ -318,10 +325,10 @@ namespace Dino_Defenders.UI
             Ui.Text(Context!, draw, label, 16f, rect, main ? Ui.Bright : Ui.Parchment, Alignment.Center);
         }
 
-        // Folded, for watching friends: a strip that says so and opens it again.
+        // Folded, for watching friends: a strip that says so, and that one of them can raise them, and opens it again.
         private void DrawStrip(GuiDrawList draw, GuiRect screen)
         {
-            const string Text = "You have fallen. Read how";
+            const string Text = "You have fallen. A friend can raise you";
             float width = GuiText.MeasureWidth(Context!, Text, Ui.Face, 15f) + 40f;
             _strip = new GuiRect(screen.X + (screen.Width - width) * 0.5f, screen.Y + 70f, width, StripHeight);
             bool over = _strip.Contains(Context!.MousePosition);

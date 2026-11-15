@@ -406,12 +406,18 @@ namespace Dino_BuildLab
             report.Check("Freeing a friend's lower land costs nobody their own climb", high.LandLevel == 10 && high.BestLand == 9);
             var low = new HeroState { BestLand = 1 };
             low.Freed(8, 1);
-            report.Check("And a friend's deeper land takes them on from there", low.LandLevel == 9 && low.BestLand == 8);
+            report.Check("And a friend's deeper land takes them a level on from their own, as it does the friend", low.LandLevel == 3 && low.BestLand == 2);
+            var behind = new HeroState { BestLand = 9 };
+            behind.Freed(25, 1);
+            report.Check("But never past an arena of their own", behind.BestLand == 9);
+            behind.Freed(20, 1);
+            report.Check("Though a friend's arena counts for it", behind.BestLand == 10);
 
             var wager = new HeroState { BestLand = 4 };
             var terms = new LandTerms { Orders = { OrdersCatalog.Wager.Id } };
             wager.Freed(5, terms.Climb);
             report.Check("The Kommandant's Wager opens two levels", wager.BestLand == 6 && wager.LandLevel == 7);
+            wager.Freed(7, terms.Climb);
             wager.Freed(9, terms.Climb);
             report.Check("But never past an arena that hasn't been fought", wager.BestLand == 9 && wager.LandLevel == 10);
             wager.Freed(10, terms.Climb);
@@ -420,6 +426,7 @@ namespace Dino_BuildLab
 
             var slots = new HeroState();
             report.Check("The map table takes one orders at first", Lands.OrderSlots(slots) == 1);
+            slots.BestLand = 8;
             slots.Freed(9, 1);
             report.Check("Still one before the first arena", Lands.OrderSlots(slots) == 1 && slots.LandLevel == 10);
             slots.Freed(10, 1);

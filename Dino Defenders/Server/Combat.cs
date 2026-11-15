@@ -94,7 +94,7 @@ namespace Dino_Defenders.Server
             Land = new LandReader(session.World, session.Terms.Has(Omens.Night));
         }
 
-        private GameServer Server => _session.Server;
+        private ServerRoom Server => _session.Server;
 
         /// <summary>Whether something with this chance happens, for what the fight's own luck should decide.</summary>
         public bool Luck(float chance) => _luck.Chance(chance);

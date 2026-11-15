@@ -32,7 +32,7 @@ And it checks itself: Health is read every tick, and whatever it did that no lin
 Nobody is stood up or sent home by the clock any more: the screen is the choice.
 
 - **In the Haven** (and the asset lexicon) the button is **Rise**: `HeroAction.Rise` stands them up full (`GameServer.StandUp`).
-- **In a land**, one life to it holds. While anyone still stands, a fallen hero's button is **Watch your friends**, which folds the screen into a strip that opens it again. Once everyone has fallen the land is over (`ServerSession.Over`, sent with progress as `GameClient.Over`), and any of them can press **Return to the Haven**, which is `HeroAction.ReturnHome` allowed to the fallen only then.
+- **In a land**, one life to it holds, unless a friend raises them (`LANDS.md`), which puts the screen away (`GameClient.Recap` goes when the server says they're no longer out). While anyone still stands, a fallen hero's button is **Watch your friends**, which folds the screen into a strip that says a friend can raise them and opens it again, and beside it **Return to the Haven**, which takes them alone and means they can't come back into that land. Once everyone has fallen the land is over (`ServerSession.Over`, sent with progress as `GameClient.Over`), and Return to the Haven is the one button.
 - The bot presses them after a few seconds (`HeroBot.FramesDown`), so sweeps go on.
 
 ## Adding to it

@@ -102,9 +102,12 @@ namespace Dino_Defenders.Gameplay
     public struct HeroComponent : IComponent
     {
         public string Name;
-        public string Title;        // What their tree makes them. There are few of these, so a table that only grows is fine.
         public int Player;
         public int Level;
+
+        /// <summary>Which fallen friend they're raising, by player, and the tick it began on: nobody, and none, when they aren't.</summary>
+        [NetSnap] public int Raising;
+        [NetSnap] public uint RaisingSince;
 
         /// <summary>How hard they were thrown as they fell, in metres a second.</summary>
         [NetStep(1f / 8f), NetSnap] public Vector3 Thrown;
@@ -215,6 +218,22 @@ namespace Dino_Defenders.Gameplay
         BetaVendor,     // Gives anything away, for testing the game, in the Haven.
         Workbench,      // Where gear is worked on, in the Haven's forge.
         GamingTable,    // Where gold is played for, in the Haven's gaming house.
+        Raise,          // A friend who's fallen in a land, to be raised.
+    }
+
+    /// <summary>
+    /// A fallen friend's mark: they belong to no place, so it says who they are and nothing else (<see cref="InteractableComponent.SpawnIndex"/> is their player), under a place no site has.
+    /// </summary>
+    public static class RaiseMark
+    {
+        public const int Site = -1;
+    }
+
+    /// <summary>Who what drops is for, as the host chooses: anyone who gets to it, or each find someone's, in turn.</summary>
+    public enum LootRule : byte
+    {
+        FreeForAll,
+        Allocated,
     }
 
     /// <summary>
@@ -262,6 +281,7 @@ namespace Dino_Defenders.Gameplay
         public uint SeedHigh;
         public uint Traits;
         public bool Laid;           // A hero put it down, so it's nothing to get excited about.
+        public int Owner;           // Whose it is, by player, when loot is allocated: nobody else can take it. Nobody's, for anyone.
 
         [NotReplicated] public bool Dressed;
         [NotReplicated] public float Fit;

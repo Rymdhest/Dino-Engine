@@ -339,6 +339,7 @@ namespace Dino_Engine.Networking
         {
             _ghosts.Clear();
             _pendingCreate.Clear();
+            _strings.Clear();
             _events.Clear();
             _seenEvents.Clear();
             _seenOrder.Clear();

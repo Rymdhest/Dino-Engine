@@ -56,6 +56,7 @@ namespace Dino_Defenders.UI
         private readonly ScrollPanel _effects;
         private readonly StackPanel _openRow;
         private readonly Label _openText;
+        private readonly Button _close;
 
         private readonly List<int> _slotted = new();
         private readonly Dictionary<string, Preview> _previews = new();
@@ -105,6 +106,7 @@ namespace Dino_Defenders.UI
             _openText.Width = UIValue.Fill;
             Button close = _openRow.Add(Ui.Action("Close the way", CloseWay));
             close.Width = 140f;
+            _close = close;
 
             var table = body.Add(new StackPanel(Orientation.Horizontal, Gap) { Width = UIValue.Fill, Height = UIValue.Fill });
 
@@ -156,9 +158,13 @@ namespace Dino_Defenders.UI
             _level = Math.Clamp(_level, 1, Hero.LandLevel);
             if (Signature() != _shownFor) Rebuild();
 
+            // Anyone can open the way, but only while nobody's in a land: until they're all back it stays as it is.
             var portal = Session.Client.Portal;
-            _openRow.Visible = portal != null;
-            if (portal is var (name, request, _)) _openText.Text = $"The way is open to {name}, level {request.Level}";
+            bool away = Session.Client.AnyoneInLand;
+            _openRow.Visible = portal != null || away;
+            _close.Visible = !away;
+            if (away) _openText.Text = $"Friends are in {Session.Client.Party.First(member => member.InLand).Where}. The way can be opened again once they're back";
+            else if (portal is var (name, request, _)) _openText.Text = $"The way is open to {name}, level {request.Level}";
             _reroll.Enabled = Hero.Gold >= Lands.RerollCost(_level);
             TendPreviews();
         }
@@ -450,6 +456,7 @@ namespace Dino_Defenders.UI
 
                 Button open = Add(Ui.Action("Open", () => panel.OpenWay(index)));
                 open.Width = inner;
+                open.Updated += _ => open.Enabled = GameSession.Current?.Client.AnyoneInLand != true;
                 int level = offer.Request.Level;
                 open.Label.Bind(() => GameSession.Current?.Client.Portal is var (name, request, _) && name == plan.Name && request.Level == level ? "The way is open"
                     : panel.SlottedCells.Count == 1 ? "Open with 1 order" : panel.SlottedCells.Count > 1 ? $"Open with {panel.SlottedCells.Count} orders" : "Open");

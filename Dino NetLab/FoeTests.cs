@@ -70,7 +70,7 @@ namespace Dino_NetLab
             for (float turn = 0f; turn < MathF.Tau && !arena.Session.World.Passable.IsSet(at); turn += 0.4f) at = arena.At + new Vector2(MathF.Cos(turn), MathF.Sin(turn)) * 18f;
             float height = arena.Session.World.Height.Sample(at);
             var actor = new Actor(Team.Enemies, loadout, at, WorldData.CharacterRadius) { Body = "skeleton", Height = height };
-            actor.Entity = server.Ecs.CreateEntity("Outlaw", Bodies.Walking(server, "skeleton", new Vector3(at.X, height, at.Y), 1f, 2f,
+            actor.Entity = server.Ecs.CreateEntity("Outlaw", Bodies.Walking(server.Main, "skeleton", new Vector3(at.X, height, at.Y), 1f, 2f,
                 new EnemyComponent { Name = "Outlaw", Level = 10 },
                 new EnemyBrainComponent { SiteIndex = 0, SpawnIndex = -1, Home = at, AggroRadius = 60f, LeashRadius = 200f },
                 new HealthComponent(actor.Sheet.MaxHealth), new ActionComponent(), new AfflictedComponent(), new ActorComponent(actor)));
@@ -358,7 +358,7 @@ namespace Dino_NetLab
             {
                 float height = arena.Session.World.Height.Sample(start);
                 var pet = new Actor(Team.Heroes, loadout, start, WorldData.CharacterRadius * 0.85f) { Owner = owner, Body = Bestiary.Hound.Look, Height = height, MinionLeft = 1000f };
-                pet.Entity = server.Ecs.CreateEntity("Hound", Bodies.Walking(server, Bestiary.Hound.Look, new Vector3(start.X, height, start.Y), 0.85f, 1.5f,
+                pet.Entity = server.Ecs.CreateEntity("Hound", Bodies.Walking(server.Main, Bestiary.Hound.Look, new Vector3(start.X, height, start.Y), 0.85f, 1.5f,
                     new EnemyComponent { Name = "Hound", Level = owner.Loadout.Level, Friendly = true },
                     new EnemyBrainComponent { SiteIndex = -1, SpawnIndex = -1, Home = owner.Position, AggroRadius = 26f, LeashRadius = 45f },
                     new HealthComponent(pet.Sheet.MaxHealth), new ActionComponent(), new AfflictedComponent(), new ActorComponent(pet)));
@@ -432,7 +432,7 @@ namespace Dino_NetLab
             Vector2 at = arena.At + offset;
             float height = arena.Session.World.Height.Sample(at);
             var actor = new Actor(Team.Enemies, loadout, at, WorldData.CharacterRadius) { Body = "skeleton", Height = height };
-            actor.Entity = server.Ecs.CreateEntity(kind.Name, Bodies.Walking(server, "skeleton", new Vector3(at.X, height, at.Y), 1f, 2f,
+            actor.Entity = server.Ecs.CreateEntity(kind.Name, Bodies.Walking(server.Main, "skeleton", new Vector3(at.X, height, at.Y), 1f, 2f,
                 new EnemyComponent { Name = Bestiary.NameOf(kind, traits), Rarity = rarity, Level = 10 },
                 new EnemyBrainComponent { SiteIndex = 0, SpawnIndex = -1, Home = at, AggroRadius = 60f, LeashRadius = 200f, Abilities = Bestiary.AbilitiesOf(kind, traits) },
                 new HealthComponent(actor.Sheet.MaxHealth), new ActionComponent(), new AfflictedComponent(), new ActorComponent(actor)));

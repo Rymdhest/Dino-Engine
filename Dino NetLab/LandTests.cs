@@ -56,10 +56,13 @@ namespace Dino_NetLab
 
             public void Fall(LabPlayer? who = null)
             {
-                Actor actor = TruthOf(who ?? Player).Actor;
-                Session.Combat.Harm(actor, actor, 1e12f, DamageType.Physical);
+                ServerPlayer truth = TruthOf(who ?? Player);
+                truth.Room!.Session!.Combat.Harm(truth.Actor, truth.Actor, 1e12f, DamageType.Physical);
                 Lab.Run(1.5);
             }
+
+            /// <summary>The world someone's in on the server, as each hero goes where they choose.</summary>
+            public ServerSession? SessionOf(LabPlayer who) => TruthOf(who).Room?.Session;
 
             public void Go(Vector2 to, LabPlayer? who = null)
             {
@@ -116,45 +119,55 @@ namespace Dino_NetLab
             /// <summary>Goes to the landing's waygate and asks to go home through it.</summary>
             public void GoHomeThroughGate(LabPlayer? who = null)
             {
-                Go(GateOf(Landing), who);
+                Go(GateOf(SessionOf(who ?? Player)!.Sites[0]), who);
                 (who ?? Player).Client.ReturnHome();
-                WaitForWorld();
+                WaitForWorld(who);
             }
 
-            /// <summary>Waits for the world to change, which can take a few seconds of game first and then real time to grow, and for everyone to arrive in the new one.</summary>
-            public void WaitForWorld()
+            /// <summary>
+            /// Waits for someone's world to change, which can take a few seconds of game first and then real time to grow, and for them to arrive in the new one, with anyone else on their way into it.
+            /// Each hero goes where they choose, so it's only ever someone's world.
+            /// </summary>
+            public void WaitForWorld(LabPlayer? who = null)
             {
-                ServerSession? before = Lab.Server.Session;
-                bool Settled() => Lab.Server.Session is ServerSession now && !ReferenceEquals(now, before)
-                    && Lab.Players.All(p => p.Client.State == ClientState.Playing && p.Client.Session is GameSession seen && seen.IsHaven == now.IsHaven && seen.World.Plan.Seed == now.World.Plan.Seed);
+                LabPlayer mover = who ?? Player;
+                ServerSession? before = SessionOf(mover);
+                bool Arrived(LabPlayer p, ServerSession now) => TruthOf(p).InWorld && p.Client.State == ClientState.Playing && p.Client.Session is GameSession seen && seen.IsHaven == now.IsHaven && seen.World.Plan.Seed == now.World.Plan.Seed;
+                bool Settled() => SessionOf(mover) is ServerSession now && !ReferenceEquals(now, before)
+                    && Lab.Players.Where(p => TruthOf(p).Room == TruthOf(mover).Room).All(p => Arrived(p, now));
                 for (int i = 0; i < 3000 && !Settled(); i++)
                 {
                     Lab.Run(0.1);
-                    if (Lab.Server.Session == null) Thread.Sleep(5);
+                    if (SessionOf(mover) == null) Thread.Sleep(5);
                 }
                 Lab.Run(3);
             }
+
+            /// <summary>The Haven's world on the server, if anyone's made it.</summary>
+            public ServerRoom? HavenRoom => Lab.Server.Rooms.FirstOrDefault(room => room.IsHaven);
 
             /// <summary>Opens the way to one of the lands the map table shows at a level, the deepest that can be opened unless another is asked for, grows it ahead of time, and steps through.</summary>
             public void Venture(int choice, int level = 0, params int[] ordersCells)
             {
                 Player.Client.OpenWay(level > 0 ? level : Player.Client.Hero.LandLevel, choice, ordersCells);
                 Lab.Run(2);
-                if (Session.Portal is var (request, terms, _)) Lab.Worlds.Get(GameLab.Shaped(request, terms)).Wait();
+                if (Lab.Server.Way is var (request, terms, _)) Lab.Worlds.Get(GameLab.Shaped(request, terms)).Wait();
                 UsePortal();
             }
 
-            public void UsePortal()
+            /// <summary>Walks up to the open way and steps through it, which takes the one who does and nobody else.</summary>
+            public void UsePortal(LabPlayer? who = null)
             {
-                Go(Portal()!.Value);
-                Player.PressUse = true;
-                WaitForWorld();
+                Go(Portal()!.Value, who);
+                (who ?? Player).PressUse = true;
+                WaitForWorld(who);
             }
 
-            /// <summary>Where the open way stands on the server, if it's open.</summary>
+            /// <summary>Where the open way stands in the Haven on the server, if it's open.</summary>
             public Vector2? Portal()
             {
-                foreach (Archetype archetype in Lab.Server.Ecs.QueryArchetypes(new BitMask(typeof(PortalComponent), typeof(PositionComponent)), BitMask.Empty))
+                if (HavenRoom is not ServerRoom haven) return null;
+                foreach (Archetype archetype in haven.Ecs.QueryArchetypes(new BitMask(typeof(PortalComponent), typeof(PositionComponent)), BitMask.Empty))
                 {
                     foreach (EntityView entity in new ComponentAccessor(archetype)) return entity.Get<PositionComponent>().value.Xz;
                 }
@@ -208,6 +221,7 @@ namespace Dino_NetLab
             SteppingThrough(report, worlds);
             OneLife(report, worlds);
             OneLifeEach(report, worlds);
+            Together(report, worlds);
             Leaving(report, worlds);
             Freeing(report, worlds);
             ChoosingLevels(report, worlds);
@@ -497,7 +511,11 @@ namespace Dino_NetLab
             scene.Venture(0);
 
             LandOffer offer = offers[0];
-            report.Check("Stepping through takes the whole party there", scene.Player.Arrivals == 2 && friend.Arrivals == 2, $"{scene.Player.Arrivals}, {friend.Arrivals}");
+            report.Check("Stepping through takes whoever steps through, and nobody else", scene.Player.Arrivals == 2 && friend.Arrivals == 1 && scene.TruthOf(friend).Room!.IsHaven && friend.Client.Session!.IsHaven, $"{scene.Player.Arrivals}, {friend.Arrivals}");
+            report.Check("And the way stays open for the rest", scene.Portal() != null && friend.Client.Portal != null);
+            scene.UsePortal(friend);
+            report.Check("Who come through when they're ready, into the same land", friend.Arrivals == 2 && scene.SessionOf(friend) == scene.Session && !friend.Client.Session!.IsHaven);
+            report.Check("Out of the landing's waygate, not beside the first", (scene.TruthOf(friend).Sim.Position - scene.GateOf(scene.Landing)).Length < 14f, $"{(scene.TruthOf(friend).Sim.Position - scene.GateOf(scene.Landing)).Length:0.0} m from it");
             report.Check("To the land that was chosen", !scene.Session.IsHaven && scene.Session.Request.Seed == offer.Request.Seed && scene.Session.World.Plan.Level == 6);
             report.Check("Holding what it said, on both ends", scene.Session.Terms.Chosen().SequenceEqual(offer.Terms.Chosen()) && scene.Seen.Terms.Chosen().SequenceEqual(offer.Terms.Chosen()) && friend.Client.Session!.Terms.Chosen().SequenceEqual(offer.Terms.Chosen()));
             report.Check("Asking for as many places as it said", scene.Session.Chronicle.Objectives.Any(o => o.Kind == ObjectiveKind.FreePlaces && o.Goal == Math.Min(offer.Terms.Places, scene.Session.Sites.Count(WorldProgress.Counts))));
@@ -506,7 +524,7 @@ namespace Dino_NetLab
             WorldData grown = new WorldGenerator().Generate(offer.Terms.Shape(offer.Request));
             report.Check("A machine of its own grows the same land from what it was told", Protocol.WorldHash(grown).structure == Protocol.WorldHash(scene.Session.World).structure);
             report.Check("Going somewhere changes nobody's lands", scene.Truth.Hero.Offers == offersBefore && scene.TruthOf(friend).Hero.Offers == friendsBefore && scene.Truth.Hero.Rerolls.Count == 0 && Lands.Offer(scene.Truth.Hero, 6).Select(o => o.Request.Seed).SequenceEqual(offers.Select(o => o.Request.Seed)));
-            report.Check("And nothing of the Haven came along", scene.Player.Client.Ghosts.Mismatches == 0 && scene.Portal() == null);
+            report.Check("And nothing of the Haven came along", scene.Player.Client.Ghosts.Mismatches == 0 && !scene.Lab.Server.Main.Ecs.QueryArchetypes(new BitMask(typeof(PortalComponent)), BitMask.Empty).Any(archetype => archetype.EntityCount > 0));
             report.Check("They arrive out of the landing's waygate", (scene.Truth.Sim.Position - scene.GateOf(scene.Landing)).Length < 14f, $"{(scene.Truth.Sim.Position - scene.GateOf(scene.Landing)).Length:0.0} m from it");
         }
 
@@ -536,7 +554,7 @@ namespace Dino_NetLab
 
                 scene.Player.Client.ReturnHome();
                 scene.WaitForWorld();
-                report.Check("Asking takes everyone home", scene.Session.IsHaven && scene.Player.Arrivals == 2 && scene.Seen.IsHaven);
+                report.Check("Asking takes them home", scene.Session.IsHaven && scene.Player.Arrivals == 2 && scene.Seen.IsHaven);
                 report.Check("On their feet, and no longer out of anything", !scene.Truth.Sim.Down && !scene.Truth.Out && !scene.Player.Client.Out && scene.Hero.Vitals.Health > 0f);
                 report.Check("With the climb as it was", scene.Truth.Hero.LandLevel == 6 && scene.Player.Client.Hero.LandLevel == 6);
                 report.Check("And the same lands to try again", Lands.Offer(scene.Truth.Hero, 6).Select(o => (ulong)o.Request.Seed).SequenceEqual(before) && Lands.Offer(scene.Player.Client.Hero, 6).Select(o => (ulong)o.Request.Seed).SequenceEqual(before));
@@ -565,29 +583,25 @@ namespace Dino_NetLab
 
             scene.Fall();
             report.Check("Once everyone's fallen the land is lost", scene.Session.Lost);
+            ServerRoom lost = scene.Lab.Server.Main;
             back.Client.ReturnHome();
+            scene.WaitForWorld(back);
+            report.Check("And each goes home when they ask, alone", scene.TruthOf(back).Room!.IsHaven && !scene.TruthOf(back).Out && scene.Truth.Room == lost && scene.Truth.Out);
+            scene.Player.Client.ReturnHome();
             scene.WaitForWorld();
-            report.Check("And everyone goes home", scene.Session.IsHaven && !scene.TruthOf(back).Out && !scene.Truth.Out);
+            report.Check("Until nobody's left, and the land is gone", scene.Session.IsHaven && !scene.Lab.Server.Rooms.Contains(lost) && scene.Lab.Server.Way == null);
 
-            // Someone still standing going their own way can leave only the fallen, who shouldn't be kept waiting for nobody.
+            // A fallen friend can go home alone, and someone still standing going their own way leaves the land to the fallen, who shouldn't be kept waiting for nobody.
             scene.Venture(0);
             LabPlayer last = scene.Lab.Players.First(p => p.Name == "Friend");
+            scene.UsePortal(last);
+            ServerRoom land = scene.Lab.Server.Main;
             scene.Fall(last);
-            report.Check("A fallen friend waits on whoever's left", !scene.Session.Lost && !scene.Session.Over);
-            report.Check("And can't take anyone home while they do", ReturnsNobody(scene, last));
+            report.Check("A fallen friend waits on whoever's left", !land.Session!.Lost && !land.Session.Over);
             scene.Player.Client.Dispose();
             scene.Lab.Players.Remove(scene.Player);
             scene.Lab.Run(2);
-            report.Check("And if they go, the land is over", scene.Session.Over);
-        }
-
-        // A fallen hero asking to go home while someone still stands does nothing.
-        private static bool ReturnsNobody(Scene scene, LabPlayer fallen)
-        {
-            int before = scene.Player.Arrivals;
-            fallen.Client.ReturnHome();
-            scene.Lab.Run(1.5);
-            return !scene.Session.IsHaven && scene.Player.Arrivals == before;
+            report.Check("And if they go, the land is over", land.Session.Over);
         }
 
         private static void Leaving(Report report, WorldCache worlds)
@@ -603,7 +617,7 @@ namespace Dino_NetLab
             report.Check("Nobody goes home from away from a waygate", !scene.Session.IsHaven && scene.Truth.Hero.LandLevel == 6);
 
             scene.GoHomeThroughGate();
-            report.Check("From a waygate everyone goes home", scene.Session.IsHaven && scene.Player.Arrivals == 2);
+            report.Check("From a waygate they go home", scene.Session.IsHaven && scene.Player.Arrivals == 2);
             report.Check("Leaving a land unfree costs nothing but the try", scene.Truth.Hero.LandLevel == 6 && scene.Player.Client.Hero.LandLevel == 6 && scene.Truth.Hero.Rerolls.Count == 0, $"{scene.Truth.Hero.LandLevel}, {scene.Player.Client.Hero.LandLevel}");
             report.Check("And the Haven has nothing to go home from", scene.Find(InteractKind.Waygate) == null);
 
@@ -631,7 +645,7 @@ namespace Dino_NetLab
                 report.Check("And then that it's free", scene.Seen.Banners.Any(b => b.Title == "The land is free") && scene.Seen.Banners.FindIndex(b => b.Title == "The land is free") > scene.Seen.Banners.FindLastIndex(b => b.Title == "Objective complete"));
                 report.Check("Which opens the next level, on both ends", scene.Truth.Hero.LandLevel == 7 && scene.Player.Client.Hero.LandLevel == 7, $"{scene.Truth.Hero.LandLevel}, {scene.Player.Client.Hero.LandLevel}");
                 report.Check("And is worth a talent point", scene.Truth.Hero.BestLand == 6 && scene.Truth.Hero.TalentPoints == 1 + HeroState.PointsPerLevel * scene.Truth.Hero.Level + 6, $"{scene.Truth.Hero.TalentPoints} at level {scene.Truth.Hero.Level}, from {points}");
-                report.Check("A friend with less of a climb climbs from this land", scene.TruthOf(friend).Hero.LandLevel == 7 && friend.Client.Hero.LandLevel == 7);
+                report.Check("A friend with less of a climb goes a level on from their own, as the one who opened it does", scene.TruthOf(friend).Hero.LandLevel == 3 && friend.Client.Hero.LandLevel == 3, $"{scene.TruthOf(friend).Hero.LandLevel}, {friend.Client.Hero.LandLevel}");
                 report.Check("And whoever fell before it was free doesn't share in it, but loses nothing", scene.TruthOf(fallen).Hero.LandLevel == 6 && scene.TruthOf(fallen).Hero.BestLand == 5);
                 report.Check("They're told", scene.Seen.Banners.Any(b => b.Title.Contains("free")));
                 report.Check("The land's people are safe now", scene.Session.Sites.Where(s => !s.Wild).All(scene.Session.IsSafe));
@@ -641,8 +655,8 @@ namespace Dino_NetLab
                 scene.Fall(friend);
                 report.Check("And everyone falling ends it, but sends nobody anywhere by itself", scene.Session.Over && !scene.Session.Lost && !scene.Session.IsHaven);
                 friend.Client.ReturnHome();
-                scene.WaitForWorld();
-                report.Check("And when one of them asks, only sends them home", scene.Session.IsHaven && scene.Truth.Hero.LandLevel == 7 && scene.TruthOf(friend).Hero.LandLevel == 7);
+                scene.WaitForWorld(friend);
+                report.Check("And when one of them asks, only sends them home", scene.TruthOf(friend).Room!.IsHaven && !scene.Truth.Room!.IsHaven && scene.Truth.Hero.LandLevel == 7 && scene.TruthOf(friend).Hero.LandLevel == 3);
             }
 
             using (var scene = new Scene(worlds, Home, hero: Sturdy(6)))

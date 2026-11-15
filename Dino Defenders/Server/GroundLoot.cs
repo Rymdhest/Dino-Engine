@@ -29,19 +29,20 @@ namespace Dino_Defenders.Server
         private const float AskPatience = 1f;       // Seconds. A hero is seen a moment late, so a request can arrive ahead of them.
         private const float Height = 1.6f;          // What comes out of a body comes from about the middle of it.
 
-        private readonly record struct Lying(Entity Entity, Item Item, Vector2 At);
+        private readonly record struct Lying(Entity Entity, Item Item, Vector2 At, int Owner);
 
         private readonly ServerSession _session;
         private readonly WorldRandom _random = new WorldRandom(Environment.TickCount);
         private readonly Dictionary<int, Lying> _lying = new();
         private int _nextFind = 1;
+        private int _turn;          // Whose turn the next find is, when loot is allocated.
 
         public GroundLoot(ServerSession session)
         {
             _session = session;
         }
 
-        private GameServer Server => _session.Server;
+        private ServerRoom Server => _session.Server;
 
         public int Count => _lying.Count;
 
@@ -79,14 +80,39 @@ namespace Dino_Defenders.Server
             Rarity rarity = item.Rarity;
             Vector2 spot = Landing(from.Xz);
             ulong seed = item.LookSeed();
+            int owner = laid ? 0 : NextOwner();
             Entity entity = Server.Ecs.CreateEntity("Find",
                 new NetIdentityComponent(Server.Ghosts.NextId(), importance: 1.5f + (int)rarity),
                 new PositionComponent(Ground(spot)),
                 new VisualComponent(LootModels.Find, VisualKind.Prop),
-                new PickupComponent { Find = find, Rarity = rarity, Slot = item.Slot, From = from, Born = Moment(delay), SeedLow = (uint)seed, SeedHigh = (uint)(seed >> 32), Traits = ItemLook.Traits(item), Laid = laid });
+                new PickupComponent { Find = find, Rarity = rarity, Slot = item.Slot, From = from, Born = Moment(delay), SeedLow = (uint)seed, SeedHigh = (uint)(seed >> 32), Traits = ItemLook.Traits(item), Laid = laid, Owner = owner });
 
-            _lying.Add(find, new Lying(entity, item, spot));
+            _lying.Add(find, new Lying(entity, item, spot, owner));
             foreach (ServerPlayer hero in Server.Heroes) Tell(hero, find, item);
+        }
+
+        // With loot allocated, each find is someone's, taking turns among whoever's here and on their feet, so it comes out even. Free for all, or put down by a hero, it's anyone's.
+        private int NextOwner()
+        {
+            if (Server.Loot != LootRule.Allocated) return 0;
+            var standing = Server.Heroes.Where(hero => !hero.Out).OrderBy(hero => hero.Id).ToList();
+            if (standing.Count < 2) return 0;
+            return standing[_turn++ % standing.Count].Id;
+        }
+
+        /// <summary>Someone has left this world: what was theirs on the ground is anyone's now.</summary>
+        public void Release(int owner)
+        {
+            foreach ((int find, Lying lying) in _lying.ToList())
+            {
+                if (lying.Owner != owner) continue;
+                _lying[find] = lying with { Owner = 0 };
+                if (!Server.Ecs.TryGetEntityLocation(lying.Entity, out _, out _)) continue;
+                EntityView view = Server.Ecs.GetEntityView(lying.Entity);
+                var pickup = view.Get<PickupComponent>();
+                pickup.Owner = 0;
+                view.Set(pickup);
+            }
         }
 
         private void DropGold(Vector3 from, int gold, float delay)
@@ -167,6 +193,11 @@ namespace Dino_Defenders.Server
 
                 if ((lying.At - hero.Sim.Position).LengthSquared > Loot.ServerReach * Loot.ServerReach) continue;
                 hero.Asked.RemoveAt(i);
+                if (lying.Owner != 0 && lying.Owner != hero.Id)
+                {
+                    Server.Note(hero, "That's a friend's.");
+                    continue;
+                }
                 Take(hero, find, lying);
             }
         }

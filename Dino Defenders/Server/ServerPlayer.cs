@@ -69,8 +69,21 @@ namespace Dino_Defenders.Server
         public Vector2? RoadsOpenAt;    // Where they called them open: they can be taken from there as from a gate, until they step away.
         public Entity Mark;         // What friends have been shown of it.
 
+        /// <summary>The world they're in, or on their way into: see <see cref="ServerRoom"/>.</summary>
+        public ServerRoom? Room;
+        public bool Beside;         // Joined the game, rather than came through a gate, so they arrive beside whoever's there.
+
+        /// <summary>Lying fallen with a mark on them, so that a friend can raise them.</summary>
+        public bool Marked;
+
+        /// <summary>Who they're raising, since when in the session's seconds, from where, and at the most health they've had since: it's broken as a call to the roads is.</summary>
+        public ServerPlayer? Raising;
+        public double RaisingSince;
+        public Vector2 RaisingFrom;
+        public float RaisingHealth;
+
         public bool Greeted;        // Has said hello, and been let in.
-        public bool InWorld;        // Has a hero standing in the current world.
+        public bool InWorld;        // Has a hero standing in the world they're in.
         public int ReadyEpoch = -1;
         public bool SummaryChanged;
         public bool GearChanged;

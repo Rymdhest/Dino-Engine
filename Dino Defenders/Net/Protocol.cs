@@ -28,7 +28,7 @@ namespace Dino_Defenders.Net
         Notice,         // Reliable: a banner or a line in the log.
         OpenPanel,      // Reliable: you've opened something.
         Market,         // Reliable: what a merchant has for you.
-        Party,          // Reliable: who else is here.
+        Party,          // Reliable: who else is in the game, where each of them is, who's hosting and how loot goes.
         GroundItem,     // Reliable: what a find on the ground is.
         Worn,           // Reliable: what someone has on, for drawing them.
         Recap,          // Reliable: how you fell, the moment you do (DEATHS.md).
@@ -65,6 +65,8 @@ namespace Dino_Defenders.Net
         Lexicon,        // Lexicon (developer tool, LEXICON.md): into the asset lexicon from the F3 Developer window, home from it, or about in it, as a LexiconAsk says.
         Cheat,          // From the F3 Developer window, while the game is being tested (BetaVendor.Standing): a DeveloperCheat.
         Rise,           // Back on your feet after falling, where nothing's lost by it: the Haven.
+        TravelToHero,   // From one of a land's waygates to a friend in the same land, by player.
+        LootRule,       // The host's choice of who what drops is for.
     }
 
     /// <summary>What the F3 Developer window can ask the server for, which it only gives while the game is being tested.</summary>
@@ -86,7 +88,7 @@ namespace Dino_Defenders.Net
     public static class Protocol
     {
         /// <summary>Goes up with any change to what's written here. Component changes are caught by <see cref="NetSchema.Hash"/>.</summary>
-        public const uint Version = 16;
+        public const uint Version = 17;
 
         /// <summary>
         /// Which build this is, compared at the door. The schema hash only sees replicated components: two builds with different rules

@@ -18,6 +18,8 @@ How Dino Defenders plays with friends, and what to do so that anything you add k
   +-----------------------------------+            +----------------------+
 ```
 
+**A server holds more than one world.** `GameServer` is everyone connected, the party and the way out of the Haven, and each world someone is in is a `ServerRoom` of its own, with its own entities, ghosts, session and epoch, all run on the same tick on the server's one thread: the Haven, and the land the way is open to, side by side, so each hero steps through when they're ready. Moving someone to another world (`GameServer.Move`, after the tick) takes them out of one room and tells them about the next (`WorldChange`), exactly as a world change always has, and a room nobody's in any more is closed, but for the Haven and a land nobody's stepped into yet. Whatever's sent goes to the room's own heroes; only the party (`Message.Party`: who's in the game, which world each is in, who's hosting and how loot goes) and shared gold cross between rooms. The labs read `GameServer.Ecs`, `Session` and `Heroes` as the world the host is in (`Main`), and `Rooms` and `ServerPlayer.Room` for the rest. A lab's client keeps what it saw of the last world, which the game's clears on entering the next (`WorldScene.Enter`), so a test reading a client's entities after a move can find leftovers.
+
 The folders enforce this. `Dino Defenders/Server/` decides everything and touches nothing of the GPU. `Client/` draws and predicts. `Gameplay/` is what both share. `Dino Engine/Networking/` is the machinery, and knows nothing about the game.
 
 ## Why it doesn't desync
@@ -82,6 +84,7 @@ Everything is one message on a connection, reliable or not.
 | `Snapshot` | unreliable, 30 Hz | Your hero exactly, then differences for what's near you, within one packet |
 | `Hello` `Welcome` `WorldReady` `Arrived` | reliable | Joining |
 | `HeroUpdate` `Progress` `Notice` `Market` | reliable | Things said once and meant, including talents and what's buffing a hero |
+| `Party` | reliable | Who's in the game, by their hero's name, which world each is in and whether it's a land, who's hosting, and how loot goes |
 | `GroundItem` | reliable | What a find on the ground is, and that it's gone. Sent to everyone as it drops, and to whoever arrives later |
 | `Worn` | reliable | What a hero has on: a seed and traits for each place. Sent to everyone when it changes, and to whoever arrives later. No mesh is ever sent: see `GEAR.md` |
 

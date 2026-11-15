@@ -105,7 +105,7 @@ namespace Dino_Defenders.UI
             top.Add(Ui.Heading("The Tree", 22f)).Width = 130f;
             var points = top.Add(Ui.Line("", 16f, Ui.Gold).Bind(() => Hero.UnspentPoints > 0 ? $"{Hero.UnspentPoints} to spend" : "Nothing to spend"));
             points.Width = 150f;
-            top.Add(Ui.Line("", 16f).Bind(() => $"{TalentTree.TitleOf(Hero)}, level {Hero.Level}")).Width = 300f;
+            top.Add(Ui.Line("", 16f).Bind(() => $"{(Hero.Name.Length > 0 ? Hero.Name : "The Hero")}, level {Hero.Level}")).Width = 300f;
             _search = top.Add(new TextBox("", "Search the tree") { Width = 280f, Height = 30f });
             _search.TextChanged += _ => Search();
             _found = top.Add(Ui.Line("", 14f, Ui.Faded));

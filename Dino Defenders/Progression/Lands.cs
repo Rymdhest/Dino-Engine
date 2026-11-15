@@ -307,6 +307,20 @@ namespace Dino_Defenders.Progression
             return to;
         }
 
+        /// <summary>
+        /// How deep a hero whose deepest land so far is <paramref name="best"/> has been once they've freed a land of this level. A land below where they've got to takes them nowhere. One at or past it takes
+        /// them on from their own deepest by as many levels as it climbs, which is what <see cref="FreedTo"/> gives anyone who opened it, so a friend following someone deeper goes one level on as they do.
+        /// Never past a boss of their own that they haven't fought, unless what they freed was an arena, which counts for the next of theirs.
+        /// </summary>
+        public static int ClimbTo(int best, int level, int climb)
+        {
+            best = Math.Max(best, 0);
+            if (level <= best) return best;
+            int to = best + FreedTo(level, climb) - level + 1;
+            int boss = (best / BossEvery + 1) * BossEvery;     // The next tenth level they haven't freed.
+            return Math.Min(to, IsBossLevel(level) ? boss + BossEvery - 1 : boss - 1);
+        }
+
         /// <summary>A land's terms, before any orders: how many places it asks to be freed. An arena asks only for its tyrant.</summary>
         public static LandTerms Roll(int level, WorldRandom random) => new LandTerms
         {

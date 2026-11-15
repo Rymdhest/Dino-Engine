@@ -31,7 +31,7 @@ namespace Dino_Defenders.AssetLexicon
         public static bool Open => BetaVendor.Standing;
 
         /// <summary>Stands every creature on show where its plot is. Asked once, when the room's world is ready.</summary>
-        public static void Stock(GameServer server, ServerSession session)
+        public static void Stock(ServerRoom server, ServerSession session)
         {
             int stood = 0;
             foreach (PlacedExhibit exhibit in LexiconLayout.Current.Exhibits)
@@ -53,7 +53,7 @@ namespace Dino_Defenders.AssetLexicon
         }
 
         /// <summary>A client's ask, read whole whatever's done with it, so that what comes after it in the message is read right.</summary>
-        public static void Act(GameServer server, ServerPlayer player, BitReader reader)
+        public static void Act(ServerRoom server, ServerPlayer player, BitReader reader)
         {
             var ask = (LexiconAsk)reader.ReadByte();
             ServerSession? session = server.Session;
@@ -61,19 +61,19 @@ namespace Dino_Defenders.AssetLexicon
             {
                 case LexiconAsk.Visit:
                     if (session == null || !session.IsHaven || !Open) break;
-                    // An open way is the Haven's, and what was given for it is gone: leaving would shut it for nothing.
+                    // An open way is waiting for its land's heroes, and what was given for it is gone: going off to look at things meanwhile is as good as forgetting it.
                     if (session.Portal != null)
                     {
                         server.Note(player, "The way is open. Step through it, or close it at the map table, before going to the asset test level.");
                         break;
                     }
-                    Console.WriteLine($"{player.Name} has gone to the asset lexicon, and everyone with them.");
-                    server.Travel(LexiconWorld.Request);
+                    Console.WriteLine($"{player.Name} has gone to the asset lexicon.");
+                    server.Travel(player, LexiconWorld.Request);
                     break;
 
                 case LexiconAsk.Leave:
                     if (session == null || !session.IsLexicon) break;
-                    server.Travel(Lands.Haven);
+                    server.Travel(player, Lands.Haven);
                     break;
 
                 case LexiconAsk.GoTo:

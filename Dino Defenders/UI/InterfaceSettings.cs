@@ -17,6 +17,9 @@ namespace Dino_Defenders.UI
         public bool RareMarks { get; set; } = true;
         public bool UniqueMarks { get; set; } = true;
 
+        /// <summary>Who what drops is for, in a game this player hosts: free for all, or allocated in turn. Gold is shared either way.</summary>
+        public Dino_Defenders.Gameplay.LootRule Loot { get; set; }
+
         /// <summary>Whether what an enemy of this rarity does is marked. It's a method so that it isn't saved.</summary>
         public bool Marks(Rarity rarity) => rarity switch
         {

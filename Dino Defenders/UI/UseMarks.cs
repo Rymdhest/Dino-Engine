@@ -51,6 +51,7 @@ namespace Dino_Defenders.UI
         private struct Mark
         {
             public InteractKind Kind;
+            public string Name;         // What it's called, which for a fallen friend is who they are.
             public string? Prompt;      // Set on the one thing the key would use.
             public bool Named;
             public bool Rested;
@@ -168,11 +169,13 @@ namespace Dino_Defenders.UI
                     bool offered = entity.Entity.Id == session.OfferedThing.Id;
                     bool rested = place.Kind == InteractKind.Shrine && (uint)place.SiteIndex < (uint)session.Sites.Count && session.Sites[place.SiteIndex].Kindled;
                     bool named = offered || distance < NameReach;
-                    float width = IconRoom + (offered ? KeyWidth() + 7f + WidthOf(session.InteractPrompt ?? "", PromptSize) + PillEnd : named ? WidthOf(NameOf(place.Kind), NameSize) + PillEnd : 0f);
+                    string name = place.Kind == InteractKind.Raise && entity.Has<HeroComponent>() ? entity.Get<HeroComponent>().Name : NameOf(place.Kind);
+                    float width = IconRoom + (offered ? KeyWidth() + 7f + WidthOf(session.InteractPrompt ?? "", PromptSize) + PillEnd : named ? WidthOf(name, NameSize) + PillEnd : 0f);
 
                     _marks.Add(new Mark
                     {
                         Kind = place.Kind,
+                        Name = name,
                         Prompt = offered ? session.InteractPrompt : null,
                         Named = named,
                         Rested = rested && !offered,
@@ -262,7 +265,7 @@ namespace Dino_Defenders.UI
                 x += key.Width + 7f;
                 Ui.Text(Context!, draw, mark.Prompt!, PromptSize, new GuiRect(x, rect.Y + TextDrop, rect.Right - x, PillHeight), Ui.Parchment);
             }
-            else if (mark.Named) Ui.Text(Context!, draw, NameOf(mark.Kind), NameSize, new GuiRect(x, rect.Y + TextDrop, rect.Right - x, PillHeight), Ui.Parchment);
+            else if (mark.Named) Ui.Text(Context!, draw, mark.Name, NameSize, new GuiRect(x, rect.Y + TextDrop, rect.Right - x, PillHeight), Ui.Parchment);
 
             draw.PopOpacity();
         }
@@ -288,6 +291,7 @@ namespace Dino_Defenders.UI
             InteractKind.BetaVendor => "Beta Vendor",
             InteractKind.Workbench => "Crafting Bench",
             InteractKind.GamingTable => "Gaming Table",
+            InteractKind.Raise => "Fallen",
             _ => "Elder",
         };
 
@@ -301,6 +305,7 @@ namespace Dino_Defenders.UI
             InteractKind.MapTable => 3f,
             InteractKind.Stash => 3.6f,
             InteractKind.Workbench or InteractKind.GamingTable => 3.4f,
+            InteractKind.Raise => 1.4f,
             _ => 5.2f,
         };
 
@@ -314,6 +319,7 @@ namespace Dino_Defenders.UI
             InteractKind.Stash => GuiColors.Rgba(214, 188, 146),
             InteractKind.Workbench => GuiColors.Rgba(250, 156, 92),
             InteractKind.GamingTable => GuiColors.Rgba(236, 176, 200),
+            InteractKind.Raise => Hud.RaiseColour,
             _ => GuiColors.Rgba(240, 228, 204),
         };
 
@@ -408,6 +414,14 @@ namespace Dino_Defenders.UI
                     _line.Add(c + new Vector2(s * 0.1f, -s * 0.55f));
                     draw.AddPolyline(_line, colour, Stroke);
                     draw.AddCircle(c + new Vector2(s * 0.62f, -s * 0.42f), s * 0.12f, colour);
+                    break;
+                case InteractKind.Raise:
+                    // Someone lying down, and over them a hand lifting them up.
+                    draw.AddLine(c + new Vector2(-s * 0.55f, s * 0.75f), c + new Vector2(s * 1.05f, s * 0.75f), colour, Stroke, roundCaps: true);
+                    draw.AddCircle(c + new Vector2(-s * 0.95f, s * 0.7f), s * 0.28f, colour);
+                    draw.AddLine(c + new Vector2(0f, s * 0.2f), c + new Vector2(0f, -s * 1.05f), colour, Stroke, roundCaps: true);
+                    draw.AddLine(c + new Vector2(0f, -s * 1.05f), c + new Vector2(-s * 0.45f, -s * 0.55f), colour, Stroke, roundCaps: true);
+                    draw.AddLine(c + new Vector2(0f, -s * 1.05f), c + new Vector2(s * 0.45f, -s * 0.55f), colour, Stroke, roundCaps: true);
                     break;
                 case InteractKind.Merchant:
                     draw.AddCircle(c + new Vector2(0f, s * 0.25f), s * 0.8f, GuiColors.Transparent, Stroke, colour);

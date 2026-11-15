@@ -54,12 +54,12 @@ namespace Dino_Defenders.Server
         private const float DetourTime = 2.5f;          // Seconds it keeps to a path once the straight way has failed it.
         private const float SideTime = 0.6f;
 
-        private readonly GameServer _server;
+        private readonly ServerRoom _server;
         private readonly WorldRandom _random = new WorldRandom(Environment.TickCount);
         private readonly WorldPathfinder _paths = new();
         private readonly List<Actor> _near = new();
 
-        public EnemyBrainSystem(GameServer server)
+        public EnemyBrainSystem(ServerRoom server)
             : base(new BitMask(typeof(EnemyComponent), typeof(EnemyBrainComponent), typeof(VelocityComponent), typeof(ActorComponent)))
         {
             _server = server;

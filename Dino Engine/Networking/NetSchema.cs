@@ -187,6 +187,17 @@ namespace Dino_Engine.Networking
 
         public string Get(int id) => id >= 0 && id < _texts.Count ? _texts[id] : "";
 
+        /// <summary>
+        /// Forgets everything but the empty string, for a client starting on another world: each world on a server has a table of its own, and a new view of one is sent it from the start.
+        /// </summary>
+        internal void Clear()
+        {
+            _texts.RemoveRange(1, _texts.Count - 1);
+            _ids.Clear();
+            _ids[""] = 0;
+            Highest = 0;
+        }
+
         /// <summary>Stores what the server calls <paramref name="id"/>. They arrive in order, each one the next.</summary>
         internal void Define(int id, string text)
         {

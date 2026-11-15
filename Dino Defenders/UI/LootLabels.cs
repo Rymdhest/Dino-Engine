@@ -47,6 +47,7 @@ namespace Dino_Defenders.UI
             public Vector2 Anchor;
             public float Fresh;     // 1 when it's just landed, falling away to nothing.
             public Vector2 At;
+            public bool Theirs;     // A friend's, with loot allocated: greyed out, and nothing comes of clicking it.
         }
 
         private readonly List<Label> _labels = new();
@@ -103,7 +104,7 @@ namespace Dino_Defenders.UI
             foreach (Label label in _labels)
             {
                 if (label.Find != LabelAt(e.Position)) continue;
-                session.Fetch.Begin(label.Find, label.At);
+                if (!label.Theirs) session.Fetch.Begin(label.Find, label.At);
                 break;
             }
         }
@@ -176,12 +177,13 @@ namespace Dino_Defenders.UI
                         Anchor = at,
                         Fresh = MathF.Exp(-pickup.LandedFor * 2.6f),
                         At = pickup.Rest.Xz,
+                        Theirs = LootShow.Theirs(pickup, session.Client),
                     });
                 }
             }
 
-            // By find as well, so that labels of a rarity keep their order from one frame to the next, and don't change places as the hero walks.
-            _labels.Sort(static (a, b) => a.Rarity != b.Rarity ? b.Rarity.CompareTo(a.Rarity) : a.Find.CompareTo(b.Find));
+            // By find as well, so that labels of a rarity keep their order from one frame to the next, and don't change places as the hero walks. A friend's go below this player's own.
+            _labels.Sort(static (a, b) => a.Theirs != b.Theirs ? a.Theirs.CompareTo(b.Theirs) : a.Rarity != b.Rarity ? b.Rarity.CompareTo(a.Rarity) : a.Find.CompareTo(b.Find));
         }
 
         // Each goes up past anything it would land on. There are never many on screen, and the ones placed first are the ones worth keeping where they are.
@@ -200,6 +202,11 @@ namespace Dino_Defenders.UI
 
         private void Draw(GuiDrawList draw, in Label label)
         {
+            if (label.Theirs)
+            {
+                DrawTheirs(draw, label);
+                return;
+            }
             GuiRect rect = label.Rect;
             Colour colour = Ui.RarityColour(label.Rarity);
             bool hovered = label.Find == _hovered;
@@ -227,6 +234,21 @@ namespace Dino_Defenders.UI
             float room = Iconed(label.Item) ? IconRoom(size) : 0f;
             Ui.Text(Context!, draw, label.Name, size, new GuiRect(rect.X, rect.Y, rect.Width - room, rect.Height), text, Alignment.Center);
             if (Iconed(label.Item)) DrawIcon(draw, label.Item, new Vector2(rect.Right - PaddingX - size * IconShare, rect.Y + rect.Height * 0.5f), size * IconShare, text, hovered ? colour : dark);
+        }
+
+        // A friend's find: its name and nothing else, in grey on a dimmer box, so it reads as there but not this player's to take. Its card still comes up on it.
+        private void DrawTheirs(GuiDrawList draw, in Label label)
+        {
+            GuiRect rect = label.Rect;
+            bool hovered = label.Find == _hovered;
+            Colour grey = GuiColors.Rgba(150, 144, 136, hovered ? 255 : 200);
+            float shifted = label.Anchor.Y - rect.Bottom;
+            if (shifted > ShiftedFar) draw.AddLine(new Vector2(label.Anchor.X, rect.Bottom), label.Anchor, grey.MultiplyAlpha(0.35f), 1f);
+            draw.AddRect(rect, GuiColors.Rgba(18, 16, 14, 150), 2f, 1f, grey.MultiplyAlpha(0.45f));
+            float size = Sizes[(int)label.Rarity];
+            float room = Iconed(label.Item) ? IconRoom(size) : 0f;
+            Ui.Text(Context!, draw, label.Name, size, new GuiRect(rect.X, rect.Y, rect.Width - room, rect.Height), grey, Alignment.Center);
+            if (Iconed(label.Item)) DrawIcon(draw, label.Item, new Vector2(rect.Right - PaddingX - size * IconShare, rect.Y + rect.Height * 0.5f), size * IconShare, grey, GuiColors.Rgba(18, 16, 14));
         }
 
         private static float IconRoom(float size) => size * IconShare * 2f + IconGap;

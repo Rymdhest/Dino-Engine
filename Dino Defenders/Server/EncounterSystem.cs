@@ -33,10 +33,10 @@ namespace Dino_Defenders.Server
         private const float DummyTurn = 0.35f;  // Radians either side of facing the camera, which looks north, so that a row of them doesn't stand to attention.
         private const int SmallGroup = 5;       // The training ground's dummies come one alone, then this many, then the rest.
 
-        private readonly GameServer _server;
+        private readonly ServerRoom _server;
         private double _nextCheck;
 
-        public EncounterSystem(GameServer server)
+        public EncounterSystem(ServerRoom server)
             : base(new BitMask(typeof(HealthComponent)))
         {
             _server = server;
@@ -488,7 +488,7 @@ namespace Dino_Defenders.Server
         }
 
         /// <summary>What stands in a lit waygate, where the world has the gate, for as long as the place does: a way home, which turns in a way of its own for every gate (WayKeys).</summary>
-        internal static void LightGate(ECSWorld world, GameServer server, ServerSession session, SiteState state, Vector2 spawn)
+        internal static void LightGate(ECSWorld world, ServerRoom server, ServerSession session, SiteState state, Vector2 spawn)
         {
             if (!session.World.Objects.TryNearest(StructureCatalog.Waygate.Id, spawn, GateFromSpawn, out WorldObject gate)) return;
             state.Live.Add(world.CreateEntity("Lit waygate",
@@ -503,7 +503,7 @@ namespace Dino_Defenders.Server
         /// A chest where it stands: shut, to be used, or once it's been opened, a body and a lid on its hinge with nothing to use, which stays for as long as the place does. Only a yaw is ever sent,
         /// so a client raises the lid: swinging it up if the chest is <paramref name="opening"/> this moment, and thrown back already if not.
         /// </summary>
-        internal static void PlaceChest(ECSWorld world, GameServer server, ServerSession session, SiteState state, int siteIndex, int spawnIndex, bool opening)
+        internal static void PlaceChest(ECSWorld world, ServerRoom server, ServerSession session, SiteState state, int siteIndex, int spawnIndex, bool opening)
         {
             SiteSpawn spawn = state.Site.Spawns[spawnIndex];
             Vector3 position = new Vector3(spawn.Position.X, session.World.Height.Sample(spawn.Position), spawn.Position.Y);
@@ -560,11 +560,11 @@ namespace Dino_Defenders.Server
     /// <summary>The components every walking character has on the server: where it is, how it moves, and what clients should draw.</summary>
     public static class Bodies
     {
-        public static IComponent[] Walking(GameServer server, string model, Vector3 position, float scale, float importance, params IComponent[] extra) =>
+        public static IComponent[] Walking(ServerRoom server, string model, Vector3 position, float scale, float importance, params IComponent[] extra) =>
             Walking(server, model, position, scale, importance, WorldData.CharacterRadius * MathF.Min(scale, 1.4f), extra);
 
         /// <param name="radius">How far its body reaches, which is what's solid about it: a person's, or a dinosaur's, which is far more.</param>
-        public static IComponent[] Walking(GameServer server, string model, Vector3 position, float scale, float importance, float radius, params IComponent[] extra)
+        public static IComponent[] Walking(ServerRoom server, string model, Vector3 position, float scale, float importance, float radius, params IComponent[] extra)
         {
             var components = new List<IComponent>
             {
@@ -635,10 +635,10 @@ namespace Dino_Defenders.Server
             "Another land? Already?", "You look like you've seen a tyrant.",
         };
 
-        private readonly GameServer _server;
+        private readonly ServerRoom _server;
         private readonly WorldRandom _random = new WorldRandom(Environment.TickCount);
 
-        public VillagerSystem(GameServer server)
+        public VillagerSystem(ServerRoom server)
             : base(new BitMask(typeof(VillagerComponent), typeof(PositionComponent), typeof(VelocityComponent)))
         {
             _server = server;
@@ -828,7 +828,7 @@ namespace Dino_Defenders.Server
     }
 
     /// <summary>
-    /// What heroes can use. E uses whatever they are standing by, and gold comes to whoever is near, as nobody should have to stop for it. Everything else on the ground
+    /// What heroes can use. E uses whatever they are standing by, a fallen friend among them, and gold comes to whoever is near, as nobody should have to stop for it, and is shared. Everything else on the ground
     /// has to be asked for: see <see cref="GroundLoot"/>.
     /// </summary>
     public class InteractionSystem : SystemBase
@@ -838,9 +838,9 @@ namespace Dino_Defenders.Server
 
         private static readonly BitMask PickupMask = new BitMask(typeof(PickupComponent), typeof(PositionComponent));
 
-        private readonly GameServer _server;
+        private readonly ServerRoom _server;
 
-        public InteractionSystem(GameServer server)
+        public InteractionSystem(ServerRoom server)
             : base(new BitMask(typeof(InteractableComponent), typeof(PositionComponent)))
         {
             _server = server;
@@ -882,6 +882,13 @@ namespace Dino_Defenders.Server
 
         private void Use(ECSWorld world, ServerSession session, ServerPlayer hero, EntityView view, in InteractableComponent interactable)
         {
+            // A fallen friend belongs to no place: who they are is all the mark says.
+            if (interactable.Kind == InteractKind.Raise)
+            {
+                _server.BeginRaising(session, hero, interactable.SpawnIndex);
+                return;
+            }
+
             SiteState state = session.Sites[interactable.SiteIndex];
             // What's in one of the Haven's halls is only for a hero the hall is open to.
             if (Halls.Of(interactable.Kind) is HallKind hall && !Halls.IsOpen(hero.Hero, hall))
@@ -903,7 +910,7 @@ namespace Dino_Defenders.Server
                     EncounterSystem.PlaceChest(world, _server, session, state, interactable.SiteIndex, interactable.SpawnIndex, opening: true);
                     break;
                 case InteractKind.Portal:
-                    _server.StepThrough();
+                    _server.StepThrough(hero);
                     break;
                 default:
                     _server.OpenPanel(hero, interactable.Kind, interactable.SiteIndex);
@@ -927,11 +934,17 @@ namespace Dino_Defenders.Server
             if (state.Kindled) return;
             Vector3 position = view.Get<PositionComponent>().value;
 
+            // Everyone on their feet in the land is blessed, wherever they are, not only whoever kindled it.
             BuffDefinition blessing = EncounterSystem.BlessingOf(session, state);
-            hero.Actor.Vitals = Vitals.Full(hero.Actor.Sheet);
-            hero.Hero.Flasks = HeroState.MaxFlasks;
-            hero.SummaryChanged = true;
-            session.Combat.AddBuff(hero.Actor, blessing, blessing.Duration);
+            foreach (ServerPlayer blessed in session.Heroes)
+            {
+                if (blessed.Out) continue;
+                blessed.Actor.Vitals = Vitals.Full(blessed.Actor.Sheet);
+                blessed.Hero.Flasks = HeroState.MaxFlasks;
+                blessed.SummaryChanged = true;
+                session.Combat.AddBuff(blessed.Actor, blessing, blessing.Duration);
+                _server.Announce(blessed, blessing.Name, EncounterSystem.BlessingText(blessing), BlessingBanner);
+            }
             _server.Broadcast(new SparkEvent { Position = position + Vector3.UnitY * 3f, Kind = SparkKind.Shrine, Count = 26, Speed = 7f }, position.Xz);
 
             // Used once, and spent: its mark goes with it, and it isn't made again when the place wakes.
@@ -941,8 +954,6 @@ namespace Dino_Defenders.Server
             state.Live.Remove(view.Entity);
             world.DestroyEntity(view.Entity);
 
-            // The blessing and what it gives, in the middle of the screen as a place's name is, in the words its card uses.
-            _server.Announce(hero, blessing.Name, EncounterSystem.BlessingText(blessing), BlessingBanner);
             if (keeps)
             {
                 _server.Broadcast(new SoundEvent { Position = position, Cue = SoundCue.Blessed }, position.Xz);
@@ -980,17 +991,17 @@ namespace Dino_Defenders.Server
             }
         }
 
+        // Gold is everyone's: whoever it comes to, it's shared out evenly among the whole party, wherever they are, and what each got is what's shown.
         private void Collect(ServerPlayer hero, in PickupComponent pickup)
         {
             Vector3 position = pickup.Rest;
-            hero.Hero.Gold += pickup.Gold;
-            hero.Hero.Records.GoldGathered += pickup.Gold;
-            hero.SummaryChanged = true;
+            int share = _server.ShareGold(hero, pickup.Gold);
             _server.Broadcast(new SoundEvent { Position = position, Cue = SoundCue.Coins, Value = pickup.Gold }, position.Xz);
+            if (share <= 0) return;
             _server.Broadcast(new TextEvent
             {
                 Position = position + Vector3.UnitY * 3f,
-                Text = $"+{pickup.Gold} gold",
+                Text = $"+{share} gold",
                 Colour = new Vector3(1f, 0.82f, 0.3f),
                 Size = 14f,
                 Life = 1.1f,

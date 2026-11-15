@@ -313,7 +313,6 @@ namespace Dino_Defenders.UI
 
             var left = columns.Add(new StackPanel(Orientation.Vertical, 3f) { Width = SheetWidth, Height = UIValue.Fill });
             _title = left.Add(Ui.Heading("").Bind(() => Hero.Name.Length > 0 ? Hero.Name : "The Hero"));
-            left.Add(Ui.Line("", 15f, Ui.Parchment).Bind(() => TalentTree.TitleOf(Hero)));
             left.Add(Ui.Line().Bind(() => $"Level {Hero.Level}"));
             left.Add(new Spacer(height: 6f));
             var sheet = left.Add(new ScrollPanel { Width = UIValue.Fill, Height = UIValue.Fill });

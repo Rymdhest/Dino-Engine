@@ -1,4 +1,5 @@
 using Dino_Defenders.Client;
+using Dino_Defenders.Gameplay;
 using Dino_Defenders.Net;
 using Dino_Defenders.Tooltips;
 using Dino_Engine.Core;
@@ -357,7 +358,6 @@ namespace Dino_Defenders.UI
     internal sealed class MultiplayerPage : MenuPage
     {
         private readonly ArpgGame _game;
-        private readonly TextBox _name;
         private readonly TextBox _code;
         private readonly Label _problem;
 
@@ -368,28 +368,26 @@ namespace Dino_Defenders.UI
 
             var hosting = Body.Add(new StackPanel(Orientation.Vertical, 6f) { Width = UIValue.Fill, Height = UIValue.Auto });
             hosting.Add(Kit.Group("Host"));
-            var open = hosting.Add(new MenuWord("Open this world to friends", Kit.RowSize + 1f, Ui.Parchment, () => _game.OpenToFriends(), 34f));
+            var open = hosting.Add(new MenuWord("Open to friends", Kit.RowSize + 1f, Ui.Parchment, () => _game.OpenToFriends(), 34f));
             var invite = hosting.Add(Ui.Line("", Kit.RowSize, Ui.Gold).Bind(() => _game.InviteText ?? ""));
-            var copy = hosting.Add(new MenuWord("Copy the invite", Kit.RowSize, Ui.Parchment, () => Context!.Clipboard = _game.InviteText ?? "", 32f));
+            var copy = hosting.Add(new MenuWord("Copy invite", Kit.RowSize, Ui.Parchment, () => Context!.Clipboard = _game.InviteText ?? "", 32f));
             var status = hosting.Add(Ui.Paragraph("", Kit.SmallSize, Kit.Quiet).Bind(() => _game.InviteStatus));
 
+            // The host's to choose; everyone else is only told.
+            var loot = Body.Add(new MenuWord("", Kit.RowSize + 1f, Ui.Parchment, ToggleLoot, 34f));
+            var told = Body.Add(Ui.Line("", Kit.RowSize + 1f, Ui.Parchment).Bind(LootText));
+
             Body.Add(new Spacer(height: 22f));
-            var joining = Body.Add(new StackPanel(Orientation.Vertical, 8f) { Width = UIValue.Fill, Height = UIValue.Auto });
-            joining.Add(Kit.Group("Join"));
-            _name = joining.Add(Kit.Field(_game.HeroName, "Your name, for them to see", 24));
-            _name.TextChanged += text => _game.HeroName = text;
-            _code = joining.Add(Kit.Field("", "Paste the invite here"));
+            var joining = Body.Add(new StackPanel(Orientation.Horizontal, 14f) { Width = UIValue.Fill, Height = 36f });
+            joining.Stack!.CrossAlignment = Alignment.Center;
+            _code = joining.Add(Kit.Field("", "Paste an invite"));
+            _code.Width = 520f;
             _code.Submitted += _ => Join();
-            joining.Add(new MenuWord("Join", Kit.RowSize + 1f, Ui.Parchment, Join, 34f));
-            _problem = joining.Add(Ui.Paragraph("", Kit.SmallSize, Ui.Blood));
+            var join = joining.Add(new MenuWord("Join", Kit.RowSize + 1f, Ui.Parchment, Join, 34f));
+            join.Width = 70f;
+            _problem = Body.Add(Ui.Paragraph("", Kit.SmallSize, Ui.Blood));
 
-            var leave = Body.Add(new MenuWord("Go back to your own world", Kit.RowSize + 1f, Ui.Parchment, () => _game.ReturnHome(null), 34f));
-
-            Body.Add(new Spacer(height: 22f));
-            Body.Add(Kit.Group("In this game"));
-            Body.Add(Ui.Paragraph("", Kit.RowSize, Ui.Parchment).Bind(() => string.Join(", ", (_game.Client?.Party ?? new()).Select(p => p.name))));
-            Body.Add(new Spacer(height: 8f));
-            Body.Add(Ui.Paragraph($"Up to {Protocol.MaxPlayers} heroes can share a world. Your hero and what they find come home with you.", Kit.SmallSize, Kit.Quiet));
+            var leave = Body.Add(new MenuWord("Leave game", Kit.RowSize + 1f, Ui.Parchment, () => _game.ReturnHome(null), 34f));
 
             // Decided here rather than by each of them, as a hidden element isn't updated and could never show itself again.
             Updated += _ =>
@@ -399,15 +397,32 @@ namespace Dino_Defenders.UI
                 copy.Visible = _game.Hosting;
                 status.Visible = _game.Hosting;
                 hosting.Visible = !_game.InFriendsGame;
-                joining.Visible = !_game.Hosting;
+                joining.Visible = !_game.Hosting && !_game.InFriendsGame;
                 leave.Visible = _game.InFriendsGame;
+                // Only once there's a game with friends in it, so nobody about to join takes it for theirs to set.
+                bool choosing = _game.Hosting && _game.Client?.IsHost != false;
+                loot.Visible = choosing;
+                loot.Text = LootText();
+                told.Visible = _game.InFriendsGame && !choosing;
             };
+        }
+
+        private string LootText() => LootRule == LootRule.Allocated ? "Loot: Allocated" : "Loot: Free for all";
+
+        // Who what drops is for in this game: as the server last said, or as the host would have it before there's a game.
+        private LootRule LootRule => _game.Client is { HostId: > 0 } client ? client.Loot : InterfaceSettings.Load().Loot;
+
+        // Kept as the host's choice for every game they host, and told to the server they're hosting now.
+        private void ToggleLoot()
+        {
+            LootRule rule = LootRule == LootRule.Allocated ? LootRule.FreeForAll : LootRule.Allocated;
+            InterfaceSettings.Load().Change(() => InterfaceSettings.Load().Loot = rule);
+            _game.Client?.ChooseLoot(rule);
         }
 
         /// <summary>This page is made before anyone's chosen who to play.</summary>
         public void Open()
         {
-            _name.Text = _game.HeroName;
             _problem.Text = "";
         }
 

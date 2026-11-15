@@ -515,6 +515,7 @@ namespace Dino_Defenders
                 Start = _options.At,
                 StartSite = _options.Site,
                 StartBiome = _options.Biome,
+                Loot = UI.InterfaceSettings.Load().Loot,
             }, _worlds);
 
             (LoopbackTransport serverEnd, LoopbackTransport clientEnd) = LoopbackTransport.CreatePair();
@@ -529,7 +530,9 @@ namespace Dino_Defenders
             {
                 transport = new ImpairedTransport(transport, NetworkConditions.Parse(_options.NetSim), () => _simulatedLine.Elapsed.TotalMilliseconds);
             }
-            _client = new GameClient(transport, this, Dino_Engine.Core.Engine.Instance!.world, _hero, HeroName, _stash);
+            // Friends know a hero by the hero's own name, never by anything their tree makes them.
+            string name = _options.Name ?? (_hero.Name.Length > 0 ? _hero.Name : HeroName);
+            _client = new GameClient(transport, this, Dino_Engine.Core.Engine.Instance!.world, _hero, name, _stash);
             _client.StashKept += Keep;
             _effects = new ClientEffects(Dino_Engine.Core.Engine.Instance!.world, _client);
         }

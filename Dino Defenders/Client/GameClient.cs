@@ -32,6 +32,9 @@ namespace Dino_Defenders.Client
         void Disconnected(string reason);
     }
 
+    /// <summary>Someone in the game: who they are, and what world they're in, by name, and whether it's a land.</summary>
+    public readonly record struct PartyMember(int Id, string Name, string Where, bool InLand);
+
     public enum ClientState
     {
         Connecting,
@@ -86,7 +89,17 @@ namespace Dino_Defenders.Client
         public readonly CommandClock Commands = new();
         public readonly InterpolationClock Render = new();
         public readonly HeroPredictor Predictor = new();
-        public readonly List<(int id, string name)> Party = new();
+        public readonly List<PartyMember> Party = new();
+
+        /// <summary>Whose game this is, by player, and who what drops is for, as they've chosen.</summary>
+        public int HostId { get; private set; }
+        public LootRule Loot { get; private set; }
+
+        /// <summary>Whether this player is the one whose game it is, who chooses how loot goes.</summary>
+        public bool IsHost => HostId != 0 && HostId == PlayerId;
+
+        /// <summary>Whether anyone in the game is in a land, as the way can't be opened to another until they're all back.</summary>
+        public bool AnyoneInLand => Party.Any(member => member.InLand);
 
         /// <summary>What each hero has on, by player, as last told.</summary>
         public readonly Dictionary<int, List<WornLook>> Worn = new();
@@ -105,10 +118,10 @@ namespace Dino_Defenders.Client
         /// <summary>The stash has changed, as the server has said, and is to be kept.</summary>
         public event Action<Stash>? StashKept;
 
-        /// <summary>Whether this hero has fallen in the land they're in, and is out of it until everyone goes home.</summary>
+        /// <summary>Whether this hero has fallen in the land they're in, and is out of it unless a friend raises them.</summary>
         public bool Out { get; private set; }
 
-        /// <summary>Whether everyone in this land has fallen, so that it's over and any of them can take everyone home.</summary>
+        /// <summary>Whether everyone in this land has fallen, so that it's over and nobody's left to raise anyone.</summary>
         public bool Over { get; private set; }
 
         /// <summary>How this hero last fell, as the server saw it, until they're on their feet again or somewhere else (DEATHS.md).</summary>
@@ -551,9 +564,12 @@ namespace Dino_Defenders.Client
             bool liberated = reader.ReadBool();
             int falls = reader.ReadVarInt();
             bool lost = reader.ReadBool();
+            bool wasOut = Out;
             Out = reader.ReadBool();
             Over = reader.ReadBool();
             Portal = reader.ReadBool() ? (reader.ReadString(Protocol.LongestName), Protocol.ReadRequest(reader), Protocol.ReadTerms(reader)) : null;
+            // Raised by a friend: the account of how they fell has done its work.
+            if (wasOut && !Out) Recap = null;
             int objectives = reader.ReadCount(64);
             var progress = new int[objectives];
             for (int i = 0; i < objectives; i++) progress[i] = reader.ReadVarInt();
@@ -632,11 +648,15 @@ namespace Dino_Defenders.Client
         private void OnParty(BitReader reader)
         {
             Party.Clear();
+            HostId = reader.ReadVarInt();
+            Loot = (LootRule)reader.ReadByte();
             int count = reader.ReadCount(Protocol.MaxPlayers * 4);
             for (int i = 0; i < count; i++)
             {
                 int id = reader.ReadVarInt();
-                Party.Add((id, reader.ReadString(Protocol.LongestName)));
+                string name = reader.ReadString(Protocol.LongestName);
+                string where = reader.ReadString(Protocol.LongestName);
+                Party.Add(new PartyMember(id, name, where, reader.ReadBool()));
             }
         }
 
@@ -804,6 +824,22 @@ namespace Dino_Defenders.Client
         {
             BitWriter writer = Action(HeroAction.TravelToSite);
             writer.WriteVarInt(site);
+            Send(writer);
+        }
+
+        /// <summary>From a waygate, to a friend in the same land. The server decides whether this hero is at one.</summary>
+        public void TravelToHero(int player)
+        {
+            BitWriter writer = Action(HeroAction.TravelToHero);
+            writer.WriteVarInt(player);
+            Send(writer);
+        }
+
+        /// <summary>The host's choice of who what drops is for. Nobody else's is listened to.</summary>
+        public void ChooseLoot(LootRule rule)
+        {
+            BitWriter writer = Action(HeroAction.LootRule);
+            writer.WriteByte((byte)rule);
             Send(writer);
         }
 

@@ -9,6 +9,7 @@ using Dino_Engine.ECS.ECS_Architecture;
 using Dino_Engine.GUI;
 using Dino_Engine.GUI.Rendering;
 using Dino_Engine.GUI.Widgets;
+using Dino_Engine.Networking;
 using Dino_Engine.Util;
 using OpenTK.Mathematics;
 using OpenTK.Windowing.GraphicsLibraryFramework;
@@ -111,6 +112,7 @@ namespace Dino_Defenders.UI
             DrawFloatingTexts(draw, session, screen);
             DrawGuidance(draw, session, screen);
             DrawCalling(draw, session, screen);
+            DrawRaising(draw, session, screen);
             DrawChronicle(draw, session, screen);
             DrawLog(draw, session, screen);
             if (session.Rise is LevelRise rise) DrawRise(draw, rise, screen);
@@ -220,39 +222,85 @@ namespace Dino_Defenders.UI
         private static readonly Colour SoughtGold = GuiColors.Rgba(255, 190, 70);
         private static readonly Colour SoughtRim = GuiColors.Rgba(30, 18, 6, 230);
 
-        // Everyone else in the world: their name and health over their head, and along the side of the screen wherever they are.
+        private readonly Dictionary<int, (HeroComponent Hero, float Share, Vector3 At)> _companions = new();
+
+        // Everyone else in the game down the side of the screen, by name, with their health if they're in this world and which world they're in if they aren't, and over the heads of those here.
         private void DrawCompanions(GuiDrawList draw, GameSession session, GuiRect screen)
         {
-            if (session.Client.Party.Count <= 1) return;
+            GameClient client = session.Client;
+            if (client.Party.Count <= 1) return;
 
+            _companions.Clear();
             ECSWorld world = Engine.Instance!.world;
-            float row = 0f;
             foreach (Archetype archetype in world.QueryArchetypes(HeroMask, BitMask.Empty))
             {
                 foreach (EntityView entity in new ComponentAccessor(archetype))
                 {
                     var hero = entity.Get<HeroComponent>();
-                    if (hero.Player == session.Client.PlayerId) continue;
-
+                    if (hero.Player == client.PlayerId) continue;
                     var health = entity.Get<HealthComponent>();
-                    float share = Math.Clamp(health.Current / MathF.Max(health.Max, 1f), 0f, 1f);
+                    _companions[hero.Player] = (hero, Math.Clamp(health.Current / MathF.Max(health.Max, 1f), 0f, 1f), entity.Get<PositionComponent>().value);
+                }
+            }
 
-                    GuiRect frame = new GuiRect(Margin, Margin + row, 190f, 34f);
-                    Shade(draw, frame);
-                    Ui.Text(Context!, draw, $"{hero.Name}, {hero.Title} {hero.Level}", 14f, new GuiRect(frame.X, frame.Y, frame.Width, 18f), Ui.Parchment);
-                    draw.AddRect(new GuiRect(frame.X, frame.Y + 21f, frame.Width, 6f), GuiColors.Rgba(0, 0, 0, 170));
-                    draw.AddRect(new GuiRect(frame.X, frame.Y + 21f, frame.Width * share, 6f), Ui.Life);
-                    row += 46f;
+            float row = 0f;
+            foreach (PartyMember member in client.Party)
+            {
+                if (member.Id == client.PlayerId) continue;
+                GuiRect frame = new GuiRect(Margin, Margin + row, 190f, 34f);
+                row += 46f;
+                Shade(draw, frame);
+                Ui.Text(Context!, draw, member.Name, 14f, new GuiRect(frame.X, frame.Y, frame.Width - 30f, 18f), Ui.Parchment);
+                if (!_companions.TryGetValue(member.Id, out var here))
+                {
+                    Ui.Text(Context!, draw, member.Where, 12.5f, new GuiRect(frame.X, frame.Y + 17f, frame.Width, 16f), Ui.Faded);
+                    continue;
+                }
+                Ui.Text(Context!, draw, $"{here.Hero.Level}", 13f, new GuiRect(frame.X, frame.Y, frame.Width, 18f), Ui.Faded, Alignment.End);
+                draw.AddRect(new GuiRect(frame.X, frame.Y + 21f, frame.Width, 6f), GuiColors.Rgba(0, 0, 0, 170));
+                draw.AddRect(new GuiRect(frame.X, frame.Y + 21f, frame.Width * here.Share, 6f), Ui.Life);
+            }
 
-                    Vector3 position = entity.Get<PositionComponent>().value;
-                    if (!Project(position + Vector3.UnitY * 5.6f, screen, out Vector2 at)) continue;
-                    Ui.Text(Context!, draw, hero.Name, 14f, new GuiRect(at.X - 100f, at.Y - 22f, 200f, 18f), Ui.Parchment, Alignment.Center);
-                    GuiRect bar = new GuiRect(at.X - 28f, at.Y - 3f, 56f, 4f);
-                    draw.AddRect(bar, GuiColors.Rgba(0, 0, 0, 170));
-                    draw.AddRect(new GuiRect(bar.X, bar.Y, bar.Width * share, bar.Height), Ui.Life);
+            foreach ((HeroComponent hero, float share, Vector3 position) in _companions.Values)
+            {
+                if (!Project(position + Vector3.UnitY * 5.6f, screen, out Vector2 at)) continue;
+                Ui.Text(Context!, draw, hero.Name, 14f, new GuiRect(at.X - 100f, at.Y - 22f, 200f, 18f), Ui.Parchment, Alignment.Center);
+                GuiRect bar = new GuiRect(at.X - 28f, at.Y - 3f, 56f, 4f);
+                draw.AddRect(bar, GuiColors.Rgba(0, 0, 0, 170));
+                draw.AddRect(new GuiRect(bar.X, bar.Y, bar.Width * share, bar.Height), Ui.Life);
+            }
+        }
+
+        // Raising a fallen friend fills a bar where calling the waygates does, for whoever's raising and whoever's being raised, from what the server says of the one raising.
+        private void DrawRaising(GuiDrawList draw, GameSession session, GuiRect screen)
+        {
+            GameClient client = session.Client;
+            if (client.Party.Count <= 1 || !client.Render.Started) return;
+
+            ECSWorld world = Engine.Instance!.world;
+            foreach (Archetype archetype in world.QueryArchetypes(HeroMask, BitMask.Empty))
+            {
+                foreach (EntityView entity in new ComponentAccessor(archetype))
+                {
+                    var hero = entity.Get<HeroComponent>();
+                    if (hero.Raising == 0) continue;
+                    bool mine = hero.Player == client.PlayerId;
+                    if (!mine && hero.Raising != client.PlayerId) continue;
+
+                    string? fallen = client.Party.FirstOrDefault(member => member.Id == hero.Raising).Name;
+                    float done = Math.Clamp((float)((client.Render.RenderTick - hero.RaisingSince) * NetTime.TickSecondsPrecise) / Rulebook.RaiseTime, 0f, 1f);
+                    const float Width = 280f, Height = 12f;
+                    GuiRect bar = new GuiRect((screen.Width - Width) * 0.5f, screen.Height - 210f, Width, Height);
+                    draw.AddRect(new GuiRect(bar.X - 2f, bar.Y - 2f, bar.Width + 4f, bar.Height + 4f), Ui.Ink, 3f, 1f, GuiColors.Rgba(120, 96, 58));
+                    draw.AddRect(new GuiRect(bar.X, bar.Y, bar.Width * done, bar.Height), RaiseColour, 2f);
+                    Ui.Text(Context!, draw, mine ? $"Raising {fallen}" : $"{hero.Name} is raising you", 14f, new GuiRect(bar.X, bar.Y - 22f, bar.Width, 18f), Ui.Parchment, Alignment.Center);
+                    return;
                 }
             }
         }
+
+        /// <summary>The colour of raising a friend, the mark on them and the bar alike: a warm light, which nothing a fight or a find means is.</summary>
+        public static readonly Colour RaiseColour = GuiColors.Rgba(255, 214, 150);
 
         // The pools again where the eye already is. It goes by what's drawn and not by the ground, as the hero isn't always standing on it.
         private void DrawOverHero(GuiDrawList draw, GameSession session, GuiRect screen)

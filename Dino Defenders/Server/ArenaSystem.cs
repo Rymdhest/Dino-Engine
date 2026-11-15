@@ -26,7 +26,7 @@ namespace Dino_Defenders.Server
         private const float ArrivalSpread = 2.2f;       // Metres between those let through one entry, side by side.
         private const float LeaderShare = 0.3f;         // Of those let in, how many are of the kinds that lead a pack.
 
-        private readonly GameServer _server;
+        private readonly ServerRoom _server;
         private readonly List<Gate> _gates = new();
         private ServerSession? _for;
         private ArenaPlan? _plan;
@@ -49,7 +49,7 @@ namespace Dino_Defenders.Server
             public int HeaveTicks;          // Ticks until the ash bursts where the dead come up, once it's begun to heave.
         }
 
-        public ArenaSystem(GameServer server)
+        public ArenaSystem(ServerRoom server)
             : base(new BitMask(typeof(ActorComponent)))
         {
             _server = server;

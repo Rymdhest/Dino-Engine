@@ -866,7 +866,7 @@ namespace Dino_NetLab
                 arena.Run(1.5);
                 float empty = Arena.Lost(target) - full;
                 report.Check("All In: a Book spends all the Mana there is", emptied && spent > 1000f, $"{spent} spent");
-                report.Near("And what it spent is what it's worth", GameServer.Worth(arena.Hero), 1f + arena.Hero.Spent / Rulebook.ManaPowerStep / 100f, 0.001f);
+                report.Near("And what it spent is what it's worth", ServerRoom.Worth(arena.Hero), 1f + arena.Hero.Spent / Rulebook.ManaPowerStep / 100f, 0.001f);
                 report.Check("And is worth what it spent", full > empty * 2f, $"{full} then {empty}");
             }
 
@@ -1032,7 +1032,7 @@ namespace Dino_NetLab
                 arena.Player.StrikeAt = target.Position;
                 arena.Run(0.8);
                 float repeated = Arena.Lost(target) - before;
-                float worth = GameServer.Worth(arena.Hero);
+                float worth = ServerRoom.Worth(arena.Hero);
                 report.Check("Many Voices: a Book used twice running is half as strong the second time", arena.Hero.Streak == 2 && MathF.Abs(worth - (1f - Rulebook.RepeatLess)) < 0.001f && repeated < fresh * 0.75f, $"worth {worth}, {fresh} then {repeated}, at a streak of {arena.Hero.Streak}");
             }
         }

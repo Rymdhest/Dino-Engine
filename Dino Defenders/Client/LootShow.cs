@@ -70,6 +70,9 @@ namespace Dino_Defenders.Client
                 {
                     var pickup = entity.Get<PickupComponent>();
                     bool gold = pickup.Find == 0;
+                    // A friend's find, with loot allocated, is only seen: it falls as plainly as anything put down, with nothing to call this player over.
+                    bool theirs = Theirs(pickup, client);
+                    Rarity shown = pickup.Laid || theirs ? Rarity.Normal : pickup.Rarity;
                     if (!gold) Wear(entity, ref pickup, wardrobe);
                     float age = (float)((now - pickup.Born) * NetTime.TickSecondsPrecise);
                     if (age < 0f)
@@ -78,13 +81,13 @@ namespace Dino_Defenders.Client
                         continue;
                     }
 
-                    float flight = gold ? Loot.GoldFlight : FlightOf(pickup.Laid ? Rarity.Normal : pickup.Rarity);
+                    float flight = gold ? Loot.GoldFlight : FlightOf(shown);
                     if (!pickup.Launched)
                     {
                         pickup.Launched = true;
 
                         // Each find is announced once to a player, however many times it goes out of sight and comes back. One that's found lying there was never seen to fall, and nothing a hero put down is news.
-                        bool news = (gold || session.Heard.Add(pickup.Find)) && !pickup.Laid;
+                        bool news = (gold || session.Heard.Add(pickup.Find)) && !pickup.Laid && !theirs;
                         if (age < flight && news) effects?.LootLaunched(pickup.Rarity, gold, entity.Get<PositionComponent>().value);
                         else if (age >= flight)
                         {
@@ -94,26 +97,29 @@ namespace Dino_Defenders.Client
                         }
                     }
 
-                    if (age < flight) Fly(entity, ref pickup, age / flight, gold, session, effects, deltaTime);
+                    if (age < flight) Fly(entity, ref pickup, age / flight, gold, theirs, session, effects, deltaTime);
                     else
                     {
                         if (!pickup.Landed)
                         {
                             pickup.Landed = true;
-                            effects?.LootLanded(pickup.Find, pickup.Laid ? Rarity.Normal : pickup.Rarity, pickup.Slot, gold, pickup.Rest);
+                            effects?.LootLanded(pickup.Find, shown, pickup.Slot, gold, pickup.Rest);
                         }
                         pickup.LandedFor += deltaTime;
                         if (gold) Settle(entity, pickup.Born, session);
-                        else Rest(entity, ref pickup, session, client, effects, deltaTime);
+                        else Rest(entity, ref pickup, theirs, session, client, effects, deltaTime);
                     }
                     entity.Set(pickup);
                 }
             }
         }
 
-        private static void Fly(in EntityView entity, ref PickupComponent pickup, float share, bool gold, GameSession session, ClientEffects? effects, float deltaTime)
+        /// <summary>Whether a find is a friend's, with loot allocated: this player can see it but not take it.</summary>
+        public static bool Theirs(in PickupComponent pickup, GameClient client) => pickup.Owner != 0 && pickup.Owner != client.PlayerId;
+
+        private static void Fly(in EntityView entity, ref PickupComponent pickup, float share, bool gold, bool theirs, GameSession session, ClientEffects? effects, float deltaTime)
         {
-            float arc = gold ? GoldArc : pickup.Laid ? Arcs[0] : Arcs[(int)pickup.Rarity];
+            float arc = gold ? GoldArc : pickup.Laid || theirs ? Arcs[0] : Arcs[(int)pickup.Rarity];
             // It comes down where it'll lie, so nothing jumps as it lands.
             Vector3 landing = OnGround(session, pickup.Rest.Xz, gold ? GoldLift : ItemLift);
             Vector3 at = Vector3.Lerp(pickup.From, landing, share) + Vector3.UnitY * (MathF.Sin(share * MathF.PI) * arc);
@@ -124,7 +130,7 @@ namespace Dino_Defenders.Client
             if (gold) entity.Set(new RotationComponent(Quaternion.FromAxisAngle(Vector3.UnitY, (share - 1f) * MathF.Tau * GoldSpin) * PileLying(pickup.Born)));
             else entity.Set(new RotationComponent(Quaternion.FromAxisAngle(new Vector3(0.8f, 0f, 0.6f), share * MathF.Tau * 2f) * Lying(pickup.Find)));
 
-            if (gold || pickup.Laid || pickup.Rarity < Rarity.Rare) return;
+            if (gold || pickup.Laid || theirs || pickup.Rarity < Rarity.Rare) return;
             pickup.NextMote -= deltaTime;
             if (pickup.NextMote > 0f) return;
             pickup.NextMote = 0.03f;
@@ -141,7 +147,7 @@ namespace Dino_Defenders.Client
             if (entity.Has<ColorComponent>()) entity.Set(new ColorComponent(GoldGlow));
         }
 
-        private static void Rest(in EntityView entity, ref PickupComponent pickup, GameSession session, GameClient client, ClientEffects? effects, float deltaTime)
+        private static void Rest(in EntityView entity, ref PickupComponent pickup, bool theirs, GameSession session, GameClient client, ClientEffects? effects, float deltaTime)
         {
             bool taken = session.Taken.TryGetValue(pickup.Find, out long until);
             if (taken && client.Clock() > until)
@@ -161,11 +167,15 @@ namespace Dino_Defenders.Client
             if (entity.Has<ColorComponent>())
             {
                 Colour light = GlowOf(pickup.Rarity);
-                float strength = taken ? 0f : GlowStrength(pickup.Rarity) * (1f + 3f * burst);
+                float strength = taken || theirs ? 0f : GlowStrength(pickup.Rarity) * (1f + 3f * burst);
                 entity.Set(new ColorComponent(new Colour(light.Red, light.Green, light.Blue, strength)));
             }
 
-            if (BeamOf(pickup.Rarity) is not LootBeam beam) return;
+            if (theirs || BeamOf(pickup.Rarity) is not LootBeam beam)
+            {
+                if (entity.Has<BeamComponent>()) entity.Set(new BeamComponent());
+                return;
+            }
             float rise = taken ? 0f : Math.Clamp(landed / BeamRise, 0f, 1f);
             float bright = beam.Colour.Intensity * (1f + 2.5f * burst);
             entity.Set(new BeamComponent

@@ -223,7 +223,7 @@ namespace Dino_Defenders.Stats
         public const float LeastDodgeCooldown = 0.2f;
 
         // Flasks.
-        public const float FlaskReach = 80f;            // Metres from a kill that it still counts, which is also how far experience is shared.
+        public const float FlaskReach = 80f;            // Metres from a kill that it still counts towards a flask. Experience reaches everyone in the land.
         public const float FlaskFromBoss = 30f;         // Kills a boss counts for, towards a flask.
         public const float FlaskFromRare = 4f;
 
@@ -234,6 +234,12 @@ namespace Dino_Defenders.Stats
         public const float CallHurt = 0.02f;            // Of their Life a hero can lose while calling them.
         public const float RoadsStray = 1.5f;           // Metres from where they were called that they stay open.
         public const float GateWake = 16f;              // Metres from a waygate that someone has to come to light it.
+        public const float BesideFriend = 2.5f;         // Metres from a friend that someone travelling to them steps out.
+
+        // Friends.
+        public const float RaiseTime = 4f;              // Seconds standing still and unhurt beside a fallen friend to raise them, which breaks as calling the roads does.
+        public const float RaiseReach = 3.5f;           // Metres from a fallen friend that someone can begin raising them.
+        public const float RaisedShare = 0.5f;          // Of their Health and Mana that someone who's been raised gets up with.
 
         // Enemies.
         public const float NightNotice = 1.4f;          // How much further enemies notice a hero under an endless night.

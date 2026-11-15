@@ -256,6 +256,8 @@ A world holds a thousand enemies or more, so what they give is worked out for th
 
 Finding something good is the reward the rest of the game is for, so read this before changing how anything drops. Nothing is ever picked up by walking over it: a find lies where it fell until a player clicks it, and only gold comes by itself.
 
+**With friends, the host says who a find is for** (`LootRule`, chosen on the Multiplayer page and kept in `InterfaceSettings.Loot`, `GameServer.ChooseLootRule`, which listens to the host alone). Free for all, the default, a find is anyone's. Allocated, each find is someone's, in turn among whoever's in that world and on their feet (`GroundLoot.NextOwner`, on `PickupComponent.Owner`): everyone sees it fall, but a friend's is a grey label with no beam, glow, callout or fanfare (`LootShow.Theirs`, `LootLabels.DrawTheirs`), its card still comes up, clicking it does nothing, and the server refuses it (`GroundLoot.Serve`). What a hero puts down is anyone's, and so is whatever was someone's once they've left that world (`GroundLoot.Release`). **Gold is shared**, whichever the rule: whoever it comes to, it's shared out evenly among everyone in the game, wherever they are, with what doesn't divide going to whoever picked it up first (`GameServer.ShareGold`), and the number shown is each one's share.
+
 **A find has a rarity**, and it's what everything that shows one goes by. Colour is `Ui.RarityColour`, and the rest is `LootShow`.
 
 | Rarity | Shows |

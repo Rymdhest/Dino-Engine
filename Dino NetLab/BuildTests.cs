@@ -62,7 +62,7 @@ namespace Dino_NetLab
             Vector2 at = At + offset;
             float height = Session.World.Height.Sample(at);
             var actor = new Actor(team, loadout, at, WorldData.CharacterRadius) { Body = "skeleton", Still = true, Height = height };
-            actor.Entity = server.Ecs.CreateEntity("Dummy", Bodies.Walking(server, "skeleton", new Vector3(at.X, height, at.Y), 1f, 1.5f,
+            actor.Entity = server.Ecs.CreateEntity("Dummy", Bodies.Walking(server.Main, "skeleton", new Vector3(at.X, height, at.Y), 1f, 1.5f,
                 new EnemyComponent { Name = "Dummy", Level = 1 },
                 new EnemyBrainComponent { SiteIndex = 0, SpawnIndex = -1, Home = at, AggroRadius = 60f, LeashRadius = 200f },
                 new HealthComponent(actor.Sheet.MaxHealth), new ActionComponent(), new AfflictedComponent(), new ActorComponent(actor)));
@@ -1260,7 +1260,7 @@ namespace Dino_NetLab
                 float height = session.World.Height.Sample(at);
                 var actor = new Actor(Team.Enemies, loadout, at, 1.1f) { Body = "skeleton", Height = height };
                 actor.Vitals.Health = actor.Sheet.MaxHealth;
-                actor.Entity = server.Ecs.CreateEntity(Bodies.Walking(server, "skeleton", new Vector3(at.X, height, at.Y), 1f, 1.5f,
+                actor.Entity = server.Ecs.CreateEntity(Bodies.Walking(server.Main, "skeleton", new Vector3(at.X, height, at.Y), 1f, 1.5f,
                     new EnemyComponent { Name = kind.Name, Level = 20 },
                     new EnemyBrainComponent { SiteIndex = 0, SpawnIndex = -1, Home = at, AggroRadius = 300f, LeashRadius = 900f, KeepsAway = kind.KeepsAway, Cooldown = random.NextSingle() * 2f },
                     new HealthComponent(actor.Sheet.MaxHealth), new ActionComponent(), new AfflictedComponent(), new ActorComponent(actor)));

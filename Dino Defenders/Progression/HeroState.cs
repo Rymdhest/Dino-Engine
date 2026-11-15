@@ -126,12 +126,12 @@ namespace Dino_Defenders.Progression
         public bool HasGuidingWind => BestLand > 0 || WorldsCleared > 0;
 
         /// <summary>
-        /// A land of this level has been freed, by a hero still standing in it. Climbs as far as the land's terms say, from that land, but never past a boss that hasn't been fought, so freeing a friend's
-        /// lower land never costs anyone their own climb. The map table shows other lands for that level from now on.
+        /// A land of this level has been freed, by a hero still standing in it. Each hero climbs from their own deepest land as far as the land's terms say (<see cref="Lands.ClimbTo"/>), so following a
+        /// friend into a deeper land takes a hero one level on, as it does the friend, and freeing a friend's lower land costs nobody anything. The map table shows other lands for that level from now on.
         /// </summary>
         public void Freed(int level, int climb)
         {
-            BestLand = Math.Max(BestLand, Lands.FreedTo(level, climb));
+            BestLand = Math.Max(BestLand, Lands.ClimbTo(BestLand, level, climb));
             WorldsCleared++;
             Reroll(level);
         }
