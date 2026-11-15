@@ -594,6 +594,10 @@ namespace Dino_Defenders.UI
         private const float LevelBelow = 15f;      // From the bar's bottom to the middle of the level's bar under it.
         private const float LevelHeight = 5f;
         private const float LevelSeal = 11f;
+        private const float RiseShown = 1.8f;               // Seconds a level just gained shows on the seal.
+        private const float RiseRing = 0.8f;                // Seconds each ring takes to go out from it.
+        private static readonly float[] RiseRings = { 0f, 0.48f };     // When each goes: with the first bell, and with the low one (Triumph.LevelUp).
+        private static readonly Colour RiseGlow = GuiColors.Rgba(255, 196, 96);
         private const float Effect = 30f;          // A buff's or an ailment's square, over the Health bar.
         private const float EffectGap = 4f;
         private const float EffectsAbove = 6f;
@@ -807,8 +811,24 @@ namespace Dino_Defenders.UI
             if (gained > 0f) draw.AddRect(new GuiRect(track.X, track.Y, MathF.Max(track.Width * gained, LevelHeight), track.Height), Ui.Experience, LevelHeight * 0.5f);
 
             var seal = new Vector2(Bounds.X + Bounds.Width * 0.5f, middle);
+            float risen = session.Rise is LevelRise rise ? rise.Age : float.PositiveInfinity;
+            if (risen < RiseShown)
+            {
+                // A level just gained: the bar flashes and the seal lights and rings out, with the light going up from the hero and again with the fanfare's low bell.
+                float glow = MathF.Exp(-risen * 2.4f);
+                draw.AddRect(track.Inflate(2f), RiseGlow.MultiplyAlpha(0.7f * glow), LevelHeight * 0.5f + 2f, softness: 6f);
+                draw.AddCircle(seal, LevelSeal + 10f * glow, RiseGlow.MultiplyAlpha(0.5f * glow));
+                foreach (float start in RiseRings)
+                {
+                    float ring = (risen - start) / RiseRing;
+                    if (ring < 0f || ring >= 1f) continue;
+                    float fade = (1f - ring) * (1f - ring);
+                    float radius = LevelSeal + 34f * (1f - MathF.Pow(1f - ring, 3f));
+                    draw.AddCircle(seal, radius, default, 1.6f, RiseGlow.MultiplyAlpha(fade));
+                }
+            }
             draw.AddCircle(seal, LevelSeal + 2f, GuiColors.Rgba(0, 0, 0, 90));
-            draw.AddCircle(seal, LevelSeal, GuiColors.Rgba(15, 12, 10, 240), 1.3f, Ui.Gold);
+            draw.AddCircle(seal, LevelSeal, GuiColors.Rgba(15, 12, 10, 240), 1.3f, risen < RiseShown ? GuiColors.Lerp(Ui.Bright, Ui.Gold, Math.Clamp(risen / 1.2f, 0f, 1f)) : Ui.Gold);
             // Resting on the bar or its seal tells how far through the level the hero is.
             var over = new GuiRect(track.X, seal.Y - LevelSeal, track.Width, LevelSeal * 2f);
             if (Resting(Context!, over)) GameUi.Current.Tips.Show(() => Cards.Experience(GameSession.Current?.Hero ?? hero), over, above: true);

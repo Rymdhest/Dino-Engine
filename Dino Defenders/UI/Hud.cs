@@ -23,6 +23,16 @@ namespace Dino_Defenders.UI
     {
         private const float Margin = 26f;
         private const float BannerFade = 0.7f;
+
+        // A level gained, across the screen (DrawRise). It keeps time with the fanfare and the light going up from the hero: the flare is its first bell, the number lands as the bells
+        // climb, and it holds long enough to be read from the corner of an eye in a fight, then goes.
+        public const float RiseLife = 4.2f;
+        private const float RiseOut = 0.65f;        // Seconds it takes to go, at the end.
+        private const float RiseNumber = 68f;
+        private const float RiseKicker = 17f;
+        private const float RiseLine = 17f;
+        private static readonly Colour RiseWhite = GuiColors.Rgba(255, 255, 255);
+        private static readonly Colour RiseGlow = GuiColors.Rgba(255, 196, 96);
         private const float LogLife = 8f;
         private const float BossRange = 70f;
         private const float OverHead = 5.6f;        // Metres above the hero's feet, where everyone else's health is.
@@ -62,8 +72,14 @@ namespace Dino_Defenders.UI
                 else texts[i] = text;
             }
 
-            // Banners wait their turn; only the first one ages.
-            if (session.Banners.Count > 0)
+            if (session.Rise is LevelRise rise)
+            {
+                rise.Age += deltaTime;
+                session.Rise = rise.Age >= RiseLife ? null : rise;
+            }
+
+            // Banners wait their turn, and a level's moment before any of them; only the first one ages.
+            if (session.Rise == null && session.Banners.Count > 0)
             {
                 Banner banner = session.Banners[0];
                 banner.Age += deltaTime;
@@ -97,7 +113,8 @@ namespace Dino_Defenders.UI
             DrawCalling(draw, session, screen);
             DrawChronicle(draw, session, screen);
             DrawLog(draw, session, screen);
-            DrawBanner(draw, session, screen);
+            if (session.Rise is LevelRise rise) DrawRise(draw, rise, screen);
+            else DrawBanner(draw, session, screen);
             DrawConnection(draw, session);
         }
 
@@ -548,6 +565,113 @@ namespace Dino_Defenders.UI
                 float alpha = Math.Clamp((LogLife - line.Age) / 1.5f, 0f, 1f);
                 Ui.Text(Context!, draw, line.Text, 14f, new GuiRect(Margin, y - 18f, 460f, 18f), Ui.Parchment.MultiplyAlpha(alpha));
                 y -= 19f;
+            }
+        }
+
+        private static float Ease(float t) => 1f - MathF.Pow(1f - Math.Clamp(t, 0f, 1f), 3f);
+
+        // Overshoots a little and settles, as something set down with a bit of weight.
+        private static float Settle(float t)
+        {
+            t = Math.Clamp(t, 0f, 1f) - 1f;
+            const float back = 1.9f;
+            return 1f + t * t * ((back + 1f) * t + back);
+        }
+
+        // Text is drawn at the sizes it's given and kept at each, so nothing here grows or shrinks: it lands by moving, by light and by colour.
+        private void DrawRise(GuiDrawList draw, LevelRise rise, GuiRect screen)
+        {
+            GuiContext context = Context!;
+            float t = rise.Age;
+            float alpha = Math.Clamp((RiseLife - t) / RiseOut, 0f, 1f);
+            float lift = (1f - alpha) * 14f;
+            float cx = screen.Width * 0.5f;
+            float half = MathF.Min(screen.Width * 0.22f, 260f);
+
+            float kickerY = screen.Height * 0.15f - lift;
+            float numberY = kickerY + 20f;
+            float numberMiddle = numberY + RiseNumber * 0.5f + 4f;
+            float ruleY = numberY + RiseNumber + 14f;
+            float lineY = ruleY + 12f;
+
+            draw.PushOpacity(alpha);
+
+            // A shade behind the whole of it, so that it reads over sand, snow or a sunlit wall as well as over grass.
+            float shade = Math.Clamp(t / 0.15f, 0f, 1f);
+            draw.AddRect(new GuiRect(cx - half - 40f, kickerY - 18f, (half + 40f) * 2f, lineY + 44f - kickerY), GuiColors.Rgba(8, 6, 4, (int)(120 * shade)), 70f, softness: 56f);
+
+            // A warm haze behind the number, brightest as it lands and settling under it.
+            float haze = (t < 0.1f ? t / 0.1f : 0.25f + 0.75f * MathF.Exp(-(t - 0.1f) * 3.2f)) * 0.38f;
+            draw.AddRect(new GuiRect(cx - 150f, numberMiddle - 62f, 300f, 124f), RiseGlow.MultiplyAlpha(haze), 62f, softness: 46f);
+
+            // The flare: a line of light struck across under it with the first bell, out fast and gone, leaving the rule where it was.
+            if (t < 0.75f)
+            {
+                float reach = half * 1.35f * Ease(t / 0.2f);
+                float flare = 1f - Math.Clamp((t - 0.1f) / 0.65f, 0f, 1f);
+                flare *= flare;
+                draw.AddRect(new GuiRect(cx - reach, ruleY - 6f, reach * 2f, 12f), RiseGlow.MultiplyAlpha(0.55f * flare), 6f, softness: 10f);
+                draw.AddLine(new Vector2(cx - reach, ruleY), new Vector2(cx + reach, ruleY), RiseWhite.MultiplyAlpha(flare), 2f);
+            }
+
+            // What happened, in small capitals drawing together.
+            float tracking = 5f + 18f * (1f - Ease(t / 0.55f));
+            Tracked(draw, "LEVEL UP", RiseKicker, cx, kickerY, tracking, Ui.TermInk.MultiplyAlpha(Math.Clamp(t / 0.25f, 0f, 1f)));
+
+            // The level, dropped into place, white-hot as it lands and cooling to the colour of bright paper. Its echo goes on up a moment and fades.
+            string level = rise.Level.ToString();
+            float landing = Math.Clamp(t / 0.34f, 0f, 1f);
+            float drop = -22f * (1f - Settle(landing));
+            Colour hot = GuiColors.Lerp(RiseWhite, Ui.Bright, Math.Clamp((t - 0.15f) / 0.6f, 0f, 1f));
+            if (t > 0.12f && t < 0.6f)
+            {
+                float echo = (t - 0.12f) / 0.48f;
+                Ui.Text(context, draw, level, RiseNumber, new GuiRect(0f, numberY - 26f * Ease(echo), screen.Width, RiseNumber + 8f), RiseGlow.MultiplyAlpha(0.5f * (1f - echo) * (1f - echo)), Alignment.Center);
+            }
+            Ui.Text(context, draw, level, RiseNumber, new GuiRect(0f, numberY + drop, screen.Width, RiseNumber + 8f), hot.MultiplyAlpha(Math.Clamp(t / 0.1f, 0f, 1f)), Alignment.Center);
+
+            // The rule opening out from a diamond under it.
+            float open = half * Ease((t - 0.12f) / 0.5f);
+            if (open > 10f)
+            {
+                draw.AddLine(new Vector2(cx - open, ruleY), new Vector2(cx - 9f, ruleY), Ui.Gold.MultiplyAlpha(0.8f), 1.2f);
+                draw.AddLine(new Vector2(cx + 9f, ruleY), new Vector2(cx + open, ruleY), Ui.Gold.MultiplyAlpha(0.8f), 1.2f);
+            }
+            float diamond = Math.Clamp(t / 0.2f, 0f, 1f);
+            draw.AddLine(new Vector2(cx - 3.2f, ruleY - 3.2f), new Vector2(cx + 3.2f, ruleY + 3.2f), Ui.Gold.MultiplyAlpha(diamond), 9f);
+
+            // What it gave, and where to spend it.
+            float words = Math.Clamp((t - 0.38f) / 0.35f, 0f, 1f);
+            if (words > 0f && rise.Points > 0)
+            {
+                string spend = rise.Points == 1 ? "A talent to spend" : $"{rise.Points} talents to spend";
+                string key = Bindings.Label(GameAction.Talents);
+                float y = lineY + 6f * (1f - Ease(words));
+                float spendWidth = GuiText.MeasureWidth(context, spend, Ui.Face, RiseLine);
+                float keyWidth = MathF.Max(GuiText.MeasureWidth(context, key, Ui.Face, 13f) + 12f, 22f);
+                float x = cx - (spendWidth + 10f + keyWidth) * 0.5f;
+                Ui.Text(context, draw, spend, RiseLine, new GuiRect(x, y, spendWidth + 2f, 24f), Ui.Parchment.MultiplyAlpha(words));
+                var cap = new GuiRect(x + spendWidth + 10f, y + 2f, keyWidth, 20f);
+                draw.AddRect(cap, GuiColors.Rgba(15, 12, 10, (int)(200 * words)), 4f, 1f, Ui.Gold.MultiplyAlpha(0.8f * words));
+                Ui.Text(context, draw, key, 13f, cap, Ui.Gold.MultiplyAlpha(words), Alignment.Center);
+            }
+
+            draw.PopOpacity();
+        }
+
+        // A line of capitals with room between each, centred, drawn a letter at a time.
+        private void Tracked(GuiDrawList draw, string text, float size, float centre, float y, float tracking, Colour colour)
+        {
+            GuiContext context = Context!;
+            float width = -tracking;
+            foreach (char letter in text) width += GuiText.MeasureWidth(context, letter.ToString(), Ui.Face, size) + tracking;
+            float x = centre - width * 0.5f;
+            foreach (char letter in text)
+            {
+                string one = letter.ToString();
+                float advance = GuiText.MeasureWidth(context, one, Ui.Face, size);
+                if (letter != ' ') Ui.Text(context, draw, one, size, new GuiRect(x, y, advance + 4f, size + 6f), colour);
+                x += advance + tracking;
             }
         }
 

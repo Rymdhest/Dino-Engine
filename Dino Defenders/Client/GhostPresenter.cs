@@ -311,6 +311,7 @@ namespace Dino_Defenders.Client
             {
                 shown.Marks.Update(world, client, session, deltaTime);
                 shown.Trails.Update(world, deltaTime);
+                shown.Levels.Update(session);
             }
             FlyArrows(world, client, session);
             SwingLids(world, deltaTime);
@@ -734,6 +735,7 @@ namespace Dino_Defenders.Client
 
         public readonly GroundMarks Marks = new GroundMarks();
         public readonly WeaponTrails Trails = new WeaponTrails();
+        public readonly LevelUpShow Levels;
 
         /// <summary>The last thing this player's hero started.</summary>
         public OwnAction? Doing { get; private set; }
@@ -785,6 +787,7 @@ namespace Dino_Defenders.Client
         {
             _world = world;
             Sounds = new GameSounds(world, client, this);
+            Levels = new LevelUpShow(world, client);
 
             // What happens to this hero happens now, however far behind everything else is drawn.
             client.Events.Urgent<DamageEvent>(e => e.Target != 0 && e.Target == client.OwnGhost?.Id);

@@ -1,4 +1,3 @@
-using Dino_Engine.Modelling.Procedural.Flora;
 using Dino_Engine.World.Content;
 using Dino_Engine.World.Generation;
 using OpenTK.Mathematics;
@@ -364,8 +363,6 @@ namespace Dino_Engine.World.Lexicon
             VegetationStage.PlantOnPurpose(world, objects);
         }
 
-        private const float LyingLift = 0.2f;   // Metres over the ground as it's reckoned that a card that lies on it is laid, to be over it as it's drawn.
-
         // One plant or stone on show, as its shelf sized its plot for: the first of its kind the room grows, at the size it says, with room kept round it so nothing planted after comes near.
         private static void PlantSpecimen(WorldData world, WorldObjects objects, PlacedExhibit exhibit)
         {
@@ -374,18 +371,22 @@ namespace Dino_Engine.World.Lexicon
                 Console.WriteLine($"The lexicon has no asset called {exhibit.Exhibit.Look}.");
                 return;
             }
-            float scale = exhibit.Exhibit.Scale;
+            float scale = exhibit.Exhibit.Scale, yaw = exhibit.Exhibit.Yaw;
             bool tree = asset.Kind == WorldAssetKind.Tree;
+            string model = LexiconAssets.ModelOf(asset);
             world.Placement.Add(Footprint.Circle(exhibit.Centre, MathF.Max(asset.Footprint * scale, 0.5f)), tree ? PlacementLayer.Tree : PlacementLayer.Shrub);
             if (asset.SolidRadius > 0f) world.Placement.Add(Footprint.Circle(exhibit.Centre, asset.SolidRadius * scale), PlacementLayer.None, solid: true);
 
-            // Sunk as far as a land sinks each, but what lies flat on the ground, leaves and moss: the ground is drawn a little over where it's reckoned to be, which buries a card
-            // laid as a land lays one (WorldGroundCover, 2 cm into it), so it's laid on top where it can be seen. Whether it shows in a wood is worth a look (LEXICON.md).
-            bool lying = FloraCatalog.TryGet(exhibit.Exhibit.Look, out PlantSpecies species) && species.Form is GroundForm;
-            float sink = asset.Kind == WorldAssetKind.Rock ? 0.2f * scale : tree ? 0.15f : lying ? -LyingLift : 0.05f;
+            // What lies on the ground, leaves, moss and the cushions, is laid on it as a land lays it, on the ground as it's drawn (GroundCards), and where it couldn't be laid in a
+            // land it isn't here either, which the check says. Everything else is sunk as far as a land sinks it.
+            if (GroundCards.ShapeOf(model) is GroundCards.Shape card)
+            {
+                if (GroundCards.TryLay(world, exhibit.Centre, yaw, scale, card, out Vector3 position, out Vector3 up)) objects.Add(model, position, GroundCards.Rotation(yaw, up), new Vector3(scale));
+                return;
+            }
+            float sink = asset.Kind == WorldAssetKind.Rock ? 0.2f * scale : tree ? 0.15f : 0.05f;
             float height = world.Height.Sample(exhibit.Centre) - sink;
-            Quaternion rotation = Quaternion.FromAxisAngle(Vector3.UnitY, exhibit.Exhibit.Yaw);
-            objects.Add(LexiconAssets.ModelOf(asset), new Vector3(exhibit.Centre.X, height, exhibit.Centre.Y), rotation, new Vector3(scale));
+            objects.Add(model, new Vector3(exhibit.Centre.X, height, exhibit.Centre.Y), Quaternion.FromAxisAngle(Vector3.UnitY, yaw), new Vector3(scale));
         }
     }
 

@@ -30,6 +30,14 @@ namespace Dino_Defenders.Gameplay
         public float Life;
     }
 
+    /// <summary>This player's hero going up a level, as it's shown across the screen and on the level's seal: what they came to, and the seconds since.</summary>
+    public struct LevelRise
+    {
+        public int Level;
+        public int Points;      // Talents waiting to be spent, then.
+        public float Age;
+    }
+
     /// <summary>A line in the running account of what just happened.</summary>
     public struct LogLine
     {
@@ -57,6 +65,7 @@ namespace Dino_Defenders.Gameplay
         public readonly GameClient Client;
         public readonly List<FloatingText> FloatingTexts = new();
         public readonly List<Banner> Banners = new();
+        public LevelRise? Rise;                                  // Shown by itself and never queued, as it's the one reward that has to be seen the moment it comes (LevelUpShow).
         public readonly List<LogLine> Log = new();
         public readonly List<LootCallout> Callouts = new();
         public readonly Dictionary<int, Item> Ground = new();   // What each find on the ground is, as far as this player has been told.

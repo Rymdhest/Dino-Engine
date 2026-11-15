@@ -1270,6 +1270,22 @@ namespace Dino_Defenders.Server
                     AssetLexicon.LexiconServer.Act(this, player, reader);
                     break;
 
+                case HeroAction.Cheat:
+                {
+                    var cheat = (DeveloperCheat)reader.ReadByte();
+                    if (!BetaVendor.Standing || Session is not ServerSession world) break;
+                    Console.WriteLine($"{player.Name} used a developer's cheat: {cheat}.");
+                    switch (cheat)
+                    {
+                        case DeveloperCheat.LevelUp:
+                            world.GiveLevel(player);
+                            break;
+                        default:
+                            throw new NetReadException($"No such cheat as {cheat}.");
+                    }
+                    break;
+                }
+
                 default:
                     throw new NetReadException($"No such action as {action}.");
             }

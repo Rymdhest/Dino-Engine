@@ -44,44 +44,13 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Places
             }
         }
 
-        /// <summary>A ridge tent of canvas on two poles and a ridge, its sides pegged out on guys and its flap tied back, the Reich's charcoal under an oxblood ridge.</summary>
+        /// <summary>A ridge tent of canvas on two poles and a ridge, its sides pegged out on guys and its flaps tied back (<see cref="Tents.Ridge"/>), the Reich's charcoal under an oxblood ridge.</summary>
         public static void Tent(MeshBuilder b, in PlaceSpec spec, WorldRandom random)
         {
             float length = Math.Clamp(spec.Metres(0), 3f, 9f);
             bool reich = spec.Int(1) == 1;
-            float half = length * 0.5f, width = random.Range(2.6f, 3.2f), high = random.Range(2.9f, 3.4f);
-            VertexMaterial canvas = reich ? new VertexMaterial(Textures.MaterialCatalog.Cloth.Index, new Colour(0.22f, 0.22f, 0.23f)) : Canvas(random);
-            VertexMaterial inside = Tint(canvas, new Vector3(0.55f));
-            VertexMaterial wood = Timber(random, 0.85f);
-            // The poles and the ridge between them.
-            foreach (float z in new[] { -half, half }) Kit.Pole(b, new Vector3(0f, -0.3f, z), new Vector3(0f, high + 0.25f, z), 0.08f, wood);
-            Kit.Pole(b, new Vector3(0f, high, -half - 0.2f), new Vector3(0f, high, half + 0.2f), 0.07f, wood);
-            // Its two sides, sagging a little between the poles.
-            foreach (float side in new[] { -1f, 1f })
-            {
-                Vector3 ridge0 = new Vector3(0f, high, -half), ridge1 = new Vector3(0f, high, half);
-                Vector3 eave0 = new Vector3(side * width, 0.25f, -half), eave1 = new Vector3(side * width, 0.25f, half);
-                if (side > 0f) Kit.Cloth(b, ridge0, ridge1, eave1, eave0, 0.18f, 3, canvas, inside);
-                else Kit.Cloth(b, ridge1, ridge0, eave0, eave1, 0.18f, 3, canvas, inside);
-                // Its guys out to their pegs.
-                foreach (float z in new[] { -half * 0.8f, 0f, half * 0.8f })
-                {
-                    Vector3 eave = new Vector3(side * width, 0.3f, z), peg = new Vector3(side * (width + 1.3f), Ground, z);
-                    Kit.Rope(b, eave, peg + Vector3.UnitY * 0.25f, 0.04f, 0.025f, Rope(random), 2);
-                    Kit.Pole(b, peg - Vector3.UnitY * 0.2f, peg + Vector3.UnitY * 0.3f, 0.05f, wood);
-                }
-            }
-            // The back closed, the front's flaps tied back to show the dark inside.
-            Kit.Face(b, new Vector3(-width, 0.25f, -half), new Vector3(width, 0.25f, -half), new Vector3(0f, high, -half), -Vector3.UnitZ, canvas);
-            Kit.Face(b, new Vector3(-width, 0.25f, -half + 0.02f), new Vector3(width, 0.25f, -half + 0.02f), new Vector3(0f, high, -half + 0.02f), Vector3.UnitZ, inside);
-            Kit.Face(b, new Vector3(-width * 0.9f, 0.15f, half - 0.05f), new Vector3(width * 0.9f, 0.15f, half - 0.05f), new Vector3(0f, high - 0.1f, half - 0.05f), Vector3.UnitZ, Dark);
-            foreach (float side in new[] { -1f, 1f })
-            {
-                Vector3 top = new Vector3(0f, high, half), foot = new Vector3(side * width, 0.25f, half), out_ = new Vector3(side * width * 1.08f, 0.3f, half + 0.6f);
-                Kit.Sheet(b, top, foot, out_, top + new Vector3(side * 0.3f, -0.3f, 0.2f), canvas, inside);
-            }
-            if (reich) Kit.Plank(b, new Vector3(0f, high + 0.06f, -half - 0.1f), new Vector3(0f, high + 0.06f, half + 0.1f), Vector3.UnitY, 0.4f, 0.06f, Oxblood(), 0.01f);
-            Kit.Plank(b, new Vector3(-width * 0.6f, Ground + 0.06f, half - 1f), new Vector3(width * 0.6f, Ground + 0.06f, half - 0.6f), Vector3.UnitY, 0.9f, 0.08f, Straw(random, 0.8f), 0.01f);
+            Tents.Look look = reich ? Tents.Look.Reich(random, random.Range(0.3f, 0.7f)) : Tents.Look.Land(random, random.Range(0.3f, 0.9f));
+            Tents.Ridge(b, random, look, length * 0.5f, random.Range(2.5f, 3f), random.Range(2.9f, 3.4f), 1.1f, 0.95f, reich);
         }
 
         /// <summary>A fire in its ring of stones with a pot hung over it on a tripod, a log beside it to sit on.</summary>

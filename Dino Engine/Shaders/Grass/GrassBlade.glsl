@@ -159,11 +159,13 @@ void grassHeadVertex(GrassBladeData blade, int row, int rows, float side, vec4 e
 
 // Vertex `vertexID` of a blade drawn as a strip of `segments` rows.
 // eye: the point the blade is seen from (w = 1), or the direction towards it (w = 0, for directional light shadows).
+// headEye: what a bloom's flower turns to face, the camera in every pass: a shadow map has to hold the disc that's drawn,
+// as a disc turned to the light instead crosses the drawn one through its middle and shades half of it with a sharp line.
 // minHalfWidthPerMetre: the least half width the blade may show across the line of sight, per metre from the eye (0 for
 // none). Narrower blades are widened to it and coverage says how much of that width is really blade (1 otherwise).
 // normal is the blade's front face (the side the strip's winding faces), across runs from its left edge to its right,
 // acrossCoord is -1 on the left edge, 1 on the right and 0 at the tip, t runs from 0 at the root to 1 at the tip.
-void grassBladeVertex(GrassBladeData blade, int vertexID, int segments, vec4 eye, float minHalfWidthPerMetre,
+void grassBladeVertex(GrassBladeData blade, int vertexID, int segments, vec4 eye, vec4 headEye, float minHalfWidthPerMetre,
                       out vec3 position, out vec3 normal, out vec3 across, out float acrossCoord, out float t, out float coverage)
 {
     int row = min(vertexID >> 1, segments);
@@ -177,7 +179,7 @@ void grassBladeVertex(GrassBladeData blade, int vertexID, int segments, vec4 eye
         if (row >= stemRows)
         {
             coverage = 1.0;
-            grassHeadVertex(blade, row - stemRows, headRows, row == segments ? 0.0 : edge, eye, position, normal, across, acrossCoord, t);
+            grassHeadVertex(blade, row - stemRows, headRows, row == segments ? 0.0 : edge, headEye, position, normal, across, acrossCoord, t);
             return;
         }
     }

@@ -52,6 +52,7 @@ namespace Dino_Defenders
         private readonly GhostPresenter _presenter;
         private readonly WorldCache _worlds = _earlyWorlds ?? new();
         private readonly GameUi _ui;
+        private readonly Dino_Engine.GUI.Widgets.GuiWindow? _developer;     // The F3 overlay's Developer window (DeveloperWindow).
         private readonly Stopwatch _simulatedLine = Stopwatch.StartNew();
         private readonly Queue<IPEndPoint> _joinAddresses = new();
 
@@ -162,6 +163,7 @@ namespace Dino_Defenders
             NetSchema.Build();
             RegisterSystems();
             _ui = new GameUi(Dino_Engine.Core.Engine.Gui, this, Quit, ToMenu);
+            _developer = Dino_Engine.Core.Engine.DebugOverlay.AddWindow("Developer", DeveloperWindow.Build());
             Dino_Engine.Core.Engine.Loading("game", 0.98f);
             Dino_Defenders.UI.GameCursor.Install(Dino_Engine.Core.Engine.Gui);
             Dino_Engine.Core.Engine.WindowHandler.Closing += _ => ShutDown();
@@ -710,6 +712,15 @@ namespace Dino_Defenders
             }
             if (_frames == 30 && _options.Bring is string bring) BringCreatures(session, bring);
             if (_frames == _options.StartleAfterFrames) Nature.Startle(session.PlayerPosition, 40f);
+            if (_frames == _options.LevelUpAfterFrames && _server != null)
+            {
+                // Through the rules, as a kill would: the server gives the experience and the client sees its level go up in what it's told.
+                _server.Ask(server =>
+                {
+                    if (server.Session is { } world && server.Heroes.Count > 0) world.GiveLevel(server.Heroes[0]);
+                    return true;
+                });
+            }
             if (_frames == 30 && _options.Parade is string parade && _server != null)
             {
                 _server.Ask(server =>
@@ -869,6 +880,10 @@ namespace Dino_Defenders
                 case "sound":
                     Dino_Engine.Core.Engine.DebugOverlay.Visible = true;
                     Dino_Engine.Core.Engine.DebugOverlay.SoundWindow.Visible = true;
+                    break;
+                case "developer":
+                    Dino_Engine.Core.Engine.DebugOverlay.Visible = true;
+                    if (_developer != null) _developer.Visible = true;
                     break;
                 case "friends": _ui.Toggle(_ui.Multiplayer); break;
                 case "pause": _ui.Toggle(_ui.Pause); break;

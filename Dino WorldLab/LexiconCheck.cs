@@ -10,10 +10,11 @@ namespace Dino_WorldLab
 {
     /// <summary>
     /// Grows the asset lexicon (LEXICON.md) with no window and holds it to what it promises: no plot on another, every place built where its plot is and every plant and stone planted on
-    /// its own, the floor level with no water standing on it, every plaque on ground that can be walked to from the landing, and nothing on the plateau that isn't on show. Draws its plan as
-    /// the game's camera sees it, +x to the left and north up, every plot outlined in its section's colour. Exit code 1 on any problem. The game's own shelf, its creatures and people, is in the
-    /// game's assembly, which is loaded from beside this one's if it's been built (or from --game), so that the whole room is laid out as the game lays it out; otherwise it's said that only
-    /// the engine's sections were checked. --find words lists every exhibit those words are in, with where to stand to see it, for --at in the game.
+    /// its own, what lies on the ground laid on it as a land lays it, the floor level with no water standing on it, every plaque on ground that can be walked to from the landing, and nothing
+    /// on the plateau that isn't on show. Draws its plan as the game's camera sees it, +x to the left and north up, every plot outlined in its section's colour. Exit code 1 on any problem.
+    /// The game's own shelf, its creatures and people, is in the game's assembly, which is loaded from beside this one's if it's been built (or from --game), so that the whole room is laid
+    /// out as the game lays it out; otherwise it's said that only the engine's sections were checked. --find words lists every exhibit those words are in, with where to stand to see it, for
+    /// --at in the game.
     /// </summary>
     internal static class LexiconCheck
     {
@@ -136,7 +137,13 @@ namespace Dino_WorldLab
                     problems.Add($"{exhibit.Exhibit.Key} names no asset.");
                     continue;
                 }
-                if (!world.Objects.TryNearest(LexiconAssets.ModelOf(asset), exhibit.Centre, 0.5f, out _)) problems.Add($"{exhibit.Exhibit.Key} isn't planted.");
+                string model = LexiconAssets.ModelOf(asset);
+                GroundCards.Shape? card = GroundCards.ShapeOf(model);
+                if (!world.Objects.TryNearest(model, exhibit.Centre, 0.5f, out WorldObject planted))
+                    problems.Add(card != null ? $"{exhibit.Exhibit.Key} isn't laid: the ground under it is too uneven for a card to lie on." : $"{exhibit.Exhibit.Key} isn't planted.");
+                // What lies on the ground lies on it as a land lays it, on the ground as it's drawn, rather than buried in it or standing off it.
+                else if (card != null && (!GroundCards.TryLay(world, exhibit.Centre, exhibit.Exhibit.Yaw, exhibit.Exhibit.Scale, card, out Vector3 laid, out _) || (planted.Position - laid).Length > 0.01f))
+                    problems.Add($"{exhibit.Exhibit.Key} doesn't lie on the ground as a land lays it.");
             }
         }
 

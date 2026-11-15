@@ -820,6 +820,14 @@ namespace Dino_Defenders.Client
             Send(writer);
         }
 
+        /// <summary>A developer's cheat, from the F3 Developer window. The server only gives it while the game is being tested.</summary>
+        public void Cheat(DeveloperCheat cheat)
+        {
+            BitWriter writer = Action(HeroAction.Cheat);
+            writer.WriteByte((byte)cheat);
+            Send(writer);
+        }
+
         /// <summary>Begins calling the old roads open from where the hero stands. The server watches it, and opens the map to travel by if it isn't broken.</summary>
         public void CallRoads() => Send(Action(HeroAction.CallRoads));
 

@@ -22,7 +22,7 @@ namespace Dino_Defenders
     ///   --carry N       Fills N cells of the pack with things rolled from the seed, to try anything to do with a pack.
     ///   --parade all    Stands one of every creature in front of the hero for looking at, or those named, as wolf,boar, or one of each rarity with rarities.
     ///   --loot all      Drops one find of every rarity in front of the hero, or everything a tier gives, as boss, rare, magic, chest or hoard. folios adds books, pages and sentences among them.
-    ///   --panel name    Opens map, hero, talents, book, glossary, chronicle, merchant, elder, table, travel, stash, vendor, uniques (the vendor at his uniques), friends, pause or sound once the world is up.
+    ///   --panel name    Opens map, hero, talents, book, glossary, chronicle, merchant, elder, table, travel, stash, vendor, uniques (the vendor at his uniques), friends, pause, sound or developer (F3's Developer window) once the world is up.
     ///   --treeview z,x,y   With --panel talents: looks at the tree from zoom z, at x,y on it (both optional after the zoom), for pictures of the tree.
     ///   --travel N      After N frames: from a land, goes home to the Haven through a waygate; from the Haven, opens the way to the first land the map table shows and steps through.
     ///   --omens a,b     Puts these omens on the first land, at the best tier its level reaches, and on any land opened with --travel.
@@ -62,6 +62,7 @@ namespace Dino_Defenders
     ///   --nolife true   Nothing's alive and no leaves fall, for measuring what that costs.
     ///   --skin false    Bare rock without its skin of blocks (RockSkin), for measuring what that costs.
     ///   --startle N     Frightens everything within sight of the hero after N frames, for watching it go in a --film.
+    ///   --levelup N     Gives the hero a level after N frames, through the server as a kill would, for looking at the moment.
     ///   --lifelog file  Writes down what's alive, where it is and what it's up to, once a second.
     ///   --meshseed N    Seeds what otherwise grows differently in every run, so that two builds can be compared picture by picture.
     ///   --materialsheet folder  Writes every material's maps to that folder as pictures as soon as they're made: colour, normal, height,
@@ -182,6 +183,7 @@ namespace Dino_Defenders
         public bool Skin = true;
         public string? LifeLog;
         public int StartleAfterFrames = -1;
+        public int LevelUpAfterFrames = -1;     // Gives the hero a level after that many frames, as killing would, for looking at it.
         public float GardenGap = 1.6f;
         public int PerfStart = 300;
         public int PerfFrames = 600;
@@ -306,6 +308,7 @@ namespace Dino_Defenders
                     case "skin": options.Skin = bool.Parse(value); break;
                     case "lifelog": options.LifeLog = value; break;
                     case "startle": options.StartleAfterFrames = int.Parse(value); break;
+                    case "levelup": options.LevelUpAfterFrames = int.Parse(value); break;
                     case "gardengap": options.GardenGap = float.Parse(value, System.Globalization.CultureInfo.InvariantCulture); break;
                     case "perfstart": options.PerfStart = int.Parse(value); break;
                     case "perfframes": options.PerfFrames = int.Parse(value); break;

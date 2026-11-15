@@ -3,6 +3,7 @@
 // Grass blades into a shadow map: the same blades as Grass.vert, widened where the light sees them edge-on so their
 // shadows keep their width.
 
+#include Globals.glsl
 #include Grass/GrassField.glsl
 #include Grass/GrassBlade.glsl
 
@@ -24,7 +25,8 @@ void main()
     float acrossCoord;
     float t;
     float coverage;
-    grassBladeVertex(blade, gl_VertexID, segments, shadowEye, 0.0, position, normal, across, acrossCoord, t, coverage);
+    // A flower faces the camera here too, so that what casts is what's drawn (GrassBlade.glsl).
+    grassBladeVertex(blade, gl_VertexID, segments, shadowEye, vec4(viewPosWorld, 1.0), 0.0, position, normal, across, acrossCoord, t, coverage);
 
     gl_Position = shadowViewProjectionMatrix * vec4(position, 1.0);
 }

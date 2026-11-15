@@ -1,4 +1,5 @@
 using Dino_Defenders.Gameplay;
+using Dino_Defenders.Net;
 using Dino_Defenders.Progression;
 using Dino_Defenders.Server;
 using Dino_Engine.ECS.Components;
@@ -77,6 +78,7 @@ namespace Dino_NetLab
             Taking(report, worlds);
             OnlyInTheHaven(report, worlds, land);
             ABadLine(report, worlds);
+            LevelCheat(report, worlds, land);
             return report.Finish();
         }
 
@@ -152,6 +154,22 @@ namespace Dino_NetLab
             scene.Player.Client.TakeOffer(0, Roll, Level, 0, 5);
             scene.Lab.Run(1);
             report.Check("And the server gives nothing, and says so", scene.Real.Carried().Count() == 0 && scene.Shown.Inventory[5] == null && Pack(scene.Real) == Pack(scene.Shown));
+        }
+
+        // The F3 Developer window's level up, which goes with him: it's while he stands that the game is being tested.
+        private static void LevelCheat(Report report, WorldCache worlds, WorldRequest land)
+        {
+            report.Section("The developer's level up");
+            using var scene = new Scene(worlds, land, "Landing", Line);
+            int before = scene.Real.Level;
+            scene.Player.Client.Cheat(DeveloperCheat.LevelUp);
+            scene.Lab.Run(1);
+            report.Check("Asking for it gives exactly one level, through the rules", scene.Real.Level == before + 1 && scene.Real.Experience < scene.Real.ExperienceToNext / 10, $"level {before} to {scene.Real.Level}, {scene.Real.Experience} over");
+            report.Check("And the client is told", scene.Shown.Level == scene.Real.Level);
+            scene.Player.Client.Cheat(DeveloperCheat.LevelUp);
+            scene.Player.Client.Cheat(DeveloperCheat.LevelUp);
+            scene.Lab.Run(1);
+            report.Check("Each ask is one more", scene.Real.Level == before + 3 && scene.Shown.Level == scene.Real.Level);
         }
 
         private static void ABadLine(Report report, WorldCache worlds)

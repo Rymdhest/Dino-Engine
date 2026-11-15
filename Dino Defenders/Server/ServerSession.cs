@@ -171,8 +171,20 @@ namespace Dino_Defenders.Server
 
             hero.RefreshLoadout();
             hero.Actor.Vitals = Vitals.Full(hero.Actor.Sheet);
+            // The fanfare is all that's sent: a client sees its own hero's level go up in what it's told of them, and shows it there (LevelUpShow).
             Server.Broadcast(new SoundEvent { Position = Server.HeroPosition(hero), Cue = SoundCue.LevelUp }, hero.Sim.Position);
-            Server.Announce(hero, $"Level {hero.Hero.Level}", $"{hero.Hero.UnspentPoints} talents to spend.");
+        }
+
+        /// <summary>
+        /// The rest of this level's experience, so the hero goes up one through the same path a kill takes, for a developer (the F3 Developer window, --levelup). What they gain is
+        /// raised or lowered by their Experience Gain, so what's given is worked back from it.
+        /// </summary>
+        public void GiveLevel(ServerPlayer hero)
+        {
+            if (hero.Hero.Level >= HeroState.MaxLevel) return;
+            float gain = MathF.Max(1f + hero.Actor.Sheet.ExperienceGain / 100f, 0.01f);
+            int needed = hero.Hero.ExperienceToNext - hero.Hero.Experience;
+            GiveExperience(hero, (int)MathF.Ceiling(needed / gain) + 1);
         }
 
         /// <summary>A fight shared is a reward shared: everyone close enough to have been in it gets the whole of it.</summary>

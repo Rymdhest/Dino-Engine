@@ -1442,7 +1442,7 @@ namespace Dino_NetLab
             }
             OldRoads(report, lab, player, session, truth);
 
-            // A shrine and a chest are somewhere else in the world, and exist only once a hero is near. The Reich keeps people from its shrines, so those who hold it go first.
+            // A shrine and a chest are somewhere else in the world, and exist only once a hero is near. A shrine can be kindled whether or not those holding it are down.
             // One the land names, if it names one, as freeing any other is its own reward and moves nothing on.
             WorldSite shrine = session.World.Sites.Where(s => s.Kind == SiteKind.Shrine).OrderByDescending(s => session.Chronicle.Asks(s)).First();
             bool asked = session.Chronicle.Asks(shrine);
@@ -1493,11 +1493,7 @@ namespace Dino_NetLab
                 int index = session.Sites.FindIndex(s => s.Site == shrine);
                 SiteState held = session.Sites[index];
                 Use(altar.Value);
-                report.Check("A shrine still held can't be kindled", !held.Kindled && held.HostilesTotal > 0);
-
-                FreePlace(lab, truth, held);
-                Use(altar.Value);
-                report.Check("Once it's free, kindling it lights it for the server", held.Kindled);
+                report.Check("A shrine can be kindled while it's still held, and that lights it for the server", held.Kindled && !held.Cleared && held.HostilesTotal > 0);
                 lab.Run(1);
                 report.Check("And for the client", player.Client.Session!.Sites[index].Kindled);
                 report.Check("And blesses whoever kindled it", truth.Actor.Buffs.Any(b => BuffCatalog.Blessings.Contains(b.Buff)));
@@ -1511,6 +1507,7 @@ namespace Dino_NetLab
                 truth.SummaryChanged = true;
                 Use(altar.Value);
                 report.Check("So pressing use there again gives nothing", truth.Hero.Flasks == 0);
+                FreePlace(lab, truth, held);
                 bool moved = session.Chronicle.Objectives.Any(o => o.Kind == ObjectiveKind.FreePlaces && o.Progress > 0) && player.Client.Session.Chronicle.Objectives.Any(o => o.Kind == ObjectiveKind.FreePlaces && o.Progress > 0);
                 if (asked) report.Check("And freeing it moved the chronicle on, for both", moved);
                 else report.Check("And freeing one the land didn't name moves nothing on", !session.Chronicle.Objectives.Any(o => o.Kind == ObjectiveKind.FreePlaces && o.Progress > 0));

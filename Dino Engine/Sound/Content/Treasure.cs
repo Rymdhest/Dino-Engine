@@ -281,6 +281,10 @@ namespace Dino_Engine.Sound.Content
         {
             SoundRandom random = take.Random;
 
+            // The shockwave it goes out with (Triumph.LevelUp): a deep boom, and the air rushing out after it, falling as it goes.
+            take.Mix(Impacts.Thump(take, 150f, 36f, 0.045f, 0.38f, 1.3f).Normalize(0f), 0f, -2f);
+            take.Mix(take.Brown(1.3f).Lowpass(Curve.Glide(2400f, 180f, 1f)).Shape(Curve.Hump(0.04f, 1.25f)).Normalize(0f), 0f, -9f);
+
             // Up a major triad and on to the octave, bell by bell, then all of them ringing together under a rising shimmer.
             float root = random.Pick(new[] { 261.63f, 293.66f, 329.63f });
             float[] steps = { 1f, 1.25f, 1.5f, 2f, 2.5f, 3f, 4f };

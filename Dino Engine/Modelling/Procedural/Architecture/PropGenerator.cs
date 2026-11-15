@@ -47,8 +47,8 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
                 case "scarecrow": BuildScarecrow(b); break;
                 case "rack": BuildDryingRack(b, random); break;
                 case "bench": BuildBench(b); break;
-                case "tent": BuildTent(b, definition.HalfExtents, 112, 92, 66); break;
-                case "tent.large": BuildTent(b, definition.HalfExtents, 118, 46, 38); break;
+                case "tent": BuildTent(b, random, large: false); break;
+                case "tent.large": BuildTent(b, random, large: true); break;
                 case "campfire": BuildCampfire(b, random, lights); break;
                 case "logs": BuildLogStack(b, random); break;
                 case "boat": BuildBoat(b); break;
@@ -342,33 +342,28 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
             }
         }
 
-        // Sewn from lengths of cloth that have weathered differently, so the slopes don't read as one blank sheet from above.
-        private static void BuildTent(MeshBuilder b, Vector2 half, int red, int green, int blue)
+        // Canvas that hangs as canvas does, with a door to +z and its inside behind it (Places/Tents.cs), inside the catalogue's footprint, guys and all: a ridge tent of
+        // the land's undyed canvas, old and patched, or a wall tent striped in the land's warm red under a scalloped valance, its pennant on the front pole.
+        private static void BuildTent(MeshBuilder b, WorldRandom random, bool large)
         {
-            const int Lengths = 5;
-            VertexMaterial cloth = Cloth(red, green, blue);
-            VertexMaterial worn = Cloth((int)(red * 0.76f), (int)(green * 0.76f), (int)(blue * 0.76f));
-
-            float height = half.Y * 1.5f;
-            float length = half.X;
-            for (int i = 0; i < Lengths; i++)
+            if (!large)
             {
-                float from = length * (2f * i / Lengths - 1f);
-                float to = length * (2f * (i + 1) / Lengths - 1f);
-                VertexMaterial panel = i % 2 == 0 ? cloth : worn;
-                b.Quad(new Vector3(from, 0f, half.Y), new Vector3(to, 0f, half.Y), new Vector3(to, height, 0f), new Vector3(from, height, 0f), panel);
-                b.Quad(new Vector3(to, 0f, -half.Y), new Vector3(from, 0f, -half.Y), new Vector3(from, height, 0f), new Vector3(to, height, 0f), panel);
+                Places.Tents.Ridge(b, random, Places.Tents.Look.Land(random, 0.75f), 2.9f, 2.9f, 4f, 1.15f, 0.45f, reich: false);
+                return;
             }
-
-            VertexMaterial dark = new VertexMaterial(TextureGenerator.flat, new Colour(18, 15, 12));
-            b.Triangle(new Vector3(length, 0f, half.Y), new Vector3(length, 0f, -half.Y), new Vector3(length, height, 0f), dark);
-            b.Triangle(new Vector3(-length, 0f, -half.Y), new Vector3(-length, 0f, half.Y), new Vector3(-length, height, 0f), cloth);
-
-            b.Tube(new Vector3(-length - 0.3f, height + 0.06f, 0f), new Vector3(length + 0.3f, height + 0.06f, 0f), 0.09f, 0.09f, 5, DarkWood);
-            foreach (float x in new[] { -length, length })
-            {
-                b.Tube(new Vector3(x, 0f, 0f), new Vector3(x, height, 0f), 0.08f, 0.08f, 5, DarkWood);
-            }
+            Places.Tents.Look look = Places.Tents.Look.Land(random, 0.45f);
+            Vector3 red = new Vector3(0.5f, 0.17f, 0.09f);
+            look.Stripe = red;
+            look.RidgeBand = red * 0.85f;
+            look.Eave = red;
+            const float hx = 3.6f, hz = 3.1f, ridge = 5.2f;
+            Places.Tents.Wall(b, random, look, hx, hz, 2.6f, ridge, 1.1f, scalloped: true, valance: true);
+            // A pennant from the front pole, two-faced.
+            Vector3 top = new Vector3(0f, ridge + 1.3f, hz), fly = new Vector3(0f, ridge + 1.05f, hz + 1.1f), foot = new Vector3(0f, ridge + 0.8f, hz);
+            b.Tube(new Vector3(0f, ridge + 0.2f, hz), top + Vector3.UnitY * 0.08f, 0.035f, 0.025f, 5, DarkWood);
+            VertexMaterial pennant = Cloth((int)(red.X * 255f), (int)(red.Y * 255f), (int)(red.Z * 255f));
+            b.Triangle(top, foot, fly, pennant);
+            b.Triangle(top, fly, foot, pennant);
         }
 
         private static void BuildCampfire(MeshBuilder b, WorldRandom random, List<AssetLight> lights)

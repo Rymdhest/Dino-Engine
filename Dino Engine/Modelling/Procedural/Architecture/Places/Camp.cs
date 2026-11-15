@@ -521,46 +521,24 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Places
         {
             float length = Math.Clamp(spec.Metres(0), 4.5f, 9f);
             float hx = random.Range(2.2f, 2.6f), hz = length * 0.5f, wall = 1.9f, ridge = random.Range(3.5f, 3.9f);
-            VertexMaterial canvas = new VertexMaterial(MaterialCatalog.Cloth.Index, new Colour(0.23f, 0.23f, 0.24f));
-            VertexMaterial inside = Tint(canvas, new Vector3(0.5f)), trim = Oxblood(), wood = Timber(random, 0.6f), iron = Iron(random);
-            // Its walls, closed but for the front, where the door's flaps are tied back.
-            foreach (float s in new[] { -1f, 1f })
-            {
-                Vector3 a = new Vector3(s * hx, 0.05f, -hz), c = new Vector3(s * hx, 0.05f, hz);
-                if (s > 0f) Kit.Sheet(b, c, a, a + Vector3.UnitY * wall, c + Vector3.UnitY * wall, canvas, inside);
-                else Kit.Sheet(b, a, c, c + Vector3.UnitY * wall, a + Vector3.UnitY * wall, canvas, inside);
-                // The roof's sides, sagging a little.
-                Vector3 e0 = new Vector3(s * hx, wall, -hz), e1 = new Vector3(s * hx, wall, hz), r0 = new Vector3(0f, ridge, -hz), r1 = new Vector3(0f, ridge, hz);
-                if (s > 0f) Kit.Cloth(b, r0, r1, e1, e0, 0.1f, 3, canvas, inside);
-                else Kit.Cloth(b, r1, r0, e0, e1, 0.1f, 3, canvas, inside);
-                // Oxblood along the eave.
-                Kit.Plank(b, new Vector3(s * (hx + 0.02f), wall - 0.12f, -hz), new Vector3(s * (hx + 0.02f), wall - 0.12f, hz), new Vector3(s, 0f, 0f), 0.26f, 0.01f, trim, 0f);
-                // Guys out to their pegs.
-                foreach (float z in new[] { -hz * 0.7f, 0f, hz * 0.7f })
-                {
-                    Vector3 from = new Vector3(s * hx, wall, z), peg = new Vector3(s * (hx + 1.5f), Ground, z);
-                    Kit.Rope(b, from, peg + Vector3.UnitY * 0.25f, 0.05f, 0.022f, Rope(random), 2);
-                    Kit.Pole(b, peg - Vector3.UnitY * 0.2f, peg + Vector3.UnitY * 0.3f, 0.045f, wood);
-                }
-            }
-            // The back closed, its gable and the front's.
-            Kit.Sheet(b, new Vector3(hx, 0.05f, -hz), new Vector3(-hx, 0.05f, -hz), new Vector3(-hx, wall, -hz), new Vector3(hx, wall, -hz), canvas, inside);
-            foreach (float z in new[] { -hz, hz }) Kit.Face(b, new Vector3(-hx, wall, z), new Vector3(hx, wall, z), new Vector3(0f, ridge, z), new Vector3(0f, 0f, MathF.Sign(z)), canvas);
-            Kit.Face(b, new Vector3(-hx, wall, hz - 0.02f), new Vector3(hx, wall, hz - 0.02f), new Vector3(0f, ridge, hz - 0.02f), -Vector3.UnitZ, inside);
+            VertexMaterial wood = Timber(random, 0.6f), iron = Iron(random);
+            // A wall tent of the Reich's charcoal with oxblood along its eaves (Tents.cs), nothing holding its ridge out at the front but the fly.
+            Tents.Look look = Tents.Look.Reich(random, random.Range(0.25f, 0.55f));
+            look.Eave = Arena.ArenaStone.OxbloodColour;
+            Tents.Wall(b, random, look, hx, hz, wall, ridge, 1.3f, scalloped: false, valance: true, frontGuy: false);
             Kit.Mark(b, new Vector3(0f, wall + (ridge - wall) * 0.38f, hz + 0.02f), Vector3.UnitX, Vector3.UnitY, 0.7f, 0.01f, random);
-            // The door: the dark inside, and its flaps tied back.
-            Kit.Face(b, new Vector3(-hx * 0.55f, 0.05f, hz - 0.04f), new Vector3(hx * 0.55f, 0.05f, hz - 0.04f), new Vector3(hx * 0.55f, wall, hz - 0.04f), new Vector3(-hx * 0.55f, wall, hz - 0.04f), Vector3.UnitZ, Dark);
-            foreach (float s in new[] { -1f, 1f })
-            {
-                Kit.Face(b, new Vector3(s * hx, 0.05f, hz), new Vector3(s * hx * 0.55f, 0.05f, hz), new Vector3(s * hx * 0.55f, wall, hz), new Vector3(s * hx, wall, hz), Vector3.UnitZ, canvas);
-                Kit.Sheet(b, new Vector3(s * hx * 0.55f, 0.1f, hz + 0.02f), new Vector3(s * hx * 0.8f, 0.2f, hz + 0.25f), new Vector3(s * hx * 0.75f, wall - 0.2f, hz + 0.15f), new Vector3(s * hx * 0.55f, wall, hz + 0.02f), canvas, inside);
-            }
-            // The poles, the ridge and the fly out in front on two more.
-            foreach (float z in new[] { -hz, hz }) Kit.Pole(b, new Vector3(0f, -0.3f, z), new Vector3(0f, ridge + 0.3f, z), 0.07f, wood);
+            // The fly out in front on two more poles, sagging between them, oxblood along its edge.
             float fly = 2.4f;
-            foreach (float s in new[] { -1f, 1f }) Kit.Pole(b, new Vector3(s * hx * 0.9f, -0.3f, hz + fly), new Vector3(s * hx * 0.9f, wall + 0.35f, hz + fly), 0.06f, wood);
-            Kit.Cloth(b, new Vector3(-hx * 0.95f, wall + 0.6f, hz), new Vector3(hx * 0.95f, wall + 0.6f, hz), new Vector3(hx * 0.95f, wall + 0.35f, hz + fly), new Vector3(-hx * 0.95f, wall + 0.35f, hz + fly), 0.14f, 3, canvas, inside);
-            Kit.Plank(b, new Vector3(-hx * 0.95f, wall + 0.3f, hz + fly + 0.02f), new Vector3(hx * 0.95f, wall + 0.3f, hz + fly + 0.02f), Vector3.UnitZ, 0.22f, 0.01f, trim, 0f);
+            foreach (float s in new[] { -1f, 1f }) Kit.Pole(b, new Vector3(s * hx * 0.9f, -0.3f, hz + fly), new Vector3(s * hx * 0.9f, wall + 0.42f, hz + fly), 0.06f, wood);
+            float edge = 1f - 0.22f / fly;
+            Vector3 FlyAt(float u, float v)
+            {
+                float across = (u - 0.5f) * 2f;
+                Vector3 p = new Vector3(across * hx * 0.95f, MathHelper.Lerp(wall + 0.62f, wall + 0.36f, v), hz + 0.02f + v * fly);
+                return p - Vector3.UnitY * (0.12f * (1f - across * across) * MathF.Sin(MathF.PI * Math.Clamp(v * 1.15f, 0f, 1f)) + 0.03f * MathF.Sin(across * 9f) * v * (1f - across * across));
+            }
+            Tents.Sheet(b, new[] { 0f, 0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f, 0.7f, 0.8f, 0.9f, 1f }, new[] { 0f, 0.15f, 0.3f, 0.45f, 0.6f, 0.75f, edge - 0.02f, edge + 0.02f, 1f }, FlyAt,
+                (u, v) => v > edge ? Arena.ArenaStone.OxbloodColour : look.Canvas * (0.95f + 0.1f * MathF.Sin(u * 23f)), Vector3.UnitY, MaterialCatalog.Cloth.Index);
             // The table under the fly, its maps pinned out, a lantern on it and stools round it.
             Vector3 table = new Vector3(0f, 0f, hz + fly * 0.5f);
             Kit.Span(b, table + new Vector3(-1f, 0.86f, -0.45f), table + new Vector3(1f, 0.92f, 0.45f), 0.01f, wood);

@@ -927,13 +927,6 @@ namespace Dino_Defenders.Server
             if (state.Kindled) return;
             Vector3 position = view.Get<PositionComponent>().value;
 
-            // The Reich keeps its shrines out with its own people, who have to go first.
-            if (!EncounterSystem.Keeps(state.Site.Kind) && !state.Cleared && state.HostilesTotal > 0)
-            {
-                _server.Note(hero, $"{state.Site.Name} is still held. Free it first.");
-                return;
-            }
-
             BuffDefinition blessing = EncounterSystem.BlessingOf(session, state);
             hero.Actor.Vitals = Vitals.Full(hero.Actor.Sheet);
             hero.Hero.Flasks = HeroState.MaxFlasks;

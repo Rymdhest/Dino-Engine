@@ -43,7 +43,7 @@ void main()
     vec3 position;
     vec3 normal;
     vec3 across;
-    grassBladeVertex(blade, gl_VertexID, segments, vec4(viewPosWorld, 1.0), minHalfWidthPerMetre, position, normal, across, fragAcrossCoord, fragT, fragCoverage);
+    grassBladeVertex(blade, gl_VertexID, segments, vec4(viewPosWorld, 1.0), vec4(viewPosWorld, 1.0), minHalfWidthPerMetre, position, normal, across, fragAcrossCoord, fragT, fragCoverage);
     // The blade's own, from where it grows: the same every frame, whichever slot of the list it lands in.
     fragCoverageSeed = grassHash(floatBitsToUint(blade.root.x) ^ grassHash(floatBitsToUint(blade.root.z)));
 

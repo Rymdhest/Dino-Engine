@@ -121,10 +121,24 @@ namespace Dino_Engine.GUI.Debug
             return bar;
         }
 
-        private void AddToggle(GuiElement bar, string text, GuiWindow window)
+        /// <summary>
+        /// A window of the game's own among the engine's, hidden until its button on the toolbar is pressed: the button goes after the engine's, before "F3 hides".
+        /// Everything in it is the game's, and the engine knows nothing of what it does.
+        /// </summary>
+        public GuiWindow AddWindow(string name, GuiWindow window)
+        {
+            _root.Insert(_root.Children.Count - 1, window);    // Under the toolbar, which is last so that it's on top.
+            window.Visible = false;
+            AddToggle(Toolbar, name, window, Toolbar.Children.Count - 1);
+            return window;
+        }
+
+        private void AddToggle(GuiElement bar, string text, GuiWindow window, int at = -1)
         {
             GuiTheme theme = _gui.Theme;
-            var button = bar.Add(new Button(text, () => window.Toggle()) { Height = 24f, Tooltip = $"Show or hide the {text} window" });
+            var button = new Button(text, () => window.Toggle()) { Height = 24f, Tooltip = $"Show or hide the {text} window" };
+            if (at >= 0) bar.Insert(at, button);
+            else bar.Add(button);
             button.Label.FontSize = theme.SmallFontSize + 1f;
             button.Updated += _ =>
             {

@@ -4,8 +4,8 @@ using Dino_Engine.Util;
 
 namespace Dino_Engine.GUI.Debug
 {
-    /// <summary>Small builders shared by the debug windows.</summary>
-    internal static class DebugUi
+    /// <summary>Small builders shared by the debug windows, and by any a game adds of its own (DebugOverlay.AddWindow), so that they all look alike.</summary>
+    public static class DebugUi
     {
         private static GuiTheme Theme => GuiContext.DefaultTheme;
 
