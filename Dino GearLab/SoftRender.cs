@@ -96,7 +96,8 @@ namespace Dino_GearLab
             int bottom = Math.Min((int)MathF.Ceiling(MathF.Max(a.Y, MathF.Max(b.Y, c.Y))), Height - 1);
 
             Vector3 na = view * va.normal, nb = view * vb.normal, nc = view * vc.normal;
-            Vector3 ca = va.colour.ToVector3(), cb = vb.colour.ToVector3(), cc = vc.colour.ToVector3();
+            // What the game's material makes of a colour drawn on it, as a colour meant as an albedo was divided by it.
+            Vector3 ca = va.colour.ToVector3() * GearMaterials.AlbedoOf(va.materialTextureIndex), cb = vb.colour.ToVector3() * GearMaterials.AlbedoOf(vb.materialTextureIndex), cc = vc.colour.ToVector3() * GearMaterials.AlbedoOf(vc.materialTextureIndex);
             int material = va.materialTextureIndex;
 
             for (int y = top; y <= bottom; y++)

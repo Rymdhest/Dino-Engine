@@ -171,6 +171,12 @@ namespace Dino_Engine.Textures
         // above, is in the vertices. Last, so that adding them moved no other material's layer.
         public static readonly MaterialSpec BarkFissured = Add("bark-fissured", 2f, 0.08f, 0.7f, givesWay: true);
         public static readonly MaterialSpec BarkFlaking = Add("bark-flaking", 2f, 0.014f, 0.6f);
+        // More of what's worn and carried (GEAR.md), pale or white as the rest of gear's are, as what colour it is goes in its vertices: wood cut along its grain for hafts, bows and staves,
+        // metal scales laced in rows, cloth quilted over padding, and fur. Last, so that adding them moved no other material's layer.
+        public static readonly MaterialSpec Timber = Add("timber", 1.2f, 0.004f, 0.55f);
+        public static readonly MaterialSpec Scales = Add("scales", 0.5f, 0.012f, 0.02f);
+        public static readonly MaterialSpec Quilt = Add("quilt", 0.8f, 0.018f, 0.85f);
+        public static readonly MaterialSpec Fur = Add("fur", 0.5f, 0.02f, 0.6f);
 
         public static IReadOnlyList<MaterialSpec> All => _all;
 

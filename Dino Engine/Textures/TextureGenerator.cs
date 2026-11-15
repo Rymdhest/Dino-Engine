@@ -110,6 +110,10 @@ namespace Dino_Engine.Textures
         public static int skin = MaterialCatalog.Skin.Index;
         public static int hide = MaterialCatalog.Hide.Index;
         public static int paintedBoards = MaterialCatalog.PaintedBoards.Index;
+        public static int timber = MaterialCatalog.Timber.Index;
+        public static int scales = MaterialCatalog.Scales.Index;
+        public static int quilt = MaterialCatalog.Quilt.Index;
+        public static int fur = MaterialCatalog.Fur.Index;
 
         public List<MaterialMapsTextures> preparedTextures = new List<MaterialMapsTextures>();
 
@@ -309,6 +313,10 @@ namespace Dino_Engine.Textures
             GearMaterials.Straw = thatch;
             GearMaterials.Hide = hide;
             GearMaterials.Plain = flat;
+            GearMaterials.Timber = timber;
+            GearMaterials.Scale = scales;
+            GearMaterials.Quilt = quilt;
+            GearMaterials.Fur = fur;
         }
 
         private static void BindFenceMaterials()

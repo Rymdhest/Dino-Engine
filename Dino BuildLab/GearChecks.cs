@@ -18,6 +18,11 @@ namespace Dino_BuildLab
             DualWielding(report);
             FullPack(report);
 
+            report.Section("Weapons");
+            Grips(report);
+            Pacing(report);
+            OldWeapons(report);
+
             report.Section("Families");
             Families(report);
             Leaning(report);
@@ -26,6 +31,7 @@ namespace Dino_BuildLab
             Seeds(report);
             OldLooks(report);
             Traits(report);
+            Uniforms(report);
 
             report.Section("Saves from before there were ten places");
             OldPlaces(report);
@@ -142,6 +148,117 @@ namespace Dino_BuildLab
             report.Check("A weapon is compared against both weapons held", worn.WornInPlaceOf(worn.Inventory[0]!).SequenceEqual(new[] { sword, dagger }));
             worn.Equipped[WornSlot.OffHand] = shield;
             report.Check("But not against a shield, which it wouldn't take off", worn.WornInPlaceOf(worn.Inventory[0]!).SequenceEqual(new[] { sword }));
+        }
+
+        // Every weapon there is, at a level everything can be found at.
+        private static List<Item> EveryWeapon()
+        {
+            var random = new WorldRandom(23);
+            return ItemGenerator.BaseNames.Select(name => ItemGenerator.Plain(name, 40, random)).Where(item => item.Slot == ItemSlot.MainHand).ToList();
+        }
+
+        private static void Grips(Report report)
+        {
+            List<Item> weapons = EveryWeapon();
+            foreach (WeaponKind kind in Enum.GetValues<WeaponKind>())
+            {
+                Grip grip = WeaponKinds.Of(kind).Grip;
+                List<Item> made = weapons.Where(item => item.Kind == kind).ToList();
+                bool one = made.Any(item => !item.IsTwoHanded), two = made.Any(item => item.IsTwoHanded);
+                string how = grip switch { Grip.Either => "in one hand and in two", Grip.Two => "in two hands only", _ => "in one hand only" };
+                report.Check($"Every {kind} comes {how}", made.Count > 0 && grip switch { Grip.Either => one && two, Grip.Two => two && !one, _ => one && !two });
+            }
+            report.Check("Swords, axes and hammers come both ways, and a spear is a javelin in one hand", new[] { WeaponKind.Sword, WeaponKind.Axe, WeaponKind.Hammer }.All(kind => WeaponKinds.Of(kind).Grip == Grip.Either) && WeaponKinds.Of(WeaponKind.Spear).Grip == Grip.One);
+
+            report.Check("What a look is said with knows how many hands a weapon takes", weapons.All(item => ItemLook.TwoHandedOf(ItemLook.Traits(item)) == item.IsTwoHanded), string.Join(", ", weapons.Where(item => ItemLook.TwoHandedOf(ItemLook.Traits(item)) != item.IsTwoHanded).Select(item => item.Base)));
+            bool Great(Item item) => ItemLook.SpecOf(item).Kind is Dino_Engine.Modelling.Procedural.Gear.GearKind.Greatsword or Dino_Engine.Modelling.Procedural.Gear.GearKind.Greataxe or Dino_Engine.Modelling.Procedural.Gear.GearKind.Greathammer;
+            report.Check("And grows a sword, an axe or a hammer that takes two hands as a shape of its own", weapons.All(item => Great(item) == (item.IsTwoHanded && item.Kind is WeaponKind.Sword or WeaponKind.Axe or WeaponKind.Hammer)));
+            report.Check("A blow says how many hands it took", weapons.All(item => ((item.Weapon().Tags & Tags.TwoHanded) != 0) == item.IsTwoHanded && ((item.Weapon().Tags & Tags.OneHanded) != 0) == !item.IsTwoHanded));
+            report.Check("And one with two swings slower than the same kind with one", weapons.Where(item => item.IsTwoHanded && WeaponKinds.Of(item.Kind).Grip == Grip.Either).All(item => item.Weapon().AttackTime > WeaponKinds.Of(item.Kind).AttackTime));
+
+            Item greatsword = weapons.First(item => item.Base == "Greatsword"), longsword = weapons.First(item => item.Base == "Longsword"), smith = weapons.First(item => item.Base == "Smith's Hammer"), javelin = weapons.First(item => item.Base == "Javelin");
+            Item guard = Shield();
+            HeroState hero = Carrying(greatsword, longsword, smith, javelin, guard);
+            hero.Equip(javelin);
+            hero.Equip(guard);
+            report.Check("A javelin leaves a hand free for a shield", hero.Equipped[WornSlot.MainHand] == javelin && hero.Equipped.ContainsKey(WornSlot.OffHand));
+            report.Check("And so does a hammer made for one hand", hero.Equip(smith) && hero.Equipped[WornSlot.MainHand] == smith && hero.Equipped.ContainsKey(WornSlot.OffHand));
+            report.Check("But a greatsword takes both", hero.Equip(greatsword) && hero.Equipped[WornSlot.MainHand] == greatsword && !hero.Equipped.ContainsKey(WornSlot.OffHand) && (HeroBuild.Compile(hero).Granted & Condition.TwoHanded) != 0);
+            report.Check("And a longsword one, with the other free for a second", !longsword.IsTwoHanded && WornSlots.For(longsword).Count == 2 && WornSlots.For(greatsword).Count == 1);
+        }
+
+        // A two-handed make is about a quarter more damage over time than the same kind in one hand at the same level, and a javelin or a hammer in one hand about what a sword is. Between what a
+        // kind's one-handed bases hit for, a level's is drawn straight across, and past the last it goes on as the last two did.
+        private static void Pacing(Report report)
+        {
+            List<Item> weapons = EveryWeapon();
+            float OneHanded(WeaponKind kind, int level)
+            {
+                var ladder = weapons.Where(item => item.Kind == kind && !item.IsTwoHanded).Select(item => ItemGenerator.WeaponBase(item.Base)).OrderBy(b => b.MinLevel).ToList();
+                if (ladder.Count == 1) return ladder[0].Damage;
+                int at = 1;
+                while (at < ladder.Count - 1 && ladder[at].MinLevel < level) at++;
+                (float low, int from) = ladder[at - 1];
+                (float high, int to) = ladder[at];
+                return low + (high - low) * (level - from) / (float)(to - from);
+            }
+            float Rate(WeaponKind kind, bool both, float damage) => damage / WeaponKinds.Of(kind).TimeFor(both);
+
+            foreach (WeaponKind kind in new[] { WeaponKind.Sword, WeaponKind.Axe, WeaponKind.Hammer })
+            {
+                var ratios = weapons.Where(item => item.Kind == kind && item.IsTwoHanded).Select(item => ItemGenerator.WeaponBase(item.Base)).Select(b => Rate(kind, true, b.Damage) / Rate(kind, false, OneHanded(kind, b.MinLevel))).ToList();
+                report.Check($"Two hands on {kind}s hit a quarter harder over time than one, at the same level", ratios.All(r => r is > 1.15f and < 1.4f), string.Join(", ", ratios.Select(r => r.ToString("0.00"))));
+            }
+            foreach (WeaponKind kind in new[] { WeaponKind.Hammer, WeaponKind.Spear })
+            {
+                var ratios = weapons.Where(item => item.Kind == kind && !item.IsTwoHanded).Select(item => ItemGenerator.WeaponBase(item.Base)).Select(b => Rate(kind, false, b.Damage) / Rate(WeaponKind.Sword, false, OneHanded(WeaponKind.Sword, b.MinLevel))).ToList();
+                report.Check($"A {kind} in one hand hits about as hard over time as a sword", ratios.All(r => r is > 0.9f and < 1.15f), string.Join(", ", ratios.Select(r => r.ToString("0.00"))));
+            }
+        }
+
+        private const string VersionThirteen = """
+            {
+              "Version": 13,
+              "Hero": {
+                "Level": 25, "Experience": 0, "Gold": 10,
+                "Inventory": [
+                  { "Name": "Sturdy Boar Spear", "Slot": "MainHand", "Rarity": "Magic", "Level": 20, "WeaponDamage": 26, "Kind": "Spear", "Base": "Boar Spear", "Seed": 5, "Lines": [] },
+                  { "Name": "Partisan", "Slot": "MainHand", "Rarity": "Normal", "Level": 20, "WeaponDamage": 60, "Kind": "Spear", "Base": "Partisan", "Seed": 6, "Lines": [] },
+                  { "Name": "Old Glaive", "Slot": "MainHand", "Rarity": "Normal", "Level": 22, "WeaponDamage": 100, "Kind": "Spear", "Seed": 7, "Lines": [] },
+                  { "Name": "The Long Arm", "Slot": "MainHand", "Rarity": "Unique", "Level": 22, "WeaponDamage": 124, "Kind": "Spear", "Base": "Glaive", "Unique": "long-arm", "Lines": [] },
+                  { "Name": "Maul", "Slot": "MainHand", "Rarity": "Normal", "Level": 5, "WeaponDamage": 20, "Kind": "Mace", "Base": "Maul", "Seed": 8, "Lines": [] }
+                ],
+                "Equipped": {}
+              },
+              "WorldSeed": 1, "WorldLevel": 1
+            }
+            """;
+
+        // Before 2026-11-12 a hammer was a Mace, and a spear took two hands and hit as hard as anything that does. Both come across as what they are now, and a spear's damage comes down once.
+        private static void OldWeapons(Report report)
+        {
+            string path = Path.Combine(Path.GetTempPath(), $"buildlab-weapons-{Environment.ProcessId}.json");
+            File.WriteAllText(path, VersionThirteen);
+            SaveGame.PathOverride = path;
+            SaveGame? first = SaveGame.Load();
+            first?.Store();
+            SaveGame? again = SaveGame.Load();
+            again?.Store();
+            SaveGame? third = SaveGame.Load();
+            File.Delete(path);
+            SaveGame.PathOverride = null;
+
+            report.Check("A save with hammers and spears from before loads", first != null && third != null);
+            if (first == null || third == null) return;
+            Item[] carried = first.Hero.Carried().ToArray();
+            Item Named(Item[] items, string name) => items.First(item => item.Name.Contains(name) || item.Unique == name);
+            report.Check("A Mace is a Hammer, and still takes two hands", Named(carried, "Maul").Kind == WeaponKind.Hammer && Named(carried, "Maul").IsTwoHanded);
+            report.Check("An old spear is the javelin it became, by name", Named(carried, "Hunting Spear").Base == "Hunting Spear" && Named(carried, "Winged Spear").Base == "Winged Spear" && Named(carried, "Old Pilum").Base == "Pilum" && Named(carried, "long-arm").Base == "Pilum");
+            report.Check("And takes one hand", carried.Where(item => item.Kind == WeaponKind.Spear).All(item => !item.IsTwoHanded));
+            bool Near(float a, float b) => a == MathF.Round(b);
+            report.Check("Its damage comes down by as much as its base's did, to a whole number as everything's is", Near(Named(carried, "Hunting Spear").WeaponDamage, 20f) && Near(Named(carried, "Winged Spear").WeaponDamage, 50f) && Near(Named(carried, "Old Pilum").WeaponDamage, 100f * 52f / 62f) && Near(Named(carried, "long-arm").WeaponDamage, 124f * 52f / 62f), string.Join(", ", carried.Select(item => $"{item.Name} {item.WeaponDamage:0.##}")));
+            Item[] later = third.Hero.Carried().ToArray();
+            report.Check("Only ever once, however often it's saved and loaded", later.Length == carried.Length && later.Zip(carried).All(pair => pair.First.WeaponDamage == pair.Second.WeaponDamage && pair.First.Base == pair.Second.Base && pair.First.Name == pair.Second.Name));
         }
 
         private static void FullPack(Report report)
@@ -299,25 +416,64 @@ namespace Dino_BuildLab
             report.Check("A unique's base is in the catalogue", ItemGenerator.BaseOf(new Item { Name = "Ashen Promise", Slot = ItemSlot.MainHand, Unique = "ashen-promise" }) == "Arming Sword");
         }
 
+        // What the land's people and the Reich's wear: each kind dressed within what a crowd of them can cost, nobody but the Reich's own in its colours, and the Reich's plainly in them. What
+        // comes in bands has to be cheaper than one met alone, as a warlord or a grave knight is, who costs about what a hero in everything does.
+        private const int MostCrowdTriangles = 20000;
+        private const int MostAloneTriangles = 34000;
+
+        private static void Uniforms(Report report)
+        {
+            int dearest = 0, dearestAlone = 0;
+            string dearestKey = "", dearestAloneKey = "";
+            var wearing = new List<string>();
+            var bare = new List<string>();
+            foreach (string key in Dino_Defenders.Client.Uniforms.Keys)
+            {
+                Dino_Engine.Modelling.Model.Mesh mesh = Dino_Defenders.Client.Uniforms.Make(key);
+                bool alone = key is "warlord" or "revenant";
+                if (alone && mesh.faces.Count > dearestAlone) { dearestAlone = mesh.faces.Count; dearestAloneKey = key; }
+                if (!alone && mesh.faces.Count > dearest) { dearest = mesh.faces.Count; dearestKey = key; }
+                if (Environment.GetEnvironmentVariable("UNIFORMS") == "1") Console.WriteLine($"    {key}: {mesh.faces.Count}");
+                int reichs = 0;
+                foreach (Dino_Engine.Modelling.Model.MeshVertex vertex in mesh.meshVertices)
+                {
+                    OpenTK.Mathematics.Vector3 albedo = vertex.colour.ToVector3() * Dino_Engine.Modelling.Procedural.Gear.GearMaterials.AlbedoOf(vertex.materialTextureIndex);
+                    if (Dino_Engine.Modelling.Procedural.Gear.GearSwatches.IsReichs(albedo, Dino_Engine.Modelling.Procedural.Gear.GearMaterials.IsMetal(vertex.materialTextureIndex))) reichs++;
+                }
+                float share = reichs / (float)Math.Max(mesh.meshVertices.Count, 1);
+                bool reich = Dino_Defenders.Client.Uniforms.IsReichs(key);
+                if (!reich && share > 0.01f) wearing.Add($"{key} {share:P0}");
+                if (reich && share < 0.25f) bare.Add($"{key} {share:P0}");
+            }
+            report.Check("Every kind of person met in bands is dressed within what a crowd of them can cost", dearest <= MostCrowdTriangles, $"{dearest} triangles at most, {dearestKey}, of {MostCrowdTriangles}");
+            report.Check("And one met alone within what a hero in everything costs", dearestAlone <= MostAloneTriangles, $"{dearestAlone}, {dearestAloneKey}, of {MostAloneTriangles}");
+            report.Check("Every outfit grows what it asks for: a hood, a straw hat, pauldrons, a helm with or without a crest", Dino_Defenders.Client.Uniforms.Unmet.IsEmpty, string.Join(", ", Dino_Defenders.Client.Uniforms.Unmet));
+            report.Check("Nobody but the Reich's own wears its colours", wearing.Count == 0, string.Join(", ", wearing));
+            report.Check("And the Reich's own plainly do", bare.Count == 0, string.Join(", ", bare));
+        }
+
         private static void Traits(Report report)
         {
             report.Check("Every base says what it's going for", ItemGenerator.BaseNames.All(ItemLook.HasForm), string.Join(", ", ItemGenerator.BaseNames.Where(b => !ItemLook.HasForm(b))));
-            report.Check("There are few enough bases to send as a byte", ItemGenerator.BaseNames.Count() < 255);
+            report.Check("There are few enough bases to send in seven bits", ItemGenerator.BaseNames.Count() < 127, $"{ItemGenerator.BaseNames.Count()} of 126");
 
             var random = new WorldRandom(16);
             int kept = 0, rolled = 3000;
             var kinds = new HashSet<Dino_Engine.Modelling.Procedural.Gear.GearKind>();
             for (int i = 0; i < rolled; i++)
             {
-                Item item = ItemGenerator.Roll(30, random.Fork(i), 1f);
+                // Every level of the climb, as what level a look is from is packed with it.
+                Item item = ItemGenerator.Roll(1 + i * 37 % ItemGenerator.MostItemLevel, random.Fork(i), 1f);
                 Dino_Engine.Modelling.Procedural.Gear.GearSpec spec = ItemLook.SpecOf(item);
                 kinds.Add(spec.Kind);
 
                 FamilyShares shares = item.Shares();
-                bool same = spec.Seed == item.LookSeed() && spec.Grade == (item.Rarity == Rarity.Unique ? ItemLook.UniqueGrade : (int)item.Rarity) && MathF.Abs(spec.Heavy - shares.Heavy) < 0.05f && MathF.Abs(spec.Leather - shares.Leather) < 0.05f && MathF.Abs(spec.Cloth - shares.Cloth) < 0.05f;
+                bool same = spec.Seed == item.LookSeed() && spec.Grade == (item.Rarity == Rarity.Unique ? ItemLook.UniqueGrade : (int)item.Rarity) && MathF.Abs(spec.Heavy - shares.Heavy) < 0.05f && MathF.Abs(spec.Leather - shares.Leather) < 0.05f && MathF.Abs(spec.Cloth - shares.Cloth) < 0.05f
+                    && MathF.Abs(spec.Level - (item.Level - 1) / (float)(ItemGenerator.MostItemLevel - 1)) <= 0.5f / ItemLook.LevelSteps + 1e-4f;
                 if (same) kept++;
             }
-            report.Check("What a look needs survives being packed into one number", kept == rolled, $"{kept} of {rolled}");
+            report.Check("What a look needs survives being packed into one number, its level with it", kept == rolled, $"{kept} of {rolled}");
+            report.Check("And the first level and the last are the bottom and the top of what a look shows", ItemLook.LevelStep(1) == 0 && ItemLook.LevelStep(ItemGenerator.MostItemLevel) == ItemLook.LevelSteps);
 
             // Written out, as a unique's look is grown from this number, and a save only keeps its seed: anything else gives every unique in every pack a different look.
             report.Check("A unique keeps the look it's always had", ItemLook.SpecOf(UniqueCatalog.Make(UniqueCatalog.All[0], 20, new WorldRandom(1))).Grade == 4);
@@ -393,6 +549,8 @@ namespace Dino_BuildLab
             var files = new List<string>();
             if (File.Exists(Path.Combine(folder, "save.json"))) files.Add(Path.Combine(folder, "save.json"));
             if (Directory.Exists(Path.Combine(folder, "backups"))) files.AddRange(Directory.GetFiles(Path.Combine(folder, "backups"), "*.json"));
+            // And the heroes being played now, each a save of its own since the main menu (HeroRoster).
+            if (Directory.Exists(Path.Combine(folder, "heroes"))) files.AddRange(Directory.GetFiles(Path.Combine(folder, "heroes"), "*.json"));
 
             foreach (string file in files)
             {

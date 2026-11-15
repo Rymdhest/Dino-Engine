@@ -2,62 +2,87 @@ namespace Dino_Engine.Modelling.Procedural.Gear
 {
     /// <summary>
     /// Where every piece of gear comes from: a spec goes in and a mesh comes out, the same on every machine, with no GPU and nothing of the game. It's built on worker threads, so
-    /// nothing in here may touch anything shared. See GEAR.md.
+    /// nothing in here may touch anything shared. Weapons and armour grow from a <see cref="GearLook"/>; books, pages, sentences and orders from the <see cref="GearStyle"/> their looks were made
+    /// with. See GEAR.md.
     /// </summary>
     public static class GearForge
     {
-        public static GearMesh Make(in GearSpec spec)
+        public static GearMesh Make(in GearSpec spec) => Make(spec, null);
+
+        /// <summary>How a piece of armour is made, which its look decides when its name doesn't (<see cref="GearForm.Make"/>): for a lab, and one day for a crafting bench to show.</summary>
+        public static GearMake MakeOf(in GearSpec spec) => new ArmourKit(new GearLook(spec)).Make;
+
+        /// <summary>
+        /// A necklace as it's worn: its pendant where it hangs at the origin, as always, and its chain along <paramref name="strands"/> rather than round in a loop, laid over whatever's on the chest
+        /// (<see cref="Character.Outfit.Necklace"/>).
+        /// </summary>
+        public static GearMesh Worn(in GearSpec spec, IReadOnlyList<IReadOnlyList<OpenTK.Mathematics.Vector3>> strands, Dictionary<string, int>? costs = null)
         {
-            var mesh = new GearMesh();
-            var style = new GearStyle(spec);
+            var mesh = new GearMesh { Costs = costs, Parts = costs != null ? new() : null };
+            JewelGenerator.Amulet(mesh, new GearLook(spec), strands);
+            return mesh;
+        }
+
+        /// <summary>The same, counting what each part of it cost in triangles into <paramref name="costs"/> (<see cref="GearMesh.Costs"/>).</summary>
+        public static GearMesh Make(in GearSpec spec, Dictionary<string, int>? costs)
+        {
+            var mesh = new GearMesh { Costs = costs, Parts = costs != null ? new() : null };
             switch (spec.Kind)
             {
                 case GearKind.Sword:
+                case GearKind.Greatsword:
                 case GearKind.Dagger:
-                    BladeGenerator.Build(mesh, style);
-                    break;
+                    SwordGenerator.Build(mesh, new GearLook(spec));
+                    return mesh;
                 case GearKind.Axe:
-                    PolearmGenerator.Axe(mesh, style);
-                    break;
-                case GearKind.Mace:
-                    PolearmGenerator.Mace(mesh, style);
-                    break;
+                case GearKind.Greataxe:
+                    HaftGenerator.Axe(mesh, new GearLook(spec));
+                    return mesh;
+                case GearKind.Hammer:
+                case GearKind.Greathammer:
+                    HaftGenerator.Hammer(mesh, new GearLook(spec));
+                    return mesh;
                 case GearKind.Spear:
-                    PolearmGenerator.Spear(mesh, style);
-                    break;
+                    HaftGenerator.Spear(mesh, new GearLook(spec));
+                    return mesh;
                 case GearKind.Staff:
-                    PolearmGenerator.Staff(mesh, style);
-                    break;
+                    CasterGenerator.Staff(mesh, new GearLook(spec));
+                    return mesh;
                 case GearKind.Wand:
-                    PolearmGenerator.Wand(mesh, style);
-                    break;
+                    CasterGenerator.Wand(mesh, new GearLook(spec));
+                    return mesh;
                 case GearKind.Bow:
-                    BowGenerator.Build(mesh, style);
-                    break;
-                case GearKind.OffHand:
-                    ShieldGenerator.Build(mesh, style);
-                    break;
-                case GearKind.Finger:
-                    JewelGenerator.Ring(mesh, style);
-                    break;
-                case GearKind.Neck:
-                    JewelGenerator.Amulet(mesh, style);
-                    break;
+                    BowGenerator.Build(mesh, new GearLook(spec));
+                    return mesh;
                 case GearKind.Head:
-                    HeadGenerator.Build(mesh, style);
-                    break;
+                    HeadGenerator.Build(mesh, new GearLook(spec));
+                    return mesh;
                 case GearKind.Body:
-                    TorsoGenerator.Build(mesh, style);
-                    break;
+                    TorsoGenerator.Build(mesh, new GearLook(spec));
+                    return mesh;
                 case GearKind.Legs:
-                    LimbGenerator.Legs(mesh, style);
-                    break;
+                    LegGenerator.Build(mesh, new GearLook(spec));
+                    return mesh;
                 case GearKind.Feet:
-                    LimbGenerator.Feet(mesh, style);
-                    break;
+                    FootGenerator.Build(mesh, new GearLook(spec));
+                    return mesh;
                 case GearKind.Hands:
-                    LimbGenerator.Hands(mesh, style);
-                    break;
+                    HandGenerator.Build(mesh, new GearLook(spec));
+                    return mesh;
+                case GearKind.OffHand:
+                    ShieldGenerator.Build(mesh, new GearLook(spec));
+                    return mesh;
+                case GearKind.Finger:
+                    JewelGenerator.Ring(mesh, new GearLook(spec));
+                    return mesh;
+                case GearKind.Neck:
+                    JewelGenerator.Amulet(mesh, new GearLook(spec));
+                    return mesh;
+            }
+
+            var style = new GearStyle(spec);
+            switch (spec.Kind)
+            {
                 case GearKind.Book:
                     BookGenerator.Build(mesh, style);
                     break;

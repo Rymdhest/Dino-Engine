@@ -151,7 +151,7 @@ What each kind of place is under the Reich, as `Chronicle.Describe` tells it:
 | Who holds what | `Warbands` (`Server/Warbands.cs`) |
 | What each enemy is | `Bestiary` (`Server/Bestiary.cs`), whose summaries follow this |
 | The beasts' bodies, harness, rot and bones | `Dino Engine/Modelling/Procedural/Saurian/`, in `DINOSAURS.md` |
-| The soldiers' colours | `CharacterFactory.ReichLook` |
+| The soldiers' colours | `Client/Uniforms.cs`, in the Reich's livery (`GearTailoring.Reich`) |
 | The beasts' voices | `Sound/Content/Saurians.cs` |
 | The Haven's giants, and their voices | `Dino Engine/Wildlife/Herd.cs` and `Dino Defenders/Client/GiantShow.cs`, in `WILDLIFE.md`, and `Sound/Content/Giants.cs` |
 

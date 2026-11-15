@@ -101,33 +101,49 @@ namespace Dino_Defenders.Progression
         Unique,     // None of the above applies: see UniqueCatalog.
     }
 
+    /// <summary>Saved by name and sent by number, so a new one goes on the end. A hammer was a Mace until 2026-11-12, and <see cref="SaveGame.Resay"/> renames it as anything is read.</summary>
     public enum WeaponKind : byte
     {
         Sword,
         Axe,
-        Mace,
+        Hammer,
         Dagger,
-        Spear,
+        Spear,      // A javelin: one hand, thrust or thrown, and it flies point first.
         Bow,
         Staff,
         Wand,
     }
 
-    /// <summary>What a kind of weapon is like, whoever made it.</summary>
-    public readonly record struct WeaponTraits(float AttackTime, float CritChance, bool TwoHanded, Tags Tag, GearFamily Family, Mod[] Mods);
+    /// <summary>How many hands a kind of weapon takes: always one, always two, or whichever its make was made for, which each base says for itself.</summary>
+    public enum Grip : byte
+    {
+        One,
+        Two,
+        Either,
+    }
+
+    /// <summary>
+    /// What a kind of weapon is like, whoever made it. A kind that's made both ways swings a two-handed make slower, and its bases hit much harder for it, as it gives up a shield or a second weapon:
+    /// about a quarter more damage over time than the same kind in one hand, in bigger blows.
+    /// </summary>
+    public readonly record struct WeaponTraits(float AttackTime, float TwoHandedTime, float CritChance, Grip Grip, Tags Tag, GearFamily Family, Mod[] Mods)
+    {
+        /// <summary>How long one blow takes with a make that takes this many hands.</summary>
+        public float TimeFor(bool twoHanded) => twoHanded ? TwoHandedTime : AttackTime;
+    }
 
     public static class WeaponKinds
     {
         private static readonly WeaponTraits[] Table =
         {
-            new(0.6f, 5f, false, Tags.Sword, GearFamily.Heavy, new[] { Flat(Stat.Accuracy, 20f) }),
-            new(0.68f, 5f, false, Tags.Axe, GearFamily.Heavy, new[] { Inc(Stat.Damage, 8f, Tags.Physical) }),
-            new(0.82f, 5f, true, Tags.Mace, GearFamily.Heavy, new[] { Chance(Tags.Stun, 10f) }),
-            new(0.48f, 8f, false, Tags.Dagger, GearFamily.Leather, new[] { Flat(Stat.CritMultiplier, 20f) }),
-            new(0.62f, 6f, true, Tags.Spear, GearFamily.Leather, new[] { Flat(Stat.MeleeReach, 1.5f) }),
-            new(0.7f, 6f, true, Tags.Bow, GearFamily.Leather, new[] { Inc(Stat.ProjectileSpeed, 15f) }),
-            new(0.75f, 7f, true, Tags.Staff, GearFamily.Cloth, new[] { Inc(Stat.Damage, 18f, Tags.Spell) }),
-            new(0.56f, 7f, false, Tags.Wand, GearFamily.Cloth, new[] { Inc(Stat.Damage, 10f, Tags.Spell) }),
+            new(0.6f, 0.8f, 5f, Grip.Either, Tags.Sword, GearFamily.Heavy, new[] { Flat(Stat.Accuracy, 20f) }),
+            new(0.68f, 0.88f, 5f, Grip.Either, Tags.Axe, GearFamily.Heavy, new[] { Inc(Stat.Damage, 8f, Tags.Physical) }),
+            new(0.66f, 0.82f, 5f, Grip.Either, Tags.Hammer, GearFamily.Heavy, new[] { Chance(Tags.Stun, 10f) }),
+            new(0.48f, 0.48f, 8f, Grip.One, Tags.Dagger, GearFamily.Leather, new[] { Flat(Stat.CritMultiplier, 20f) }),
+            new(0.62f, 0.62f, 6f, Grip.One, Tags.Spear, GearFamily.Leather, new[] { Flat(Stat.MeleeReach, 1.5f) }),
+            new(0.7f, 0.7f, 6f, Grip.Two, Tags.Bow, GearFamily.Leather, new[] { Inc(Stat.ProjectileSpeed, 15f) }),
+            new(0.75f, 0.75f, 7f, Grip.Two, Tags.Staff, GearFamily.Cloth, new[] { Inc(Stat.Damage, 18f, Tags.Spell) }),
+            new(0.56f, 0.56f, 7f, Grip.One, Tags.Wand, GearFamily.Cloth, new[] { Inc(Stat.Damage, 10f, Tags.Spell) }),
         };
 
         public static WeaponTraits Of(WeaponKind kind) => Table[(int)kind];
@@ -249,10 +265,11 @@ namespace Dino_Defenders.Progression
         public int SellValue => (int)(4f * Level * (1f + (int)Rarity * 1.6f + (Lines.Count + Places) * 0.5f)) + (Held?.Sum(held => held?.SellValue ?? 0) ?? 0);
         public int BuyValue => SellValue * 4;
 
-        public bool IsTwoHanded => Slot == ItemSlot.MainHand && WeaponKinds.Of(Kind).TwoHanded;
+        /// <summary>Whether it's a weapon that takes both hands, which its kind says, or for a kind made both ways what it was made from (<see cref="ItemGenerator.TakesTwoHands"/>).</summary>
+        public bool IsTwoHanded => Slot == ItemSlot.MainHand && ItemGenerator.TakesTwoHands(this);
 
         /// <summary>Whether it's a weapon that leaves a hand free, and so can go in the off hand too.</summary>
-        public bool IsOneHandedWeapon => Slot == ItemSlot.MainHand && !WeaponKinds.Of(Kind).TwoHanded;
+        public bool IsOneHandedWeapon => Slot == ItemSlot.MainHand && !ItemGenerator.TakesTwoHands(this);
 
         /// <summary>
         /// What its look grows from. A unique is one thing wherever it turns up, so a boss's sword is the sword you pick up. Anything from before seeds were kept gets one from what
@@ -321,8 +338,9 @@ namespace Dino_Defenders.Progression
         public WeaponProfile Weapon()
         {
             WeaponTraits traits = WeaponKinds.Of(Kind);
-            Tags tags = traits.Tag | (traits.TwoHanded ? Tags.TwoHanded : Tags.OneHanded);
-            return new WeaponProfile(MathF.Round(WeaponDamage * (1f - WeaponSpread)), MathF.Round(WeaponDamage * (1f + WeaponSpread)), traits.AttackTime, traits.CritChance, tags, ItemGenerator.DamageTypeOf(Base));
+            bool both = IsTwoHanded;
+            Tags tags = traits.Tag | (both ? Tags.TwoHanded : Tags.OneHanded);
+            return new WeaponProfile(MathF.Round(WeaponDamage * (1f - WeaponSpread)), MathF.Round(WeaponDamage * (1f + WeaponSpread)), traits.TimeFor(both), traits.CritChance, tags, ItemGenerator.DamageTypeOf(Base));
         }
 
         /// <summary>
@@ -639,11 +657,14 @@ namespace Dino_Defenders.Progression
         /// <summary>The highest level anything worn or put in a book is found at, as the highest a hero can be: lands go on deeper, and what's found in them stops here.</summary>
         public const int MostItemLevel = HeroState.MaxLevel;
 
-        private sealed record BaseItem(string Name, ItemSlot Slot, int MinLevel, float Damage = 0f, float Armour = 0f, float Evasion = 0f, float Barrier = 0f, WeaponKind Kind = WeaponKind.Sword, DamageType Type = DamageType.Physical);
+        /// <param name="TwoHanded">For a kind made both ways, whether this make takes both hands. A kind that's only ever one or the other is that, whatever this says (<see cref="WeaponTraits.Grip"/>).</param>
+        private sealed record BaseItem(string Name, ItemSlot Slot, int MinLevel, float Damage = 0f, float Armour = 0f, float Evasion = 0f, float Barrier = 0f, WeaponKind Kind = WeaponKind.Sword, DamageType Type = DamageType.Physical, bool TwoHanded = false);
 
         /// <summary>What type of Attack Damage a base deals, which is physical for anything that isn't a caster's.</summary>
-        public static DamageType DamageTypeOf(string baseName) => Array.Find(Bases, item => item.Name == baseName)?.Type ?? DamageType.Physical;
+        public static DamageType DamageTypeOf(string baseName) => ByName.TryGetValue(baseName, out BaseItem? made) ? made.Type : DamageType.Physical;
 
+        // Swords, axes and hammers come in one-handed and two-handed makes. A two-handed make is the kind's one-handed damage at its level, times how much longer it takes to swing, and a quarter
+        // more: 1.67 times a sword's, 1.62 an axe's. A hammer in one hand is a sword's damage for its swing, and a spear is a javelin, a sword's for its swing too. Damage here is before the level.
         private static readonly BaseItem[] Bases =
         {
             new("Rusted Blade", ItemSlot.MainHand, 1, 7f),
@@ -653,21 +674,35 @@ namespace Dino_Defenders.Progression
             new("War Blade", ItemSlot.MainHand, 14, 32f),
             new("Runed Blade", ItemSlot.MainHand, 20, 46f),
             new("Knightly Blade", ItemSlot.MainHand, 30, 66f),
+            new("Greatsword", ItemSlot.MainHand, 3, 19f, TwoHanded: true),
+            new("Claymore", ItemSlot.MainHand, 11, 43f, TwoHanded: true),
+            new("Flamberge", ItemSlot.MainHand, 20, 77f, TwoHanded: true),
+            new("Executioner's Sword", ItemSlot.MainHand, 30, 110f, TwoHanded: true),
             new("Hatchet", ItemSlot.MainHand, 1, 9f, Kind: WeaponKind.Axe),
             new("Bearded Axe", ItemSlot.MainHand, 7, 21f, Kind: WeaponKind.Axe),
             new("Broad Axe", ItemSlot.MainHand, 18, 46f, Kind: WeaponKind.Axe),
             new("Reaver Axe", ItemSlot.MainHand, 30, 74f, Kind: WeaponKind.Axe),
-            new("Maul", ItemSlot.MainHand, 2, 17f, Kind: WeaponKind.Mace),
-            new("Warhammer", ItemSlot.MainHand, 9, 36f, Kind: WeaponKind.Mace),
-            new("Great Maul", ItemSlot.MainHand, 20, 78f, Kind: WeaponKind.Mace),
-            new("Titan's Hammer", ItemSlot.MainHand, 32, 122f, Kind: WeaponKind.Mace),
+            new("Felling Axe", ItemSlot.MainHand, 2, 18f, Kind: WeaponKind.Axe, TwoHanded: true),
+            new("Greataxe", ItemSlot.MainHand, 10, 45f, Kind: WeaponKind.Axe, TwoHanded: true),
+            new("Bardiche", ItemSlot.MainHand, 20, 82f, Kind: WeaponKind.Axe, TwoHanded: true),
+            new("Champion Axe", ItemSlot.MainHand, 30, 120f, Kind: WeaponKind.Axe, TwoHanded: true),
+            new("Smith's Hammer", ItemSlot.MainHand, 1, 8f, Kind: WeaponKind.Hammer),
+            new("Horseman's Hammer", ItemSlot.MainHand, 7, 20f, Kind: WeaponKind.Hammer),
+            new("War Pick", ItemSlot.MainHand, 16, 40f, Kind: WeaponKind.Hammer),
+            new("Knight's Hammer", ItemSlot.MainHand, 28, 68f, Kind: WeaponKind.Hammer),
+            new("Maul", ItemSlot.MainHand, 2, 17f, Kind: WeaponKind.Hammer, TwoHanded: true),
+            new("Warhammer", ItemSlot.MainHand, 9, 36f, Kind: WeaponKind.Hammer, TwoHanded: true),
+            new("Great Maul", ItemSlot.MainHand, 20, 78f, Kind: WeaponKind.Hammer, TwoHanded: true),
+            new("Titan's Hammer", ItemSlot.MainHand, 32, 122f, Kind: WeaponKind.Hammer, TwoHanded: true),
             new("Shiv", ItemSlot.MainHand, 1, 6f, Kind: WeaponKind.Dagger),
             new("Stiletto", ItemSlot.MainHand, 8, 15f, Kind: WeaponKind.Dagger),
             new("Kris", ItemSlot.MainHand, 18, 30f, Kind: WeaponKind.Dagger),
             new("Assassin's Blade", ItemSlot.MainHand, 30, 50f, Kind: WeaponKind.Dagger),
-            new("Boar Spear", ItemSlot.MainHand, 2, 13f, Kind: WeaponKind.Spear),
-            new("Partisan", ItemSlot.MainHand, 10, 30f, Kind: WeaponKind.Spear),
-            new("Glaive", ItemSlot.MainHand, 22, 62f, Kind: WeaponKind.Spear),
+            new("Javelin", ItemSlot.MainHand, 1, 7f, Kind: WeaponKind.Spear),
+            new("Hunting Spear", ItemSlot.MainHand, 2, 10f, Kind: WeaponKind.Spear),
+            new("Winged Spear", ItemSlot.MainHand, 10, 25f, Kind: WeaponKind.Spear),
+            new("Pilum", ItemSlot.MainHand, 22, 52f, Kind: WeaponKind.Spear),
+            new("War Javelin", ItemSlot.MainHand, 32, 72f, Kind: WeaponKind.Spear),
             new("Short Bow", ItemSlot.MainHand, 1, 9f, Kind: WeaponKind.Bow),
             new("Hunting Bow", ItemSlot.MainHand, 6, 18f, Kind: WeaponKind.Bow),
             new("Yew Longbow", ItemSlot.MainHand, 15, 36f, Kind: WeaponKind.Bow),
@@ -736,6 +771,37 @@ namespace Dino_Defenders.Progression
             new("Ring", ItemSlot.Finger, 1),
             new("Amulet", ItemSlot.Neck, 1),
         };
+
+        // After Bases, as statics are made in the order they're written.
+        private static readonly Dictionary<string, BaseItem> ByName = Bases.ToDictionary(b => b.Name);
+
+        /// <summary>
+        /// Bases that went under another name, what they're called now, and what a spear's damage comes to now it's a javelin that takes one hand, as a share of what it was. What a save holds is renamed as
+        /// it's read (<see cref="SaveGame.Resay"/>), and the share is taken at the same moment, so it's only ever taken once: an old name is what says it hasn't been.
+        /// </summary>
+        public static readonly IReadOnlyList<(string Old, string New, float Damage)> Renamed = new[]
+        {
+            ("Boar Spear", "Hunting Spear", 10f / 13f),
+            ("Partisan", "Winged Spear", 25f / 30f),
+            ("Glaive", "Pilum", 52f / 62f),
+        };
+
+        /// <summary>
+        /// Whether a weapon takes both hands. A kind that's only ever one or the other is that, and for one that's made both ways it's what it was made from. Anything older than bases being kept, or made
+        /// from one that's gone, is what its kind always was before there was a choice: a hammer took two hands, and a sword or an axe one.
+        /// </summary>
+        public static bool TakesTwoHands(Item item) => TakesTwoHands(BaseOf(item), item.Kind);
+
+        /// <summary>What a weapon's base hits for before its level, and the first level it's found at, for what checks the rules. Nothing for anything that isn't a weapon's.</summary>
+        public static (float Damage, int MinLevel) WeaponBase(string baseName) => ByName.TryGetValue(baseName, out BaseItem? made) && made.Slot == ItemSlot.MainHand ? (made.Damage, made.MinLevel) : (0f, 0);
+
+        /// <summary>The same, from a base's name and a kind alone, for what's only known by what was said about it.</summary>
+        public static bool TakesTwoHands(string baseName, WeaponKind kind)
+        {
+            Grip grip = WeaponKinds.Of(kind).Grip;
+            if (grip != Grip.Either) return grip == Grip.Two;
+            return ByName.TryGetValue(baseName, out BaseItem? made) && made.Slot == ItemSlot.MainHand ? made.TwoHanded : kind == WeaponKind.Hammer;
+        }
 
         /// <param name="rarityBonus">Added chance of better rarity, as a share: 0.5 is half as likely again.</param>
         public static Item Roll(int level, WorldRandom random, float rarityBonus = 0f, Rarity? least = null, ItemSlot? slot = null)
@@ -1094,9 +1160,9 @@ namespace Dino_Defenders.Progression
             }
             if (candidates.Count == 0) return best!;
 
-            // Weapons and armour come in kinds, and nobody should be stuck with one. Newer makes are likelier, within the kind that comes up.
+            // Weapons and armour come in kinds, and nobody should be stuck with one. Newer makes are likelier, within the kind that comes up, and for a weapon made both ways within its grip.
             BaseItem first = random.Pick(candidates);
-            var kin = candidates.Where(c => c.Kind == first.Kind && (c.Armour > 0f) == (first.Armour > 0f) && (c.Evasion > 0f) == (first.Evasion > 0f) && (c.Barrier > 0f) == (first.Barrier > 0f)).ToList();
+            var kin = candidates.Where(c => c.Kind == first.Kind && c.TwoHanded == first.TwoHanded && (c.Armour > 0f) == (first.Armour > 0f) && (c.Evasion > 0f) == (first.Evasion > 0f) && (c.Barrier > 0f) == (first.Barrier > 0f)).ToList();
             return random.Chance(0.7f + 0.3f * quality) ? kin[^1] : first;
         }
 

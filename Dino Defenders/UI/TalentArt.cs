@@ -456,7 +456,7 @@ namespace Dino_Defenders.UI
                     g.Add(Line(-0.55f, 0.9f, 0.35f, -0.7f, 0.13f));
                     g.Add(Polygon(0.05f, -0.55f, 0.35f, -0.92f, 0.85f, -0.35f, 0.75f, 0.12f, 0.42f, 0.02f, 0.2f, -0.18f));
                     break;
-                case TalentGlyph.Mace:
+                case TalentGlyph.Hammer:
                     g.Add(Line(-0.6f, 0.85f, 0.2f, -0.15f, 0.14f));
                     g.Add(Star(0.38f, -0.38f, 8, 0.58f, 0.38f));
                     break;

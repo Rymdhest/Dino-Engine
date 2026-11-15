@@ -65,13 +65,15 @@ namespace Dino_Defenders.Books
     {
         public const string Prefix = "thrown:";
 
+        /// <summary>The shape of what's thrown, by the name of its kind of gear: what takes both hands is a shape of its own.</summary>
         public static string Of(Tags weapon)
         {
-            if ((weapon & Tags.Axe) != 0) return "Axe";
-            if ((weapon & Tags.Mace) != 0) return "Mace";
+            bool both = (weapon & Tags.TwoHanded) != 0;
+            if ((weapon & Tags.Axe) != 0) return both ? "Greataxe" : "Axe";
+            if ((weapon & Tags.Hammer) != 0) return both ? "Greathammer" : "Hammer";
             if ((weapon & Tags.Dagger) != 0) return "Dagger";
             if ((weapon & Tags.Spear) != 0) return "Spear";
-            if ((weapon & Tags.Sword) != 0) return "Sword";
+            if ((weapon & Tags.Sword) != 0) return both ? "Greatsword" : "Sword";
             return "Stone";
         }
     }

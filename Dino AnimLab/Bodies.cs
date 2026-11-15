@@ -74,6 +74,26 @@ namespace Dino_AnimLab
             return new Body(name, BoarForge.RigOf(spec), MotionStyle.Boar, Carry.Nothing, false, () => BoarForge.Make(spec));
         }
 
+        /// <summary>Which set of armour the armoured bodies wear, and how rare it is (4 is a unique's), as <c>--seed</c> and <c>--grade</c> say.</summary>
+        public static ulong KitSeed = 1;
+        public static int KitGrade = 2;
+
+        // A whole person in one family's armour with a weapon, as a hero is seen: what's worn has to stay apart however the body moves (GearFit), and this is where that's watched.
+        private static Mesh Kitted(float heavy, float leather, float cloth, GearKind weapon, bool shield = false, bool pair = false)
+        {
+            var form = new GearForm(0.55f, 0.45f, 0.3f, 0.6f, 0.45f, 0.15f);
+            var worn = new List<(GearSpec, float)>();
+            foreach (GearKind kind in new[] { GearKind.Head, GearKind.Body, GearKind.Legs, GearKind.Feet, GearKind.Hands })
+            {
+                worn.Add((new GearSpec(KitSeed * 64 + (ulong)kind, kind, heavy, leather, cloth, form, KitGrade, GearTheme.None), -1f));
+            }
+            worn.Add((new GearSpec(KitSeed * 64 + 40, weapon, heavy, leather, cloth, form, KitGrade, GearTheme.None), -1f));
+            if (shield) worn.Add((new GearSpec(KitSeed * 64 + 41, GearKind.OffHand, heavy, leather, cloth, form, KitGrade, GearTheme.None), 1f));
+            if (pair) worn.Add((new GearSpec(KitSeed * 64 + 42, weapon, heavy, leather, cloth, form, KitGrade, GearTheme.None), 1f));
+            return Outfit.Dress(Person(HeldItem.None), worn);
+        }
+
+
         /// <summary>A dinosaur, by the name the game gives its model.</summary>
         public static Body Dino(string name, string key, MotionStyle style)
         {
@@ -100,6 +120,14 @@ namespace Dino_AnimLab
             new Body("hover-sword", Rig.Humanoid, MotionStyle.Hero, Carry.Sword, false, () => Hovering(GearKind.Sword)),
             new Body("hover-bow", Rig.Humanoid, MotionStyle.Hero, Carry.Bow, false, () => Hovering(GearKind.Bow)),
             new Body("risen-shield", Rig.Humanoid, MotionStyle.Dead, Carry.Sword, true, () => Risen(GearKind.OffHand)),
+            new Body("knight", Rig.Humanoid, MotionStyle.Hero, Carry.Sword, false, () => Kitted(1f, 0f, 0f, GearKind.Sword)),
+            new Body("ranger", Rig.Humanoid, MotionStyle.Hero, Carry.Bow, false, () => Kitted(0f, 1f, 0f, GearKind.Bow)),
+            new Body("mage", Rig.Humanoid, MotionStyle.Hero, Carry.Staff, false, () => Kitted(0f, 0f, 1f, GearKind.Staff)),
+            new Body("axeman", Rig.Humanoid, MotionStyle.Hero, Carry.Sword, true, () => Kitted(1f, 0f, 0f, GearKind.Axe, shield: true)),
+            new Body("greataxe", Rig.Humanoid, MotionStyle.Hero, Carry.Greatsword, false, () => Kitted(1f, 0f, 0f, GearKind.Greataxe)),
+            new Body("greatsword", Rig.Humanoid, MotionStyle.Hero, Carry.Greatsword, false, () => Kitted(1f, 0f, 0f, GearKind.Greatsword)),
+            new Body("axes", Rig.Humanoid, MotionStyle.Hero, Carry.Sword, false, () => Kitted(0.5f, 0.5f, 0f, GearKind.Axe, pair: true), Carry.Sword),
+            new Body("warden", Rig.Humanoid, MotionStyle.Hero, Carry.Wand, false, () => Kitted(0f, 0f, 1f, GearKind.Wand, shield: true), Carry.Ward),
             Wolf("wolf", "wolf0"),
             Wolf("direwolf", "direwolf0"),
             Boar("boar", "boar0"),

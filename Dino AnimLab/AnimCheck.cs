@@ -2,6 +2,7 @@ using Dino_Engine.Animation;
 using Dino_Engine.World;
 using Dino_Engine.World.Generation;
 using Dino_Engine.ECS.Components;
+using Dino_Engine.Modelling.Procedural.Gear;
 using OpenTK.Mathematics;
 using System.Diagnostics;
 
@@ -33,6 +34,7 @@ namespace Dino_AnimLab
             Whole();
             Hostile();
             Actions();
+            Arms();
             Falling();
             FirstSeenFrozen();
             Reaching();
@@ -528,6 +530,181 @@ namespace Dino_AnimLab
                 float end = (animator.JointOf(BoneType.Pelvis) - rest).Length;
                 Check("A blow moves a body the way it's going, and it comes back", most > 0.1f && end < 0.2f, $"{most:0.00} m and back to {end:0.00}");
             }
+
+            // An edge leads: what's swung meets what it's swung at with its edge, an axe's bit, a hammer's face, a blade's edge, and hangs it down from a hand at rest. What a weapon has on its +x side
+            // is its edge, put in the hand by HumanoidGenerator.MainHand, and only how the blade goes across itself counts, as how fast it goes along itself says nothing of which way it faces.
+            Vector3 rightEdge = Vector3.TransformNormal(Vector3.UnitX, Dino_Engine.Modelling.Procedural.Character.HumanoidGenerator.MainHand).Normalized();
+            Vector3 leftEdge = Vector3.TransformNormal(Vector3.UnitX, Dino_Engine.Modelling.Procedural.Character.HumanoidGenerator.SecondHand).Normalized();
+            foreach ((string held, string how) in new[] { ("axeman", "a sword is"), ("greataxe", "a greatsword is"), ("axes", "one of two is") })
+            {
+                Body body = Body.Named(held);
+                var ground = new FlatGround();
+                CharacterAnimator resting = body.NewAnimator();
+                for (int i = 0; i < 60; i++) resting.Step(AnimationInput.At(Vector3.Zero, 0f), Step, ground);
+                Vector3 hanging = Vector3.Transform(rightEdge, resting.RotationOf(BoneType.HandR));
+                if (held == "axeman") Check("An edge hangs down from a hand at rest", hanging.Y < -0.5f, $"it faces {hanging.Y:0.00} of the way up");
+                if (held == "axes")
+                {
+                    Vector3 other = Vector3.Transform(leftEdge, resting.RotationOf(BoneType.HandL));
+                    Check("And from the other hand too", other.Y < -0.5f, $"it faces {other.Y:0.00} of the way up");
+                }
+
+                foreach ((string name, Gesture gesture) in new[] { ("forehand", Gestures.Forehand), ("backhand", Gestures.Backhand), ("sweep", Gestures.Sweep), ("overhead", Gestures.Overhead) })
+                {
+                    CharacterAnimator animator = body.NewAnimator();
+                    for (int i = 0; i < 40; i++) animator.Step(AnimationInput.At(Vector3.Zero, 0f), Step, ground);
+
+                    // With a weapon in each hand they take turns, so the second blow is the other hand's.
+                    int blows = body.Second != null ? 2 : 1;
+                    const float impact = 0.45f, length = 0.9f;
+                    float worst = 1f;
+                    int seen = 0;
+                    for (int blow = 1; blow <= blows; blow++)
+                    {
+                        bool left = blow == 2;
+                        float time = 0f;
+                        Vector3 last = animator.WeaponTip;
+                        while (time < length)
+                        {
+                            time += Step;
+                            var input = AnimationInput.At(Vector3.Zero, 0f);
+                            input.Action = new ActionInput { Gesture = gesture, Elapsed = time, Impact = impact, Length = length, Serial = blow };
+                            animator.Step(input, Step, ground);
+                            Vector3 moved = animator.WeaponTip - last;
+                            last = animator.WeaponTip;
+                            if (blow < blows || MathF.Abs(time - impact) > 0.05f) continue;
+                            Vector3 axis = (animator.WeaponTip - animator.WeaponBase).Normalized();
+                            Vector3 across = moved - axis * Vector3.Dot(moved, axis);
+                            if (across.Length < 1e-3f) continue;
+                            Vector3 edge = left ? Vector3.Transform(leftEdge, animator.RotationOf(BoneType.HandL)) : Vector3.Transform(rightEdge, animator.RotationOf(BoneType.HandR));
+                            worst = MathF.Min(worst, Vector3.Dot(edge, across.Normalized()));
+                            seen++;
+                        }
+                    }
+                    Check($"An edge leads {(name[0] is 'a' or 'e' or 'i' or 'o' or 'u' ? "an" : "a")} {name}, held as {how}", seen > 2 && worst > 0.5f, $"{seen} frames round contact, facing {worst:0.00} of the way it goes at worst");
+                }
+            }
+        }
+
+        // ---- Arms.
+
+        // How far into the body a forearm or a hand goes, as a share of the way from the body's surface to its middle, worst first: under 0 is clear of it by that share. Measured in the chest's frame,
+        // against the torso's own shape (BodyForm), from a little way past the elbow, as an arm hanging at someone's side is meant to touch it there.
+        internal static float Into(CharacterAnimator animator, int arm, out float height)
+        {
+            BoneType lower = arm == 0 ? BoneType.LowerArmL : BoneType.LowerArmR;
+            BoneType hand = arm == 0 ? BoneType.HandL : BoneType.HandR;
+            Vector3 elbow = animator.JointOf(lower);
+            Vector3 wrist = animator.JointOf(hand);
+            Quaternion chest = Quaternion.Invert(animator.RotationOf(BoneType.Chest));
+            Vector3 chestAt = animator.JointOf(BoneType.Chest);
+            Vector3 chestRest = animator.Rig.Pivots[(int)BoneType.Chest];
+            float worst = float.NegativeInfinity;
+            height = 0f;
+            for (int i = 0; i <= 8; i++)
+            {
+                // Along the forearm and on into the fist.
+                float t = 0.3f + 0.85f * i / 8f;
+                Vector3 point = elbow + (wrist - elbow) * t;
+                Vector3 local = Vector3.Transform(point - chestAt, chest) + chestRest;
+                if (local.Y < BodyForm.Hip - 0.2f || local.Y > BodyForm.Shoulder) continue;
+                float side = BodyForm.Torso(local.Y);
+                float x = local.X / side, z = local.Z / (side * BodyForm.Depth);
+                float into = 1f - MathF.Sqrt(x * x + z * z);
+                if (into <= worst) continue;
+                worst = into;
+                height = local.Y;
+            }
+            return worst;
+        }
+
+        // A forearm's middle has to stay this share of the body's half-width out from its surface, for the armour on both and the arm's own thickness: a person called a left arm through the body
+        // of someone standing with a greatsword the first thing they saw.
+        private const float ArmClear = 0.15f;
+
+        // In a blow: how many frames a forearm may be in the body past brushing it, which near the shoulders this shape can't tell from touching, and how far in at most.
+        private const float BlowTouch = 0.1f;
+        private const int MostInside = 3;
+        private const float DeepestInBlow = 0.3f;
+
+        // Whether anything holding what this body holds is ever asked to do this, as the game's SkillMotions has it: a bow shoots and never cuts, and only a spear or a dagger thrusts.
+        private static bool Asked(Body body, Gesture gesture)
+        {
+            bool bow = body.Carry == Carry.Bow;
+            if (gesture == Gestures.Shoot) return bow;
+            if (gesture == Gestures.Thrust) return body.Carry == Carry.Spear || body.Carry == Carry.Dagger || body.Second == Carry.Dagger;
+            if (gesture == Gestures.Forehand || gesture == Gestures.Backhand || gesture == Gestures.Sweep || gesture == Gestures.Overhead || gesture == Gestures.Throw) return !bow;
+            return true;
+        }
+
+        private static void Arms()
+        {
+            Console.WriteLine("Arms");
+            var ground = new FlatGround();
+            float worst = float.NegativeInfinity;
+            string worstAt = "";
+            float blows = float.NegativeInfinity;
+            string blowsAt = "";
+            int blowsFrames = 0;
+            string failedAt = "";
+            foreach (Body body in Body.All)
+            {
+                if (body.Rig != Rig.Humanoid || body.Name.StartsWith("hover")) continue;
+                foreach ((string state, float alert, float speed) in new[] { ("standing", 0f, 0f), ("on guard", 1f, 0f), ("walking", 0f, 2.5f), ("running", 0f, 7f), ("running on guard", 1f, 7f) })
+                {
+                    CharacterAnimator animator = body.NewAnimator();
+                    Vector3 at = Vector3.Zero;
+                    for (int i = 0; i < 240; i++)
+                    {
+                        at.Z += speed * Step;
+                        var input = AnimationInput.At(at, 0f);
+                        input.Alert = alert;
+                        animator.Step(input, Step, ground);
+                        if (i < 60) continue;
+                        for (int arm = 0; arm < 2; arm++)
+                        {
+                            float into = Into(animator, arm, out float height);
+                            if (into <= worst) continue;
+                            worst = into;
+                            worstAt = $"the {(arm == 0 ? "left" : "right")} arm of {body.Name} {state}, {height:0.0} m up";
+                        }
+                    }
+                }
+
+                // A blow is quick and a body twists into it, so a forearm may touch the body, and pass into it for a frame or two of a spin, but no more.
+                foreach (Gesture gesture in new[] { Gestures.Forehand, Gestures.Backhand, Gestures.Sweep, Gestures.Overhead, Gestures.Thrust, Gestures.Whirl, Gestures.Throw, Gestures.Push, Gestures.Call, Gestures.Burst, Gestures.Gather, Gestures.Summon, Gestures.Lunge, Gestures.Drink, Gestures.Use, Gestures.Shoot })
+                {
+                    if (!Asked(body, gesture)) continue;
+                    CharacterAnimator animator = body.NewAnimator();
+                    for (int i = 0; i < 40; i++) animator.Step(AnimationInput.At(Vector3.Zero, 0f), Step, ground);
+                    int inside = 0;
+                    float deepest = float.NegativeInfinity;
+                    string deepestAt = "";
+                    for (float time = Step; time < 0.9f; time += Step)
+                    {
+                        var input = AnimationInput.At(Vector3.Zero, 0f);
+                        input.Alert = 1f;
+                        input.Action = new ActionInput { Gesture = gesture, Elapsed = time, Impact = 0.45f, Length = 0.9f, Serial = 1 };
+                        animator.Step(input, Step, ground);
+                        float frame = float.NegativeInfinity;
+                        for (int arm = 0; arm < 2; arm++)
+                        {
+                            float into = Into(animator, arm, out float height);
+                            if (into > frame) frame = into;
+                            if (into <= deepest) continue;
+                            deepest = into;
+                            deepestAt = $"the {(arm == 0 ? "left" : "right")} arm of {body.Name} in a {gesture.Name} at {time:0.00} s, {height:0.0} m up";
+                        }
+                        if (frame > BlowTouch) inside++;
+                    }
+                    if (inside <= blowsFrames && (inside < MostInside || deepest <= blows)) continue;
+                    blowsFrames = Math.Max(blowsFrames, inside);
+                    if (deepest > blows) { blows = deepest; blowsAt = deepestAt; }
+                    if (inside > MostInside || deepest > DeepestInBlow) failedAt = $"{deepestAt}, {inside} frames in";
+                }
+            }
+            Check("A forearm stays out of the body, holding anything, standing, on guard, walking or running", worst < -ArmClear, $"at worst {-worst:0.00} of the body's width out, {worstAt}");
+            Check("And through every blow but for a frame or two of a spin", failedAt == "", failedAt == "" ? $"{blowsFrames} frames in at most, {blows:0.00} of the way to the middle at worst, {blowsAt}" : failedAt);
         }
 
         // ---- Falling.

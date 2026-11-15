@@ -415,7 +415,7 @@ namespace Dino_Defenders
                 hero.Bar[i] = ItemGenerator.Copied(written, plan.Name, (ulong)i + 1);
             }
 
-            if (options.Wear is string family) Wear(hero, Enum.Parse<GearFamily>(family, ignoreCase: true), options.Seed ?? 1);
+            if (options.Wear is string family) Wear(hero, Enum.Parse<GearFamily>(family, ignoreCase: true), options.Seed ?? 1, options.WearLevel ?? Math.Max(hero.Level, 20));
 
             var carried = new Dino_Engine.World.WorldRandom(options.Seed ?? 1).Fork("carried");
             for (int i = 0; i < options.Carry; i++) hero.Pickup(ItemGenerator.Roll(Math.Max(hero.Level, 10), carried.Fork(i), rarityBonus: 2f));
@@ -424,7 +424,7 @@ namespace Dino_Defenders
         }
 
         // For a scripted run: something for every place, as much of one family as can be had, to look at.
-        private static void Wear(HeroState hero, GearFamily family, int seed)
+        private static void Wear(HeroState hero, GearFamily family, int seed, int level)
         {
             var random = new Dino_Engine.World.WorldRandom(seed);
             foreach (WornSlot place in Enum.GetValues<WornSlot>())
@@ -432,7 +432,7 @@ namespace Dino_Defenders
                 if (place == WornSlot.OffHand && hero.Equipped.TryGetValue(WornSlot.MainHand, out Item? held) && held.IsTwoHanded) continue;
                 for (int attempt = 0; attempt < 300; attempt++)
                 {
-                    Item item = ItemGenerator.Forge(Math.Max(hero.Level, 20), random.Fork((int)place * 1000 + attempt), Rarity.Rare, 0.5f, WornSlots.Holds(place));
+                    Item item = ItemGenerator.Forge(level, random.Fork((int)place * 1000 + attempt), Rarity.Rare, 0.5f, WornSlots.Holds(place));
                     if (item.Shares() != default && item.Shares().Of(family) < 0.6f) continue;
                     hero.Pickup(item);
                     hero.Equip(item, place);

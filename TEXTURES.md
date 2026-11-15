@@ -61,9 +61,13 @@ never disagree.
 ## What a recipe has to keep to
 
 - Colours are the engine's linear albedo, given as numbers out of 255 (`Colours.Rgb`). Under a sun of about 13 anything pale goes white.
-- Bark is pale and neutral, as a tree's colour and moss are in its vertices. Metal is white, as gear colours it. Leather, cloth and bone average exactly
-  `GearMaterials.AlbedoOf`, as a colour meant as an albedo is divided by it: move their colour only by noise, whose mean is a half, and put their structure in
-  their height.
+- Bark is pale and neutral, as a tree's colour and moss are in its vertices. Metal and scales are white, as gear colours them. Leather, cloth, quilt, bone,
+  timber and fur average exactly `GearMaterials.AlbedoOf`, as a colour meant as an albedo is divided by it: move their colour only by noise, whose mean is a
+  half, and put their structure in their height.
+- Gear's own materials (`MaterialRecipes.Gear.cs`, read `GEAR.md`): `Timber` is wood worked along its grain, for hafts, bows, staves and a shield's boards,
+  its late-wood bands shaded so the average holds; `Scales` are metal scales lapped in rows, each with a keel; `Quilt` is cloth sewn in channels over
+  padding, averaging what cloth does; `Fur` is locks over strands. Each is on the end of `MaterialCatalog`, as places there are saved in nothing but a
+  material's number, and a new one goes on the end too.
 - From the game's camera a metre is thirty pixels: the large shapes carry a material, and what's finer is for close up. Judge it there.
 - A material repeats every tile, a few metres, and a dozen tiles of ground are in view at once: anything as big as a tile and strong in contrast is seen
   repeating, as wallpaper. Keep what's coarse soft and close in shade, and put the contrast in what's many to a tile. Ash once had a few big dark patches of
