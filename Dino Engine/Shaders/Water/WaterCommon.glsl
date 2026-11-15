@@ -62,6 +62,14 @@ uniform vec2 causticParameters;
 uniform float causticMean;
 uniform float refractionStrength;
 uniform int reflectionSteps;
+uniform float reflectionStride;     // Pixels a step, for a ray marched along the screen (waterMarchAlong), or 0 for one marched through the world.
+uniform float reflectionHaze;       // What the air takes from what's reflected, per metre of the way to it from the water.
+uniform float reflectionSpread;     // The slopes the ripples draw a reflection out by when it's marched along the screen, in radians, at one deviation.
+
+const int REFLECTION_TAPS = 15;         // Places up and down the screen a drawn-out reflection is made of,
+const float REFLECTION_REACH = 2.2;     // out to this many deviations either side.
+const float REFLECTION_BESIDE = 1.2;    // Pixels to either side its taps step.
+const float REFLECTION_WOBBLE = 0.05;   // How much of a ripple's own slope the calm ray keeps: enough that the image breathes with the water, and no more than moves it a few pixels.
 // Ripples from things moving through the water: xy world corner, zw size of the simulated area (z = 0: none).
 uniform vec4 rippleSimRegion;
 uniform float rippleSimStrength;
@@ -325,6 +333,169 @@ vec4 waterScreenReflection(vec3 origin, vec3 direction)
     return vec4(0.0);
 }
 
+// The same, for water seen along from just over it, with what it reflects hundreds of metres off on its far shore (the lake behind the main menu). Two things are different
+// there. Steps through the world long enough to reach the far shore are longer than a tree is wide, so the ray is walked along the screen a few pixels at a time, its depth
+// following by the perspective (McGuire and Mara, "Efficient GPU Screen-Space Ray Tracing", 2014). And the ripples can't each bend it: seen that low, a slope of half a degree
+// moves what's reflected by twenty pixels, so a ray off every pixel's own slope cut the reflection into slices that jumped as the ripples went by, which a person called glitching
+// and unnatural. Still water seen along is a mirror drawn out up and down, as every slope along the line of sight throws the image a little higher or lower and slopes across it
+// hardly move it at all. So one ray goes off the water as if it were calm, and what it finds is spread up and down the screen by the ripples' slopes (waterReflectionAlong).
+//
+// This says whether that ray met anything, and either way where on the screen to look: where it met it, or else where it was when it was as far off as whatever it passed
+// nearest over, so that a ray just clearing the trees still has their tops within reach. `backdrop` is how far from the water that is, or less than nothing with nothing there.
+bool waterMarchAlong(vec3 startView, vec3 directionView, float waterHeight, out vec2 where, out vec2 along, out float backdrop)
+{
+    where = vec2(-1e6);
+    along = vec2(0.0, 1.0);
+    backdrop = -1.0;
+
+    // No further than it stays in front of the eye.
+    float reach = 4000.0;
+    if (startView.z + directionView.z * reach > -0.5) reach = (-0.5 - startView.z) / directionView.z;
+    if (reach <= 0.0) return false;
+    vec3 endView = startView + directionView * reach;
+
+    vec4 startClip = projectionMatrix * vec4(startView, 1.0);
+    vec4 endClip = projectionMatrix * vec4(endView, 1.0);
+    float startK = 1.0 / startClip.w;
+    float endK = 1.0 / endClip.w;
+    vec2 startPixel = (startClip.xy * startK * 0.5 + 0.5) * resolution;
+    vec2 endPixel = (endClip.xy * endK * 0.5 + 0.5) * resolution;
+    float startZ = startView.z * startK;
+    float endZ = endView.z * endK;
+
+    // Only as far along as it's on the copied part of the scene.
+    vec2 across = endPixel - startPixel;
+    vec2 low = sceneRect.xy * resolution;
+    vec2 high = sceneRect.zw * resolution;
+    float most = 1.0;
+    if (across.x > 0.0) most = min(most, (high.x - startPixel.x) / across.x);
+    if (across.x < 0.0) most = min(most, (low.x - startPixel.x) / across.x);
+    if (across.y > 0.0) most = min(most, (high.y - startPixel.y) / across.y);
+    if (across.y < 0.0) most = min(most, (low.y - startPixel.y) / across.y);
+    if (most <= 0.0) return false;
+
+    float whole = max(abs(across.x), abs(across.y));
+    float pixels = whole * most;
+    if (pixels < 1.0) return false;
+    along = across / max(length(across), 1e-5);
+    float stride = max(reflectionStride, pixels / float(reflectionSteps));
+    float stepShare = most * stride / pixels;
+
+    float before = 0.0;
+    float nearest = 1e9;
+    float nearestShare = -1.0;
+    for (int i = 0; i < reflectionSteps; i++)
+    {
+        float share = (float(i) + 1.0) * stepShare;
+        if (share >= most) break;
+        vec2 pixel = startPixel + across * share;
+        float rayZ = mix(startZ, endZ, share) / mix(startK, endK, share);
+        float depth = texelFetch(sceneDepth, ivec2(pixel), 0).r;
+        if (depth < 1.0)
+        {
+            vec3 scene = ReconstructViewSpacePosition(pixel, depth, invProjectionMatrix, resolution);
+            float behind = scene.z - rayZ;
+            // What's much nearer the eye than the ray is in front of it, not in its way: the hero, standing before the water.
+            if (behind > 0.0 && behind < 3.0 - rayZ * 0.3)
+            {
+                // Between the last step, in front of the scene, and this one, behind it.
+                float front = before;
+                float back = share;
+                for (int r = 0; r < 5; r++)
+                {
+                    float middle = (front + back) * 0.5;
+                    vec2 middlePixel = startPixel + across * middle;
+                    float middleRay = mix(startZ, endZ, middle) / mix(startK, endK, middle);
+                    float middleDepth = texelFetch(sceneDepth, ivec2(middlePixel), 0).r;
+                    float middleScene = ReconstructViewSpacePosition(middlePixel, middleDepth, invProjectionMatrix, resolution).z;
+                    if (middleDepth < 1.0 && middleScene > middleRay) back = middle;
+                    else front = middle;
+                }
+                where = startPixel + across * back;
+                // How far along the ray itself that is: the screen's share of the way isn't the world's.
+                backdrop = reach * back * endK / mix(startK, endK, back);
+                return true;
+            }
+            // Passing in front of something that stands out of the water: where the ray will be by the time it's that far off, and how many pixels over it that is.
+            if (behind <= 0.0 && (invViewMatrix * vec4(scene, 1.0)).y > waterHeight + 0.5)
+            {
+                float there = (scene.z * startK - startZ) / ((endZ - startZ) - scene.z * (endK - startK));
+                float over = (there - share) * whole;
+                if (over >= 0.0 && over < nearest)
+                {
+                    nearest = over;
+                    nearestShare = there;
+                }
+            }
+        }
+        before = share;
+    }
+    if (nearestShare > 0.0)
+    {
+        where = startPixel + across * nearestShare;
+        backdrop = reach * nearestShare * endK / mix(startK, endK, nearestShare);
+    }
+    return false;
+}
+
+// What water seen along reflects of the scene, over the sky it would reflect otherwise: the far shore as a calm lake holds it, a mirror's image drawn out up and down by the
+// ripples and never broken by them. The taps go up and down the screen from where the calm ray looks, as far as slopes of reflectionSpread throw the image at that distance, and
+// each is whatever's on screen there, behind the haze of the way to it, or the sky where nothing is. They step a pixel to one side and the other as they go, as slopes across the
+// line of sight do move the image a little, and without that every column of the screen is a streak of its own, cut off sharp from the next.
+vec3 waterReflectionAlong(vec3 position, vec3 V, vec3 N, vec3 sky)
+{
+    vec3 calm = normalize(mix(vec3(0.0, 1.0, 0.0), N, REFLECTION_WOBBLE));
+    vec3 R = reflect(-V, calm);
+    R.y = abs(R.y);
+    vec3 startView = (viewMatrix * vec4(position, 1.0)).xyz;
+
+    vec2 where;
+    vec2 along;
+    float backdrop;
+    waterMarchAlong(startView, mat3(viewMatrix) * R, position.y, where, along, backdrop);
+    if (backdrop <= 0.0) return sky;
+
+    // A slope tips what's reflected by twice itself, and that much of a turn at the water is less of one at the eye, by how far off the water is of the whole way.
+    float perRadian = 0.5 * resolution.y * projectionMatrix[1][1];
+    float sigma = max(2.0 * reflectionSpread * perRadian * backdrop / (backdrop + length(startView)), 0.5);
+    vec2 beside = vec2(along.y, -along.x) * REFLECTION_BESIDE;
+
+    vec3 held = vec3(0.0);
+    float cover = 0.0;
+    float total = 0.0;
+    for (int i = 0; i < REFLECTION_TAPS; i++)
+    {
+        float s = ((float(i) + 0.5) / float(REFLECTION_TAPS) * 2.0 - 1.0) * REFLECTION_REACH;
+        float weight = exp(-0.5 * s * s);
+        vec2 pixel = where + along * (s * sigma) + beside * float(i % 3 - 1);
+        vec2 uv = pixel / resolution;
+        // Off the copied part of the scene, or on the sky: the sky.
+        if (any(lessThan(uv, sceneRect.xy)) || any(greaterThan(uv, sceneRect.zw)))
+        {
+            total += weight;
+            continue;
+        }
+        float depth = texelFetch(sceneDepth, ivec2(pixel), 0).r;
+        if (depth >= 1.0)
+        {
+            total += weight;
+            continue;
+        }
+        vec3 scene = ReconstructViewSpacePosition(pixel, depth, invProjectionMatrix, resolution);
+        // What's nearer the eye than the water is stands in front of it, and what's under the water's own level is its bed: neither is anything it reflects, and what's
+        // behind them can't be known, so they're left out.
+        if (scene.z > startView.z - 1.0 || (invViewMatrix * vec4(scene, 1.0)).y < position.y + 0.05) continue;
+
+        vec2 edge = smoothstep(0.0, 0.08, uv - sceneRect.xy) * smoothstep(0.0, 0.08, sceneRect.zw - uv);
+        float seen = weight * edge.x * edge.y * exp(-reflectionHaze * distance(scene, startView));
+        held += textureLod(sceneColour, uv, 0.0).rgb * seen;
+        cover += seen;
+        total += weight;
+    }
+    if (total <= 0.0) return sky;
+    return sky * (1.0 - cover / total) + held / total;
+}
+
 // ---------------------------------------------------------------- shading
 
 struct WaterShading
@@ -417,8 +588,12 @@ WaterShading waterShade(vec3 position, vec3 N, float alphaSquared, vec3 V, Water
     vec3 reflection = waterSkyRadiance(R);
     if (reflectionSteps > 0 && alphaSquared < 0.05)
     {
-        vec4 screen = waterScreenReflection(position, R);
-        reflection = mix(reflection, screen.rgb, screen.a);
+        if (reflectionStride > 0.0) reflection = waterReflectionAlong(position, V, N, reflection);
+        else
+        {
+            vec4 screen = waterScreenReflection(position, R);
+            reflection = mix(reflection, screen.rgb, screen.a);
+        }
     }
 
     WaterShading shading;

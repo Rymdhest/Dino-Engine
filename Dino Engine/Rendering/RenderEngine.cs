@@ -141,6 +141,13 @@ namespace Dino_Engine.Rendering
         public AntiAliasingSettings AntiAliasing { get; } = new AntiAliasingSettings();
         /// <summary>Lighting and exposure settings, read each frame.</summary>
         public LightingSettings Lighting { get; } = new LightingSettings();
+
+        /// <summary>
+        /// For a view of a whole landscape (the picture behind the main menu): metres from the lens within which things are soft, with everything past them sharp, as through a lens
+        /// stopped right down. The air is what softens the distance in such a view, and a blur over that only smears it. Whoever shows one asks each frame they show it: left alone it's
+        /// nothing, and the lens is focused on whatever the game is looking at (DepthOfFieldRenderer).
+        /// </summary>
+        public float LandscapeLens;
         /// <summary>How light gets in under surfaces and out again, leaves, skin and snow, read each frame (SUBSURFACE.md).</summary>
         public SubsurfaceSettings Subsurface { get; } = new SubsurfaceSettings();
         /// <summary>How reflections are traced, read each frame.</summary>

@@ -59,6 +59,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
         private const int SpotShadowUnitStart = CascadeUnitStart + MaxCascadeSlots;
         private const int PointShadowUnitStart = SpotShadowUnitStart + MaxSpotShadows;
         private const int WindMapUnit = PointShadowUnitStart + MaxPointShadows;
+        private const int CompositeSkyUnit = 4;
 
         private static readonly string[] DirectionalColourNames = UniformNames("directionalColours", MaxDirectionalLights);
         private static readonly string[] DirectionalDirectionNames = UniformNames("directionalDirections", MaxDirectionalLights);
@@ -130,6 +131,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
                 shader.loadUniformInt("gDepth", 1);
                 shader.loadUniformInt("fogTexture", 2);
                 shader.loadUniformInt("fogDistance", 3);
+                shader.loadUniformInt("skyMap", CompositeSkyUnit);
                 shader.unBind();
             }
 
@@ -533,13 +535,22 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             GL.BindTexture(TextureTarget.Texture2D, history.GetAttachment(0));
             GL.ActiveTexture(TextureUnit.Texture3);
             GL.BindTexture(TextureTarget.Texture2D, _marchBuffer.GetAttachment(1));
+            // The sky, for a haze that takes the colour of what's behind it.
+            GL.ActiveTexture(TextureUnit.Texture0 + CompositeSkyUnit);
+            GL.BindTexture(TextureTarget.Texture2D, renderEngine._weatherRenderer.SkyMapTexture);
             GL.ActiveTexture(TextureUnit.Texture0);
 
             float hazeDensity = Math.Max(settings.HazeDensity, 0f);
             HazeDensity = hazeDensity;
+            var hazeShape = new Vector4(
+                settings.HazeHeight > 0f ? 1f / settings.HazeHeight : 0f,
+                settings.HazeBase,
+                Math.Clamp(settings.HazeHorizon, 0f, 1f),
+                Math.Clamp(settings.HazeMost, 0f, 1f));
             msaa.DrawSplit(_compositeShader, _compositeSampleShader, shader =>
             {
                 shader.loadUniformFloat("hazeDensity", hazeDensity);
+                shader.loadUniformVector4f("hazeShape", hazeShape);
                 renderEngine.ScreenQuadRenderer.Render(blend: true, clearColor: false);
             });
             GL.Disable(EnableCap.Blend);

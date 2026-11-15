@@ -28,6 +28,7 @@ namespace Dino_Engine.ECS.Systems
             command.colour = SkySYstem.AtThisHour(world, entity.Get<ColorComponent>().value.ToVector3());
             if (Weather.TryGet(world, out WeatherSingleton weather) && weather.Enabled) command.colour *= Weather.SunThrough(weather, weather.Here.Cloud);
             command.direction = entity.Get<DirectionNormalizedComponent>().value;
+            command.glare = entity.Get<CelestialBodyComponent>().Glare;
 
             Engine.RenderEngine._sunRenderer.SubmitCommand(command);
 

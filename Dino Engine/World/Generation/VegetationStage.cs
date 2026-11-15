@@ -160,6 +160,9 @@ namespace Dino_Engine.World.Generation
             }
         }
 
+        // The picture behind the main menu looks down a meadow to its lake, and nothing taller than the grass stands between them (Vista.InSight). Nowhere, in any other world.
+        private static bool InSight(WorldData world, Vector2 point) => world.Plan.Archetype.Vista && Vista.InSight(point);
+
         // How thickly trees stand everywhere: each biome's forest cover, shaped into woods and clearings by noise.
         private static void BuildCanopy(WorldData world)
         {
@@ -305,7 +308,7 @@ namespace Dino_Engine.World.Generation
                 BiomeDefinition biome = PickBiome(world, point, random);
                 float chance = density * 0.95f + biome.LoneTrees * 0.03f;
                 if (random.Float() >= chance) continue;
-                if (!GroundFits(world, point, MaxTreeSlope)) continue;
+                if (!GroundFits(world, point, MaxTreeSlope) || InSight(world, point)) continue;
 
                 // Edges are where the forest thins and young trees reach for the light.
                 bool edge = density < 0.55f;
@@ -364,7 +367,7 @@ namespace Dino_Engine.World.Generation
                 float rim = 1f - MathF.Abs(density - 0.4f) / 0.4f;
                 float chance = biome.ShrubDensity * (0.012f + 0.2f * Saturate(rim) + 0.035f * density);
                 if (random.Float() >= chance) continue;
-                if (!GroundFits(world, point, 0.7f)) continue;
+                if (!GroundFits(world, point, 0.7f) || InSight(world, point)) continue;
 
                 float patch = Smoothstep(0.2f, 0.8f, patches.Fbm01(point.X + 400f, point.Y, 45f, 2));
                 WorldAsset? asset = PickSpecies(biome.Shrubs, patch, random);
@@ -393,7 +396,7 @@ namespace Dino_Engine.World.Generation
                 BiomeDefinition biome = PickBiome(world, point, random);
                 if (biome.Deadwood.Length == 0) continue;
                 if (random.Float() >= biome.DeadwoodDensity * (0.02f + 0.3f * density)) continue;
-                if (!GroundFits(world, point, 0.6f)) continue;
+                if (!GroundFits(world, point, 0.6f) || InSight(world, point)) continue;
 
                 WorldAsset? asset = PickSpecies(biome.Deadwood, random.Float(), random);
                 if (asset == null) continue;
@@ -433,7 +436,7 @@ namespace Dino_Engine.World.Generation
                 float outcrop = Smoothstep(0.62f, 0.82f, patches.Fbm01(point.X - 900f, point.Y + 300f, 60f, 3));
                 float chance = biome.BoulderDensity * (0.004f + 0.3f * outcrop + 0.2f * Smoothstep(0.3f, 0.8f, slope));
                 if (random.Float() >= chance) continue;
-                if (world.Height.Sample(point) - WorldPlan.SeaLevel < -0.4f) continue;
+                if (world.Height.Sample(point) - WorldPlan.SeaLevel < -0.4f || InSight(world, point)) continue;
 
                 WorldAsset? asset = PickSpecies(biome.Boulders, random.Float(), random);
                 if (asset == null) continue;

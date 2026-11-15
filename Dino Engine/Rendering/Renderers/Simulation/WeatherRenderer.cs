@@ -383,7 +383,7 @@ namespace Dino_Engine.Rendering.Renderers.Simulation
             Write(5, sun.X, sun.Y, sun.Z, Math.Clamp(weather.CloudShadow, 0f, 1f));
             Write(6, sunColour.X, sunColour.Y, sunColour.Z, PosGeometry.SkyRenderer.SkyStrength);
             Write(7, weather.CloudAltitude, MathF.Max(weather.CloudThickness, 1f), 1f / MathF.Max(weather.CloudSize, 1f), weather.CloudPhase);
-            Write(8, weather.CloudOffset.X, weather.CloudOffset.Y, 0f, 0f);
+            Write(8, weather.CloudOffset.X, weather.CloudOffset.Y, MathF.Max(weather.HorizonGlow, 0f), 0f);
             Write(9, cloudCorner.X, cloudCorner.Y, CloudShadowSize, CloudShadowSize);
             Write(10, Math.Clamp(weather.WetDarkening, 0f, 1f), Math.Clamp(weather.WetGloss, 0f, 1f), MathF.Max(weather.PuddleLevel, 0f), 1f / MathF.Max(weather.RippleSize, 0.1f));
             Write(11, MathF.Max(weather.RippleStrength, 0f), clearSky.X, clearSky.Y, clearSky.Z);

@@ -17,6 +17,12 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
         /// <summary>Whether only skin and hide are drawn into it, for how thick flesh is along the sun (<see cref="FleshDepth"/>, SUBSURFACE.md).</summary>
         public bool fleshOnly;
 
+        /// <summary>
+        /// How many frames one drawing of it lasts, for one of the sun's that's wide enough that nothing in it is seen to move from one frame to the next (the second map the picture
+        /// behind the main menu has): it keeps where it looked from until it's drawn again. Nothing, or 1, for every frame.
+        /// </summary>
+        public int interval;
+
         // Constructor for standard 2D Shadow Maps (Spotlights/Directional)
         public Shadow(Vector2i resolution, Matrix4 lightProjectionMatrix, float projectionSize, float polygonOffsetModel, float polygonOffsetTerrain)
         {

@@ -36,6 +36,14 @@ namespace Dino_Engine.ECS.Systems
         private readonly List<TerrainChunkRenderData> _farRock = new();
         private readonly List<GrassChunkRenderData> _grassCommands = new();
 
+        // Which maps are drawn this frame, as a wide one is only drawn every few (Shadow.interval), and which have been drawn at all, as a new one is drawn whatever frame it is.
+        private static readonly HashSet<Rendering.FrameBuffer> _drawnNow = new();
+        private static readonly HashSet<Rendering.FrameBuffer> _drawnOnce = new();
+        private static int _frames;
+
+        /// <summary>Whether a map of the sun's is drawn this frame, for whatever else submits into one: on the frames it isn't, it keeps what it has.</summary>
+        public static bool Redrawn(in Shadow shadow) => _drawnNow.Contains(shadow.shadowFrameBuffer);
+
         public DirectionalCascadeShadowSystem()
             : base(new BitMask(typeof(DirectionalLightTag), typeof(DirectionNormalizedComponent), typeof(DirectionalCascadingShadowComponent)))
         {
@@ -51,9 +59,16 @@ namespace Dino_Engine.ECS.Systems
             Vector3 forward = (new Vector4(0f, 0f, -1f, 0f) * Matrix4.Invert(world.GetComponent<ViewMatrixComponent>(world.Camera).value)).Xyz.Normalized();
 
             // 1. Prepare View Matrices for Cascades
+            _frames++;
+            _drawnNow.Clear();
+            // Maps go with their worlds, and there are never many.
+            if (_drawnOnce.Count > 32) _drawnOnce.Clear();
             for (int i = 0; i < shadowCascade.cascades.Length; i++)
             {
                 var cascade = shadowCascade.cascades[i];
+                bool first = _drawnOnce.Add(cascade.shadowFrameBuffer);
+                if (cascade.interval > 1 && _frames % cascade.interval != 0 && !first) continue;
+                _drawnNow.Add(cascade.shadowFrameBuffer);
                 int resolution = cascade.shadowFrameBuffer.getResolution().X;
 
                 Vector3 center = cameraPos + forward * (cascade.projectionSize * LookAhead);
@@ -192,6 +207,7 @@ namespace Dino_Engine.ECS.Systems
             for (int j = 0; j < shadowCascade.cascades.Length; j++)
             {
                 Shadow cascade = shadowCascade.cascades[j];
+                if (!Redrawn(cascade)) continue;
 
                 // Standard Models
                 foreach (var cmd in CastersInto(cascade, view, direction, lowestGround))
@@ -252,6 +268,7 @@ namespace Dino_Engine.ECS.Systems
             for (int i = 0; i < shadowCascade.cascades.Length; i++)
             {
                 Shadow shadow = shadowCascade.cascades[i];
+                if (!Redrawn(shadow)) continue;
 
                 _visibleChunks.Clear();
                 _terrainCommands.Clear();
@@ -269,7 +286,8 @@ namespace Dino_Engine.ECS.Systems
                     _terrainCommands.Add(new TerrainChunkRenderData { chunkPos = ltw.ExtractTranslation(), size = size, arrayID = chunkComp.normalHeightTextureArrayID });
 
                     float dist = Vector2.Distance(cameraPos.Xz, ltw.ExtractTranslation().Xz + size.Xz * 0.5f);
-                    if (dist < 500 && i < 5)
+                    // Blades only cast as far as a few dozen metres from the camera, which is all inside the finest map: in a wider one they'd be drawn for nothing.
+                    if (dist < 500 && i == 0)
                     {
                         _grassCommands.Add(new GrassChunkRenderData { chunkPos = ltw.ExtractTranslation().Xz, size = size.X, arrayID = chunkComp.normalHeightTextureArrayID });
                     }

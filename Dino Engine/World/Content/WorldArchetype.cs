@@ -303,8 +303,9 @@ namespace Dino_Engine.World.Content
         };
 
         /// <summary>
-        /// The picture behind the main menu (<see cref="World.Vista"/>): long grass running down to a lake, the giants grazing across it, woods, hills and a mountain far off, in a clear morning's
-        /// light from behind the camera's left. Settled by a person: don't change it unless they ask.
+        /// The picture behind the main menu (<see cref="World.Vista"/>): long grass running down to a lake, the giants grazing across it, woods, ridges and a mountain far off, at first light:
+        /// the sun low ahead of the camera and to its right, clear of the hills there and of the mountain's shoulder, so that everything is seen against the light, its edges lit and its
+        /// shadows coming towards the eye. Settled by a person: don't change it unless they ask.
         /// </summary>
         public static readonly WorldArchetype Vista = new WorldArchetype
         {
@@ -323,9 +324,9 @@ namespace Dino_Engine.World.Content
             Wilds = 0f,
             Dangers = 0f,
             Vista = true,
-            Light = "Clear morning",
-            SunAzimuth = 5.75f,
-            SunHeight = 0.5f,
+            Light = "First light",
+            SunAzimuth = World.Vista.SunAzimuth,
+            SunHeight = World.Vista.SunHeight,
         };
 
         public static readonly IReadOnlyList<WorldArchetype> All = new[]

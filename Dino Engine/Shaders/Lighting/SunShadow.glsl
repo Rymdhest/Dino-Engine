@@ -284,6 +284,8 @@ vec2 sunShadowCascade(sampler2D map, sampler2D ranges, vec3 point, float perMetr
     return sunShadowFinish(s, hidden, lifted, spreadSum, open, softness);
 }
 
+const float CASCADE_EDGE = 0.04;    // Of a map's width, how near its edge a point is before the next map is asked about it too.
+
 // Where a point in view space is in cascade i's space, and how its depth and texels go: whether it's inside the cascade at all.
 bool sunShadowInCascade(int i, vec3 positionViewSpace, out vec3 point, out float perMetre, out float texelMetres)
 {
@@ -313,6 +315,10 @@ vec2 calcShadowPartsSoftness(vec3 positionViewSpace, out float softness)
             parts = cascade;
             softness = cascadeSoftness;
         }
+        // A finer map says all a wider one can, and says it better: a point well inside one is its alone. Only round its edges is the next asked too, where a shadow coming in
+        // from outside is all the wider one's, and the two are joined by whichever has more to say.
+        vec3 inside = min(point, 1.0 - point);
+        if (min(inside.x, min(inside.y, inside.z)) > CASCADE_EDGE) break;
     }
     return parts;
 }

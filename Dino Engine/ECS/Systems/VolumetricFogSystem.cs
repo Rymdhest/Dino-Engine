@@ -119,7 +119,8 @@ namespace Dino_Engine.ECS.Systems
 
             fog.ClearingRadius = weather.FogClearing;
             fog.ClearingDepth = 0.75f * share;
-            fog.Banks = WeatherBanks * share;
+            // A world's own fog has no banks, but for one that's composed to have them (the mist on the lake behind the main menu).
+            fog.Banks = MathF.Max(fog.Banks, WeatherBanks * share);
             fog.Pooling = weather.FogPooling * MathF.Max(mist, steam) * (1f - dust);
             return share;
         }
