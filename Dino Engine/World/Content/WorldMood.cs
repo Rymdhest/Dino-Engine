@@ -34,6 +34,15 @@ namespace Dino_Engine.World.Content
             new("Windswept", new FloatRange(0.4f, 0.6f), new Vector3(1f, 0.9f, 0.76f), 13f, new Vector3(0.42f, 0.6f, 0.92f), 0.8f, 0.5f, 8f, 0.04f),
         };
 
+        // Lights no seed draws, for a place that's composed and asks for one by name (WorldArchetype.Light). They're kept apart from the list above, as one more entry there would change
+        // what every seed draws. First light is the picture behind the main menu's (Vista, MENU.md): the sun a hand's breadth over the hills and warm from coming so far through the air,
+        // the sky still cool overhead, and hardly any wind, as it's still air that mist lies in. It's brighter than a sun that low is, as a camera would be opened up for it: the picture
+        // is looked at against the light, so most of what's in it is lit by the sky alone.
+        private static readonly Weather[] Composed =
+        {
+            new("First light", new FloatRange(0.1f, 0.14f), new Vector3(1f, 0.71f, 0.44f), 24f, new Vector3(0.4f, 0.56f, 0.95f), 0.8f, 0.8f, 1.3f, -0.2f),
+        };
+
         public static WorldMood Draw(IReadOnlyList<BiomeDefinition> biomes, WorldRandom random, WorldArchetype? archetype = null)
         {
             Weather weather = random.Pick(Weathers);
@@ -44,7 +53,7 @@ namespace Dino_Engine.World.Content
             // A place that has to look one way is always seen in the same light.
             if (archetype?.Light is string light)
             {
-                weather = Weathers.First(w => w.Name == light);
+                weather = Weathers.Concat(Composed).First(w => w.Name == light);
                 azimuth = archetype.SunAzimuth;
                 height = archetype.SunHeight;
             }

@@ -14,7 +14,7 @@ layout(std140, binding = 9) uniform WeatherData {
     vec4 weatherSun;        // xyz unit vector towards the sun, w how much of it the thickest cloud lets through
     vec4 weatherSunColour;  // rgb the sun's radiance by this hour, w strength of the drawn sky
     vec4 cloudShape;        // x altitude of the base (m), y thickness (m), z 1 / size (1/m), w shape phase
-    vec4 cloudMotion;       // xy pattern offset (tiles), zw unused
+    vec4 cloudMotion;       // xy pattern offset (tiles), z how strongly a low sun lights the air along the horizon towards it (Sky_Map.frag), w unused
     vec4 cloudRegion;       // xy world corner of the cloud shadow map, zw its size in metres
     vec4 wetLook;           // x what a soaked surface darkens to, y gloss, z puddle level, w 1 / ripple tile (1/m)
     vec4 rippleLook;        // x strength of the rain rings, yzw the sky's colour with no weather at all

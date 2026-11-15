@@ -41,6 +41,9 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             ref ShaderGlobals context = ref renderEngine.context;
             float focus = context.focusPoint.W > 0f ? (context.focusPoint.Xyz - context.viewPos).Length : 0f;
             _depthOfFieldShader.loadUniformFloat("focusDistance", focus);
+            // A landscape's lens is asked for a frame at a time.
+            _depthOfFieldShader.loadUniformFloat("landscape", MathF.Max(renderEngine.LandscapeLens, 0f));
+            renderEngine.LandscapeLens = 0f;
 
 
             GL.ActiveTexture(TextureUnit.Texture0);

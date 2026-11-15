@@ -17,6 +17,13 @@ const int LIGHT_STEPS = 3;
 const float CLOUD_EXTINCTION = 0.03;        // Per metre, in the thickest of it.
 const float LIGHT_EXTINCTION = 0.012;       // What the sun loses per metre on its way in. Less than it should be: this stands in for the light that gets through by many scatterings.
 const float BACK_SCATTER_GAIN = 2.16;       // Patry: multiple scattering in a dense layer of albedo 0.9, from simulating one.
+const float LOW_SUN_BAND = 5.0;             // How closely a low sun's glow keeps to the horizon: it's down to a third 12 degrees up.
+const float LOW_SUN_SPREAD = 8.0;           // And to the sun's side of the sky: the higher, the narrower.
+const vec2 LOW_SUN_ROUND = vec2(0.766, 0.9976);     // The cosines of how far from the sun its glow begins, 40 degrees, and is all there is, 4.
+const float LOW_SUN_GLOW = 0.085;           // What the air it lights shines with, of the sun's own radiance: little enough to keep its colour, as anything brighter is white.
+const vec3 LOW_SUN_TINT = vec3(1.0, 0.8, 0.5);      // What coming so far through the air does to its colour again, over what the sun's own already says.
+const float LOW_SUN_DEEPENS = 0.42;         // How much darker the sky overhead is than it would be, as the light's all down along the horizon.
+const float LOW_SUN_HALO = 0.03;            // Of the glow close round the sun, where every other sky has 0.12.
 const float PI = 3.14159265359;
 
 float henyeyGreenstein(float cosine, float g)
@@ -33,6 +40,23 @@ vec3 airColour(vec3 direction, float cover)
     vec3 clear = rippleLook.yzw * (1.0 - pow(up, 0.7) * 0.9);
     vec3 overcast = skyColour * ((1.0 + 2.0 * up) * (1.0 / 3.0) * 0.72);
     return mix(clear, overcast, smoothstep(0.55, 1.0, cover)) * weatherSunColour.w;
+}
+
+// What a low sun does to the air towards it, for a view that looks out at the sky (the picture behind the main menu; cloudMotion.z is nothing otherwise): its light has come a long
+// way through the air by then, which lights all of it along the horizon that way and round the sun itself, and the air it lights is gold in place of blue, not gold on top of it:
+// added to the sky's own colour it only comes to white. The rest of the sky is deeper for it. x is how much of the sky's own colour is left, and yzw what's there in place of it.
+vec4 lowSunAir(vec3 direction, vec3 towardsSun, vec3 sun)
+{
+    float low = cloudMotion.z * smoothstep(0.5, 0.12, towardsSun.y);
+    if (low <= 0.0) return vec4(1.0, 0.0, 0.0, 0.0);
+
+    float up = max(direction.y, 0.0);
+    float around = dot(normalize(direction.xz + vec2(1e-5)), normalize(towardsSun.xz + vec2(1e-5))) * 0.5 + 0.5;
+    float along = exp(-up * LOW_SUN_BAND) * pow(around, LOW_SUN_SPREAD);
+    float round = smoothstep(LOW_SUN_ROUND.x, LOW_SUN_ROUND.y, dot(direction, towardsSun));
+    float lit = low * max(along, round * sqrt(round) * 0.9);
+    float deepens = 1.0 - low * LOW_SUN_DEEPENS * smoothstep(0.02, 0.4, up);
+    return vec4((1.0 - lit) * deepens, sun * LOW_SUN_TINT * (lit * LOW_SUN_GLOW));
 }
 
 void main(void)
@@ -55,8 +79,12 @@ void main(void)
 
     // A clear sky has its glow around the sun, and dust and thin cloud spread it wider.
     vec3 sun = weatherSunColour.rgb;
+    vec4 lowSun = lowSunAir(direction, towardsSun, sun);
+    sky = sky * lowSun.x + lowSun.yzw * (1.0 - coverHere * 0.9);
     float haze = weatherAir.x * 0.5 + weatherAir.w * 0.5;
-    sky += sun * (henyeyGreenstein(sunCosine, 0.86 - 0.3 * haze) * 0.12 * (1.0 - coverHere * 0.9));
+    // Looked at, the glow round the sun is kept close to it, or all that side of the sky is white.
+    float halo = mix(0.12, LOW_SUN_HALO, cloudMotion.z * smoothstep(0.5, 0.12, towardsSun.y));
+    sky += sun * (henyeyGreenstein(sunCosine, 0.86 - 0.3 * haze) * halo * (1.0 - coverHere * 0.9));
 
     float elevation = max(direction.y, 0.03);
     float start = cloudShape.x / elevation;

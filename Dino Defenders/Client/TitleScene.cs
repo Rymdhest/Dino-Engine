@@ -3,9 +3,12 @@ using Dino_Engine.Animation;
 using Dino_Engine.Core;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
+using Dino_Engine.ECS.Systems;
 using Dino_Engine.Modelling;
 using Dino_Engine.Modelling.Model;
 using Dino_Engine.Physics;
+using Dino_Engine.Rendering;
+using Dino_Engine.Rendering.Renderers.Geometry;
 using Dino_Engine.Sound;
 using Dino_Engine.World;
 using OpenTK.Mathematics;
@@ -28,11 +31,17 @@ namespace Dino_Defenders.Client
 
         /// <summary>
         /// How far the terrain goes, as the view here is nearly level and the game's camera never is, and how far ahead of the camera the middle of its square is, as nothing behind the camera is
-        /// seen: together they reach over the lake and the meadow beyond it, where the giants are. Past it is the far land. A square of more than 22 needs more layers than the terrain has
-        /// (<see cref="TerrainQuadTreeSingleton.MostRadius"/>), and a radius of 26 round the camera once drew the next land entered in squares.
+        /// seen: together they reach over the lake and the meadow beyond it, where the giants are, and into the woods behind them. Past it is the far land. A square of more than 22 needs
+        /// more layers than the terrain has (<see cref="TerrainQuadTreeSingleton.MostRadius"/>), and a radius of 26 round the camera once drew the next land entered in squares.
         /// </summary>
         public const int ChunkRadius = 22;
-        public const float ChunkAhead = 96f;
+        public const float ChunkAhead = 168f;
+
+        /// <summary>
+        /// Metres across the sun's second shadow map, which only this view has (<see cref="GraphicsPresets.SunShadow(in QualityPreset, float)"/>): the game's own ends a hundred metres
+        /// ahead of this camera, and everything the picture's made of is past that, the far shore's trees and the giants and the shadows they throw towards the eye.
+        /// </summary>
+        public const float FarShadows = 800f;
 
         private const float Distance = 11.5f;           // Metres from the hero.
         private const float Height = 4.4f;              // Of the camera, above the hero's feet.
@@ -44,6 +53,17 @@ namespace Dino_Defenders.Client
         private const int Tries = 12000;
         private const float Far = 1400f;
         private const float Fov = 42f;                  // Degrees, up and down the picture.
+        private const float ForestInView = 1.05f;       // Radians either side of where the camera looks that the far forest is grown, which is wider than the widest screen sees.
+        private const float NearSoft = 8f;              // Metres from the lens within which the grass is out of focus (RenderEngine.LandscapeLens).
+
+        // The air (HoldTheAir).
+        private const float MistHeight = 10f;           // Metres the mist can stand over the water, though only its tallest billows do: mostly it's to the giants' bellies, with their backs and necks out of it.
+        private const float MistDensity = 0.02f;        // What it takes away per metre in the thick of a bank: a hundred metres of it is looked along, from here.
+        private const float MistBillows = 120f;         // Metres across a tile of its noise, of which a billow is a quarter: they're seen from 250 m. Never changed live.
+        private const float LakeRipple = 0.006f;        // The slopes the lake's ripples draw its reflections out by, in radians (WaterSingleton.SeaReflectionSpread): still water at first light.
+        private const int LakeReflectionSteps = 128;    // The most a ray off the lake takes across the screen, to find what it reflects (WaterSingleton.SeaReflections).
+        private const float SunGlare = 0.15f;           // Of the glare and rays the sun has by itself (CelestialBodyComponent.Glare).
+        private const float HazeDensity = 0.0017f;      // What the air takes away per metre: a third of the giants, half of the first ridge, and of the mountain all it may.
 
         // The Haven's giants live in the picture too, beyond the hero (GiantShow).
         private const float HerdReach = 45f;            // Metres the herd keeps within of the middle of its range,
@@ -68,9 +88,21 @@ namespace Dino_Defenders.Client
         /// <summary>Where the hero stands, and which way the camera looks at them.</summary>
         public TitleSpot Spot => _spot;
 
-        // The far land's tiles, grown on other threads the first time the picture is shown and kept for as long as the game runs, as it's always the same picture.
-        private static (WorldData World, Task<List<FarLand.Piece>> Pieces, List<glModel>? Models)? _far;
+        // The far land's tiles and the forest that stands on them, grown on other threads the first time the picture is shown and kept for as long as the game runs, as it's always the
+        // same picture.
+        private sealed class FarView
+        {
+            public required WorldData World;
+            public required Task<(List<FarLand.Piece> Pieces, List<FarLand.FarTree> Forest)> Grown;
+            public List<glModel>? Models;               // The tiles, once they're on the GPU.
+            public ImposterInstanceData[]? Trees;       // The forest, once every kind of tree in it has had its picture taken.
+        }
+        private static FarView? _far;
+        // A kind of tree's picture, by its model, kept though the model itself may be let go and grown again between two visits to the menu.
+        private static readonly Dictionary<string, glModel.ImposterData> _pictures = new();
+        private Queue<string>? _picturesWanted;
         private bool _farShown;
+        private bool _forestShown;
 
         private Entity _body;
         private List<WornLook> _worn = new();
@@ -100,12 +132,27 @@ namespace Dino_Defenders.Client
             TerrainQuadTreeSingleton terrain = terrainView.Get<TerrainQuadTreeSingleton>();
             terrain.Ahead = Ahead;
             terrainView.Set(terrain);
+            ShadowTheDistance();
+            HoldTheAir();
             GrowFarLand();
+        }
+
+        // A change of quality keeps it (GraphicsPresets.Apply).
+        private void ShadowTheDistance()
+        {
+            if (!_ecs.sun.IsValid() || !_ecs.HasComponent<DirectionalCascadingShadowComponent>(_ecs.sun)) return;
+            EntityView sun = _ecs.GetEntityView(_ecs.sun);
+            var shadow = sun.Get<DirectionalCascadingShadowComponent>();
+            if (shadow.cascades.Length > 1) return;
+            shadow.Cleanup();
+            sun.Set(GraphicsPresets.SunShadow(GraphicsPresets.Of(Engine.RenderEngine.Quality), FarShadows));
         }
 
         private Vector2 Ahead => -_spot.Facing * ChunkAhead;
 
-        // Everything outside the square of chunks ahead of the camera, which never moves to another chunk, as the camera only drifts by a hand's breadth.
+        // Everything outside the square of chunks ahead of the camera, which never moves to another chunk, as the camera only drifts by a hand's breadth: the ground, and the trees on
+        // it from where the world's own stop being brought in, which is a little short of where the stream says, so that a place the camera's drift takes in and out of reach has
+        // trees either way.
         private void GrowFarLand()
         {
             if (!_world.Plan.Archetype.Vista || _far is { } far && far.World == _world) return;
@@ -116,30 +163,84 @@ namespace Dino_Defenders.Client
             Vector2 holeMin = (cell - new Vector2(ChunkRadius)) * chunk;
             Vector2 holeMax = (cell + new Vector2(ChunkRadius + 1)) * chunk;
             WorldData world = _world;
-            _far = (world, Task.Run(() => FarLand.Build(world, holeMin, holeMax, camera.Xz)), null);
+            Vector2 look = -_spot.Facing;
+            float reach = TerrainChunkSystem.SectorReach(ChunkRadius, chunk) - 0.5f;
+            Func<Vector2, bool> streamed = at => TerrainChunkSystem.SectorDistance(world.Objects.SectorOf(at), middle) <= reach;
+            _far = new FarView
+            {
+                World = world,
+                Grown = Task.Run(() => (FarLand.Build(world, holeMin, holeMax, camera.Xz), FarLand.Forest(world, streamed, camera.Xz, look, ForestInView))),
+            };
         }
 
         private void ShowFarLand()
         {
-            if (_farShown || _far is not { } far || far.World != _world || !far.Pieces.IsCompleted) return;
-            _farShown = true;
-            if (far.Pieces.IsFaulted)
+            if (_far is not { } far || far.World != _world || !far.Grown.IsCompleted) return;
+            if (far.Grown.IsFaulted)
             {
-                Console.WriteLine($"The far land behind the menu failed: {far.Pieces.Exception}");
+                if (!_farShown) Console.WriteLine($"The far land behind the menu failed: {far.Grown.Exception}");
+                _farShown = true;
                 return;
             }
-            List<glModel> models = far.Models ?? far.Pieces.Result.Select(piece => glLoader.loadToVAO(piece.Mesh)).ToList();
-            _far = (far.World, far.Pieces, models);
-            foreach (glModel model in models)
+            if (!_farShown)
             {
-                _ecs.CreateEntity("Far Land",
-                    new PositionComponent(Vector3.Zero),
-                    new RotationComponent(Quaternion.Identity),
-                    new ScaleComponent(Vector3.One),
-                    new ModelComponent(model),
-                    new ModelRenderTag(),
-                    new LocalToWorldMatrixComponent { value = Matrix4.Identity });
+                _farShown = true;
+                far.Models ??= far.Grown.Result.Pieces.Select(piece => glLoader.loadToVAO(piece.Mesh)).ToList();
+                foreach (glModel model in far.Models)
+                {
+                    _ecs.CreateEntity("Far Land",
+                        new PositionComponent(Vector3.Zero),
+                        new RotationComponent(Quaternion.Identity),
+                        new ScaleComponent(Vector3.One),
+                        new ModelComponent(model),
+                        new ModelRenderTag(),
+                        new LocalToWorldMatrixComponent { value = Matrix4.Identity });
+                }
+                _ecs.ApplyDeferredCommands();
             }
+            ShowForest(far);
+        }
+
+        // The far forest is pictures of the world's own trees (FarForestComponent). A kind's picture is a few thousand small draws, so they're taken one kind a frame, from the first
+        // frame on, while the land they'll stand on is still being grown on its own threads: the forest stands as soon as both are done.
+        private bool TakePicture()
+        {
+            if (!_world.Plan.Archetype.Vista) return false;
+            _picturesWanted ??= new Queue<string>(_world.Objects.AssetIds.Where(model => FarLand.IsTree(model) && !_pictures.ContainsKey(model)));
+            if (_picturesWanted.Count == 0) return false;
+
+            string kind = _picturesWanted.Dequeue();
+            glModel model = _ecs.GetComponent<WorldStreamSingleton>(_ecs.GetSingleton<WorldStreamSingleton>()).Assets.Get(kind);
+            Engine.RenderEngine.textureGenerator.AddImposterToModel(model, float.MaxValue);
+            _pictures[kind] = model.Imposter!;
+            // The model itself stays a model however far off it stands: it's the forest that's pictures.
+            model.Imposter = null;
+            return true;
+        }
+
+        private void ShowForest(FarView far)
+        {
+            if (_forestShown) return;
+            if (far.Trees == null)
+            {
+                if (_picturesWanted == null || _picturesWanted.Count > 0) return;
+                List<FarLand.FarTree> forest = far.Grown.Result.Forest;
+                far.Trees = forest.Select(tree =>
+                {
+                    glModel.ImposterData picture = _pictures[tree.Model];
+                    return new ImposterInstanceData
+                    {
+                        modelID = picture.TextureIndex,
+                        Position = tree.Position + Vector3.Transform(picture.LocalCenter * tree.Scale, tree.Rotation),
+                        Scale = tree.Scale,
+                        Rotation = tree.Rotation,
+                        BaseLength = picture.BaseLength,
+                    };
+                }).ToArray();
+                Console.WriteLine($"The far forest behind the menu: {far.Trees.Length} trees of {forest.Select(tree => tree.Model).Distinct().Count()} kinds.");
+            }
+            _forestShown = true;
+            _ecs.CreateEntity("Far Forest", new FarForestComponent(far.Trees));
             _ecs.ApplyDeferredCommands();
         }
 
@@ -381,11 +482,15 @@ namespace Dino_Defenders.Client
             _time += deltaTime;
             Aim();
             Listen();
+            TakePicture();
             ShowFarLand();
 
-            // What a game focuses on is its own business, and it's left there when it ends.
+            // What a game focuses on is its own business, and it's left there when it ends. This is a landscape, seen through a lens stopped right down: only the grass at the
+            // camera's feet is soft, and the air is what softens the rest.
             Engine.RenderEngine.context.focusPoint = Vector4.Zero;
+            Engine.RenderEngine.LandscapeLens = NearSoft;
             HoldTheWeather(deltaTime);
+            HoldTheAir();
 
             if (!_body.IsValid() || !_ecs.TryGetEntityLocation(_body, out _, out _)) return;
             if (_wardrobe.Dressed(0, _worn) is not Dino_Engine.Modelling.Model.glModel model) return;
@@ -413,7 +518,62 @@ namespace Dino_Defenders.Client
             weather.Clock += deltaTime;
             weather.ClockGiven = true;
             if (WeatherSample.TryNamed("clear", out WeatherSample clear)) weather.Forced = clear;
+            // The sun's low and in the picture, so the sky it's in is too.
+            if (_world.Plan.Archetype.Vista) weather.HorizonGlow = 1f;
             view.Set(weather);
+        }
+
+        /// <summary>
+        /// The air in the picture, which is what says how far off anything in it is (MENU.md). Two things, both the volumetric fog's: the morning's mist lying on the lake and the meadow
+        /// across it, about the giants' legs, lit from behind by the low sun and cut by the shadows of the trees it comes through; and the haze over everything further, by which each
+        /// ridge is paler than the one before it and the mountain goes into the sky it stands against. The mist is a level layer on the water, so the hero's meadow stands clear of it
+        /// and nothing near the eye is veiled. Held every frame, as the weather is, as a change of quality sets the fog's steps again.
+        /// </summary>
+        private void HoldTheAir()
+        {
+            if (!_world.Plan.Archetype.Vista) return;
+            EntityView view = _ecs.GetEntityView(_ecs.GetSingleton<VolumetricFogSingleton>());
+            var fog = view.Get<VolumetricFogSingleton>();
+            fog.Enabled = true;
+
+            fog.TerrainFollow = 0f;
+            fog.BaseHeight = Vista.WaterLevel;
+            fog.Height = MistHeight;
+            fog.HeightFalloff = 0.8f;
+            fog.Density = MistDensity;
+            fog.Coverage = 0.8f;
+            fog.EdgeSoftness = 0.45f;
+            fog.Banks = 0.75f;
+            fog.NoiseScale = MistBillows;
+            fog.Turbulence = 0.45f;
+            fog.Detail = 0.3f;
+            fog.TopVariation = 0.7f;
+            fog.RollSpeed = 0.5f;
+
+            fog.Albedo = Vector3.One;
+            fog.DirectionalScattering = 0.6f;
+            fog.AmbientScattering = 2f;
+            fog.Anisotropy = 0.5f;
+
+            fog.HazeDensity = HazeDensity;
+            fog.HazeHeight = 300f;
+            fog.HazeBase = Vista.WaterLevel;
+            fog.HazeHorizon = 0.75f;
+            fog.HazeMost = 0.8f;
+
+            fog.MaxSteps = Math.Max(fog.MaxSteps, 48);
+            fog.MaxDistance = Far;
+            view.Set(fog);
+
+            // The lake is still, and seen along: what's in it is the far shore, the giants and the mountain, upside down.
+            EntityView waterView = _ecs.GetEntityView(_ecs.GetSingleton<WaterSingleton>());
+            var water = waterView.Get<WaterSingleton>();
+            water.SeaReflections = LakeReflectionSteps;
+            water.SeaReflectionSpread = LakeRipple;
+            waterView.Set(water);
+
+            // And the sun is in the picture, where its glare would be a veil over half of it.
+            if (_ecs.sun.IsValid() && _ecs.HasComponent<CelestialBodyComponent>(_ecs.sun)) _ecs.GetEntityView(_ecs.sun).Set(new CelestialBodyComponent { Glare = SunGlare });
         }
     }
 }

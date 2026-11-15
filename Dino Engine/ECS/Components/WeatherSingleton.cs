@@ -20,6 +20,7 @@ namespace Dino_Engine.ECS.Components
         public float CloudSize;         // Metres across the largest.
         public float CloudSpeed;        // How much faster than the weather itself they cross the land.
         public float CloudShadow;       // How much of the sun the thickest cloud lets through, 0..1.
+        public float HorizonGlow;       // How strongly a low sun lights the air along the horizon towards it, for a view that looks out at the sky (the picture behind the main menu). None for the game, which hardly sees a sky.
 
         // --- Light under cloud. Colours are radiance, as the sky's own are. ---
         public Vector3 OvercastSky;     // What the sky becomes under full cloud.
@@ -89,6 +90,7 @@ namespace Dino_Engine.ECS.Components
             CloudSize = 1400f;
             CloudSpeed = 3f;
             CloudShadow = 0.05f;
+            HorizonGlow = 0f;
 
             OvercastSky = new Vector3(1.28f, 1.36f, 1.5f);
             RainGloom = 0.72f;

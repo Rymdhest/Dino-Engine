@@ -379,6 +379,12 @@ namespace Dino_Defenders
             _frames++;
             TakeSnap();
             if (_options.Shot != null && _frames == _options.ShotAfterFrames) Engine.RequestScreenshot(_options.Shot, Quit);
+            // The picture behind the menu is a view no land has, with air and shadows of its own, so it's measured as a land is (--menu true --perf file).
+            if (_perf != null)
+            {
+                _perf.Frame(_frames, Dino_Engine.Core.Engine.Delta);
+                if (_perf.Finished) Quit();
+            }
         }
 
         // For scripted runs: a hero made to order, to look at a build without earning it.

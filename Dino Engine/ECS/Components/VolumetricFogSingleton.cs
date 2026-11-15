@@ -40,6 +40,12 @@ namespace Dino_Engine.ECS.Components
 
         // --- Distance haze (cheap analytic fog over the whole view, replaces the old distance fog) ---
         public float HazeDensity;     // Extinction per metre.
+        // The rest is for a view that looks out across a land and not down on it (the picture behind the main menu), and does nothing as it starts: from the game's camera there's no far
+        // distance for any of it to show in.
+        public float HazeHeight;      // Metres up over which the haze thins to about a third of itself. 0 = the same at any height.
+        public float HazeBase;        // World y at which the haze is as thick as HazeDensity says: the low ground it lies in.
+        public float HazeHorizon;     // 0..1, how far the haze takes the colour of the sky along the horizon behind it in place of the sky's one colour, so that what's far off goes into the sky it stands against, and brightens towards the sun.
+        public float HazeMost;        // The most of anything the haze takes away, 0..1: a mountain a long way off is still there.
 
         // --- Set each frame by the weather (VolumetricFogSystem), and none with it on no fog of its own. ---
         public float ClearingRadius;  // Metres around what's being looked at that the fog sinks away, so whatever's happening there stays in plain view.
@@ -80,6 +86,10 @@ namespace Dino_Engine.ECS.Components
             Anisotropy = 0.35f;
 
             HazeDensity = 0.001f;
+            HazeHeight = 0f;
+            HazeBase = 0f;
+            HazeHorizon = 0f;
+            HazeMost = 1f;
 
             MaxSteps = 32;
             TemporalBlend = 0.9f;

@@ -9,6 +9,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
     {
         public Vector3 colour;
         public Vector3 direction;
+        public float glare;     // Of its glare and rays, 1 for all a body has (CelestialBodyComponent.Glare).
     }
 
     public class CelestialBodyRenderer : CommandDrivenRenderer<CelestialBodyRenderCommand>
@@ -97,7 +98,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             _sunRayShader.bind();
             _sunRayShader.loadUniformFloat("Density", 0.2f);
             _sunRayShader.loadUniformFloat("Weight", 1.0f);
-            _sunRayShader.loadUniformFloat("Exposure", 0.1f);
+            _sunRayShader.loadUniformFloat("Exposure", 0.1f * MathF.Max(command.glare, 0f));
             _sunRayShader.loadUniformFloat("Decay", 0.95f);
             _sunRayShader.loadUniformFloat("illuminationDecay", 1.0f);
             _sunRayShader.loadUniformVector2f("celestialRayResolution", _CelestialBodyFramebuffer.getResolution());

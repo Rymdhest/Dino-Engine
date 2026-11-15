@@ -40,6 +40,42 @@ namespace Dino_WorldLab
             CheckMountains(world);
         }
 
+        // What the picture's light needs of its land: the sun is low and ahead, so a ridge raised a little or moved a little nearer puts its shadow over the giants' meadow, or over the
+        // hero, or stands in front of the sun, and the picture goes flat without anything failing. And nothing taller than grass between the camera and the water (Vista.InSight).
+        private void CheckVistaLight(WorldData world)
+        {
+            Vector3 towardsSun = -world.Plan.Mood.SunDirection;
+            if (towardsSun.Y < 0.12f) Problem("the vista's sun is lower than its land can leave clear");
+            if (Shaded(world, Vista.Hero, 3f, towardsSun)) Problem("the vista's hero stands in the land's shadow");
+            // As high as a giant's back, across where they graze.
+            for (int i = -1; i <= 1; i++)
+            {
+                Vector2 at = Vista.Herd + new Vector2(i * Vista.HerdReach, 0f);
+                if (Shaded(world, at, 8f, towardsSun)) Problem($"the vista's giants graze in the land's shadow at {at.X:0},{at.Y:0}");
+            }
+            if (world.WaterDepthAt(Vista.Herd) > 0f || world.Canopy.Sample(Vista.Herd) > 0.3f) Problem("the vista's giants have no meadow");
+
+            foreach (WorldObject item in world.Objects.All())
+            {
+                string model = world.Objects.AssetIds[item.Asset];
+                if (!Vista.InSight(item.Position.Xz) || !NatureCatalog.TryGet(model, out WorldAsset asset)) continue;
+                if (asset.Kind is WorldAssetKind.Tree or WorldAssetKind.Shrub) Problem($"{model} stands between the vista's camera and its lake at {item.Position.X:0},{item.Position.Z:0}");
+            }
+        }
+
+        // Whether the ground itself stands between a point over it and the sun.
+        private static bool Shaded(WorldData world, Vector2 at, float above, Vector3 towardsSun)
+        {
+            var from = new Vector3(at.X, world.Height.Sample(at) + above, at.Y);
+            for (float along = 8f; along < 1600f; along += 8f)
+            {
+                Vector3 point = from + towardsSun * along;
+                if (!world.InBounds(point.Xz)) return false;
+                if (world.Height.Sample(point.Xz) > point.Y) return true;
+            }
+            return false;
+        }
+
         private void Problem(string text)
         {
             if (Problems.Count < 40) Problems.Add(text);
@@ -292,6 +328,7 @@ namespace Dino_WorldLab
                 if (world.Height.Sample(Vista.Hero) < WorldPlan.SeaLevel + 4f) Problem("the vista's hero stands too low to see over the lake");
                 if (world.WaterDepthAt(Vista.Lake) < 1f) Problem("the vista has no lake");
                 if (world.Canopy.Sample(Vista.Hero) > 0.05f) Problem("the vista's hero stands among trees");
+                CheckVistaLight(world);
                 return;
             }
             if (world.Sites.Count == 0 || world.Sites[0].Kind != SiteKind.Landing)

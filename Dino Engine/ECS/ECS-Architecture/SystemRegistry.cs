@@ -80,6 +80,8 @@ namespace Dino_Engine.ECS.ECS_Architecture
             Systems.Add(new SpotLightSystem());
             Systems.Add(new CharacterRenderSystem());
             Systems.Add(new DirectionalCascadeShadowSystem());
+            // After the sun's maps are aimed, as it draws into the widest of them.
+            Systems.Add(new FarForestSystem());
             Systems.Add(new DirectionalLightSystem());
             Systems.Add(new GlobalIlluminationSystem());
             Systems.Add(new TerrainChunkRenderSystem());

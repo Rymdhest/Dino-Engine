@@ -105,12 +105,23 @@ namespace Dino_Engine.Rendering
                 EntityView sun = world.GetEntityView(world.sun);
                 var shadow = sun.Get<DirectionalCascadingShadowComponent>();
                 if (shadow.cascades[0].shadowFrameBuffer.getResolution().X == preset.ShadowMap) return;
+                // As wide as they were: a view with a map for what's far off keeps it (SunShadow).
+                float[] widths = shadow.cascades.Select(cascade => cascade.projectionSize).ToArray();
                 shadow.Cleanup();
-                sun.Set(SunShadow(preset));
+                sun.Set(new DirectionalCascadingShadowComponent(new Vector2i(preset.ShadowMap), widths));
             }
         }
 
+        /// <summary>Metres across the sun's shadow map, which is all the game's camera sees and more.</summary>
+        public const float SunShadowWidth = 150f;
+
         /// <summary>The sun's shadow at a level of quality.</summary>
-        public static DirectionalCascadingShadowComponent SunShadow(in QualityPreset preset) => new DirectionalCascadingShadowComponent(new Vector2i(preset.ShadowMap), 1, 150);
+        public static DirectionalCascadingShadowComponent SunShadow(in QualityPreset preset) => new DirectionalCascadingShadowComponent(new Vector2i(preset.ShadowMap), 1, SunShadowWidth);
+
+        /// <summary>
+        /// The sun's shadow for a view that looks out across a land: the game's map, and one <paramref name="far"/> metres across for what's past it, as nothing past the first casts or
+        /// takes a shadow otherwise, and a low sun's shadows are most of what such a view is made of.
+        /// </summary>
+        public static DirectionalCascadingShadowComponent SunShadow(in QualityPreset preset, float far) => new DirectionalCascadingShadowComponent(new Vector2i(preset.ShadowMap), SunShadowWidth, far);
     }
 }

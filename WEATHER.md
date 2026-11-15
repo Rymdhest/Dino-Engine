@@ -127,6 +127,8 @@ Still air is what ground fog needs and wind tears it up, so `Gale` thins mist an
 
 `NoiseScale` can't be part of a look. Changing it scales the pattern about the far-off world origin, and every billow on screen slides, which is the wind's rule again. The fog's cost doesn't change with any of this, as the slab it marches is thin.
 
+**The picture behind the main menu has air of its own**, as it's the one view that looks out across a land and has a far distance for air to give depth to: mist laid level on its lake, and a haze that thins with height and takes the colour of the sky along the horizon (`HazeHeight`, `HazeHorizon` and `HazeMost` on `VolumetricFogSingleton`, and `WeatherSingleton.HorizonGlow` for the sky a low sun makes). All of it is nothing unless `TitleScene` sets it, and none of it is weather: the rule above about `HazeDensity` stands. See The shot in `MENU.md`.
+
 ## Drips
 
 Water comes off things, and nothing has to be told where. While anything is wet the shadow passes also draw the world from straight overhead (`WantsDripDepth`), as the rain shadow leans with the wind and a roof's windward edge doesn't show as an edge in it. `Drip_Sources.frag` looks through that for steps down, a tile a metre across at a time, keeping the best: a surface with air beside it and something lower under the air. Eaves, branches, a stall's canvas, a well's roof and the top of a post are all that, and a drop falls down the low side.

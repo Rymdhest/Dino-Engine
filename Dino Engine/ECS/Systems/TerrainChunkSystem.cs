@@ -27,6 +27,12 @@ namespace Dino_Engine.ECS.Systems
     {
         // How far past the terrain ring sectors stay alive, in metres. Trees are tall: they show before the ground under them.
         private const float SectorMargin = 24f;
+
+        /// <summary>
+        /// Metres from the middle of the terrain's square within which a sector of the world's objects is brought in, measured to the sector's nearest edge (<see cref="SectorDistance"/>),
+        /// for whatever has to know where the streamed trees end: the far forest behind the main menu begins there (<see cref="World.FarLand.Forest"/>).
+        /// </summary>
+        public static float SectorReach(int radius, float chunkSize) => (radius + 1) * chunkSize + SectorMargin;
         private const int SectorsPerFrame = 3;
         private const int ChunksPerFrame = 3;
         private const int MostToSpreadOut = 80;
@@ -179,8 +185,8 @@ namespace Dino_Engine.ECS.Systems
                 SpawnSector(_sectorsToLoad[i], stream, world, grid);
         }
 
-        // Metres from a point to the nearest edge of a sector.
-        private static float SectorDistance(Vector2i sector, Vector2 point)
+        /// <summary>Metres from a point to the nearest edge of a sector.</summary>
+        public static float SectorDistance(Vector2i sector, Vector2 point)
         {
             float size = WorldObjects.SectorSize;
             Vector2 min = new Vector2(sector.X, sector.Y) * size;

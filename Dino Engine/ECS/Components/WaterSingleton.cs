@@ -43,7 +43,9 @@ namespace Dino_Engine.ECS.Components
         public float RippleDrift;           // How fast the wind carries ripples along, as a fraction of the wind speed.
         public float CausticStrength;       // Multiplier on the light patterns waves focus onto the bottom.
         public float RefractionStrength;    // Multiplier on how much waves bend the view of the bottom.
-        public bool ScreenSpaceReflections; // Still water reflects what is on screen (trees on the far shore); otherwise only the sky. The sea always reflects only the sky.
+        public bool ScreenSpaceReflections; // Still water reflects what is on screen (trees on the far shore); otherwise only the sky. The sea reflects only the sky, but for SeaReflections.
+        public float SeaReflectionSpread;   // With SeaReflections: the slopes its ripples draw a reflection out by, up and down, in radians. Still water at dawn is well under a hundredth; the wind's own ripples would be ten times that, and nothing left of what's reflected.
+        public int SeaReflections;          // The most steps a ray off the sea takes across the screen to find what's on it, for a view that looks along the water and not down on it (the lake behind the main menu, which is the sea of its world): 0 for the game, whose camera sees the sea reflect a few percent of anything.
 
         // --- Ripples from things moving through the water (WaterDisturberComponent, Water.AddSplash) ---
         public float RippleSpeed;           // Metres per second the rings spread.

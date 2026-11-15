@@ -7,10 +7,16 @@
 // Blended with (one, source alpha): the output is the light the fog and haze add (rgb) and the share of the scene that
 // still shows through them (a). Drawn per pixel and per sample (MsaaRenderer.DrawSplit), so every sample of an edge
 // pixel gets the fog of its own distance.
+//
+// The haze is the same everywhere and the sky's one colour for the game's camera, which looks down on a few dozen metres. For a view that looks out across a land (the picture
+// behind the main menu) it's what says how far off anything is, so there it lies low, thinning with height, and takes the colour of the sky along the horizon behind whatever it's in
+// front of: a ridge is paler than the one before it, a mountain goes into the sky it stands against, and all of it brightens towards a low sun, as the sky does.
 
 #include gBufferUtil.glsl
 #include Globals.glsl
 #include AntiAliasing/Msaa.glsl
+#include Weather/Weather.glsl
+#include Weather/Sky.glsl
 
 in vec2 textureCoords;
 layout (location = 0) out vec4 out_Colour;
@@ -20,6 +26,27 @@ uniform sampler2D fogTexture;
 uniform sampler2D fogDistance;
 
 uniform float hazeDensity;
+uniform vec4 hazeShape;     // x 1 / the height the haze thins to 1/e over (0: the same at any height), y the height it's as thick as hazeDensity at, z how far it takes the horizon's colour, w the most it takes away
+
+const float HAZE_SKY_LOD = 3.0;     // Of the sky map: the light of all the air out that way, not of one cloud.
+
+// How much haze lies between the eye and a surface that far along a ray: its density summed along the way, which thins as the ray climbs.
+float hazeDepth(vec3 direction, float surfaceDistance)
+{
+    if (hazeShape.x <= 0.0) return hazeDensity * surfaceDistance;
+    float atEye = hazeDensity * exp(-clamp((viewPosWorld.y - hazeShape.y) * hazeShape.x, -4.0, 40.0));
+    float climb = clamp(direction.y * hazeShape.x * surfaceDistance, -20.0, 40.0);
+    // (1 - e^-c) / c, which is 1 along a level ray.
+    float along = abs(climb) > 1e-3 ? (1.0 - exp(-climb)) / climb : 1.0 - climb * 0.5;
+    return atEye * surfaceDistance * along;
+}
+
+vec3 hazeColour(vec3 direction)
+{
+    if (hazeShape.z <= 0.0) return skyColour;
+    vec3 level = normalize(vec3(direction.x, max(direction.y, 0.0) * 0.5 + 0.04, direction.z));
+    return mix(skyColour, textureLod(skyMap, skyMapCoord(level), HAZE_SKY_LOD).rgb, hazeShape.z);
+}
 
 void main(void)
 {
@@ -57,7 +84,14 @@ void main(void)
     }
     fog = totalWeight > 1e-4 ? fog / totalWeight : closestFog;
 
-    // colour * fog.a + fog.rgb, then mixed towards the sky colour by the haze in front of the surface.
-    float hazeTransmittance = depth < 1.0 ? exp(-hazeDensity * surfaceDistance) : 1.0;
-    out_Colour = vec4(fog.rgb * hazeTransmittance + skyColour * (1.0 - hazeTransmittance), fog.a * hazeTransmittance);
+    // colour * fog.a + fog.rgb, then mixed towards the haze's colour by the haze in front of the surface. The sky has none: it's what the haze is going towards.
+    float hazeTransmittance = 1.0;
+    vec3 haze = skyColour;
+    if (depth < 1.0)
+    {
+        vec3 direction = mat3(invViewMatrix) * (surfaceView / max(surfaceDistance, 1e-5));
+        hazeTransmittance = max(exp(-hazeDepth(direction, surfaceDistance)), 1.0 - hazeShape.w);
+        haze = hazeColour(direction);
+    }
+    out_Colour = vec4(fog.rgb * hazeTransmittance + haze * (1.0 - hazeTransmittance), fog.a * hazeTransmittance);
 }

@@ -7,8 +7,9 @@ namespace Dino_Engine.World
 {
     /// <summary>
     /// The land beyond where the terrain's chunks end, for a view that looks further than the game's camera ever does: the picture behind the main menu, whose hills and mountain are hundreds of
-    /// metres off. It's the world's own height map as plain meshes in tiles, its woods a canopy laid over the ground with crowns in it, its rock and its water, each coloured as it looks from
-    /// far off, as nothing there is near enough to show more. The chunks cover a square round the camera, and the tiles everything outside it, meeting it at the world's own heights. Headless.
+    /// metres off. It's the world's own height map as plain meshes in tiles, its rock and its water and the ground under its woods, each coloured as it looks from far off, as nothing
+    /// there is near enough to show more. The chunks cover a square round the camera, and the tiles everything outside it, meeting it at the world's own heights. The woods themselves are
+    /// trees (<see cref="Forest"/>): they were a canopy laid over the ground once, a smooth green sheet that began where the real trees stopped, and a person saw where that was. Headless.
     /// </summary>
     public static class FarLand
     {
@@ -17,9 +18,19 @@ namespace Dino_Engine.World
         private const float NearReach = 460f;       // from the camera,
         private const float FarCell = 8f;           // and beyond.
         private const float Sink = 0.15f;           // Under the ground, so that where the chunks meet it they're on top.
-        private const float CanopyTop = 14f;        // Metres a wood's crowns stand over the ground.
-        private const float CanopyRamp = 30f;       // Metres out from the chunks over which the canopy rises to that, as the real trees stand on there.
         private const float Skirt = 4f;             // Metres every tile's edge hangs down, so that tiles with points at different spacings show no gap.
+        private const float ForestSpacing = 8.5f;   // Metres between the places a far wood is thickened from: one of the world's own is 13 m from the next, and seen from far off a wood has no gaps.
+        private const float ForestRoom = 3.5f;      // And no nearer a tree that's there already than this, for trees of the size the world grows them.
+        private const float ForestFrom = 0.5f;      // How thick the world's woods have to be somewhere for it to be thickened.
+        private const float BareRock = 0.2f;        // How much rock there is somewhere, of the world's map of it, before no tree stands there.
+
+        // Trees are what say how big a hill is. This land is 1300 m across and its mountain 130 m high, which with full-grown trees to its top is a wooded knoll, and looked it. So the
+        // forest is in forced perspective, as a stage set or a matte painting is: from where the world's own trees stop, its trees are smaller the further off they stand, down to
+        // well under half their size at the mountain's foot, and stand closer together by as much. A ridge 600 m off then reads as one a good deal further and higher, and the bare
+        // mountain over it as a mountain. Nobody ever walks there to find out.
+        private const float SmallerFrom = 360f;     // Metres from the camera at which they begin to be smaller,
+        private const float SmallestAt = 820f;      // and at which they're as small as they get,
+        private const float Smallest = 0.42f;       // which is this much of their size.
 
         // Albedos under a sun of about 13, as everything's are.
         private static readonly Vector3 Crowns = new Vector3(0.05f, 0.092f, 0.032f);
@@ -30,6 +41,101 @@ namespace Dino_Engine.World
         private const float MostAir = 0.55f;
 
         public readonly record struct Piece(Vector2 Origin, FloraMesh Mesh);
+
+        /// <summary>A tree of the far forest: one of the world's own models, and where it stands.</summary>
+        public readonly record struct FarTree(string Model, Vector3 Position, Quaternion Rotation, Vector3 Scale);
+
+        /// <summary>
+        /// The trees past where the world's own are streamed, for a view that sees that far: every tree the world has out there, where the world put it, and more between them wherever its
+        /// woods are thick, each after one that stands near, so that stands of a kind stay stands. A wood's trees are a dozen metres apart, which is a wood from above and from among
+        /// them, and a scatter of trees on a hillside from half a kilometre off, where the eye expects a roof of crowns. Only what the view can hold is kept.
+        /// </summary>
+        /// <remarks>
+        /// None stands on bare rock, whatever the world has growing on its ledges: a mountain's upper slopes are stone, and a tree on its summit is the measure of it.
+        /// </remarks>
+        /// <param name="streamed">Whether the world's objects are brought in at a place (<c>TerrainChunkSystem</c>), and so aren't this forest's.</param>
+        /// <param name="look">The way the view looks, on the ground, and <paramref name="halfAngle"/> how far to either side of that it can see, in radians.</param>
+        public static List<FarTree> Forest(WorldData world, Func<Vector2, bool> streamed, Vector2 camera, Vector2 look, float halfAngle)
+        {
+            WorldObjects objects = world.Objects;
+            bool[] tree = objects.AssetIds.Select(IsTree).ToArray();
+            float within = MathF.Cos(halfAngle);
+            bool Wanted(Vector2 at)
+            {
+                Vector2 off = at - camera;
+                float distance = off.Length;
+                return distance > 1f && Vector2.Dot(off / distance, look) > within && !streamed(at) && world.Rock.Sample(at) < BareRock;
+            }
+            float Size(Vector2 at) => Lerp(1f, Smallest, Smoothstep(SmallerFrom, SmallestAt, (at - camera).Length));
+
+            var forest = new List<FarTree>();
+            var own = new Dictionary<Vector2i, List<WorldObject>>();
+            foreach (WorldObject item in objects.All())
+            {
+                if (!tree[item.Asset]) continue;
+                Vector2i sector = objects.SectorOf(item.Position.Xz);
+                if (!own.TryGetValue(sector, out List<WorldObject>? stand)) own[sector] = stand = new List<WorldObject>();
+                stand.Add(item);
+                if (Wanted(item.Position.Xz)) forest.Add(new FarTree(objects.AssetIds[item.Asset], item.Position, item.Rotation, item.Scale * Size(item.Position.Xz)));
+            }
+            if (own.Count == 0) return forest;
+
+            // Every draw is made whether it's used or not, so that what's kept of one view is the same trees as another's. A cell has as many places as trees of the size they are
+            // there would need to roof it: one where they're full grown, and half a dozen at the mountain's foot.
+            WorldRandom random = new WorldRandom(world.Plan.Seed).Fork("far forest");
+            int cells = (int)(world.Size / ForestSpacing);
+            int most = (int)MathF.Ceiling(1f / (Smallest * Smallest));
+            for (int z = 0; z < cells; z++)
+            {
+                for (int x = 0; x < cells; x++)
+                {
+                    float smaller = Size((new Vector2(x, z) + new Vector2(0.5f)) * ForestSpacing);
+                    int places = Math.Clamp((int)MathF.Round(1f / (smaller * smaller)), 1, most);
+                    for (int place = 0; place < most; place++)
+                    {
+                        Vector2 at = new Vector2(x + random.Float(), z + random.Float()) * ForestSpacing;
+                        float chance = random.Float();
+                        float size = random.Float();
+                        float turn = random.Float();
+                        if (place >= places || !Wanted(at)) continue;
+
+                        float canopy = world.Canopy.Sample(at);
+                        if (canopy < ForestFrom || chance > canopy) continue;
+                        if (world.WaterDepthAt(at) > 0f || world.ShoreHeightAt(at) < 0.55f || world.Height.SlopeAt(at) > 0.8f) continue;
+
+                        // The nearest of the world's own says what grows here, and whether there's room.
+                        Vector2i sector = objects.SectorOf(at);
+                        WorldObject? like = null;
+                        float nearest = float.MaxValue;
+                        for (int dz = -1; dz <= 1; dz++)
+                        {
+                            for (int dx = -1; dx <= 1; dx++)
+                            {
+                                if (!own.TryGetValue(new Vector2i(sector.X + dx, sector.Y + dz), out List<WorldObject>? stand)) continue;
+                                foreach (WorldObject item in stand)
+                                {
+                                    float distance = (item.Position.Xz - at).LengthSquared;
+                                    if (distance >= nearest) continue;
+                                    nearest = distance;
+                                    like = item;
+                                }
+                            }
+                        }
+                        float room = ForestRoom * smaller;
+                        if (like is not WorldObject kind || nearest < room * room) continue;
+
+                        float scale = kind.Scale.X * Lerp(0.8f, 1.1f, size) * Size(at);
+                        var position = new Vector3(at.X, world.Height.Sample(at) - 0.15f * scale, at.Y);
+                        forest.Add(new FarTree(objects.AssetIds[kind.Asset], position, Quaternion.FromAxisAngle(Vector3.UnitY, turn * MathF.Tau), new Vector3(scale)));
+                    }
+                }
+            }
+            return forest;
+        }
+
+        /// <summary>Whether a model is a tree's, which is all the far forest is made of.</summary>
+        public static bool IsTree(string model) =>
+            FloraCatalog.TryGet(Content.NatureCatalog.SpeciesOf(model, out _), out PlantSpecies species) && species.Asset.Kind == Content.WorldAssetKind.Tree;
 
         /// <param name="holeMin">The corner of the square the chunks cover, nearest the world's origin.</param>
         /// <param name="holeMax">Its far corner.</param>
@@ -145,6 +251,7 @@ namespace Dino_Engine.World
             };
         }
 
+        // The ground, or the water lying on it. Under a wood it's the wood's floor, in the crowns' shade and their colour: the trees stand on it (Forest).
         private static float SurfaceAt(WorldData world, WorldNoise noise, Vector2 at, Vector2 holeMin, Vector2 holeMax, out float woods, out float bare, out float wet)
         {
             Vector2 p = Vector2.Clamp(at, Vector2.Zero, new Vector2(world.Size));
@@ -152,14 +259,8 @@ namespace Dino_Engine.World
             float depth = world.WaterDepthAt(p);
             wet = Smoothstep(0.05f, 0.4f, depth);
             bare = Smoothstep(0.35f, 0.65f, world.Rock.Sample(p));
-
-            // How far outside the chunks' square, for the canopy to rise from where the real trees stand.
-            Vector2 outside = Vector2.ComponentMax(holeMin - at, at - holeMax);
-            float beyond = MathF.Max(outside.X, outside.Y);
-            float rise = Smoothstep(0f, CanopyRamp, beyond);
             woods = Saturate(world.Canopy.Sample(p) * 1.4f) * (1f - bare) * (1f - wet);
-            float crowns = woods * CanopyTop * Lerp(0.7f, 1.15f, noise.Fbm01(at.X, at.Y, 11f, 2)) * rise;
-            return MathF.Max(ground + depth, ground) + crowns;
+            return MathF.Max(ground + depth, ground);
         }
 
     }

@@ -77,6 +77,7 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
         private const int MostFramesStale = 8;
 
         private const int ReflectionSteps = 8;
+        private const float SeaReflectionStride = 2f;       // Pixels between the steps of a ray off the sea, when it reflects what's on screen (WaterSingleton.SeaReflections), or more if that many steps wouldn't cross the screen.
         // Metres of depth the sea fades in over round anything standing in it. Over the beach it fades in across Water/ShoreData.glsl's SHORE_SHALLOWS instead,
         // as the sheet on the ground fades out under it.
         private const float OceanEdgeFade = 0.1f;
@@ -613,6 +614,9 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
             shader.loadUniformFloat("causticMean", _causticMean);
             shader.loadUniformFloat("refractionStrength", MathF.Max(settings.RefractionStrength, 0f));
             shader.loadUniformInt("reflectionSteps", settings.ScreenSpaceReflections ? ReflectionSteps : 0);
+            shader.loadUniformFloat("reflectionStride", 0f);
+            shader.loadUniformFloat("reflectionHaze", 0f);
+            shader.loadUniformFloat("reflectionSpread", 0f);
             shader.loadUniformVector4f("rippleSimRegion", _rippleSimulation.Region);
             shader.loadUniformFloat("rippleSimStrength", MathF.Max(settings.RippleNormalStrength, 0f));
             shader.loadUniformFloat("bedDarkening", Math.Clamp(settings.WetSandDarkening, 0f, 0.95f));
@@ -689,8 +693,13 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
             _oceanShader.bind();
             UploadShared(_oceanShader, command, viewProjection, sceneRect);
             // A camera looking down sees the sea reflect a few percent of the light at most: its reflections of the shore are
-            // lost against the sky, so it reflects only the sky.
-            _oceanShader.loadUniformInt("reflectionSteps", 0);
+            // lost against the sky, so it reflects only the sky. One that looks along the water sees little else in it, and what it reflects is hundreds of metres off, so
+            // its rays take many steps that lengthen slowly.
+            _oceanShader.loadUniformInt("reflectionSteps", Math.Max(settings.SeaReflections, 0));
+            _oceanShader.loadUniformFloat("reflectionStride", settings.SeaReflections > 0 ? SeaReflectionStride : 0f);
+            _oceanShader.loadUniformFloat("reflectionSpread", MathF.Max(settings.SeaReflectionSpread, 0f));
+            // What's reflected is behind as much haze again as lies between it and the water, which the scene's copy doesn't have yet.
+            _oceanShader.loadUniformFloat("reflectionHaze", settings.SeaReflections > 0 ? renderEngine._volumetricFogRenderer.HazeDensity : 0f);
             UploadOptics(_oceanShader, settings.OceanOptics, 1f, OceanEdgeFade);
             // The ground under the sea is already wet: the ground drew it so (Water/ShoreWet.glsl).
             _oceanShader.loadUniformFloat("bedDarkening", 0f);
