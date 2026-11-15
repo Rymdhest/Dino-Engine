@@ -53,6 +53,12 @@ uniform sampler2D touchMap;
 uniform vec4 frustumPlanes[6];
 uniform int bladesPerAxis;
 uniform int shadowPass;
+// For a sun's shadow, whether only blades whose shadow can fall on what the camera sees are kept: the view's planes, inside positive, how far and which way a
+// shadow falls for each metre above the lowest ground round the view, and that ground (GrassRenderCommand.seenPlanes, as the sun's other casters are culled).
+uniform int seenOnly;
+uniform vec4 seenPlanes[6];
+uniform vec3 fallPerMetre;
+uniform float lowestGround;
 uniform int nearCapacity;
 uniform int farCapacity;
 uniform float textureMapOffset;
@@ -205,6 +211,16 @@ bool growBlade(int index, out GrassBladeData blade, out bool near)
     for (int i = 0; i < 6; i++)
     {
         if (dot(frustumPlanes[i].xyz, root) + frustumPlanes[i].w < -(longest + widest)) return false;
+    }
+    if (shadowPass == 1 && seenOnly == 1)
+    {
+        // Frustum.IntersectsSweptSphere, with DirectionalCascadeShadowSystem's metre for the edge of a soft shadow.
+        vec3 fall = fallPerMetre * max(root.y + longest - lowestGround, 0.0);
+        float margin = longest + widest + 1.0;
+        for (int i = 0; i < 6; i++)
+        {
+            if (dot(seenPlanes[i].xyz, root) + seenPlanes[i].w + max(dot(seenPlanes[i].xyz, fall), 0.0) < -margin) return false;
+        }
     }
 
     // --- Does this tuft live here? The ground decides for the whole tuft, so that sparse grass stands in bunches ---

@@ -21,6 +21,16 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         // Read from geometry commands only; shadow passes use the settings of the frame's geometry command.
         public GrassSingleton settings;
 
+        /// <summary>
+        /// For a sun's shadow, the camera's view, whose path along the light a blade's shadow has to cross to be seen, as the sun's casters are culled
+        /// (DirectionalCascadeShadowSystem.CastersInto): its six planes, inside positive, or null to draw every blade in the map.
+        /// </summary>
+        public Vector4[]? seenPlanes;
+        /// <summary>How far, and which way, a shadow falls for every metre its caster stands above <see cref="lowestGround"/>.</summary>
+        public Vector3 fallPerMetre;
+        /// <summary>The lowest ground round the view, which no shadow goes past.</summary>
+        public float lowestGround;
+
         public GrassRenderCommand(GrassChunkRenderData[] chunks) : this(chunks, new GrassSingleton())
         {
         }
@@ -405,6 +415,14 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
             Matrix4 viewProjection = shadow.lightViewMatrix * shadow.shadowProjectionMatrix;
             Engine.PerformanceMonitor.startGPUTask("Grass Shadow Generate");
+            _generateShader.bind();
+            _generateShader.loadUniformInt("seenOnly", command.seenPlanes != null ? 1 : 0);
+            if (command.seenPlanes != null)
+            {
+                _generateShader.loadUniformVector4fArray("seenPlanes", command.seenPlanes);
+                _generateShader.loadUniformVector3f("fallPerMetre", command.fallPerMetre);
+                _generateShader.loadUniformFloat("lowestGround", command.lowestGround);
+            }
             bool grown = Generate(_shadowChunks, viewProjection, shadowPass: true);
             Engine.PerformanceMonitor.finishGPUTask("Grass Shadow Generate");
             if (!grown) return;

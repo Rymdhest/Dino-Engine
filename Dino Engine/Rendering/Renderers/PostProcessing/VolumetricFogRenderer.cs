@@ -74,6 +74,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
         private static readonly string[] SpotSoftnessNames = UniformNames("spotSoftness", MaxSpotLights);
         private static readonly string[] SpotShadowMatrixNames = UniformNames("spotShadowMatrices", MaxSpotShadows);
         private static readonly string[] PointShadowStrengthNames = UniformNames("pointShadowStrength", MaxPointShadows);
+        private static readonly string[] PointShadowLayerNames = UniformNames("pointShadowLayer", MaxPointShadows);
 
         private readonly ShaderProgram _noiseShader = new ShaderProgram("Simple.vert", "VolumetricFog_Noise.frag");
         private readonly ShaderProgram _marchShader = new ShaderProgram("Simple.vert", "VolumetricFog_March.frag");
@@ -113,7 +114,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             _marchShader.loadUniformInt("terrainHeightMap", 2);
             for (int i = 0; i < MaxCascadeSlots; i++) _marchShader.loadUniformInt("cascadeShadowMaps[" + i + "]", CascadeUnitStart + i);
             for (int i = 0; i < MaxSpotShadows; i++) _marchShader.loadUniformInt("spotShadowMaps[" + i + "]", SpotShadowUnitStart + i);
-            for (int i = 0; i < MaxPointShadows; i++) _marchShader.loadUniformInt("pointShadowMaps[" + i + "]", PointShadowUnitStart + i);
+            _marchShader.loadUniformInt("pointShadowMaps", PointShadowUnitStart);
             _marchShader.loadUniformFloat("pointShadowNear", PointLightRenderer.ShadowNearPlane);
             _marchShader.loadUniformFloat("pointShadowFar", PointLightRenderer.ShadowFarPlane);
             _marchShader.loadUniformInt("windMap", WindMapUnit);
@@ -438,15 +439,23 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             int pointCount = Math.Min(_lightCandidates.Count, MaxPointLights);
             float pointCut = CutOf(MaxPointLights);
             int pointShadows = 0;
+            int pointShadowMaps = 0;
             for (int i = 0; i < pointCount; i++)
             {
                 PointlightRenderCommand light = _pointLights[_lightCandidates[i].index];
                 int shadowIndex = -1;
-                if (light.shadow != null && pointShadows < MaxPointShadows)
+                // Every map is a cube of one array (CubeShadowArray), bound once.
+                FrameBuffer? map = light.shadow?.shadowFrameBuffer;
+                if (map != null && map.CubeIndex >= 0 && pointShadows < MaxPointShadows && (pointShadowMaps == 0 || pointShadowMaps == map.getDepthAttachment()))
                 {
                     shadowIndex = pointShadows++;
-                    GL.ActiveTexture(TextureUnit.Texture0 + PointShadowUnitStart + shadowIndex);
-                    GL.BindTexture(TextureTarget.TextureCubeMap, light.shadow.Value.shadowFrameBuffer.getDepthAttachment());
+                    if (pointShadowMaps == 0)
+                    {
+                        pointShadowMaps = map.getDepthAttachment();
+                        GL.ActiveTexture(TextureUnit.Texture0 + PointShadowUnitStart);
+                        GL.BindTexture(TextureTarget.TextureCubeMapArray, pointShadowMaps);
+                    }
+                    _marchShader.loadUniformFloat(PointShadowLayerNames[shadowIndex], map.CubeIndex);
                     // As much of its shadow as the surfaces are given, so that it fades into the fog with them.
                     _marchShader.loadUniformFloat(PointShadowStrengthNames[shadowIndex], Math.Clamp(light.shadowStrength, 0f, 1f));
                 }

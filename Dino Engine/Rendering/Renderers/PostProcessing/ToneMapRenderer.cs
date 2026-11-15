@@ -16,6 +16,8 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
         {
             HDRMapShader.bind();
             HDRMapShader.loadUniformInt("HDRcolorTexture", 0);
+            HDRMapShader.loadUniformInt("blurTexture", 1);
+            HDRMapShader.loadUniformInt("gDepth", 2);
             HDRMapShader.unBind();
         }
         internal override void Prepare(RenderEngine renderEngine)
@@ -35,6 +37,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             HDRMapShader.loadUniformFloat("gamma", 2.2f);
             // A whole step of the 8 bits it ends up in: anything less leaves bands in the slow fades of a dark scene.
             HDRMapShader.loadUniformFloat("dithering", 1f);
+            renderEngine._depthOfFieldRenderer.LendToToneMap(HDRMapShader, renderEngine);
 
             if (ToScreen)
             {

@@ -1,9 +1,17 @@
 #version 420
+#include gBufferUtil.glsl
 #include globals.glsl
 in vec2 textureCoords;
 layout (location = 0) out vec4 out_Colour;
 
 uniform sampler2D HDRcolorTexture;
+
+// The depth of field's mix, when it's left to this pass (DepthOfFieldRenderer.LeftToToneMap): Depth_Of_Field.frag's, with no landscape lens.
+uniform int depthOfField;
+uniform sampler2D blurTexture;
+uniform sampler2D gDepth;
+uniform float depthOfFieldRange;
+uniform float focusDistance;
 
 uniform float exposure;
 uniform float gamma;
@@ -42,6 +50,11 @@ vec3 applyDithering(vec3 inputColor) {
 
 void main(void){
 	vec3 color = texture(HDRcolorTexture, textureCoords).rgb;
+	if (depthOfField != 0)
+	{
+		float depth = -ReconstructViewSpacePosition(gl_FragCoord.xy, texture(gDepth, textureCoords).r, invProjectionMatrix, resolution).z;
+		color = mix(color, texture(blurTexture, textureCoords).rgb, clamp(abs(depth - focusDistance) * depthOfFieldRange, 0.0, 1.0));
+	}
 
 	color = acesFitted(color * exposure);
 	color = pow(color, vec3(1.0 / gamma));

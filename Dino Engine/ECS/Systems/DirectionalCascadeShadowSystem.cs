@@ -144,6 +144,13 @@ namespace Dino_Engine.ECS.Systems
                 }
             }
 
+            // A shadow is only worth drawing if it lands on something the camera sees: the sun's maps are read for nothing else. It goes no
+            // further than the lowest ground around, and the lit passes only ever ask about what's in view.
+            var quadtreeComp = world.GetComponent<TerrainQuadTreeSingleton>(world.GetSingleton<TerrainQuadTreeSingleton>());
+            var view = new Util.Frustum(world.GetComponent<ViewMatrixComponent>(world.Camera).value * world.GetComponent<PerspectiveProjectionComponent>(world.Camera).ProjectionMatrix);
+            float lowestGround = LowestGround(world, quadtreeComp);
+            float fall = MathF.Max(-direction.Y, 0.02f);
+
             // 3.5. Classify Character Archetypes
             // Note: Replace 'CharacterRenderTag' and 'AnimatorComponent' with your actual component types if they differ.
             var characterQuery = world.QueryArchetypes(new BitMask(
@@ -163,6 +170,15 @@ namespace Dino_Engine.ECS.Systems
                 {
                     glModel model = modelArray[i].model;
                     Matrix4 mat = matrixArray[i].value;
+
+                    // Whoever's shadow can't reach the view, as for every other caster: half as wide again as their resting pose, for limbs flung out.
+                    if (model != null && model.box.Min.X <= model.box.Max.X)
+                    {
+                        Vector3 centre = Vector3.TransformPosition((model.box.Min + model.box.Max) * 0.5f, mat);
+                        float scale = MathF.Max(mat.Row0.Xyz.Length, MathF.Max(mat.Row1.Xyz.Length, mat.Row2.Xyz.Length));
+                        float radius = (model.box.Max - model.box.Min).Length * 0.75f * scale;
+                        if (!view.IntersectsSweptSphere(centre, radius + ShadowEdgeMargin, direction * (MathF.Max(centre.Y + radius - lowestGround, 0f) / fall))) continue;
+                    }
 
                     if (!_characters.TryGetValue(model, out var list))
                     {
@@ -196,12 +212,6 @@ namespace Dino_Engine.ECS.Systems
 
             // Flesh alone, from the sun, round the hero, with no offset: how far the sun goes through skin and hide to where it's seen coming out (FleshDepth, SUBSURFACE.md).
             SubmitFlesh(direction, cameraPos, forward);
-
-            // A shadow is only worth drawing if it lands on something the camera sees: the sun's maps are read for nothing else. It goes no
-            // further than the lowest ground around, and the lit passes only ever ask about what's in view.
-            var quadtreeComp = world.GetComponent<TerrainQuadTreeSingleton>(world.GetSingleton<TerrainQuadTreeSingleton>());
-            var view = new Util.Frustum(world.GetComponent<ViewMatrixComponent>(world.Camera).value * world.GetComponent<PerspectiveProjectionComponent>(world.Camera).ProjectionMatrix);
-            float lowestGround = LowestGround(world, quadtreeComp);
 
             // 5. Submit Models, Characters & Imposters to each Cascade
             for (int j = 0; j < shadowCascade.cascades.Length; j++)
@@ -295,7 +305,14 @@ namespace Dino_Engine.ECS.Systems
 
                 Engine.RenderEngine._terrainRenderer.CollectFarRock(new Util.Frustum(viewProj), _farRock);
 
-                Engine.RenderEngine._grassRenderer.SubmitShadowCommand(new GrassRenderCommand(_grassCommands.ToArray()), shadow);
+                // Only blades whose shadow can land on what the camera sees, as for every other caster.
+                var grassCommand = new GrassRenderCommand(_grassCommands.ToArray())
+                {
+                    seenPlanes = view.Planes.Select(p => new Vector4(p.Normal, p.D)).ToArray(),
+                    fallPerMetre = direction / MathF.Max(-direction.Y, 0.02f),
+                    lowestGround = lowestGround,
+                };
+                Engine.RenderEngine._grassRenderer.SubmitShadowCommand(grassCommand, shadow);
                 Engine.RenderEngine._terrainRenderer.SubmitShadowCommand(new TerrainRenderCommand(_terrainCommands.ToArray(), _farRock.ToArray()), shadow);
             }
         }

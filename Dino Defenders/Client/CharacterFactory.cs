@@ -215,9 +215,13 @@ namespace Dino_Defenders.Client
             if (SaurianSpec.Parse(key) is SaurianSpec dinosaur) return (key, () => SaurianForge.Make(dinosaur));
             // The land's people and the Reich's, dressed in what a hero could wear, in a uniform each (Uniforms).
             if (key.StartsWith(ReichPrefix)) return (key, () => Uniforms.Make(key));
-            if (key == "skeleton") return (key, SkeletonGenerator.GenerateSkeleton);
-            if (Gameplay.MinionLooks.TryParse(key, out var weapon, out var offHand)) return (key, () => Outfit.Hold(Gameplay.MinionLooks.Hovers(key) ? null : SkeletonGenerator.GenerateBare(), Held(weapon, offHand, Gameplay.MinionLooks.Hovers(key))));
-            if (key == "skeleton:bow") return (key, SkeletonGenerator.GenerateArcher);
+            // The land's dead, each grown from its name (SkeletonForge), and a hero's risen holding what its page gave it.
+            if (SkeletonSpec.Parse(key) is SkeletonSpec skeleton) return (skeleton.Key, () => SkeletonForge.Make(skeleton));
+            if (Gameplay.MinionLooks.TryParse(key, out var weapon, out var offHand))
+            {
+                if (Gameplay.MinionLooks.Hovers(key)) return (key, () => Outfit.Hold(null, Held(weapon, offHand, hovers: true)));
+                return (key, () => SkeletonForge.Make(SkeletonSpec.Risen(key), Held(weapon, offHand)));
+            }
             if (key == "warlord") return (key, () => Uniforms.Make(key));
             if (key == "revenant") return (key, () => Uniforms.Make(key));
             if (BoarSpec.Parse(key) is BoarSpec boar) return (boar.Key, () => BoarForge.Make(boar));
@@ -341,14 +345,17 @@ namespace Dino_Defenders.Client
             if (key == ReichPrefix + "marksman") return new Bearing(person, MotionStyle.Armoured, Carry.Bow, false);
             if (key == ReichPrefix + "legionary") return new Bearing(person, MotionStyle.Armoured, Carry.Spear, false);
             if (key == ReichPrefix + "wrangler") return new Bearing(person, MotionStyle.Brute, Carry.Spear, false);
-            if (key == "skeleton") return new Bearing(person, MotionStyle.Dead, Carry.Sword, true);
+            if (SkeletonSpec.Parse(key) is SkeletonSpec skeleton)
+            {
+                (Carry carry, bool shield) = SkeletonForge.CarryOf(skeleton);
+                return new Bearing(person, MotionStyle.Dead, carry, shield);
+            }
             if (Gameplay.MinionLooks.TryParse(key, out var weapon, out var offHand))
             {
                 // A turret's weapon is held by nobody, as steadily as a hero holds theirs, and a plain bow when it was given nothing.
                 if (Gameplay.MinionLooks.Hovers(key)) return weapon == null && offHand == null ? new Bearing(person, MotionStyle.Hero, Carry.Bow, false) : HeldBy(person, MotionStyle.Hero, weapon, offHand);
                 return HeldBy(person, MotionStyle.Dead, weapon, offHand);
             }
-            if (key == "skeleton:bow") return new Bearing(person, MotionStyle.Dead, Carry.Bow, false);
             if (key is "warlord" or "revenant") return new Bearing(person, MotionStyle.Armoured, Carry.Sword, true);
             if (key.StartsWith("robed:")) return new Bearing(person, MotionStyle.Robed, Carry.Staff, false);
             if (key.StartsWith("acolyte:")) return new Bearing(person, MotionStyle.Outlaw, Carry.Sword, false);

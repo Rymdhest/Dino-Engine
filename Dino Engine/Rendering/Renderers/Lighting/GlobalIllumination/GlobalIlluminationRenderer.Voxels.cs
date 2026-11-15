@@ -34,6 +34,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting.GlobalIllumination
         private int _brickScan;
         private int _brickSum;
         private int _pending;            // Each level's voxels still to have a sun and sky worked out, by their place in its pool.
+        private int _lampLight;          // What the lamps give each face of each level's voxels, kept between the frames it's worked out again (LampFrames).
         private int _heightMap;
         private Vector4 _heightMapping;
         private int _chunkLayers;
@@ -163,6 +164,10 @@ namespace Dino_Engine.Rendering.Renderers.Lighting.GlobalIllumination
             _brickScan = CreateBuffer(Bricks.X * Bricks.Y * Bricks.Z * sizeof(uint));
             _brickSum = CreateBuffer(Bricks.X * Bricks.Y * Levels * Bricks.Z * 4 * sizeof(uint));
             _pending = CreateBuffer(Levels * PoolCapacity * sizeof(uint));
+            _lampLight = GL.GenBuffer();
+            GL.BindBuffer(BufferTarget.ShaderStorageBuffer, _lampLight);
+            GL.BufferData(BufferTarget.ShaderStorageBuffer, (IntPtr)((long)Levels * PoolCapacity * 6 * sizeof(uint)), IntPtr.Zero, BufferUsageHint.DynamicCopy);
+            GL.BindBuffer(BufferTarget.ShaderStorageBuffer, 0);
 
             _chunkLayers = GL.GenTexture();
             GL.BindTexture(TextureTarget.Texture2D, _chunkLayers);
@@ -657,15 +662,22 @@ namespace Dino_Engine.Rendering.Renderers.Lighting.GlobalIllumination
             // The finest two levels every frame; the coarse ones, far off and lit by much the same light from one frame to the next, every
             // second and fourth. A level whose pool has just been laid out again has nothing right in it, and is lit at once.
             GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, 24, _brickSum);
+            GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, 29, _lampLight);
             _lightShader.bind();
             LinkShared(_lightShader, bricks: true, brickLight: true);
             _lightShader.loadUniformInt("cloudShadowMap", UnitCloud);
             for (int level = 0; level < Levels; level++)
             {
-                _lit[level] = _relight[level] || (_frame & LightPeriodMask[level]) == (level & LightPeriodMask[level]);
+                bool relaid = _relight[level];
+                _lit[level] = relaid || (_frame & LightPeriodMask[level]) == (level & LightPeriodMask[level]);
                 _relight[level] = false;
                 if (!_lit[level]) continue;
                 _lightShader.loadUniformInt("level", level);
+                // What the lamps give a voxel, each traced to it, is worked out again for a share of the voxels each time the level is lit, so that each is
+                // never more than LampFrames frames old, and kept for the rest; all of them when the pool has just been laid out, as nothing kept is in its place.
+                int stride = relaid ? 1 : LampFrames / (LightPeriodMask[level] + 1);
+                _lightShader.loadUniformInt("lampStride", stride);
+                _lightShader.loadUniformInt("lampPhase", (_frame / (LightPeriodMask[level] + 1)) % stride);
                 GL.DispatchComputeIndirect((IntPtr)((4 + level * 4) * sizeof(uint)));
             }
             Barrier();
@@ -686,6 +698,9 @@ namespace Dino_Engine.Rendering.Renderers.Lighting.GlobalIllumination
 
         // Frames between the lightings of each level, less one, as a mask: 1, 1, 2 and 4.
         private static readonly int[] LightPeriodMask = { 0, 0, 1, 3 };
+        // Frames over which what the lamps give the voxels is worked out again, a share at a time: a light's bounce is the last thing to show its flicker a frame or two
+        // late, and the rays that test whether each lamp can see each voxel were most of what lighting the voxels cost, with a square full of lanterns.
+        private const int LampFrames = 4;
         private readonly bool[] _lit = new bool[Levels];
         private readonly bool[] _relight = new bool[Levels];
 
@@ -699,6 +714,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting.GlobalIllumination
             GL.DeleteBuffer(_brickScan);
             GL.DeleteBuffer(_brickSum);
             GL.DeleteBuffer(_pending);
+            GL.DeleteBuffer(_lampLight);
             GL.DeleteBuffer(_scanSums);
             GL.DeleteBuffer(_instanceBuffer);
             GL.DeleteFramebuffer(_voxelizeFramebuffer);

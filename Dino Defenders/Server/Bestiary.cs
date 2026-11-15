@@ -117,19 +117,19 @@ namespace Dino_Defenders.Server
         public static readonly EnemyKind Restless = new EnemyKind
         {
             Id = "restless", Name = "Restless Dead", Books = new[] { Shelf.Bite }, MoveSpeed = 5.2f,
-            Mods = Undead, Look = "skeleton",
+            Mods = Undead, Look = "skeleton", Variants = 6,
         };
 
         public static readonly EnemyKind Shambler = new EnemyKind
         {
             Id = "shambler", Name = "Shambler", Books = new[] { Shelf.Bite }, MoveSpeed = 4.6f, Health = 0.5f, Damage = 0.42f,
-            Mods = Undead, Look = "skeleton", Scale = 0.94f,
+            Mods = Undead, Look = "skeleton", Variants = 6, Scale = 0.94f,
         };
 
         public static readonly EnemyKind BoneArcher = new EnemyKind
         {
             Id = "bone-archer", Name = "Bone Archer", Books = new[] { Shelf.Shot }, Weapon = Tags.Bow | Tags.TwoHanded, MoveSpeed = 5.2f,
-            KeepsAway = true, AggroRadius = 30f, Health = 0.55f, Damage = 0.65f, Mods = Undead, Look = "skeleton:bow",
+            KeepsAway = true, AggroRadius = 30f, Health = 0.55f, Damage = 0.65f, Mods = Undead, Look = "skeleton:bow", Variants = 4,
         };
 
         public static readonly EnemyKind GraveKnight = new EnemyKind

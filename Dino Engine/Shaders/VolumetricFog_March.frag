@@ -52,7 +52,8 @@ uniform sampler2DShadow cascadeShadowMaps[5];
 uniform int pointLightCount;
 uniform vec4 pointPositionRadius[16];
 uniform vec4 pointColourShadow[16];
-uniform samplerCubeShadow pointShadowMaps[6];
+uniform samplerCubeArrayShadow pointShadowMaps;   // Every point light's map, a cube each (CubeShadowArray).
+uniform float pointShadowLayer[6];
 uniform float pointShadowStrength[6];   // How much of each map's shadow the surfaces are given, as a light gaining or giving one up fades it.
 uniform float pointShadowNear;
 uniform float pointShadowFar;
@@ -203,14 +204,14 @@ float directionalShadow(int light, vec3 position)
 }
 
 // Same depth reconstruction as Point_Light.frag. Cube shadow maps have no mipmaps, so the implicit
-// LOD of texture() can't change the result (there is no textureLod for samplerCubeShadow in GLSL 4.20).
+// LOD of texture() can't change the result (there is no textureLod for a cube shadow sampler in GLSL 4.20).
 float pointShadow(int shadowIndex, vec3 lightToPosition)
 {
     vec3 absolute = abs(lightToPosition);
     float majorAxis = max(absolute.x, max(absolute.y, absolute.z));
     float normalizedZ = (pointShadowFar + pointShadowNear) / (pointShadowFar - pointShadowNear)
                       - (2.0 * pointShadowFar * pointShadowNear) / (majorAxis * (pointShadowFar - pointShadowNear));
-    return texture(pointShadowMaps[shadowIndex], vec4(lightToPosition, normalizedZ * 0.5 + 0.5));
+    return texture(pointShadowMaps, vec4(lightToPosition, pointShadowLayer[shadowIndex]), normalizedZ * 0.5 + 0.5);
 }
 
 float spotShadow(int shadowIndex, vec3 position)

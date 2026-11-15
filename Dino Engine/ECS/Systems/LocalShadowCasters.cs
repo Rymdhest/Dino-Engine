@@ -86,6 +86,16 @@ namespace Dino_Engine.ECS.Systems
                 && point.Z >= bounds.Min.Z && point.Z <= bounds.Max.Z;
         }
 
+        /// <summary>Whether any of the characters last gathered is in <paramref name="frustum"/>.</summary>
+        public bool CharactersIn(Frustum frustum)
+        {
+            foreach (var (_, _, bounds) in _characters)
+            {
+                if (frustum.IntersectsAABB(bounds) != IntersectionResult.Outside) return true;
+            }
+            return false;
+        }
+
         /// <summary>Queues what <paramref name="frustum"/> can see for drawing into <paramref name="shadow"/>, with the characters in it or not.</summary>
         public void Submit(Frustum frustum, Shadow shadow, bool characters)
         {

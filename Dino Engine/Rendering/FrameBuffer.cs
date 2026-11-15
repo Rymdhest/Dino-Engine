@@ -13,11 +13,36 @@ namespace Dino_Engine.Rendering
         private int[]? renderAttachments;
         private FrameBufferSettings settings;
 
+        // A cube of a CubeShadowArray this framebuffer draws into, a face at a time (bindFace), instead of an attachment of its own.
+        private CubeShadowArray? _cubeArray;
+        private int _cubeIndex;
+
         public FrameBuffer(FrameBufferSettings settings)
         {
             this.settings = settings;
             createFrameBuffer();
         }
+
+        private FrameBuffer(CubeShadowArray array, int cubeIndex)
+        {
+            settings = new FrameBufferSettings(new Vector2i(array.Resolution));
+            _cubeArray = array;
+            _cubeIndex = cubeIndex;
+            frameBufferID = GL.GenFramebuffer();
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, frameBufferID);
+            GL.DrawBuffer(DrawBufferMode.None);
+            GL.ReadBuffer(ReadBufferMode.None);
+            IsComplete = true;
+        }
+
+        /// <summary>A depth-only framebuffer that draws into cube <paramref name="cubeIndex"/> of <paramref name="array"/>, a face at a time with <see cref="bindFace"/>.</summary>
+        public static FrameBuffer ForCube(CubeShadowArray array, int cubeIndex) => new FrameBuffer(array, cubeIndex);
+
+        /// <summary>Which cube of its array this framebuffer draws into, or -1 if it has a depth attachment of its own.</summary>
+        public int CubeIndex => _cubeArray != null ? _cubeIndex : -1;
+
+        /// <summary>The array whose cube this framebuffer draws into, if it does.</summary>
+        public CubeShadowArray? CubeArray => _cubeArray;
 
         private void createFrameBuffer()
         {
@@ -115,7 +140,10 @@ namespace Dino_Engine.Rendering
         public void bindFace(TextureTarget faceTarget)
         {
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, frameBufferID);
-            GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.DepthAttachment, faceTarget, depthAttachment, 0);
+            if (_cubeArray != null)
+                GL.FramebufferTextureLayer(FramebufferTarget.Framebuffer, FramebufferAttachment.DepthAttachment, _cubeArray.Texture, 0, _cubeIndex * 6 + (faceTarget - TextureTarget.TextureCubeMapPositiveX));
+            else
+                GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.DepthAttachment, faceTarget, depthAttachment, 0);
             GL.Viewport(0, 0, settings.resolution.X, settings.resolution.Y);
 
         }
@@ -132,6 +160,7 @@ namespace Dino_Engine.Rendering
 
         public int getDepthAttachment()
         {
+            if (_cubeArray != null) return _cubeArray.Texture;
             return settings.sharedDepth != null ? settings.sharedDepth.getDepthAttachment() : depthAttachment;
         }
 

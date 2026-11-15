@@ -133,6 +133,28 @@ namespace Dino_Engine.Modelling.Procedural.Gear
 
             VertexMaterial Material(int i, int j) => material((float)i / across, (float)j / along);
             float Tiles(in VertexMaterial m) => TilesFor(m);
+
+            // A plate that goes round and mostly faces one way is a disc, a cone or a ring (a hat, a brim, a shield's rim), whose rings grow round as they go out: each going round
+            // a whole number of tiles of its own twisted every ring against the next into a swirl, with a seam where the count stepped. Those are mapped flat, along the way they face,
+            // which has no seam; a tube's normals cancel out round it, and it goes round a whole number of tiles as before.
+            Vector3 facing = Vector3.Zero;
+            if (wrap)
+            {
+                for (int i = 0; i < across; i++)
+                {
+                    for (int j = 0; j < rows; j++) facing += normal[i, j];
+                }
+                facing /= across * rows;
+            }
+            bool flat = wrap && facing.Length > 0.6f;
+            Vector3 flatU = Vector3.UnitX, flatV = Vector3.UnitZ;
+            if (flat)
+            {
+                Vector3 axis = facing.Normalized();
+                flatU = Vector3.Cross(MathF.Abs(axis.X) < 0.9f ? Vector3.UnitX : Vector3.UnitZ, axis);
+                flatU = (flatU - axis * Vector3.Dot(flatU, axis)).Normalized();
+                flatV = Vector3.Cross(axis, flatU);
+            }
             float RoundU(int i, int j, float tiles)
             {
                 if (!wrap) return u[i, j] * tiles;
@@ -150,7 +172,10 @@ namespace Dino_Engine.Modelling.Procedural.Gear
                     {
                         VertexMaterial m = paint(i, j);
                         float tiles = Tiles(m);
-                        index[i, j] = AddVertex(where[i, j], m, new Vector2(RoundU(i, j, tiles), v[i, j] * tiles));
+                        Vector2 uv = flat
+                            ? new Vector2(Vector3.Dot(where[i, j], flatU), Vector3.Dot(where[i, j], flatV)) * tiles
+                            : new Vector2(RoundU(i, j, tiles), v[i, j] * tiles);
+                        index[i, j] = AddVertex(where[i, j], m, uv);
                     }
                 }
                 return index;

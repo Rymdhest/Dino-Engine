@@ -114,7 +114,7 @@ namespace Dino_Engine.Rendering
         public ShellRenderer Shells { get; private set; } = null!;
         public CelestialBodyRenderer _sunRenderer;
         public GlobalIlluminationRenderer _globalIllumination;
-        private DepthOfFieldRenderer _depthOfFieldRenderer;
+        internal DepthOfFieldRenderer _depthOfFieldRenderer;
         private MsaaRenderer _msaa;
         public static DebugRenderer _debugRenderer = new DebugRenderer();
         public bool debugView = false;

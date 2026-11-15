@@ -45,7 +45,9 @@ namespace Dino_Engine.ECS.Systems
                 command.shadow = null;
             }
 
-            Engine.RenderEngine._spotLightRenderer.SubmitCommand(command);
+            // One with no shadow is lit with the point lights, a pass for them all, rather than by a volume of its own.
+            if (command.shadow == null) Engine.RenderEngine._pointLightRenderer.SubmitSpot(command);
+            else Engine.RenderEngine._spotLightRenderer.SubmitCommand(command);
             if (range.LightsFog) Engine.RenderEngine._volumetricFogRenderer.SubmitSpotLight(command);
             Engine.RenderEngine._waterRenderer.SubmitSpotLight(command);
             Engine.RenderEngine._globalIllumination.SubmitSpotLight(command);

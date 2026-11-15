@@ -22,9 +22,12 @@ layout(std430, binding = 0) readonly buffer GiCounts { uint giCounts[]; };
 layout(std430, binding = 3) readonly buffer GiLights { vec4 giLights[]; };     // Three to a light: position and reach, colour and spot, way it points and cone.
 layout(std430, binding = 4) readonly buffer GiSkyLight { vec4 giSkyLight[8]; };
 layout(std430, binding = 24) buffer GiBrickSum { uint giBrickSum[]; };        // Four to a brick: red, green and blue in 1/64ths, and how many.
+layout(std430, binding = 29) buffer GiLampLight { uint giLampLight[]; };      // Six to a voxel, by its place in the pool: what the lamps give each face, packed as radiance is.
 
 uniform sampler3D giBrickLight;     // Last frame's mean light leaving the surfaces of each brick, and in alpha whether it has any.
 uniform int level;
+uniform int lampStride;             // What the lamps give is worked out again for one voxel in this many, and kept for the rest (LampFrames)
+uniform int lampPhase;              // which of them
 
 const float LIGHT_STANDOFF = 0.5;   // Metres short of a light a ray stops, as whatever holds a flame would hide it from everything.
 
@@ -80,7 +83,14 @@ void main()
     vec3 L = giSunDirection.xyz;
 
     vec3 lit[6] = vec3[](vec3(0.0), vec3(0.0), vec3(0.0), vec3(0.0), vec3(0.0), vec3(0.0));
-    int lights = int(giParams.w);
+    uint lamp = (uint(level) * GI_POOL_CAPACITY + index) * 6u;
+    // By whole groups, so that a group's threads either all trace or none do.
+    bool fresh = lampStride <= 1 || int(gl_WorkGroupID.x % uint(lampStride)) == lampPhase;
+    int lights = fresh ? int(giParams.w) : 0;
+    if (!fresh)
+    {
+        for (int f = 0; f < 6; f++) lit[f] = giUnpackRadiance(giLampLight[lamp + uint(f)]);
+    }
     for (int j = 0; j < lights; j++)
     {
         vec4 place = giLights[j * 3];
@@ -104,6 +114,16 @@ void main()
         float reach = max(distance(from, place.xyz) - LIGHT_STANDOFF, 0.0);
         if (reach > giVoxel[level].x && giTrace(from, normalize(place.xyz - from), 0.0, reach, level, 1).hit) continue;
         for (int f = 0; f < 6; f++) lit[f] += radiance * max(dot(giSurfaceNormal(faces, f), dir), 0.0);
+    }
+    if (fresh)
+    {
+        // Kept as it's stored, so that a voxel's light doesn't step by its rounding each time it's worked out again.
+        for (int f = 0; f < 6; f++)
+        {
+            uint packed = giPackRadiance(lit[f]);
+            giLampLight[lamp + uint(f)] = packed;
+            lit[f] = giUnpackRadiance(packed);
+        }
     }
 
     vec3 leaving = vec3(0.0);

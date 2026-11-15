@@ -38,11 +38,13 @@ namespace Dino_Engine.ECS.Systems
             public bool Moving;         // Whether it was last drawn with the characters in it, which a kept map mustn't keep.
             public bool Stale;          // Whether what stands round its light has changed since it was drawn.
             public int Signature;       // What stood round its light when it was drawn (LocalShadowCasters.Signature).
+            public readonly bool[] FaceHadCharacters = new bool[6];  // Which faces were last drawn with someone in them.
         }
 
         private static readonly Vector3[] Directions = { Vector3.UnitX, -Vector3.UnitX, Vector3.UnitY, -Vector3.UnitY, Vector3.UnitZ, -Vector3.UnitZ };
         private static readonly Vector3[] Ups = { -Vector3.UnitY, -Vector3.UnitY, Vector3.UnitZ, -Vector3.UnitZ, -Vector3.UnitY, -Vector3.UnitY };
 
+        private readonly CubeShadowArray _maps = new(Resolution);
         private readonly LocalShadowCasters _casters = new();
         private readonly List<Shadow> _freeMaps = new();
         private readonly Dictionary<Entity, Loan> _lentMaps = new();
@@ -89,7 +91,9 @@ namespace Dino_Engine.ECS.Systems
                         {
                             if (!moving) stillDraws--;
                             Vector3 position = entity.Get<LocalToWorldMatrixComponent>().value.ExtractTranslation();
-                            loan.Signature = RenderMap(loan.Map, position, entity.Get<LightRangeComponent>().Radius, moving, world);
+                            // Drawn as it was and with what stands unchanged, a face nobody is in, or was in, is already right.
+                            bool whole = !loan.Drawn || loan.Stale;
+                            loan.Signature = RenderMap(loan, position, entity.Get<LightRangeComponent>().Radius, moving, whole, world);
                             loan.Drawn = true;
                             loan.Moving = moving;
                             loan.Stale = false;
@@ -198,30 +202,53 @@ namespace Dino_Engine.ECS.Systems
             return loan;
         }
 
-        private static Shadow MakeMap()
+        // Every map is a cube of one array, so that the lights are all lit in one pass (PointLightRenderer). It grows by doubling, up to what the budget allows.
+        private Shadow MakeMap()
         {
+            int wanted = _mapsMade + 1;
+            if (wanted > _maps.Capacity) _maps.EnsureCapacity(Math.Max(wanted, Math.Min(Math.Max(_maps.Capacity * 2, 8), Budget(Engine.RenderEngine.Lighting) + SpareMaps)));
+
             // A cube map's six faces each see 90 degrees.
             Matrix4 projection = Matrix4.CreatePerspectiveFieldOfView(MathHelper.DegreesToRadians(90f), 1f, PointLightRenderer.ShadowNearPlane, PointLightRenderer.ShadowFarPlane);
-            return new Shadow(Resolution, projection, 0, 2f, 2f, true);
+            return new Shadow
+            {
+                shadowFrameBuffer = FrameBuffer.ForCube(_maps, _mapsMade),
+                shadowProjectionMatrix = projection,
+                lightViewMatrix = Matrix4.Identity,
+                polygonOffsetModel = 2f,
+                polygonOffsetTerrain = 2f,
+                isCubeMap = true,
+                cubemapFaceIndex = 0,
+            };
         }
 
-        /// <summary>Draws what stands round a light into its map, and whoever's about if <paramref name="characters"/>. Returns what stood there.</summary>
-        private int RenderMap(Shadow map, Vector3 position, float radius, bool characters, ECSWorld world)
+        /// <summary>
+        /// Draws what stands round a light into its map, and whoever's about if <paramref name="characters"/>. Returns what stood there. Unless <paramref name="whole"/>,
+        /// only the faces someone is in now or was in when it was last drawn are drawn again, as the rest still hold just what stands, unless that's changed.
+        /// </summary>
+        private int RenderMap(Loan loan, Vector3 position, float radius, bool characters, bool whole, ECSWorld world)
         {
+            Shadow map = loan.Map;
             _casters.Gather(world, position, MathF.Min(radius, PointLightRenderer.ShadowFarPlane), characters);
+            if (_casters.Signature != loan.Signature) whole = true;
 
             for (int face = 0; face < 6; face++)
             {
-                GL.DepthMask(true);
-                map.shadowFrameBuffer.bindFace(TextureTarget.TextureCubeMapPositiveX + face);
-                GL.Clear(ClearBufferMask.DepthBufferBit);
-
                 // Every face, up included: a light under an arch, an eave or a porch roof would otherwise light the wall and roof over it straight through the stone, in
                 // a wedge as wide as the face, and the wall and roof over a light are exactly what the camera looks down on.
                 Shadow view = map;
                 view.cubemapFaceIndex = face;
                 view.lightViewMatrix = Matrix4.LookAt(position, position + Directions[face], Ups[face]);
-                _casters.Submit(new Frustum(view.lightViewMatrix * view.shadowProjectionMatrix), view, characters);
+                var frustum = new Frustum(view.lightViewMatrix * view.shadowProjectionMatrix);
+
+                bool someone = characters && _casters.CharactersIn(frustum);
+                if (!whole && !someone && !loan.FaceHadCharacters[face]) continue;
+                loan.FaceHadCharacters[face] = someone;
+
+                GL.DepthMask(true);
+                map.shadowFrameBuffer.bindFace(TextureTarget.TextureCubeMapPositiveX + face);
+                GL.Clear(ClearBufferMask.DepthBufferBit);
+                _casters.Submit(frustum, view, characters);
             }
             return _casters.Signature;
         }

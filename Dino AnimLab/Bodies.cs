@@ -2,7 +2,6 @@
 using Dino_Engine.Modelling.Model;
 using Dino_Engine.Modelling.Procedural.Character;
 using Dino_Engine.Modelling.Procedural.Gear;
-using Dino_Engine.Modelling.Procedural.Indoor;
 using Dino_Engine.Modelling.Procedural.Saurian;
 using OpenTK.Mathematics;
 
@@ -39,7 +38,7 @@ namespace Dino_AnimLab
         private static Mesh Risen(GearKind other)
         {
             var form = new GearForm(0.45f, 0.5f, 0.15f, 0.4f, 0.12f, 0.45f);
-            return Outfit.Hold(SkeletonGenerator.GenerateBare(), new[]
+            return SkeletonForge.Make(SkeletonSpec.Risen($"risen-{other}"), new[]
             {
                 (new GearSpec(31, GearKind.Sword, 1f, 0f, 0f, form, 0, GearTheme.None), -1f),
                 (new GearSpec(32, other, other == GearKind.OffHand ? 1f : 0f, other == GearKind.OffHand ? 0f : 1f, 0f, form, 0, GearTheme.None), 1f),
@@ -51,6 +50,14 @@ namespace Dino_AnimLab
         {
             var form = new GearForm(0.45f, 0.5f, 0.15f, 0.4f, 0.12f, 0.45f);
             return Outfit.Hold(null, new[] { (new GearSpec(41, kind, kind == GearKind.Bow ? 0f : 1f, kind == GearKind.Bow ? 1f : 0f, 0f, form, 0, GearTheme.None), -1f) });
+        }
+
+        /// <summary>One of the land's dead, by the name the game gives its model, holding what that one holds.</summary>
+        public static Body Skeleton(string name, string key)
+        {
+            SkeletonSpec spec = SkeletonSpec.Parse(key) ?? throw new ArgumentException($"No skeleton called {key}.");
+            (Carry carry, bool shield) = SkeletonForge.CarryOf(spec);
+            return new Body(name, Rig.Humanoid, MotionStyle.Dead, carry, shield, () => SkeletonForge.Make(spec));
         }
 
         /// <summary>A cave bear, by the name the game gives its model.</summary>
@@ -115,7 +122,9 @@ namespace Dino_AnimLab
             new Body("robe", Rig.Humanoid, MotionStyle.Robed, Carry.Staff, false, () => HumanoidGenerator.Generate(Person(HeldItem.Spear, robe: true))),
             new Body("brute", Rig.Humanoid, MotionStyle.Brute, Carry.Sword, false, () => HumanoidGenerator.Generate(Person(HeldItem.Sword, bulk: 1.34f))),
             new Body("cutthroat", Rig.Humanoid, MotionStyle.Cutthroat, Carry.Dagger, false, () => HumanoidGenerator.Generate(Person(HeldItem.Sword, bulk: 0.92f))),
-            new Body("skeleton", Rig.Humanoid, MotionStyle.Dead, Carry.Sword, true, SkeletonGenerator.GenerateSkeleton),
+            Skeleton("skeleton", "skeleton0"),
+            Skeleton("skeleton-spear", "skeleton2"),
+            Skeleton("skeleton-bow", "skeleton:bow0"),
             new Body("risen-pair", Rig.Humanoid, MotionStyle.Dead, Carry.Sword, false, () => Risen(GearKind.Dagger), Carry.Dagger),
             new Body("hover-sword", Rig.Humanoid, MotionStyle.Hero, Carry.Sword, false, () => Hovering(GearKind.Sword)),
             new Body("hover-bow", Rig.Humanoid, MotionStyle.Hero, Carry.Bow, false, () => Hovering(GearKind.Bow)),
@@ -153,7 +162,7 @@ namespace Dino_AnimLab
             Dino("bone-weaver", "dino:weaver.bones.0", MotionStyle.Bones),
         };
 
-        /// <summary>A body by name, or any dinosaur by its model's name.</summary>
+        /// <summary>A body by name, or any dinosaur, beast or skeleton by its model's name.</summary>
         public static Body Named(string name)
         {
             Body? found = All.FirstOrDefault(body => body.Name == name);
@@ -161,6 +170,7 @@ namespace Dino_AnimLab
             if (BoarSpec.Parse(name) != null) return Boar(name, name);
             if (WolfSpec.Parse(name) != null) return Wolf(name, name);
             if (BearSpec.Parse(name) != null) return Bear(name, name);
+            if (SkeletonSpec.Parse(name) != null) return Skeleton(name, name);
             if (SaurianSpec.Parse(name) is SaurianSpec spec) return Dino(name, name, StyleOf(spec));
             return All[0];
         }

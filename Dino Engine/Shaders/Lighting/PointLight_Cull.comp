@@ -1,0 +1,87 @@
+#version 430
+
+// Which of this batch of point lights can reach anything in each tile of the screen (Lighting/PointLightTiles.glsl, PointLightRenderer). A group is a tile and each of
+// its threads a pixel: they find the nearest and farthest of the tile's samples, then test every light's sphere against the tile's sides and that range, and a light
+// that passes sets its bit. A tile that shows only the sky has none, as the sky takes no light.
+
+#include globals.glsl
+#include gBufferUtil.glsl
+#include Halls.glsl
+#include Lighting/PointLightTiles.glsl
+
+layout(local_size_x = POINT_TILE, local_size_y = POINT_TILE) in;
+
+uniform sampler2DMS gDepth;
+uniform int lightCount;
+uniform int tilesAcross;
+uniform int samples;
+
+shared uint nearest;
+shared uint farthest;
+shared uint bits[POINT_WORDS];
+
+void main()
+{
+    uint index = gl_LocalInvocationIndex;
+    if (index == 0u)
+    {
+        nearest = 0x7f7fffffu;
+        farthest = 0u;
+    }
+    if (index < uint(POINT_WORDS)) bits[index] = 0u;
+    barrier();
+
+    // Distances along the view are positive, so their bits order as they do.
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 size = ivec2(resolution);
+    if (all(lessThan(pixel, size)))
+    {
+        float near = 3.4e38, far = 0.0;
+        for (int i = 0; i < samples; i++)
+        {
+            float depth = texelFetch(gDepth, pixel, i).r;
+            if (depth >= 1.0) continue;
+            float distance = -ReconstructViewSpaceZ(depth, invProjectionMatrix);
+            near = min(near, distance);
+            far = max(far, distance);
+        }
+        if (far > 0.0)
+        {
+            atomicMin(nearest, floatBitsToUint(max(near, 0.0)));
+            atomicMax(farthest, floatBitsToUint(far));
+        }
+    }
+    barrier();
+
+    uint tile = gl_WorkGroupID.y * uint(tilesAcross) + gl_WorkGroupID.x;
+    if (farthest != 0u)
+    {
+        float near = uintBitsToFloat(nearest);
+        float far = uintBitsToFloat(farthest);
+
+        // The tile's four sides, planes through the eye, facing in.
+        vec2 low = vec2(gl_WorkGroupID.xy * uint(POINT_TILE));
+        vec2 high = min(low + float(POINT_TILE), resolution);
+        vec3 corner00 = ReconstructViewSpacePosition(low, 0.5, invProjectionMatrix, resolution);
+        vec3 corner10 = ReconstructViewSpacePosition(vec2(high.x, low.y), 0.5, invProjectionMatrix, resolution);
+        vec3 corner01 = ReconstructViewSpacePosition(vec2(low.x, high.y), 0.5, invProjectionMatrix, resolution);
+        vec3 corner11 = ReconstructViewSpacePosition(high, 0.5, invProjectionMatrix, resolution);
+        vec3 left = normalize(cross(corner00, corner01));
+        vec3 right = normalize(cross(corner11, corner10));
+        vec3 bottom = normalize(cross(corner10, corner00));
+        vec3 top = normalize(cross(corner01, corner11));
+
+        for (int i = int(index); i < lightCount; i += POINT_TILE * POINT_TILE)
+        {
+            vec4 light = pointLights[i].positionRadius;
+            float distance = -light.z;
+            bool reaches = distance + light.w >= near && distance - light.w <= far
+                && dot(left, light.xyz) >= -light.w && dot(right, light.xyz) >= -light.w
+                && dot(bottom, light.xyz) >= -light.w && dot(top, light.xyz) >= -light.w;
+            if (reaches) atomicOr(bits[i >> 5], 1u << uint(i & 31));
+        }
+    }
+    barrier();
+
+    if (index < uint(POINT_WORDS)) pointTiles[pointTileBits(int(tile)) + int(index)] = bits[index];
+}

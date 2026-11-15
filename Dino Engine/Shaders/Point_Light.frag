@@ -1,85 +1,155 @@
-#version 420
+#version 430
 #include globals.glsl
 #include gBufferUtil.glsl
 #include Lighting/lightingCalc.glsl
 #include AntiAliasing/Msaa.glsl
 #include Lighting/gBufferSample.glsl
 #include Halls.glsl
+#include Lighting/PointLightTiles.glsl
+
+// Every point light at once, over the whole screen (PointLightRenderer): each pixel reads the G-buffer once and adds up the lights its tile has
+// (Lighting/PointLight_Cull.comp), each lit exactly as a light's own volume once lit it. Spotlights with no shadow come too, with their cone as Spot_Light.frag has it.
 
 layout (location = 0) out vec4 out_Colour;
 
-uniform vec3 lightPositionViewSpace;
-uniform vec3 lightColor;
-uniform float lightRadius;
-uniform float lightFill;        // Share of the light that reaches a surface however it faces, for what bounces off the things around it.
+uniform int tilesAcross;
 
-// World space metrics & dynamic clip planes
-// NOTE: invViewMatrix is already defined in globals.glsl, do not re-declare it here
-uniform vec3 lightPositionWorld;
 uniform float shadowNearPlane;
 uniform float shadowFarPlane;
-
 uniform float shadowSoftness;   // Width of the filter per metre from the light.
-uniform float shadowStrength;   // 1 fully shadowed, down to 0 as the light gives up its shadow map.
+uniform samplerCubeArrayShadow shadowMaps;
 
-uniform bool isShadow;
-uniform samplerCubeShadow shadowMap;
-
-// Define a small array of 3D offsets to simulate PCF sampling in all directions
+// A small array of 3D offsets to sample the map round the point in all directions: the corners of a cube first, then the middles of its edges.
 const vec3 gridOffsets[20] = vec3[](
-   vec3( 1,  1,  1), vec3( 1, -1,  1), vec3(-1, -1,  1), vec3(-1,  1,  1), 
+   vec3( 1,  1,  1), vec3( 1, -1,  1), vec3(-1, -1,  1), vec3(-1,  1,  1),
    vec3( 1,  1, -1), vec3( 1, -1, -1), vec3(-1, -1, -1), vec3(-1,  1, -1),
    vec3( 1,  1,  0), vec3( 1, -1,  0), vec3(-1, -1,  0), vec3(-1,  1,  0),
    vec3( 1,  0,  1), vec3( 1,  0, -1), vec3(-1,  0, -1), vec3(-1,  0,  1),
    vec3( 0,  1,  1), vec3( 0, -1,  1), vec3( 0, -1, -1), vec3( 0,  1, -1)
 );
 
-// How much of the light reaches this point, 0 to 1.
-float calcShadow(vec3 fragPosViewSpace, vec3 normalViewSpace) {
+// The same offsets with every other corner of the cube first, (1, 1, 1), (-1, -1, 1), (1, -1, -1) and (-1, 1, -1), for a pixel's filter, which stops after them
+// where they agree.
+const vec3 pixelOffsets[20] = vec3[](
+   vec3( 1,  1,  1), vec3(-1, -1,  1), vec3( 1, -1, -1), vec3(-1,  1, -1),
+   vec3( 1, -1,  1), vec3(-1,  1,  1), vec3( 1,  1, -1), vec3(-1, -1, -1),
+   vec3( 1,  1,  0), vec3( 1, -1,  0), vec3(-1, -1,  0), vec3(-1,  1,  0),
+   vec3( 1,  0,  1), vec3( 1,  0, -1), vec3(-1,  0, -1), vec3(-1,  0,  1),
+   vec3( 0,  1,  1), vec3( 0, -1,  1), vec3( 0, -1, -1), vec3( 0,  1, -1)
+);
+
+// How much of a light reaches a point, 0 to 1.
+float calcShadow(vec3 worldPos, vec3 normalWorld, vec3 lightWorld, float layer)
+{
     // Lifted off the surface a little, further the further from the light, so a surface doesn't shadow itself.
-    vec3 worldPos = (invViewMatrix * vec4(fragPosViewSpace, 1.0)).xyz;
-    vec3 fragToLight = worldPos - lightPositionWorld;
+    vec3 fragToLight = worldPos - lightWorld;
     float distanceToLight = length(fragToLight);
-    fragToLight += mat3(invViewMatrix) * normalViewSpace * (0.02 + distanceToLight * 0.006);
+    fragToLight += normalWorld * (0.02 + distanceToLight * 0.006);
 
     // The depth a cube face stores: its projection of the distance along the major axis.
     vec3 absVec = abs(fragToLight);
     float localZcomp = max(absVec.x, max(absVec.y, absVec.z));
     float normZ = (shadowFarPlane + shadowNearPlane) / (shadowFarPlane - shadowNearPlane) - (2.0 * shadowFarPlane * shadowNearPlane) / (localZcomp * (shadowFarPlane - shadowNearPlane));
     float depth = (normZ + 1.0) * 0.5;
-
-    // On edge pixels, shaded once per sample, each sample takes a share of the filter.
-#ifdef PER_SAMPLE
-    int samples = 8;
-    int first = msaaShadingSample() * 3;
-#else
-    int samples = 20;
-    int first = 0;
-#endif
     float filterWidth = distanceToLight * shadowSoftness;
+
+#ifdef PER_SAMPLE
+    // On edge pixels, shaded once per sample, each sample takes a share of the filter, and stops at half of it where that half agrees.
+    int first = msaaShadingSample() * 3;
     float lit = 0.0;
-    for (int i = 0; i < samples; ++i) {
-        vec3 samplingDir = fragToLight + gridOffsets[(first + i) % 20] * filterWidth;
-        lit += texture(shadowMap, vec4(samplingDir, depth));
+    for (int i = 0; i < 4; ++i)
+    {
+        lit += texture(shadowMaps, vec4(fragToLight + gridOffsets[(first + i) % 20] * filterWidth, layer), depth);
     }
-    return lit / float(samples);
+    if (lit <= 0.0 || lit >= 4.0) return lit / 4.0;
+    for (int i = 4; i < 8; ++i)
+    {
+        lit += texture(shadowMaps, vec4(fragToLight + gridOffsets[(first + i) % 20] * filterWidth, layer), depth);
+    }
+    return lit / 8.0;
+#else
+    // Four corners of the cube, every other one, span the whole filter, and seen from the light they fall where the other four do, as those differ from them only
+    // along the way the face looks: where all four agree the point is wholly in or out of the shadow, and the rest would only say so again.
+    float lit = 0.0;
+    for (int i = 0; i < 4; ++i)
+    {
+        lit += texture(shadowMaps, vec4(fragToLight + pixelOffsets[i] * filterWidth, layer), depth);
+    }
+    if (lit <= 0.0 || lit >= 4.0) return lit / 4.0;
+    for (int i = 4; i < 20; ++i)
+    {
+        lit += texture(shadowMaps, vec4(fragToLight + pixelOffsets[i] * filterWidth, layer), depth);
+    }
+    return lit / 20.0;
+#endif
 }
 
-void main(void) {
+void main(void)
+{
     GBufferSample g = locateGBufferSample();
-    vec3 toLight = lightPositionViewSpace - g.position;
-    float distanceToLight = length(toLight);
-    float falloff = lightFalloff(distanceToLight, lightRadius);
-    if (falloff <= 0.0) discard;
-    // A hall keeps its own light in, and everyone else's out (Halls.glsl).
-    if (hallsLetThrough(lightPositionWorld, (invViewMatrix * vec4(g.position, 1.0)).xyz) <= 0.0) discard;
+    if (g.depth >= 1.0) discard;
 
-    finishGBufferSample(g);
-    Surface s = surfaceOf(g);
-    vec3 radiance = lightColor * falloff;
-    float visibility = isShadow ? mix(1.0, calcShadow(g.position, s.normal), shadowStrength) : 1.0;
+    ivec2 tile = ivec2(gl_FragCoord.xy) / POINT_TILE;
+    int base = pointTileBits(tile.y * tilesAcross + tile.x);
+    vec3 worldPos = (invViewMatrix * vec4(g.position, 1.0)).xyz;
+    uint rooms = hallRoomsOf(worldPos);
 
-    vec3 colour = lightSurface(s, toLight / max(distanceToLight, 1e-4), radiance * visibility);
-    colour += s.albedo * radiance * (lightFill * g.ambient / LIGHT_PI);
+    bool finished = false;
+    Surface s;
+    vec3 normalWorld = vec3(0.0);
+    vec3 colour = vec3(0.0);
+    for (int w = 0; w < POINT_WORDS; w++)
+    {
+        uint bits = pointTiles[base + w];
+        while (bits != 0u)
+        {
+            int i = w * 32 + findLSB(bits);
+            bits &= bits - 1u;
+
+            // Only where it reaches is the rest of a light read.
+            vec4 positionRadius = pointLights[i].positionRadius;
+            vec3 toLight = positionRadius.xyz - g.position;
+            float distanceToLight = length(toLight);
+            float falloff = lightFalloff(distanceToLight, positionRadius.w);
+            if (falloff <= 0.0) continue;
+            vec4 cone = pointLights[i].cone;
+            vec4 shadowHalls = pointLights[i].shadowHalls;
+            if (cone.w > -1.5)
+            {
+                // Spot_Light.frag's calcSoftEdge.
+                float theta = dot(toLight / max(distanceToLight, 1e-4), cone.xyz);
+                if (theta < cone.w) continue;
+                float epsilon = max(shadowHalls.z * (1.0 - cone.w), 1e-6);
+                falloff *= smoothstep(0.0, 1.0, clamp((theta - cone.w) / epsilon, 0.0, 1.0));
+                if (falloff <= 0.0) continue;
+            }
+            // A hall keeps its own light in, and everyone else's out (Halls.glsl).
+            if (uint(shadowHalls.y + 0.5) != rooms) continue;
+            vec4 colourFill = pointLights[i].colourFill;
+
+            if (!finished)
+            {
+                finishGBufferSample(g);
+                s = surfaceOf(g);
+                normalWorld = mat3(invViewMatrix) * s.normal;
+                finished = true;
+            }
+
+            vec3 L = toLight / max(distanceToLight, 1e-4);
+            vec3 radiance = colourFill.rgb * falloff;
+            colour += s.albedo * radiance * (colourFill.a * g.ambient / LIGHT_PI);
+
+            // A surface facing away from the light takes none of it unless light gets in under it, so neither the light nor its shadow can matter.
+            if (dot(s.normal, L) <= 0.0 && !(s.scatter > 0.0 && sssSwitches.x > 0.0)) continue;
+            float visibility = 1.0;
+            if (shadowHalls.x > 0.0)
+            {
+                vec4 worldShadow = pointLights[i].worldShadow;
+                if (worldShadow.w >= 0.0) visibility = mix(1.0, calcShadow(worldPos, normalWorld, worldShadow.xyz, worldShadow.w), shadowHalls.x);
+            }
+            colour += lightSurface(s, L, radiance * visibility);
+        }
+    }
+    if (!finished) discard;
     out_Colour = vec4(colour, 0.0);
 }

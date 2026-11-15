@@ -7,7 +7,7 @@ namespace Dino_AnimLab
     /// <summary>
     /// Moves bodies with no window and no GPU, to look at them and to check that they hold up. See ANIMATION.md.
     ///   sheet  [--body b] [--do script] [--view side|front|back|top|three|game] [--frames N] [--columns N] [--tile N] [--metres m] [--look m] [--up m] [--out file.png]   --look and --up move what's framed forward and up.
-    ///   zoo    [--species a,b] [--variants N] [--as living,rot,bones,reich] [--view v] [--tile N] [--out file.png]   Dinosaurs standing, one of each.
+    ///   zoo    [--species a,b] [--variants N] [--as living,rot,bones,reich] [--view v] [--tile N] [--out file.png]   Dinosaurs standing, one of each; --species skeleton,skeleton:bow for the land's dead.
     ///   grow   [--dino dino:raptor.0,dino:tyrant.bones.0]   Grows each on one thread and says where the time went.
     ///   check  Does everything hold, whatever's thrown at it? Exit code 1 if not.
     ///   bench  What a body costs.
@@ -54,12 +54,20 @@ namespace Dino_AnimLab
             return (MathF.Max(size.Z, size.Y) * 1.15f, new Vector3(0f, (min.Y + max.Y) * 0.5f, (min.Z + max.Z) * 0.5f));
         }
 
-        /// <summary>Grows each dinosaur or boar named on one thread and says where the time went, which is what a loading screen waits for.</summary>
+        /// <summary>Grows each dinosaur, beast or skeleton named on one thread and says where the time went, which is what a loading screen waits for.</summary>
         private static int Grow(Options options)
         {
             Dino_Engine.Modelling.Procedural.Saurian.SaurianSkin.Report = Console.WriteLine;
             foreach (string key in options.Text("dino", "dino:raptor.0,dino:tyrant.0,dino:raptor.bones.0").Split(','))
             {
+                if (Dino_Engine.Modelling.Procedural.Character.SkeletonSpec.Parse(key) is Dino_Engine.Modelling.Procedural.Character.SkeletonSpec skeleton)
+                {
+                    Dino_Engine.Modelling.Procedural.Character.SkeletonForge.Report = Console.WriteLine;
+                    var timing = System.Diagnostics.Stopwatch.StartNew();
+                    var grown = Dino_Engine.Modelling.Procedural.Character.SkeletonForge.Make(skeleton);
+                    Console.WriteLine($"{key}: {timing.Elapsed.TotalMilliseconds:0} ms, {grown.faces.Count} triangles, holding {skeleton.Arms}, mesh {Fingerprint(grown):x16}");
+                    continue;
+                }
                 if (Dino_Engine.Modelling.Procedural.Character.BearSpec.Parse(key) is Dino_Engine.Modelling.Procedural.Character.BearSpec bear)
                 {
                     var timing = System.Diagnostics.Stopwatch.StartNew();
@@ -157,7 +165,9 @@ namespace Dino_AnimLab
             {
                 foreach (string way in ways)
                 {
-                    for (int v = 0; v < variants; v++) bodies.Add(way == "living" ? $"dino:{kind}.{v}" : $"dino:{kind}.{way}.{v}");
+                    // The land's dead are named as they are in the game, skeleton3 or skeleton:bow1.
+                    if (kind.StartsWith("skeleton", StringComparison.Ordinal)) for (int v = 0; v < variants; v++) bodies.Add($"{kind}{v}");
+                    else for (int v = 0; v < variants; v++) bodies.Add(way == "living" ? $"dino:{kind}.{v}" : $"dino:{kind}.{way}.{v}");
                 }
             }
 

@@ -42,7 +42,7 @@ namespace Dino_Engine.Modelling.Procedural.Character
     }
 
     /// <summary>
-    /// Builds people on the same rig as the skeleton in <see cref="Indoor.SkeletonGenerator"/>, so they share every animation.
+    /// Builds people on <see cref="Animation.Rig.Humanoid"/>, which the land's dead stand on too (<see cref="SkeletonForge"/>), so they share every animation.
     /// Each limb is its own rigid piece, built around the joints of the T-pose that the rig's bind matrices expect.
     /// </summary>
     public static class HumanoidGenerator
