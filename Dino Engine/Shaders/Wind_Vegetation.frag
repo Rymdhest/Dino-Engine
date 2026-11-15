@@ -11,11 +11,16 @@
 // patch lying (`settled`), which goes back slowly: a trail stays combed the way you went for a while after you've gone. Pressing is apart from all this, as
 // right under a foot there's no direction to push anything: `press` says how flat, and each plant goes over the way it was already leaning.
 //
+// Under the sea it's the waves and not the wind that move what grows (SEA.md): a patch the water covers heads for the bend the water passing over it would give it, as it
+// runs shorewards under a crest and back out under a trough, so every wave that comes in leans a meadow one way and lets it back the other, on the same spring.
+//
 // out_Bend:   xy bend angle (radians, leaning towards +x / +z), zw angular velocity (rad/s)
 // out_Touch:  xy lean from touch (radians, same convention), z pressed flat (radians), w how fast it's moving (rad/s). All a reader needs.
 // out_Memory: xy angular velocity of the lean (rad/s), zw where it's settled (radians)
 
 #include Wind.glsl
+#include Water/ShoreData.glsl
+#include Water/TerrainHeight.glsl
 
 layout (location = 0) out vec4 out_Bend;
 layout (location = 1) out vec4 out_Touch;
@@ -46,6 +51,7 @@ const float EDGE_PATCH = 1.3;       // Metres across the unevenness of the edge 
 const float CONTACT_RATE = 30.0;    // Per second: how fast plants go down under a contact.
 const float SOFT_MIDDLE = 0.3;      // Share of a contact's radius over which the push out from it fades, so that it passes smoothly through its middle.
 const float SETTLED_SHARE = 0.8;    // How much of the push a patch keeps, once what pushed it has gone.
+const float WATER_PULL = 29.0;      // Water drags on a plant as air this many times as fast does: the square root of how much denser it is.
 
 vec2 clampLength(vec2 v, float maxLength)
 {
@@ -67,6 +73,24 @@ void ring(inout vec2 x, inout vec2 v, float omega, float zeta, float dt)
     v = nextV;
 }
 
+// The bend the sea pushes a patch towards, in the terms vegetationRestBend takes the wind in, and how much of the patch the water covers: the water running over the bed
+// under the waves (shoreSurgeAt, Water/ShoreData.glsl), on the ground the water itself captured (Water/TerrainHeight.glsl), so plants and sea keep the same time.
+vec2 shoreSurgeBend(vec2 xz, out float submerged)
+{
+    submerged = 0.0;
+    float ground;
+    if (shoreLevel.y < 0.5 || !waterTerrainHeight(xz, ground)) return vec2(0.0);
+    float depth = shoreLevel.x - ground;
+    if (depth < -0.5) return vec2(0.0);
+    ShoreField field = shoreFieldAt(xz);
+    if (!field.inside) return vec2(0.0);
+    vec2 shoreward;
+    float column;
+    float speed = shoreSurgeAt(field, depth, coastAt(xz, field.openness), shoreward, column);
+    submerged = smoothstep(0.03, 0.2, column);
+    return vegetationRestBend(shoreward * (speed * WATER_PULL));
+}
+
 void main(void)
 {
     ivec2 size = textureSize(previousBend, 0);
@@ -85,7 +109,9 @@ void main(void)
     vec2 velocity = memory.xy;
     vec2 settled = memory.zw;
 
-    vec2 rest = clampLength(vegetationTargetBend(windMap, xz), VEGETATION_MAX_TOTAL_BEND);
+    float submerged;
+    vec2 surge = shoreSurgeBend(xz, submerged);
+    vec2 rest = clampLength(mix(vegetationTargetBend(windMap, xz), surge, submerged), VEGETATION_MAX_TOTAL_BEND);
 
     // Texels that just scrolled in (or a reset) start settled instead of springing up from upright.
     if (!valid) bend = vec4(rest, 0.0, 0.0);

@@ -151,6 +151,9 @@ namespace Dino_Engine.World.Content
 
         /// <summary>What lives here, whichever parts of it suit each. None of it has a say in how the land grows.</summary>
         public Creature[] Life = Array.Empty<Creature>();
+
+        /// <summary>What lives in the water off its coasts (SEA.md), if not what its warmth calls for (<see cref="SeaLife.Of"/>).</summary>
+        public SeaLife? Sea;
     }
 
     /// <summary>Every biome worlds can be built from.</summary>

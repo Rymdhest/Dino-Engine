@@ -33,7 +33,7 @@ void main(void)
     if (s.scatterKind != SSS_FLESH || s.scatter <= 0.0) discard;
 
     // Only what faces away from the sun lets any out: what faces it at all is lit by it, and the ambient pass has that, carried round the terminator as flesh carries it.
-    bool picture = sssSwitches.z > 1.5;
+    bool picture = abs(sssSwitches.z - 2.0) < 0.5;
     SssProfile flesh = sssProfileOf(SSS_FLESH);
     float away = -dot(s.normal, sunDirectionViewSpace);
     if (away <= 0.0 && !picture) discard;

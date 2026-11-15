@@ -58,8 +58,13 @@ layout (depth_greater) out float gl_FragDepth;
 #include Weather/Wetness.glsl
 #include Halls.glsl
 #include Snow/SnowTrail.glsl
+#include Water/ShoreData.glsl
+#include Water/ShoreFoam.glsl
+#include Water/ShoreWet.glsl
+#include Water/ShoreGround.glsl
 
 const float MATERIAL_SIZE = 1024.0;             // Texels across a material as the arrays keep it (TextureGenerator.MaterialLevelsDropped), for the mip a march reads.
+const float SETTLE_METRES = 0.3;                // The finest relief water and snow settle by (Weather/Wetness.glsl, Water/ShoreWet.glsl).
 const float TERRAIN_MOST_SLANT = 6.0;           // The farthest a ray may run sideways, in depths of the relief (Surface/Relief.glsl).
 const float TERRAIN_STEPS_PER_PIXEL = 0.5;
 const int TERRAIN_LEAST_STEPS = 3;
@@ -711,11 +716,25 @@ void main() {
     float roughness = look.roughness;
     vec3 albedo = gAlbedo.rgb;
     float hollow = max(tintGrass.a, gRutWater * 0.8);
-    float snowed = weatherWetten(fragWorldPos, N, weatherPorosity(winningMat, numberOfMaterials), look.metalic, hollow, look.height, albedo, roughness, worldNormal);
+    vec3 dry = albedo;
+    float porosity = weatherPorosity(winningMat, numberOfMaterials);
+    // What water and snow settle by: the material's relief no finer than SETTLE_METRES, from a coarser mip. A puddle drowns a beach's ripples and its edge is a
+    // smooth line; read at the finest relief its edge was water in each ripple's trough, a pixel or two wide from this camera, switching between a mirror and sand
+    // from one pixel to the next in stair-steps.
+    float settleRelief = look.height;
+    if (!rock) {
+        float settleTile = max(materialTileMetres(winningMat, numberOfMaterials), 0.01);
+        float settleScale = textureTileSize / settleTile;
+        float settleLevel = max(log2(SETTLE_METRES * MATERIAL_SIZE / settleTile), lod + log2(settleScale));
+        settleRelief = MaterialHeight(winningMat, settleScale, winningUV, settleLevel - log2(settleScale));
+    }
+    float snowed = weatherWetten(fragWorldPos, N, porosity, look.metalic, hollow, settleRelief, albedo, roughness, worldNormal);
     // Settled snow scatters as snow, and covers what's under it.
     gAlbedo.a = encodeSubsurfaceUnderSnow(scatterKind, scatter, snowed);
-    // Snow is walked through and glitters after the weather has had its say, as what settled is what's trodden.
     vec2 hitXZ = winningUV * textureTileSize;
+    // Where the sea reaches: the swash running up the sand and back, the film, the dark and the foam it leaves, and the wrack above it (SHORE.md).
+    shoreGround(vec3(hitXZ.x, fragWorldPos.y, hitXZ.y), N, porosity, look.metalic, settleRelief, dry, 1.0 / pixelsPerMetre, albedo, roughness, worldNormal, look.ambient);
+    // Snow is walked through and glitters after the weather has had its say, as what settled is what's trodden.
     if (gTrailing && !rock) TreadSnow(hitXZ, N, materialDepth, albedo, roughness, worldNormal, look.ambient);
     if (!rock) SnowGlitter(hitXZ, N, gSnow * (1.0 - gTrod), worldNormal, roughness);
     gAlbedo.rgb = albedo;

@@ -220,7 +220,7 @@ namespace Dino_Engine.ECS.Systems
             for (int i = 0; i < _plants.Count; i++)
             {
                 GroundPlant plant = _plants[i];
-                Quaternion rotation = Quaternion.FromAxisAngle(Vector3.UnitY, plant.Yaw);
+                Quaternion rotation = GroundCards.Rotation(plant.Yaw, plant.Up);
                 entities.Add(SpawnModel(stream.Assets.Get(plant.Model), plant.Position, rotation, new Vector3(plant.Scale), world, grid));
             }
             stream.ChunkPlants[cell] = entities;

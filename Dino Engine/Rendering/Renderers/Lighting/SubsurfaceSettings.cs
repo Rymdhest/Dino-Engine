@@ -51,7 +51,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
         /// <summary>Whether flesh lets the sun through where it's thin, measured in a map of flesh alone from the sun (<see cref="FleshDepth"/>). Off, that map isn't drawn, and flesh only has its light wrapped past the terminator.</summary>
         public bool Thickness = true;
 
-        /// <summary>A picture of it in place of the lit scene: 1 what every surface says of light under it, by kind and amount; 2 what of the sun gets through flesh. 0 for the scene.</summary>
+        /// <summary>A picture of it in place of the lit scene: 1 what every surface says of light under it, by kind and amount; 2 what of the sun gets through flesh; 3 what snow carries of the sun into its shadows. 0 for the scene.</summary>
         public int Debug;
 
         /// <summary>Cloth, paper, petals: thin, with faces of their own.</summary>
@@ -91,11 +91,13 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
 
         /// <summary>
         /// Snow and ice: what gets into them goes on mostly the way it was going and comes back out a little cooler (<see cref="SubsurfaceProfile.Direct"/> is how much of that
-        /// there is), and their diffuse light goes on past the terminator, blue furthest, as ice takes a little red with every centimetre.
+        /// there is), and their diffuse light goes on past the terminator, blue furthest, as ice takes a little red with every centimetre. <see cref="SubsurfaceProfile.Reach"/> is how far
+        /// the sun's light spreads under them before it comes out, so a shadow's edge runs blue into the shadow, and how much bluer a hollow is (Ambient_Light.frag). Light goes
+        /// some 5 to 15 cm through real snow, blue furthest, in a world twice the size; settled snow's amount (0.45) makes it 0.11, 0.2 and 0.32 m, three to ten pixels from 33 m up.
         /// </summary>
         public readonly SubsurfaceProfile Frost = new SubsurfaceProfile
         {
-            Reach = new Vector3(0.05f, 0.07f, 0.09f),
+            Reach = new Vector3(0.25f, 0.45f, 0.7f),
             Colour = new Vector3(0.92f, 0.97f, 1f),
             Hue = 0.3f,
             Direct = 3.3f,

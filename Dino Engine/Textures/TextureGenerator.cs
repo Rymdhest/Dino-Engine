@@ -182,11 +182,13 @@ namespace Dino_Engine.Textures
 
             using (var gpu = new Synthesizer())
             {
+                int made = 0;
                 foreach (MaterialSpec spec in MaterialCatalog.All)
                 {
                     var canvas = new Canvas(gpu, spec, size);
                     Surface surface = MaterialRecipes.Make(canvas);
                     MaterialBaker.Bake(gpu, canvas, surface, arrays, spec.Index);
+                    Engine.Startup?.Material(made++, count);
                 }
                 if (MeasureNoise) Console.WriteLine(Canvas.MeasureNoise(gpu, MaterialCatalog.Flat, size));
                 GL.Finish();

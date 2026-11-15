@@ -27,6 +27,7 @@ namespace Dino_Engine.World.Lexicon
                 foreach (FieldInfo field in type.GetFields(BindingFlags.Public | BindingFlags.Static).OrderBy(field => field.MetadataToken))
                 {
                     if (field.GetValue(null) is not PlantSpecies species || !seen.Add(species.Id)) continue;
+                    if (InWater(species)) continue;
                     plants.Add((species, type.Name, field.Name));
                 }
             }
@@ -51,6 +52,9 @@ namespace Dino_Engine.World.Lexicon
                 yield return section;
             }
         }
+
+        // Pondweed, kelp, coral and the like only make sense under water, and a lily on it: the room has nowhere to stand them.
+        private static bool InWater(PlantSpecies species) => species.Form is IUnderWater or LilyForm;
 
         private static Exhibit Specimen(PlantSpecies species, string collection, string field)
         {

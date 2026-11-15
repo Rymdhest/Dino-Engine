@@ -218,8 +218,9 @@ vec3 sssExtinction(Surface s, SssProfile p)
 
 // The light a surface sends to the camera from one light, whose highlight is spread as if the light were `spread` wide: that much is added to the lobe's
 // alpha squared, so the light given back stays the same and only goes further round. A point light has none. L points towards the light; radiance is
-// what arrives there.
-vec3 lightSurfaceSpread(Surface s, vec3 L, vec3 radiance, float spread)
+// what arrives there, for the highlight, and underRadiance what lights the light that goes in under the surface, which in snow is what's come in round about
+// as well as here (Ambient_Light.frag's frostDiffusedSun) and anywhere else the same.
+vec3 lightSurfaceSplit(Surface s, vec3 L, vec3 radiance, vec3 underRadiance, float spread)
 {
     vec3 N = s.normal;
     vec3 V = s.view;
@@ -245,7 +246,12 @@ vec3 lightSurfaceSpread(Surface s, vec3 L, vec3 radiance, float spread)
         if (s.scatterKind >= SSS_FLESH) diffuseShape = sssWrappedDiffuse(dot(N, L), p.wrap.rgb * s.scatter);
         transmitted = s.scatterKind == SSS_FROST ? sssFrostLight(s, p, L) : s.scatterKind == SSS_FLESH ? vec3(0.0) : sssThinLight(s, p, L);
     }
-    return (diffuse * diffuseShape + specular * NdotL + transmitted) * radiance;
+    return (diffuse * diffuseShape + transmitted) * underRadiance + specular * NdotL * radiance;
+}
+
+vec3 lightSurfaceSpread(Surface s, vec3 L, vec3 radiance, float spread)
+{
+    return lightSurfaceSplit(s, L, radiance, radiance, spread);
 }
 
 vec3 lightSurface(Surface s, vec3 L, vec3 radiance)

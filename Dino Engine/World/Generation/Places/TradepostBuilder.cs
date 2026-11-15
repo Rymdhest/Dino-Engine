@@ -32,6 +32,7 @@ namespace Dino_Engine.World.Generation.Places
             Buildings(Random.Fork("buildings"));
             Yard(Random.Fork("yard"));
             Outside(Random.Fork("outside"));
+            Trade(Random.Fork("trade"));
             Hold(Random.Fork("holders"));
         }
 
@@ -82,6 +83,43 @@ namespace Dino_Engine.World.Generation.Places
             Vector2 outward = Outward(_gateSide);
             Vector2 across = new Vector2(-outward.Y, outward.X);
             Tries(8, () => PutBox(new PlaceSpec(PlacePiece.NoticeBoard, NextSeed()), W(_gateLocal + outward * r.Range(3f, 5f) + across * ((r.Chance(0.5f) ? 1f : -1f) * (GateHalf + r.Range(2f, 4f)))), YawOf(outward), new Vector2(1.5f, 0.7f), 2.8f, 0.3f, 0.45f));
+        }
+
+        // What a trading post is for, and what the turncoats have made of it (PLACES.md): its yard packed hard by carts and the ways worn from the gate to the door and the store, the land's
+        // merchants' stalls standing empty along a side, the Reich's wagons by the bales waiting to take them, sacks in a line to the scales, the turncoats' table, woodpile and rack of
+        // the land's weapons they turned, their torches at the gate, and outside it, where the roads meet, the signpost with the Reich's names nailed over the land's and its gibbet.
+        private void Trade(WorldRandom r)
+        {
+            Vector2 inward = -Outward(_gateSide);
+            Vector2 across = new Vector2(-inward.Y, inward.X);
+            Paint(GroundPaint.Plaza, Footprint.Box(Plan.Centre, Plan.Half - new Vector2(2.5f), Plan.Yaw), 3f);
+            Trail(_gateLocal, _house - inward * 4f, 3.2f, GroundPaint.Plaza, 1.4f);
+            // The land's merchants' stalls along the side of the yard, empty.
+            float side = r.Chance(0.5f) ? 1f : -1f;
+            int stalls = r.Int(2, 3);
+            for (int k = 0; k < stalls; k++)
+            {
+                Tries(6, () => Structure(StructureCatalog.MarketStall, W(_gateLocal + inward * r.Range(5f, 9f + k * 4.5f) + across * (side * r.Range(Plan.Half.X * 0.45f, Plan.Half.X * 0.7f))), YawOf(-across * side), 0.4f, 0.4f));
+            }
+            // The Reich's wagons waiting by the bales for what's been taken.
+            for (int k = 0; k < 2; k++) Tries(10, () => PutBox(new PlaceSpec(PlacePiece.Wagon, NextSeed(), 0, 1, PlaceSpec.Cm(r.Range(3.8f, 4.6f))), W(_gateLocal + inward * r.Range(6f, 12f) + across * (-side * r.Range(4f, 9f))), YawOf(-inward) + r.Range(-0.25f, 0.25f), new Vector2(1.6f, 4f), 2.6f, 0.4f, 0.4f));
+            // A line of sacks waiting for the scales.
+            for (int k = 0; k < 2; k++) Tries(6, () => Structure(StructureCatalog.Sacks, W(new Vector2(r.Range(-6f, 6f), r.Range(-4f, 4f))), r.Float() * MathF.Tau, 0.3f));
+            Tries(8, () => PutBox(new PlaceSpec(PlacePiece.Bales, NextSeed(), r.Int(4, 7)), W(_gateLocal + inward * r.Range(9f, 13f) + across * (-side * r.Range(2f, 6f))), r.Float() * MathF.Tau, new Vector2(3f, 1.1f), 1.8f, 0.4f, 0.4f));
+            // The turncoats' corner by the house.
+            Vector2 corner = _house - inward * r.Range(6f, 8f) + across * (side * r.Range(6f, 9f));
+            Tries(8, () => PutBox(new PlaceSpec(PlacePiece.MessTable, NextSeed(), PlaceSpec.Cm(r.Range(2.4f, 3.2f))), W(corner), YawOf(across), new Vector2(2.2f, 1.3f), 1.2f, 0.3f, 0.4f));
+            Tries(8, () => PutBox(new PlaceSpec(PlacePiece.Firewood, NextSeed(), PlaceSpec.Cm(r.Range(2.4f, 3.4f)), PlaceSpec.Cm(r.Range(1.1f, 1.5f))), W(corner + across * side * r.Range(3f, 4.5f)), YawOf(-across * side), new Vector2(2.2f, 1.4f), 1.6f, 0.3f, 0.4f));
+            Tries(8, () => PutBox(new PlaceSpec(PlacePiece.WeaponRack, NextSeed(), PlaceSpec.Cm(r.Range(2f, 2.6f)), 0), W(corner - inward * r.Range(2.5f, 3.5f)), YawOf(inward), new Vector2(1.5f, 0.6f), 2f, 0.3f, 0.4f));
+            foreach (float s in new[] { -1f, 1f }) PutRound(new PlaceSpec(PlacePiece.Torch, NextSeed(), PlaceSpec.Cm(r.Range(2.4f, 2.8f)), 0), W(_gateLocal + inward * 1.8f + across * (s * (GateHalf + 0.9f))), 0f, 0.35f, 0f, 0.2f, 0.45f);
+            // Outside, where the roads meet: the signpost and the gibbet.
+            Vector2 outward = Outward(_gateSide);
+            Tries(8, () => PutRound(new PlaceSpec(PlacePiece.Signpost, NextSeed(), r.Int(2, 4), 1), W(_gateLocal + outward * r.Range(5f, 7f) + across * ((r.Chance(0.5f) ? 1f : -1f) * r.Range(4f, 6f))), r.Float() * MathF.Tau, 0.35f, 0f, 0.2f, 0.45f));
+            Tries(8, () => PutRound(new PlaceSpec(PlacePiece.Gibbet, NextSeed(), PlaceSpec.Cm(r.Range(4.2f, 5f))), W(_gateLocal + outward * r.Range(6f, 9f) + across * ((r.Chance(0.5f) ? 1f : -1f) * r.Range(6f, 9f))), r.Float() * MathF.Tau, 0.7f, Tall, 0.3f, 0.45f));
+            for (int k = 0; k < 2; k++) LayFlat(new PlaceSpec(PlacePiece.Puddle, NextSeed(), PlaceSpec.Cm(r.Range(0.7f, 1.2f))), _gateLocal + inward * r.Range(2f, 6f) + across * r.Range(-2f, 2f), YawOf(inward), 1f, 0.15f);
+            Strew(LitterKind.Papers, _house - inward * r.Range(6f, 9f), 2.4f, r.Int(6, 10));
+            Strew(LitterKind.Straw, _gateLocal + inward * r.Range(5f, 9f) + across * r.Range(-4f, 4f), 2.6f, r.Int(14, 22));
+            Strew(LitterKind.Papers, _gateLocal + outward * 4f, 1.6f, r.Int(4, 7));
         }
 
         // The turncoats about the yard and at the gate, the trader who comes back once it's free, a porter of the post's, and the chest by the house.

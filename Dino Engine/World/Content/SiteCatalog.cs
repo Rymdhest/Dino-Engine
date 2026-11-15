@@ -107,11 +107,25 @@ namespace Dino_Engine.World.Content
             return relaxed;
         }
 
+        /// <summary>The same, looked for as <see cref="Relaxed"/> looks, at three quarters of its smallest: for a land too crowded to give it the room it would like (<see cref="Squeezes"/>).</summary>
+        public SiteDefinition Squeezed()
+        {
+            SiteDefinition squeezed = Relaxed();
+            squeezed.Radius = new FloatRange(Radius.Min * 0.75f, Radius.Min * 0.75f);
+            return squeezed;
+        }
+
+        /// <summary>
+        /// Whether a crowded land puts it down smaller rather than going without one (<see cref="Squeezed"/>): the shrines, rings of stones and watchtowers every land has, which were
+        /// given more room for their forecourts, avenues and yards (PLACES.md) than they had before, and whose builders draw what they lay out in to whatever room they're given.
+        /// </summary>
+        public bool Squeezes => Kind is SiteKind.Shrine or SiteKind.StandingStones or SiteKind.Watchtower;
+
         public bool IsSettlement => Kind is SiteKind.Village or SiteKind.Hamlet or SiteKind.Farmstead or SiteKind.FishingHamlet or SiteKind.LumberCamp or SiteKind.Haven;
         public bool IsDanger => Kind is SiteKind.BanditCamp or SiteKind.Graveyard or SiteKind.Ruins or SiteKind.Keep or SiteKind.Prison or SiteKind.Laboratory or SiteKind.Excavation or SiteKind.Nest;
 
-        /// <summary>Whether it's one of the places with a story of its own (PLACES.md), laid out by a builder of its own and drawn from ids of its own.</summary>
-        public bool IsStory => StoryWeight > 0f || Kind is SiteKind.Ruins;
+        /// <summary>Whether it's one of the places with a story of its own (PLACES.md), laid out by a builder of its own and drawn from ids of its own: those a land chooses, its ruins, and its shrines, rings of stones, watchtowers and pens.</summary>
+        public bool IsStory => StoryWeight > 0f || Kind is SiteKind.Ruins or SiteKind.Shrine or SiteKind.StandingStones or SiteKind.Watchtower or SiteKind.BanditCamp;
     }
 
     /// <summary>Every kind of site, in the order they claim land: the ones that shape a world pick first.</summary>
@@ -302,7 +316,7 @@ namespace Dino_Engine.World.Content
             Kind = SiteKind.Watchtower,
             Label = "Watchtower",
             MapColour = new Vector3(0.82f, 0.82f, 0.86f),
-            Radius = new FloatRange(11f, 14f),
+            Radius = new FloatRange(15f, 18f),     // A beacon tower on the north of a yard, the keepers' cottage, the beacon's wood and the sighting stone (PLACES.md).
             PerSquareKilometre = 1.2f,
             Limits = new IntRange(1, 5),
             Spacing = 340f,
@@ -321,7 +335,7 @@ namespace Dino_Engine.World.Content
             Kind = SiteKind.Shrine,
             Label = "Shrine",
             MapColour = new Vector3(0.55f, 0.95f, 0.7f),
-            Radius = new FloatRange(12f, 16f),
+            Radius = new FloatRange(16f, 20f),     // Its hall, forecourt, gateway and the lanterns along its path (PLACES.md).
             PerSquareKilometre = 2.3f,
             Limits = new IntRange(3, 9),
             Spacing = 230f,
@@ -341,7 +355,7 @@ namespace Dino_Engine.World.Content
             Kind = SiteKind.StandingStones,
             Label = "Standing stones",
             MapColour = new Vector3(0.5f, 0.75f, 0.95f),
-            Radius = new FloatRange(14f, 20f),
+            Radius = new FloatRange(20f, 25f),     // A ring of stones, its avenue and the barrow beyond it (PLACES.md).
             PerSquareKilometre = 0.9f,
             Limits = new IntRange(1, 4),
             Spacing = 380f,
@@ -453,7 +467,7 @@ namespace Dino_Engine.World.Content
             Kind = SiteKind.Tradepost,
             Label = "Trading post",
             MapColour = new Vector3(0.92f, 0.74f, 0.48f),
-            Radius = new FloatRange(28f, 33f),
+            Radius = new FloatRange(34f, 39f),     // Its house and store with room left in its yard for the stalls, the scales and the wagons (PLACES.md).
             Limits = new IntRange(0, 1),
             Spacing = 300f,
             Margin = 44f,

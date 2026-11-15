@@ -95,20 +95,19 @@ namespace Dino_Engine.Textures
             return new Surface(colour, 0.95f, height) { Occlusion = Field.Lerp(0.35f, 1f, twine) };
         }
 
-        // Snow packed into blocks and set like stone, four courses to a tile, its joints soft and filled where it was patted in, and the strokes of the spade that smoothed each block
-        // running across it; a sparkling crust where it's had a frost on it, and as much light got in under it as any snow.
+        // Snow pressed hard and smoothed by hand, as a bucket's tower, a wall's cut blocks or anything else the north's children make is: no pattern of its own, as a
+        // block is a block of the model and a texture of blocks over it, or over a tower pressed from a bucket, read as noise. The long strokes of the mitten or spade that
+        // smoothed it running across it, soft swells where it was patted in, a few dents of fingers, and a sparkling crust where it's had a frost on it.
         private static Surface PackedSnow(Canvas c)
         {
-            Bricks blocks = c.Bricks(rows: 4, perRow: 2, gap: 0.006f, bond: 0.5f, rowJitter: 0.15f, lengthJitter: 0.25f);
-            Offsets slump = c.Offsets(5f, octaves: 3);
-            Field joint = blocks.Edge.Warp(slump, 0.006f).Profile(0.03f, Rise.Sine);
-            Field strokes = c.Noise(new Vector2(4f, 26f), octaves: 3, warp: 0.03f);
-            Field pats = c.Cells(new Vector2(18f), jitter: 0.9f).Centre.Profile(0.7f, Rise.Smooth);
+            Field strokes = c.Noise(new Vector2(3f, 22f), octaves: 3, warp: 0.03f);
+            Field pats = c.Cells(new Vector2(9f), jitter: 0.9f).Centre.Profile(0.8f, Rise.Smooth);
+            Field dents = c.Cells(new Vector2(7f), jitter: 0.9f).Centre.Profile(0.12f, Rise.Smooth);
             Field crust = c.Noise(60f, octaves: 3);
-            Field height = joint * (0.7f + (strokes - 0.5f) * 0.12f + pats * 0.06f + blocks.Id.Random(2) * 0.06f) + crust * 0.03f + 0.12f;
+            Field height = 0.5f + (strokes - 0.5f) * 0.3f + pats * 0.2f - dents * 0.07f + (crust - 0.5f) * 0.06f;
 
-            Paint colour = c.Ramp(height, (0.1f, Rgb(170, 186, 208)), (0.55f, Rgb(212, 220, 232)), (0.95f, Rgb(232, 236, 242)));
-            colour = colour * Field.Lerp(0.96f, 1.02f, strokes) * blocks.Id.Random(5).Remap(0f, 1f, 0.97f, 1.02f);
+            Paint colour = c.Ramp(height, (0.1f, Rgb(178, 192, 212)), (0.5f, Rgb(214, 222, 234)), (0.9f, Rgb(232, 236, 242)));
+            colour = colour * Field.Lerp(0.97f, 1.02f, strokes);
             return new Surface(colour, Field.Lerp(0.8f, 0.62f, crust), height.Clamp(0f, 1f)) { Subsurface = 0.45f };
         }
     }

@@ -277,7 +277,8 @@ namespace Dino_Engine.GUI.Debug
             water.Content.Add(WaterSlider("Foam", 0f, 3f, "0.00", w => w.Foam, (ref WaterSingleton w, float v) => w.Foam = v));
             water.Content.Add(WaterSlider("Whitecaps", 0f, 5f, "0.00", w => w.Whitecaps, (ref WaterSingleton w, float v) => w.Whitecaps = v));
             water.Content.Add(WaterSlider("Wet sand", 0f, 0.9f, "0.00", w => w.WetSandDarkening, (ref WaterSingleton w, float v) => w.WetSandDarkening = v));
-            water.Content.Add(WaterSlider("Drying", 1f, 60f, "0 s", w => w.DryingTime, (ref WaterSingleton w, float v) => w.DryingTime = v));
+            water.Content.Add(WaterSlider("Drying", 1f, 120f, "0 s", w => w.DryingTime, (ref WaterSingleton w, float v) => w.DryingTime = v));
+            water.Content.Add(WaterSlider("Film", 0.2f, 15f, "0.0 s", w => w.FilmTime, (ref WaterSingleton w, float v) => w.FilmTime = v));
             water.Content.Add(DebugUi.Heading("Wading ripples"));
             water.Content.Add(WaterSlider("Speed", 0.2f, 3f, "0.00 m/s", w => w.RippleSpeed, (ref WaterSingleton w, float v) => w.RippleSpeed = v));
             water.Content.Add(WaterSlider("Decay", 0.2f, 6f, "0.0 s", w => w.RippleDecay, (ref WaterSingleton w, float v) => w.RippleDecay = v));

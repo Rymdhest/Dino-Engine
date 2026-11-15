@@ -17,6 +17,7 @@ namespace Dino_Defenders
 
             GameLog.Start();
             GameOptions options = GameOptions.Parse(args);
+            if (options.Logo != null) return UI.Logo.Export(options.Logo);
             if (options.Dedicated)
             {
                 RunDedicated(options);
@@ -62,5 +63,5 @@ namespace Dino_Defenders
             Console.WriteLine($"Invite: {new InviteCode { Local = InviteCode.LocalAddresses().FirstOrDefault(), Port = options.Port, Secret = secret }.Text}");
             while (host.Failure == null) Thread.Sleep(1000);
         }
-    }
+    }   
 }

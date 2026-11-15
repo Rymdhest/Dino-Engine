@@ -382,6 +382,8 @@ namespace Dino_Engine.Rendering
         {
             _msaa.BeginGeometry();
             _weatherRenderer.BindSurfaceMaps();
+            // The shore's maps, for the ground and what stands on it to draw the swash and the wet sand by (SHORE.md).
+            _waterRenderer.BindShoreMaps();
 
             _modelRenderer.GeometryRenderPass(this);
             _characterRenderer.GeometryRenderPass(this);

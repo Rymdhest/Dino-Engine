@@ -833,18 +833,8 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
             lights.Add(AssetLight.Burning(new Vector3(0f, 6.4f, 0f), 0.9f));
         }
 
-        private static void BuildAltar(MeshBuilder b, WorldRandom random, List<AssetLight> lights)
-        {
-            lights.Add(AssetLight.Glow(new Vector3(0f, 3.1f, 0f), new Vector3(0.45f, 1f, 0.72f), 42f, 15f));
-
-            VertexMaterial stone = Rough(176);
-            b.Tube(new Vector3(0f, -0.3f, 0f), new Vector3(0f, 0.32f, 0f), 1.8f, 1.6f, 8, stone);
-            b.Tube(new Vector3(0f, 0.32f, 0f), new Vector3(0f, 1.3f, 0f), 0.92f, 0.76f, 8, stone);
-            b.Tube(new Vector3(0f, 1.3f, 0f), new Vector3(0f, 1.6f, 0f), 1.1f, 1.1f, 8, stone);
-
-            Mesh crystal = IcoSphereGenerator.CreateIcosphere(1, Glow(0.08f, 1f, 0.5f, 2.8f));
-            b.Add(crystal, new Vector3(0f, 2.5f, 0f), new Vector3(0.38f, 0.92f, 0.38f), random.Float() * MathF.Tau);
-        }
+        // The land's altar, its bronze bowl of banked embers on a carved plinth, which a Defender kindles: one design wherever it stands (Places/Shrine.cs, PLACES.md).
+        private static void BuildAltar(MeshBuilder b, WorldRandom random, List<AssetLight> lights) => Places.Shrine.Altar(b, random, lights);
 
         private static VertexMaterial Wax => new VertexMaterial(TextureGenerator.flat, new Colour(226, 216, 190));
         private static VertexMaterial Flame => Glow(1f, 0.42f, 0.08f, 3f);

@@ -5,6 +5,7 @@ using Dino_Engine.GUI.Widgets;
 using Dino_Engine.Sound;
 using Dino_Engine.Sound.Content;
 using Dino_Engine.Util;
+using OpenTK.Graphics.OpenGL;
 using OpenTK.Mathematics;
 using OpenTK.Windowing.Common.Input;
 using OpenTK.Windowing.GraphicsLibraryFramework;
@@ -82,6 +83,8 @@ namespace Dino_Defenders.UI
         private readonly MenuWord _delete;
         private readonly GuiElement _confirm;
         private readonly MenuWord _confirmText;
+        private readonly Dino_Engine.GUI.Widgets.Image _logo;
+        private int _logoTexture;
         private bool _naming;
         private bool _deleting;
 
@@ -94,7 +97,8 @@ namespace Dino_Defenders.UI
             Visible = false;
 
             var column = Add(new StackPanel(Orientation.Vertical, 4f) { Width = ColumnWidth, Height = UIValue.Fill, Margin = new Thickness(Edge, Edge, 0f, Edge) });
-            column.Add(new Label(BuildInfo.Name) { Font = Ui.Face, FontSize = 42f, Color = Ui.Parchment, Height = 56f });
+            // The game's name is its logo (Logo), grown on another thread as the game starts and drawn nowhere until it's ready.
+            _logo = column.Add(new Dino_Engine.GUI.Widgets.Image { Width = ColumnWidth, Height = Logo.MenuHeight, Mode = GuiTextureMode.Rgba });
             column.Add(new Spacer(height: 34f));
 
             _list = column.Add(new ScrollPanel { Width = UIValue.Fill, Height = UIValue.Fill });
@@ -160,6 +164,13 @@ namespace Dino_Defenders.UI
 
         protected override void OnUpdate(float deltaTime)
         {
+            if (_logoTexture == 0 && Logo.TryTake(out Picture logo))
+            {
+                _logoTexture = Upload(logo);
+                _logo.Texture = _logoTexture;
+                _logo.Width = Logo.MenuHeight * logo.Width / logo.Height;
+            }
+
             _list.Height = MathF.Min(_host.Heroes.Count, MostRows) * (MenuHero.RowHeight + 2f);
             _new.Visible = !_naming;
             _name.Visible = _naming;
@@ -173,6 +184,22 @@ namespace Dino_Defenders.UI
             _delete.Visible = chosen && !_deleting;
             _confirm.Visible = chosen && _deleting;
             if (_host.Chosen is RosterEntry entry) _confirmText.Text = $"Delete {entry.Hero.Name}?";
+        }
+
+        // Mipmapped, as the picture is grown sharper than it's shown.
+        private static int Upload(Picture picture)
+        {
+            int texture = GL.GenTexture();
+            GL.ActiveTexture(TextureUnit.Texture0);
+            GL.BindTexture(TextureTarget.Texture2D, texture);
+            GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba8, picture.Width, picture.Height, 0, PixelFormat.Rgba, PixelType.UnsignedByte, picture.Rgba);
+            GL.GenerateMipmap(GenerateMipmapTarget.Texture2D);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.LinearMipmapLinear);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
+            GL.BindTexture(TextureTarget.Texture2D, 0);
+            return texture;
         }
 
         // Only enough dark down the side for the words to stand on, fading to nothing well before the hero.

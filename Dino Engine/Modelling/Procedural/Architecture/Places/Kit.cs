@@ -181,7 +181,9 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Places
         /// A surface of revolution about <paramref name="axis"/> from <paramref name="foot"/>, its radius a function of how far along it is (0 to 1), facing out. A radius of nothing at
         /// either end closes it there.
         /// </summary>
-        public static void Lathe(MeshBuilder b, Vector3 foot, Vector3 axis, float length, Func<float, float> radius, int around, int along, VertexMaterial m)
+        // Closed at both ends wherever an end has any width, as an open end is a hole from anywhere that can see into it, and the inside of a lathe isn't drawn:
+        // only something meant to be seen into, with something of its own inside, leaves its far end open (openEnd).
+        public static void Lathe(MeshBuilder b, Vector3 foot, Vector3 axis, float length, Func<float, float> radius, int around, int along, VertexMaterial m, bool openEnd = false)
         {
             Vector3 dir = axis.Normalized();
             Vector3 right = MathF.Abs(dir.Y) < 0.95f ? Vector3.Cross(dir, Vector3.UnitY).Normalized() : Vector3.UnitX;
@@ -192,19 +194,105 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Places
                 float a = k * MathF.Tau / around;
                 return foot + dir * (length * t) + (right * MathF.Cos(a) + up * MathF.Sin(a)) * radius(t);
             }
+            // Its texture is laid out over the whole lathe, not face by face, which started every face somewhere else in it and faded its relief at every face's
+            // sides, so that a texture with any pattern in it broke up into noise: round it by the turn, a whole number of tiles at its middle radius so that it
+            // meets itself with no seam (or as it comes, round anything too thin to take one), and along it by the metres up its side, its relief coming up to
+            // nothing only at its two ends.
+            float tiles = float.IsNaN(b.TilesPerMetre) ? MaterialCatalog.TilesPerMetre(m.materialTextureIndex) : b.TilesPerMetre;
+            float middleRadius = 0f;
+            for (int i = 0; i <= along; i++) middleRadius += radius(i / (float)along) / (along + 1);
+            float turn = MathF.Tau * middleRadius * tiles;
+            float perFace = (turn >= 1f ? MathF.Round(turn) : turn) / tiles / around;
+            var climb = new float[along + 1];
+            for (int i = 1; i <= along; i++) climb[i] = climb[i - 1] + (Ring(i, 0) - Ring(i - 1, 0)).Length;
+            float side = climb[along];
+            Vector2 At(int i, int k) => new Vector2(k * perFace, climb[i]);
+            Vector4 Edges(Vector2 at) => new Vector4(1e6f, 1e6f, at.Y, side - at.Y);
+            void Triangle(Vector3 pa, Vector3 pb, Vector3 pc, Vector2 ma, Vector2 mb, Vector2 mc, Vector3 want)
+            {
+                if (Vector3.Dot(Vector3.Cross(pb - pa, pc - pa), want) < 0f)
+                {
+                    (pb, pc) = (pc, pb);
+                    (mb, mc) = (mc, mb);
+                }
+                b.MappedTriangle(pa, pb, pc, m, ma, mb, mc, Edges(ma), Edges(mb), Edges(mc));
+            }
             for (int i = 0; i < along; i++)
             {
                 for (int k = 0; k < around; k++)
                 {
                     Vector3 p0 = Ring(i, k), p1 = Ring(i, k + 1), p2 = Ring(i + 1, k + 1), p3 = Ring(i + 1, k);
+                    Vector2 m0 = At(i, k), m1 = At(i, k + 1), m2 = At(i + 1, k + 1), m3 = At(i + 1, k);
                     Vector3 middle = foot + dir * (length * (i + 0.5f) / along);
                     Vector3 want = (p0 + p1 + p2 + p3) * 0.25f - middle;
                     // A ring of nothing is a point, which makes the quad a triangle.
-                    if ((p0 - p1).LengthSquared < 1e-10f) Face(b, p0, p2, p3, want, m);
-                    else if ((p2 - p3).LengthSquared < 1e-10f) Face(b, p0, p1, p2, want, m);
-                    else Face(b, p0, p1, p2, p3, want, m);
+                    bool pointBelow = (p0 - p1).LengthSquared < 1e-10f, pointAbove = (p2 - p3).LengthSquared < 1e-10f;
+                    if (!pointBelow) Triangle(p0, p1, p2, m0, m1, m2, want);
+                    if (!pointAbove) Triangle(p0, p2, p3, m0, m2, m3, want);
                 }
             }
+            float r0 = radius(0f), r1 = radius(1f);
+            if (r0 > 1e-4f) Cap(b, foot, -dir, right, up, r0, around, m);
+            if (r1 > 1e-4f && !openEnd) Cap(b, foot + dir * length, dir, right, up, r1, around, m);
+        }
+
+        // A flat disc over a lathe's end, its rim on the lathe's own last ring, so that the two meet with no crack.
+        private static void Cap(MeshBuilder b, Vector3 centre, Vector3 facing, Vector3 right, Vector3 up, float radius, int around, VertexMaterial m)
+        {
+            for (int k = 0; k < around; k++)
+            {
+                float a0 = k * MathF.Tau / around, a1 = (k + 1) * MathF.Tau / around;
+                Vector3 p0 = centre + (right * MathF.Cos(a0) + up * MathF.Sin(a0)) * radius;
+                Vector3 p1 = centre + (right * MathF.Cos(a1) + up * MathF.Sin(a1)) * radius;
+                Face(b, centre, p0, p1, facing, m);
+            }
+        }
+
+        /// <summary>A smooth ball, closed at its poles, with these radii along x, y and z: a snowball, a snowman's body.</summary>
+        // Not a MeshBuilder surface, whose rows each have vertices of their own at both ends and at a pole: normals are averaged over the faces sharing a vertex,
+        // so a pole's leaned (a dark dot on top of every snowball) and a seam creased, and a surface measures its texture across a row from end to end, which on a
+        // ring is nothing (the snow smeared round every ball in stripes). Here every point is one vertex, a pole included, and the texture is laid out by distance
+        // from the top pole along the surface, which is exact on top, a little stretched round the middle and only gives out underneath, where nothing sees it.
+        public static void Ball(MeshBuilder b, Vector3 centre, Vector3 radii, int around, int up, VertexMaterial m)
+        {
+            around = Math.Max(around, 3);
+            up = Math.Max(up, 2);
+            float perRadian = (radii.X + radii.Y + radii.Z) / 3f * MaterialCatalog.TilesPerMetre(m.materialTextureIndex);
+            var vertices = new List<Vertex>(2 + around * (up - 1));
+            var indices = new List<int>(around * (up - 1) * 6);
+            void Point(float polar, float a)
+            {
+                Vector3 p = centre + new Vector3(MathF.Sin(polar) * MathF.Cos(a) * radii.X, MathF.Cos(polar) * radii.Y, -MathF.Sin(polar) * MathF.Sin(a) * radii.Z);
+                vertices.Add(new Vertex(p, m, new Vector2(MathF.Cos(a), MathF.Sin(a)) * (polar * perRadian)));
+            }
+            Point(0f, 0f);
+            for (int j = 1; j < up; j++)
+            {
+                for (int k = 0; k < around; k++) Point(MathF.PI * j / up, k * MathF.Tau / around);
+            }
+            Point(MathF.PI, 0f);
+            int bottom = vertices.Count - 1;
+            int Ring(int j, int k) => 1 + (j - 1) * around + k % around;
+            // Each wound to face out from the middle, as everything here is.
+            void Triangle(int i0, int i1, int i2)
+            {
+                Vector3 p0 = vertices[i0].position, p1 = vertices[i1].position, p2 = vertices[i2].position;
+                bool outward = Vector3.Dot(Vector3.Cross(p1 - p0, p2 - p0), (p0 + p1 + p2) / 3f - centre) >= 0f;
+                indices.Add(i0);
+                indices.Add(outward ? i1 : i2);
+                indices.Add(outward ? i2 : i1);
+            }
+            for (int k = 0; k < around; k++)
+            {
+                Triangle(0, Ring(1, k), Ring(1, k + 1));
+                for (int j = 1; j < up - 1; j++)
+                {
+                    Triangle(Ring(j, k), Ring(j + 1, k), Ring(j + 1, k + 1));
+                    Triangle(Ring(j, k), Ring(j + 1, k + 1), Ring(j, k + 1));
+                }
+                Triangle(Ring(up - 1, k), bottom, Ring(up - 1, k + 1));
+            }
+            b.Add(new Mesh(vertices, indices), Vector3.Zero, Vector3.One);
         }
 
         /// <summary>A radius along a lathe, as straight runs between the given points (how far along, radius).</summary>

@@ -42,6 +42,7 @@ namespace Dino_Defenders.Gameplay
         public HitBody Body;
         public DamageType Type;
         public HitNote Note;
+        public bool Bleeding;                   // Whether its target bleeds, this blow counted: blood is only ever shown for the Bleeding ailment.
         public uint Target;                     // Whose body it landed on, by ghost.
         [NetStep(1f / 16f)] public Vector2 Way; // Which way it was going.
         [NetStep(1f / 16f)] public float Weight;// How much of them it took, as a share of all they have.

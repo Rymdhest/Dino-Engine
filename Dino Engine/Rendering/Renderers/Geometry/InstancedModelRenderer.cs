@@ -32,6 +32,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
             LinkPlantSamplers(_instancedModelShader);
             Simulation.WeatherRenderer.LinkSurfaceSamplers(_instancedModelShader);
+            PosGeometry.WaterRenderer.LinkShoreSamplers(_instancedModelShader);
             _instancedModelShader.unBind();
 
             _instancedModelShadowShader.bind();

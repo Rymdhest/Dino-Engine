@@ -33,6 +33,7 @@ namespace Dino_Engine.World.Generation.Places
                 default: Mounds(Random.Fork("mounds")); break;
             }
             Leavings(Random.Fork("leavings"));
+            Wild(Random.Fork("wild"));
             Hold(Random.Fork("holders"));
         }
 
@@ -55,6 +56,16 @@ namespace Dino_Engine.World.Generation.Places
                     Plan.Marks.Add(new PlaceMark(PlaceMarkKind.Nest, at, 0f, new Vector2(radius)));
                     break;
                 }
+            }
+            // A ring the ground broke up is made up anywhere in the clearing that'll take a mound, smaller, as a brood nests where it can.
+            for (int attempt = 0; attempt < 24 && _nests.Count < 4; attempt++)
+            {
+                Vector2 at = Site.Position + SiteBuilder.Direction(r.Float() * MathF.Tau) * Site.Radius * r.Range(0.1f, 0.6f);
+                float radius = r.Range(1.4f, 1.9f);
+                if (_nests.Any(n => (n.At - at).Length < n.Radius + radius + 1.5f)) continue;
+                if (!PutRound(new PlaceSpec(PlacePiece.NestMound, NextSeed(), (int)_kind, r.Int(5, 8), PlaceSpec.Cm(radius)), at, r.Float() * MathF.Tau, radius + 0.3f, 0.8f, 0.6f, 0.45f)) continue;
+                _nests.Add((at, radius));
+                Plan.Marks.Add(new PlaceMark(PlaceMarkKind.Nest, at, 0f, new Vector2(radius)));
             }
         }
 
@@ -150,9 +161,36 @@ namespace Dino_Engine.World.Generation.Places
                 if (r.Chance(0.6f)) World.Pending.Add(new PendingObject(new PlaceSpec(PlacePiece.EggSac, NextSeed(), PlaceSpec.Cm(r.Range(0.6f, 1.1f))).Id, sac, r.Float() * MathF.Tau, Vector3.One, null));
                 if (r.Chance(0.45f)) World.Pending.Add(new PendingObject(new PlaceSpec(PlacePiece.Cocoon, NextSeed(), PlaceSpec.Cm(r.Range(1.8f, 3.2f))).Id, mid - along * r.Range(1f, 2f), r.Float() * MathF.Tau, Vector3.One, null));
             }
+            // Its floor spun over the middle of the clearing, the dark mouth of its burrow in the middle of that, and smaller sheets spun at the roots of the trunks its webs come
+            // down to: pale on the trodden earth, what says from up there what lives here before anything moves.
+            // The floor is spun in pieces, each laid on its own bit of ground, so that all of it lies on the ground however the ground lies: the burrow's, and sheets round it.
+            float floor = r.Range(4.2f, 5.6f);
+            Vector2 burrow = Site.Position;
+            for (int attempt = 0; attempt < 9; attempt++)
+            {
+                Vector2 at = attempt == 0 ? Site.Position : Site.Position + SiteBuilder.Direction(r.Float() * MathF.Tau) * r.Range(1.5f, 6f);
+                if (!LayFlat(new PlaceSpec(PlacePiece.SilkFloor, NextSeed(), PlaceSpec.Cm(r.Range(2.6f, 3.2f)), 1), Plan.ToLocal(at), r.Float() * MathF.Tau, 3f, 0.2f)) continue;
+                burrow = at;
+                break;
+            }
+            int round = r.Int(4, 6);
+            float turn = r.Float() * MathF.Tau;
+            for (int k = 0; k < round; k++)
+            {
+                Vector2 at = burrow + SiteBuilder.Direction(turn + k * MathF.Tau / round + r.Range(-0.3f, 0.3f)) * r.Range(2.8f, floor - 0.6f);
+                LayFlat(new PlaceSpec(PlacePiece.SilkFloor, NextSeed(), PlaceSpec.Cm(r.Range(1.9f, 2.7f)), 0), Plan.ToLocal(at), r.Float() * MathF.Tau, 2.3f, 0.3f);
+            }
+            for (int k = 0; k < ordered.Count; k += 2)
+            {
+                (Vector2 trunk, float girth) = ordered[k];
+                Vector2 inward = (Site.Position - trunk).Normalized();
+                float sheet = r.Range(1.8f, 2.8f);
+                LayFlat(new PlaceSpec(PlacePiece.SilkFloor, NextSeed(), PlaceSpec.Cm(sheet), 0), Plan.ToLocal(trunk + inward * (girth + sheet * 0.6f)), r.Float() * MathF.Tau, sheet, 0.25f);
+            }
+            // The shells of what's hatched out of its sacs, swept off its floor.
             for (int k = 0; k < 3; k++)
             {
-                Vector2 at = Site.Position + SiteBuilder.Direction(r.Float() * MathF.Tau) * r.Range(1f, 5f);
+                Vector2 at = Site.Position + SiteBuilder.Direction(r.Float() * MathF.Tau) * r.Range(floor + 0.6f, floor + 4f);
                 Lay(new PlaceSpec(PlacePiece.Shells, NextSeed()), at, r.Float() * MathF.Tau, 1.4f);
             }
             _nests.Add((Site.Position, 1.5f));
@@ -166,7 +204,9 @@ namespace Dino_Engine.World.Generation.Places
             {
                 Vector2 at = Site.Position + SiteBuilder.Direction(r.Float() * MathF.Tau) * r.Range(4f, Site.Radius * 0.5f);
                 float length = r.Range(4.5f, 7f);
-                if (PutBox(new PlaceSpec(PlacePiece.Carcass, NextSeed(), r.Chance(0.6f) ? 0 : 1, PlaceSpec.Cm(length)), at, r.Float() * MathF.Tau, new Vector2(length * 0.25f, length * 0.5f), 0.9f, 0.4f, 0.45f)) k++;
+                if (!PutBox(new PlaceSpec(PlacePiece.Carcass, NextSeed(), r.Chance(0.6f) ? 0 : 1, PlaceSpec.Cm(length)), at, r.Float() * MathF.Tau, new Vector2(length * 0.25f, length * 0.5f), 0.9f, 0.4f, 0.45f)) continue;
+                Strew(LitterKind.Blood, Plan.ToLocal(at), length * 0.45f, r.Int(8, 14));
+                k++;
             }
             // Shells trodden into the ground just off each nest, where the young that hatched pushed them out.
             int shells = r.Int(3, 5);
@@ -183,6 +223,34 @@ namespace Dino_Engine.World.Generation.Places
                 float length = r.Range(8f, 13f), radius = r.Range(0.35f, 0.55f);
                 float yaw = r.Float() * MathF.Tau;
                 if (PutBox(new PlaceSpec(PlacePiece.Log, NextSeed(), With(new[] { PlaceSpec.Cm(length), PlaceSpec.Cm(radius) }, WoodOf())), at, yaw, new Vector2(length * 0.5f, radius + 0.2f), 0.9f, 0.3f, 0.45f)) break;
+            }
+        }
+
+        // What else lies about a nest (PLACES.md): the boughs torn down to build the nests heaped round them, bones and feathers everywhere the young have fed, and, at the clearing's
+        // edge, what's left of the Reich's last try at taking back what got out of its pens: its wagon broken, its tent torn down, its wranglers' arms and bones in the grass.
+        private void Wild(WorldRandom r)
+        {
+            int[] wood = WoodOf();
+            foreach ((Vector2 nest, float radius) in _nests.Take(4))
+            {
+                // A weaver builds with nothing but its silk, and what it feeds on it sucks dry and drops: the bones, not the feathers.
+                if (_kind != NestKind.Weaver) Tries(4, () => PutRound(new PlaceSpec(PlacePiece.Slash, NextSeed(), PlaceSpec.Cm(r.Range(1.4f, 2.2f)), wood[0], wood[1], wood[2], wood[3]), nest + SiteBuilder.Direction(r.Float() * MathF.Tau) * (radius + r.Range(2.5f, 4f)), r.Float() * MathF.Tau, 1.4f, 0.8f, 0.2f, 0.5f));
+                Strew(_kind == NestKind.Weaver ? LitterKind.Bones : LitterKind.Feathers, Plan.ToLocal(nest) + new Vector2(r.Range(-2f, 2f), r.Range(-2f, 2f)), radius + 2f, r.Int(10, 16));
+            }
+            for (int k = 0; k < 4; k++) Strew(LitterKind.Bones, Plan.ToLocal(Site.Position + SiteBuilder.Direction(r.Float() * MathF.Tau) * r.Range(2f, Site.Radius * 0.6f)), r.Range(2f, 3.2f), r.Int(10, 18));
+            if (_kind == NestKind.Wader) for (int k = 0; k < 3; k++) LayFlat(new PlaceSpec(PlacePiece.Puddle, NextSeed(), PlaceSpec.Cm(r.Range(1f, 2f))), Plan.ToLocal(Site.Position + SiteBuilder.Direction(r.Float() * MathF.Tau) * r.Range(4f, Site.Radius * 0.6f)), r.Float() * MathF.Tau, 1.8f, 0.15f);
+            // The Reich's hunting party, at the edge of the clearing, which came for what got out and didn't leave.
+            if (!r.Chance(0.75f)) return;
+            for (int attempt = 0; attempt < 10; attempt++)
+            {
+                Vector2 at = Site.Position + SiteBuilder.Direction(r.Float() * MathF.Tau) * Site.Radius * r.Range(0.55f, 0.75f);
+                if (!PutBox(new PlaceSpec(PlacePiece.Wagon, NextSeed(), 1, 1, PlaceSpec.Cm(r.Range(3.8f, 4.4f))), at, r.Float() * MathF.Tau, new Vector2(2.4f, 3.4f), 2.4f, 0.4f, 0.45f)) continue;
+                Vector2 local = Plan.ToLocal(at);
+                Strew(LitterKind.Gear, local + new Vector2(r.Range(-3f, 3f), r.Range(-3f, 3f)), 3.6f, r.Int(10, 16));
+                Strew(LitterKind.Bones, local + new Vector2(r.Range(-3f, 3f), r.Range(-3f, 3f)), 2.6f, r.Int(10, 14));
+                Strew(LitterKind.Papers, local, 2f, r.Int(4, 7));
+                Tries(6, () => PutBox(new PlaceSpec(PlacePiece.Crates, NextSeed(), r.Int(1, 3), 1), at + SiteBuilder.Direction(r.Float() * MathF.Tau) * r.Range(3f, 5f), r.Float() * MathF.Tau, new Vector2(1.6f, 1f), 1.4f, 0.3f, 0.45f));
+                break;
             }
         }
 

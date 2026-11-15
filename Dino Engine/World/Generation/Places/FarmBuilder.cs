@@ -43,6 +43,7 @@ namespace Dino_Engine.World.Generation.Places
             Paddocks(Random.Fork("paddocks"));
             Yard(Random.Fork("yard"));
             Camp(Random.Fork("camp"));
+            Worked(Random.Fork("worked"));
             Hold(Random.Fork("holders"));
         }
 
@@ -144,6 +145,43 @@ namespace Dino_Engine.World.Generation.Places
             Tries(8, () => PutRound(new PlaceSpec(PlacePiece.Campfire, NextSeed()), W(new Vector2(r.Range(-7f, 7f), r.Range(-6f, 8f))), 0f, 1.4f, 0.8f, 0.5f, 0.4f));
             Tries(6, () => Structure(StructureCatalog.Cart, W(_gateLocal + inward * r.Range(6f, 10f) + across * r.Range(-4f, 4f)), r.Float() * MathF.Tau, 0.5f));
             for (int k = 0; k < 2; k++) Tries(6, () => PutRound(new PlaceSpec(PlacePiece.Lantern, NextSeed(), PlaceSpec.Cm(r.Range(3.8f, 4.3f)), 1), W(new Vector2(r.Range(-10f, 10f), r.Range(-10f, 10f))), 0f, 0.4f, 0f, 0.3f, 0.5f));
+        }
+
+        // How a farm is worked (PLACES.md): the ways worn from the gate into the yard and out to every paddock's gate, boards over the mud, hay stacked by the barn and the midden behind
+        // it, the farmers' own tools racked by the barn where they left them, eggs crated by the hatching shed with the Reich's wagon to take them, its handlers' table, woodpile and
+        // brazier, and its cressets at the paddocks' gates.
+        private void Worked(WorldRandom r)
+        {
+            Vector2 inward = -Outward(_gateSide);
+            Vector2 across = new Vector2(-inward.Y, inward.X);
+            Trail(_gateLocal, Vector2.Zero, 3f, GroundPaint.Yard, 1.6f);
+            foreach (PlacePaddock paddock in Plan.Paddocks)
+            {
+                Vector2 gate = Plan.ToLocal(paddock.Gate);
+                Trail(Vector2.Zero, gate, 2.2f, GroundPaint.Yard, 1.4f);
+                Vector2 out_ = gate.LengthSquared > 1f ? -gate.Normalized() : inward;
+                Vector2 aside = new Vector2(-out_.Y, out_.X);
+                PutRound(new PlaceSpec(PlacePiece.Torch, NextSeed(), PlaceSpec.Cm(r.Range(2.4f, 2.8f)), 1), W(gate + out_ * 1.2f + aside * 2.6f), 0f, 0.35f, 0f, 0.2f, 0.45f);
+                Strew(LitterKind.Straw, gate + out_ * 2f, 2f, r.Int(12, 20));
+            }
+            float toYard = _gateLocal.Length;
+            if (toYard > 9f) LayFlat(new PlaceSpec(PlacePiece.Duckboards, NextSeed(), PlaceSpec.Cm(MathF.Min(9f, toYard - 6f)), PlaceSpec.Cm(1.3f)), _gateLocal + inward * (3f + MathF.Min(9f, toYard - 6f) * 0.5f), YawOf(inward), 4.5f, 0.2f);
+            // Hay by the barn, the midden behind it, and the farmers' tools.
+            for (int k = 0; k < 3; k++) Tries(10, () => PutRound(new PlaceSpec(PlacePiece.Haystack, NextSeed(), PlaceSpec.Cm(r.Range(1.2f, 1.8f))), W(new Vector2(r.Range(-Site.Radius * 0.4f, Site.Radius * 0.4f), -Site.Radius * r.Range(0.3f, 0.5f))), r.Float() * MathF.Tau, 2.1f, Tall, 0.4f, 0.4f));
+            Tries(8, () => PutRound(new PlaceSpec(PlacePiece.Midden, NextSeed(), PlaceSpec.Cm(r.Range(1.6f, 2.2f))), W(new Vector2(r.Range(-Site.Radius * 0.35f, Site.Radius * 0.35f), -Site.Radius * r.Range(0.45f, 0.6f))), r.Float() * MathF.Tau, 2.3f, 1f, 0.3f, 0.45f));
+            Tries(8, () => PutBox(new PlaceSpec(PlacePiece.WeaponRack, NextSeed(), PlaceSpec.Cm(r.Range(2f, 2.6f)), 0), W(new Vector2(r.Range(-8f, 8f), -Site.Radius * r.Range(0.12f, 0.22f))), YawOf(Vector2.UnitY), new Vector2(1.5f, 0.6f), 2f, 0.3f, 0.4f));
+            // Eggs crated for the Institute by the hatching shed, and the Reich's wagon to take them.
+            for (int k = 0; k < 2; k++) Tries(8, () => PutBox(new PlaceSpec(PlacePiece.Crates, NextSeed(), r.Int(2, 4), 1), W(new Vector2(r.Range(-10f, 10f), r.Range(-6f, 6f))), r.Float() * MathF.Tau, new Vector2(1.8f, 1.1f), 1.6f, 0.3f, 0.4f));
+            Tries(10, () => PutBox(new PlaceSpec(PlacePiece.Wagon, NextSeed(), 0, 1, PlaceSpec.Cm(r.Range(3.8f, 4.6f))), W(_gateLocal + inward * r.Range(6f, 9f) + across * ((r.Chance(0.5f) ? 1f : -1f) * r.Range(5f, 8f))), YawOf(-inward) + r.Range(-0.3f, 0.3f), new Vector2(1.6f, 4f), 2.6f, 0.4f, 0.4f));
+            // The handlers' corner.
+            float s = r.Chance(0.5f) ? 1f : -1f;
+            Vector2 corner = new Vector2(s * r.Range(7f, 11f), r.Range(2f, 8f));
+            Tries(8, () => PutBox(new PlaceSpec(PlacePiece.MessTable, NextSeed(), PlaceSpec.Cm(r.Range(2.4f, 3.2f))), W(corner), YawOf(Vector2.UnitX), new Vector2(2.2f, 1.3f), 1.2f, 0.3f, 0.4f));
+            Tries(8, () => PutRound(new PlaceSpec(PlacePiece.Brazier, NextSeed(), PlaceSpec.Cm(r.Range(1f, 1.2f))), W(corner + new Vector2(-s * r.Range(2.5f, 3.5f), r.Range(-1f, 1f))), 0f, 0.8f, 1.4f, 0.3f, 0.4f));
+            Tries(8, () => PutBox(new PlaceSpec(PlacePiece.Firewood, NextSeed(), PlaceSpec.Cm(r.Range(2.4f, 3.4f)), PlaceSpec.Cm(r.Range(1.1f, 1.5f))), W(corner + new Vector2(s * r.Range(2f, 4f), r.Range(2.5f, 4f))), YawOf(Vector2.UnitY), new Vector2(2.2f, 1.4f), 1.6f, 0.3f, 0.4f));
+            for (int k = 0; k < 2; k++) LayFlat(new PlaceSpec(PlacePiece.Puddle, NextSeed(), PlaceSpec.Cm(r.Range(0.8f, 1.4f))), new Vector2(r.Range(-6f, 6f), r.Range(-6f, 6f)), r.Float() * MathF.Tau, 1.2f, 0.15f);
+            Strew(LitterKind.Feathers, new Vector2(r.Range(-6f, 6f), r.Range(-6f, 6f)), 2.2f, r.Int(10, 16));
+            Strew(LitterKind.Straw, new Vector2(r.Range(-4f, 4f), -Site.Radius * 0.35f), 2.8f, r.Int(16, 26));
         }
 
         // The greycoats about the yard, the guards at the way in, the farmers who'll come back once it's free, and the chest in the yard.

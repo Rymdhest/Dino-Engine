@@ -58,6 +58,7 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Places
                 case PlacePiece.EggSac: Nests.EggSac(b, spec, random); break;
                 case PlacePiece.Cocoon: Nests.Cocoon(b, spec, random); break;
                 case PlacePiece.Wrap: Nests.Wrap(b, spec, random); break;
+                case PlacePiece.SilkFloor: Nests.SilkFloor(b, spec, random); break;
 
                 case PlacePiece.Stump: Logging.Stump(b, spec, random); break;
                 case PlacePiece.Log: Logging.Log(b, spec, random); break;
@@ -114,6 +115,53 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Places
                 case PlacePiece.Pennant: SnowWorks.Pennant(b, spec, random); break;
                 case PlacePiece.IceAltar: SnowWorks.IceAltar(b, spec, random, lights); break;
 
+                case PlacePiece.ShrineHall: Shrine.Hall(b, spec, random); break;
+                case PlacePiece.ShrineGate: Shrine.Gate(b, spec, random); break;
+                case PlacePiece.ShrineLantern: Shrine.Lantern(b, spec, random); break;
+                case PlacePiece.Offerings: Shrine.Offerings(b, spec, random); break;
+                case PlacePiece.Basin: Shrine.Basin(b, spec, random); break;
+                case PlacePiece.Bell: Shrine.Bell(b, spec, random); break;
+                case PlacePiece.Ribbons: Shrine.Ribbons(b, spec, random); break;
+                case PlacePiece.Cairns: Shrine.Cairns(b, spec, random); break;
+                case PlacePiece.PrayerLine: Shrine.PrayerLine(b, spec, random); break;
+
+                case PlacePiece.Menhir: Stones.Menhir(b, spec, random, lights); break;
+                case PlacePiece.Trilithon: Stones.Trilithon(b, spec, random); break;
+                case PlacePiece.Barrow: Stones.Barrow(b, spec, random, lights); break;
+                case PlacePiece.Totem: Stones.Totem(b, spec, random, lights); break;
+                case PlacePiece.CultHeart: Stones.CultHeart(b, spec, random, lights); break;
+
+                case PlacePiece.BeaconTower: Beacon.Tower(b, spec, random); break;
+                case PlacePiece.BeaconPyre: Beacon.Pyre(b, spec, random); break;
+                case PlacePiece.SightStone: Beacon.SightStone(b, spec, random); break;
+                case PlacePiece.Horn: Beacon.Horn(b, spec, random); break;
+
+                case PlacePiece.Kennel: Pen.Kennel(b, spec, random); break;
+                case PlacePiece.ButcherBlock: Pen.ButcherBlock(b, spec, random); break;
+                case PlacePiece.BiteDummy: Pen.BiteDummy(b, spec, random); break;
+                case PlacePiece.Midden: Pen.Midden(b, spec, random); break;
+
+                case PlacePiece.Boiler: Works.Boiler(b, spec, random, lights); break;
+                case PlacePiece.Haystack: Works.Haystack(b, spec, random); break;
+                case PlacePiece.MendingNet: Works.MendingNet(b, spec, random); break;
+                case PlacePiece.GuttingTable: Works.GuttingTable(b, spec, random); break;
+                case PlacePiece.Slash: Works.Slash(b, spec, random); break;
+
+                case PlacePiece.Litter: Underfoot.Litter(b, spec, random); break;
+                case PlacePiece.Puddle: Underfoot.Puddle(b, spec, random); break;
+                case PlacePiece.Duckboards: Underfoot.Duckboards(b, spec, random); break;
+
+                case PlacePiece.WeaponRack: Camp.WeaponRack(b, spec, random); break;
+                case PlacePiece.Torch: Camp.Torch(b, spec, random, lights); break;
+                case PlacePiece.Brazier: Camp.Brazier(b, spec, random, lights); break;
+                case PlacePiece.Firewood: Camp.Firewood(b, spec, random); break;
+                case PlacePiece.Wagon: Camp.Wagon(b, spec, random); break;
+                case PlacePiece.Gibbet: Camp.Gibbet(b, spec, random); break;
+                case PlacePiece.Barricade: Camp.Barricade(b, spec, random); break;
+                case PlacePiece.CommandTent: Camp.CommandTent(b, spec, random, lights); break;
+                case PlacePiece.Signpost: Camp.Signpost(b, spec, random); break;
+                case PlacePiece.MessTable: Camp.MessTable(b, spec, random, lights); break;
+
                 case PlacePiece.Crates: Common.Crates(b, spec, random); break;
                 case PlacePiece.Barrels: Common.Barrels(b, spec, random); break;
                 case PlacePiece.Tent: Common.Tent(b, spec, random); break;
@@ -131,14 +179,16 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Places
             PlacePiece.LabHall => Laboratory.ChimneyTops(Math.Clamp(spec.Metres(0), 10f, 26f), Math.Clamp(spec.Metres(1), 8f, 16f)),
             PlacePiece.CharcoalClamp => Logging.VentsOf(Logging.ClampRadius(spec)),
             PlacePiece.Smokehouse => Fishing.SmokeOf(),
+            PlacePiece.Boiler => Works.BoilerSmoke(),
             _ => Array.Empty<Vector3>(),
         };
 
         /// <summary>How long a piece takes to grow, roughly, so the slowest are begun first.</summary>
         public static int Slowness(PlacePiece kind) => kind switch
         {
-            PlacePiece.Hull or PlacePiece.LabHall or PlacePiece.Face or PlacePiece.Fossil => 3,
-            PlacePiece.Mast or PlacePiece.Hatchery or PlacePiece.Cage or PlacePiece.RuinWall or PlacePiece.SnowTower or PlacePiece.Jetty => 2,
+            PlacePiece.Hull or PlacePiece.LabHall or PlacePiece.Face or PlacePiece.Fossil or PlacePiece.BeaconTower or PlacePiece.ShrineHall => 3,
+            PlacePiece.Mast or PlacePiece.Hatchery or PlacePiece.Cage or PlacePiece.RuinWall or PlacePiece.SnowTower or PlacePiece.Jetty or PlacePiece.Barrow or PlacePiece.Kennel
+                or PlacePiece.CommandTent or PlacePiece.Menhir or PlacePiece.Trilithon => 2,
             _ => 1,
         };
     }

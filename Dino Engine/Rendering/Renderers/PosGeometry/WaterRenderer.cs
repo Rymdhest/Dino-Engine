@@ -46,7 +46,9 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
     /// <summary>
     /// The engine's water, in two parts each frame:
     /// 1. <see cref="SimulationPass"/>, at the start of the frame: rebuilds the shore field when the terrain changed
-    ///    (<see cref="WaterShoreField"/>) and steps the ripples things leave in the water (<see cref="WaterRippleSimulation"/>).
+    ///    (<see cref="WaterShoreField"/>), eases what's shown of it towards the newest build, steps the ripples things leave in the water
+    ///    (<see cref="WaterRippleSimulation"/>), and writes the shore's state (ShoreData, UBO 15, Water/ShoreData.glsl) for everything this frame draws:
+    ///    the ground reads it in the geometry pass to draw the swash and the wet sand (SHORE.md), with the maps <see cref="BindShoreMaps"/> binds.
     /// 2. The surface pass, after the deferred lighting: copies the part of the lit scene the water covers, then draws still
     ///    water (Water_Still.frag) and the sea (Water_Ocean.frag) over it, and writes the water's depth back to the G-buffer
     ///    so fog, depth of field and the sun see the surface.
@@ -59,9 +61,24 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
         public const float RippleTileB = 1.7f;
         public const float CausticTile = 2.7f;
         public const float FoamTile = 5f;
-        public const float OpennessRadius = 20f;
+        /// <summary>Metres a tile of the shore's foam spans (WaterTextureBaker.BakeFoam, Water/ShoreFoam.glsl).</summary>
+        public const float ShoreFoamTile = 6f;
+
+        /// <summary>Where the shore's state lives for every shader (Water/ShoreData.glsl's ShoreData).</summary>
+        public const int ShoreUniformBinding = 15;
+        // The units the shore's maps are bound to, for the whole geometry pass and for the sea: past the weather's, the snow's and the shells'.
+        public const int ShoreFieldUnit = 20;
+        public const int ShoreNoiseUnit = 21;
+        public const int ShoreFoamUnit = 22;
+        private const int ShoreUniformBytes = 7 * 16;
+        // Pixels an edge of the water on the beach is softened over, so it never steps.
+        private const float ShoreEdgeSoftness = 1.2f;
+        // A build is put off while the loaded terrain is still changing, but never by more than this many frames.
+        private const int MostFramesStale = 8;
 
         private const int ReflectionSteps = 8;
+        // Metres of depth the sea fades in over round anything standing in it. Over the beach it fades in across Water/ShoreData.glsl's SHORE_SHALLOWS instead,
+        // as the sheet on the ground fades out under it.
         private const float OceanEdgeFade = 0.1f;
 
         // Light limits; array sizes must match WaterCommon.glsl.
@@ -77,9 +94,6 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
         private const int RippleUnit = 3;
         private const int PatternUnit = 4;
         private const int RippleSimulationUnit = 5;
-        private const int ShoreFieldUnit = 6;
-        private const int ShoreOpennessUnit = 7;
-        private const int GNormalUnit = 8;
         private const int CascadeUnitStart = 9;
         private const int TerrainHeightUnit = CascadeUnitStart + MaxCascadeSlots;
         private const int SkyMapUnit = TerrainHeightUnit + 1;
@@ -115,8 +129,18 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
 
         private readonly int _rippleTexture;
         private readonly int _patternTexture;
+        private readonly int _foamTexture;
         private readonly float _causticMean;
         private readonly FrameBuffer _sceneCopy;
+        private readonly int _shoreBuffer;
+        private readonly float[] _shoreData = new float[ShoreUniformBytes / sizeof(float)];
+        // A change of the loaded terrain the field hasn't been built for yet, and for how many frames it's waited.
+        private long _staleSignature = long.MinValue;
+        private int _staleFrames;
+        private int _framesSinceBuild;
+        // The ambient pass's sky and ground light this frame, for foam.
+        private Vector3 _foamSky;
+        private Vector3 _foamGround;
 
         private readonly int _quadBuffer;
         private readonly int _indexBuffer;
@@ -169,13 +193,20 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
                 shader.loadUniformInt("weatherMapA", WeatherMapUnit);
                 for (int i = 0; i < MaxCascadeSlots; i++) shader.loadUniformInt("cascadeShadowMaps[" + i + "]", CascadeUnitStart + i);
             }
-            _oceanShader.loadUniformInt("shoreField", ShoreFieldUnit);
-            _oceanShader.loadUniformInt("shoreOpenness", ShoreOpennessUnit);
-            _oceanShader.loadUniformInt("gNormal", GNormalUnit);
+            _oceanShader.bind();
+            LinkShoreSamplers(_oceanShader);
             _oceanShader.unBind();
 
             _rippleTexture = CreateRippleTexture();
             _patternTexture = CreatePatternTexture(out _causticMean);
+            _foamTexture = CreateFoamTexture();
+
+            // The shore's state, which every shader reading it finds at the same binding: nothing until the first frame says otherwise.
+            _shoreBuffer = GL.GenBuffer();
+            GL.BindBuffer(BufferTarget.UniformBuffer, _shoreBuffer);
+            GL.BufferData(BufferTarget.UniformBuffer, ShoreUniformBytes, _shoreData, BufferUsageHint.DynamicDraw);
+            GL.BindBuffer(BufferTarget.UniformBuffer, 0);
+            GL.BindBufferBase(BufferRangeTarget.UniformBuffer, ShoreUniformBinding, _shoreBuffer);
 
             FrameBufferSettings copySettings = new FrameBufferSettings(Engine.Resolution);
             copySettings.drawBuffers.Add(new DrawBufferSettings(FramebufferAttachment.ColorAttachment0)
@@ -243,6 +274,42 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
             return texture;
         }
 
+        private static int CreateFoamTexture()
+        {
+            byte[] data = WaterTextureBaker.BakeFoam();
+            int texture = GL.GenTexture();
+            GL.BindTexture(TextureTarget.Texture2D, texture);
+            GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba8, WaterTextureBaker.FoamResolution, WaterTextureBaker.FoamResolution,
+                0, PixelFormat.Rgba, PixelType.UnsignedByte, data);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.LinearMipmapLinear);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.Repeat);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Repeat);
+            GL.GenerateMipmap(GenerateMipmapTarget.Texture2D);
+            GL.BindTexture(TextureTarget.Texture2D, 0);
+            return texture;
+        }
+
+        /// <summary>Points a shader's shore samplers (Water/ShoreData.glsl, Water/ShoreFoam.glsl) at the units <see cref="BindShoreMaps"/> fills, for whichever it has. Call with it bound.</summary>
+        public static void LinkShoreSamplers(ShaderProgram shader)
+        {
+            if (shader.HasUniform("shoreField")) shader.loadUniformInt("shoreField", ShoreFieldUnit);
+            if (shader.HasUniform("shoreNoise")) shader.loadUniformInt("shoreNoise", ShoreNoiseUnit);
+            if (shader.HasUniform("shoreFoam")) shader.loadUniformInt("shoreFoam", ShoreFoamUnit);
+        }
+
+        /// <summary>Binds the shore's maps to their units: for the whole of the geometry pass, and again for the sea.</summary>
+        public void BindShoreMaps()
+        {
+            GL.ActiveTexture(TextureUnit.Texture0 + ShoreFieldUnit);
+            GL.BindTexture(TextureTarget.Texture2D, _shoreField.FieldTexture);
+            GL.ActiveTexture(TextureUnit.Texture0 + ShoreNoiseUnit);
+            GL.BindTexture(TextureTarget.Texture2D, _patternTexture);
+            GL.ActiveTexture(TextureUnit.Texture0 + ShoreFoamUnit);
+            GL.BindTexture(TextureTarget.Texture2D, _foamTexture);
+            GL.ActiveTexture(TextureUnit.Texture0);
+        }
+
         private static int CreatePatternTexture(out float causticMean)
         {
             byte[] data = WaterTextureBaker.BakePattern(out causticMean);
@@ -277,7 +344,12 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
         public void SimulationPass(RenderEngine renderEngine)
         {
             _frame = null;
-            if (commands.Count == 0) return;
+            if (commands.Count == 0)
+            {
+                // No water this frame: no sea for anything to read.
+                UploadShore(null);
+                return;
+            }
 
             // Only the newest command is current; older ones pile up when frames skip the render (e.g. the F8 debug view).
             // Their splashes still count.
@@ -296,9 +368,32 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
             SeaLevel = command.settings.SeaLevel;
             if (command.shoreSignature != _shoreField.Signature)
             {
+                // Chunks stream in a few a frame, and each changes what's loaded: build once they've stopped for a frame, or a while has gone by, or at
+                // once when there's nothing to show meanwhile. What's shown eases towards each build, so building later never shows as a jump.
+                if (command.shoreSignature != _staleSignature)
+                {
+                    _staleSignature = command.shoreSignature;
+                    _staleFrames = 0;
+                }
+                else
+                {
+                    _staleFrames++;
+                }
+                bool settled = _staleFrames >= 1;
                 if (command.shoreChunks == null || command.shoreChunks.Length == 0) _shoreField.Invalidate();
-                else _shoreField.Build(command.shoreChunks, command.shoreCorner, command.shoreSize, command.settings.SeaLevel, command.shoreSignature, renderEngine);
+                else if (!_shoreField.Valid || settled || ++_framesSinceBuild >= MostFramesStale)
+                {
+                    WaterShoreField.CheckStability = renderEngine.Lighting.ShoreCheck;
+                    _shoreField.Build(command.shoreChunks, command.shoreCorner, command.shoreSize, command.settings.SeaLevel, command.shoreSignature, command.rippleCenter, renderEngine);
+                    _framesSinceBuild = 0;
+                }
             }
+            else
+            {
+                _framesSinceBuild = 0;
+            }
+            _shoreField.Settle(MathF.Min(command.deltaTime, 0.1f), renderEngine);
+            UploadShore(command);
 
             WaterSingleton settings = command.settings;
             _rippleSimulation.Step(command.rippleCenter, command.rippleRates ?? Array.Empty<WaterContact>(), _impulses, command.deltaTime,
@@ -307,6 +402,42 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
 
             Engine.PerformanceMonitor.finishCPUTask("Water Simulation RENDER");
             Engine.PerformanceMonitor.finishGPUTask("Water Simulation");
+        }
+
+        /// <summary>
+        /// The shore's state for this frame (ShoreData, Water/ShoreData.glsl), for the sea and for the ground and everything standing on it, which reads it in
+        /// the geometry pass: none at all without a command.
+        /// </summary>
+        private void UploadShore(WaterRenderCommand? frame)
+        {
+            Array.Clear(_shoreData);
+            if (frame is WaterRenderCommand command && command.settings.OceanEnabled)
+            {
+                WaterSingleton settings = command.settings;
+                Vector4 region = _shoreField.FieldRegion;
+                float period = MathF.Max(settings.ShoreWavePeriod, 0.5f);
+                Set(0, region);
+                // The phase counts on over the sets, so that every wave of a session has random numbers of its own.
+                Set(1, new Vector4(command.breakerHeight, 1f / MathF.Max(settings.ShoreWaveLength, 0.5f),
+                    settings.ShoreSets * WaterWaves.SetLength + settings.ShorePhase, MathF.Max(settings.RunUp, 0f)));
+                Set(2, new Vector4(MathF.Max(settings.ShoreWaveReach, 1f), Math.Clamp(settings.SetVariation, 0f, 1f), WaterWaves.DeepWaterWavelength(period), period));
+                Set(3, new Vector4(MathF.Max(settings.Foam, 0f), Math.Clamp(settings.WetSandDarkening, 0f, 0.95f), MathF.Max(settings.DryingTime, 0.5f), MathF.Max(settings.FilmTime, 0.1f)));
+                Set(4, new Vector4(settings.SeaLevel, region.Z > 0f ? 1f : 0f, ShoreEdgeSoftness, Engine.RenderEngine?.Lighting.ShoreDebug ?? 0));
+                Set(5, new Vector4(settings.ShoreFoamOffset.X, settings.ShoreFoamOffset.Y, 1f / ShoreFoamTile, _causticMean));
+                Set(6, new Vector4(Math.Clamp(settings.SeaWarmth, 0f, 1f), settings.Salt ? 1f : 0f, 0f, 0f));
+            }
+            GL.BindBuffer(BufferTarget.UniformBuffer, _shoreBuffer);
+            GL.BufferSubData(BufferTarget.UniformBuffer, IntPtr.Zero, ShoreUniformBytes, _shoreData);
+            GL.BindBuffer(BufferTarget.UniformBuffer, 0);
+            GL.BindBufferBase(BufferRangeTarget.UniformBuffer, ShoreUniformBinding, _shoreBuffer);
+        }
+
+        private void Set(int row, Vector4 value)
+        {
+            _shoreData[row * 4] = value.X;
+            _shoreData[row * 4 + 1] = value.Y;
+            _shoreData[row * 4 + 2] = value.Z;
+            _shoreData[row * 4 + 3] = value.W;
         }
 
         // ---------------------------------------------------------------- surface pass
@@ -358,6 +489,8 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
 
             BindSharedTextures(renderEngine);
             PrepareLights(renderEngine);
+            _foamSky = renderEngine._ambientLightRenderer.SkyLight;
+            _foamGround = renderEngine._ambientLightRenderer.GroundLight;
             Vector2 resolution = Engine.Resolution;
             Vector4 sceneRect = new Vector4(
                 (rect.Min.X + 0.5f) / resolution.X, (rect.Min.Y + 0.5f) / resolution.Y,
@@ -482,13 +615,33 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
             shader.loadUniformInt("reflectionSteps", settings.ScreenSpaceReflections ? ReflectionSteps : 0);
             shader.loadUniformVector4f("rippleSimRegion", _rippleSimulation.Region);
             shader.loadUniformFloat("rippleSimStrength", MathF.Max(settings.RippleNormalStrength, 0f));
-            shader.loadUniformVector3f("foamPattern", new Vector3(settings.FoamOffset.X, settings.FoamOffset.Y, 1f / FoamTile));
             shader.loadUniformFloat("bedDarkening", Math.Clamp(settings.WetSandDarkening, 0f, 0.95f));
+            shader.loadUniformVector3f("foamSkyLight", _foamSky);
+            shader.loadUniformVector3f("foamGroundLight", _foamGround);
+            UploadTerrainCapture(shader);
+            UploadLights(shader);
+        }
+
+        // Where the terrain capture is and what its depths mean, for Water/TerrainHeight.glsl.
+        private void UploadTerrainCapture(ShaderProgram shader)
+        {
             bool terrain = _shoreField.Valid;
             shader.loadUniformVector4f("terrainRegion", terrain ? new Vector4(_shoreField.Corner.X, _shoreField.Corner.Y, _shoreField.Size, _shoreField.Size) : Vector4.Zero);
             // The capture draws the bare height map; the visible ground's mesh sits SurfaceOffset above it.
             shader.loadUniformVector2f("terrainHeightRange", new Vector2(_shoreField.CaptureTop + TerrainRenderer.SurfaceOffset, _shoreField.CaptureRange));
-            UploadLights(shader);
+        }
+
+        /// <summary>
+        /// Binds the terrain capture to <paramref name="unit"/> for a shader that includes Water/TerrainHeight.glsl, with where it is: how deep the water is, for what else needs to
+        /// know, as the plants the waves sway do (Wind_Vegetation.frag, SEA.md). It's last frame's until <see cref="SimulationPass"/> has run.
+        /// </summary>
+        public void BindTerrainCapture(ShaderProgram shader, int unit)
+        {
+            GL.ActiveTexture(TextureUnit.Texture0 + unit);
+            GL.BindTexture(TextureTarget.Texture2D, _shoreField.HeightTexture);
+            GL.ActiveTexture(TextureUnit.Texture0);
+            shader.loadUniformInt("terrainHeights", unit);
+            UploadTerrainCapture(shader);
         }
 
         private static void UploadOptics(ShaderProgram shader, WaterOptics optics, float windExposure, float edgeFade)
@@ -503,6 +656,9 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
         {
             _stillShader.bind();
             UploadShared(_stillShader, command, viewProjection, sceneRect);
+            // Only still water's edge foam is the pattern's lace; the sea's is the shore's own (Water/ShoreFoam.glsl).
+            WaterSingleton settings = command.settings;
+            _stillShader.loadUniformVector3f("foamPattern", new Vector3(settings.FoamOffset.X, settings.FoamOffset.Y, 1f / FoamTile));
             GL.BindVertexArray(_stillVao);
             foreach (WaterBodyRenderData data in bodies)
             {
@@ -536,32 +692,19 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
             // lost against the sky, so it reflects only the sky.
             _oceanShader.loadUniformInt("reflectionSteps", 0);
             UploadOptics(_oceanShader, settings.OceanOptics, 1f, OceanEdgeFade);
+            // The ground under the sea is already wet: the ground drew it so (Water/ShoreWet.glsl).
+            _oceanShader.loadUniformFloat("bedDarkening", 0f);
             _oceanShader.loadUniformFloat("surfaceHeight", command.oceanSlab.X);
-            _oceanShader.loadUniformFloat("seaLevel", settings.SeaLevel);
             _oceanShader.loadUniformVector2f("oceanSlab", command.oceanSlab);
-
-            bool shore = _shoreField.Valid;
-            _oceanShader.loadUniformVector4f("shoreRegion", shore ? new Vector4(_shoreField.Corner.X, _shoreField.Corner.Y, _shoreField.Size, _shoreField.Size) : Vector4.Zero);
-            _oceanShader.loadUniformFloat("opennessLod", _shoreField.OpennessLod(OpennessRadius));
-            float period = MathF.Max(settings.ShoreWavePeriod, 0.5f);
-            _oceanShader.loadUniformVector4f("shoreWave", new Vector4(command.breakerHeight, 1f / MathF.Max(settings.ShoreWaveLength, 0.5f),
-                settings.ShorePhase, MathF.Max(settings.RunUp, 0f)));
-            _oceanShader.loadUniformVector4f("shoreShape", new Vector4(MathF.Max(settings.ShoreWaveReach, 1f), Math.Clamp(settings.SetVariation, 0f, 1f),
-                WaterWaves.DeepWaterWavelength(period), period));
             _oceanShader.loadUniformVector4f("swellAmplitudes[0]", command.swellAmplitudesA);
             _oceanShader.loadUniformVector4f("swellAmplitudes[1]", command.swellAmplitudesB);
             _oceanShader.loadUniformVector4f("swellPhases[0]", settings.SwellPhasesA);
             _oceanShader.loadUniformVector4f("swellPhases[1]", settings.SwellPhasesB);
             _oceanShader.loadUniformVector2f("whitecaps", command.whitecaps);
-            _oceanShader.loadUniformVector3f("shoreFoam", new Vector3(MathF.Max(settings.Foam, 0f), Math.Clamp(settings.WetSandDarkening, 0f, 0.95f),
-                MathF.Max(settings.DryingTime, 0.1f)));
 
-            GL.ActiveTexture(TextureUnit.Texture0 + ShoreFieldUnit);
-            GL.BindTexture(TextureTarget.Texture2D, _shoreField.FieldTexture);
-            GL.ActiveTexture(TextureUnit.Texture0 + ShoreOpennessUnit);
-            GL.BindTexture(TextureTarget.Texture2D, _shoreField.OpennessTexture);
-            GL.ActiveTexture(TextureUnit.Texture0 + GNormalUnit);
-            GL.BindTexture(TextureTarget.Texture2D, renderEngine.GBuffer.GetAttachment(1));
+            // The shore's own state is in its uniform block, written at the start of the frame (UploadShore); its maps are where the geometry pass had them,
+            // but the lights have used those units since.
+            BindShoreMaps();
 
             DrawOceanQuads(quads);
         }
@@ -750,6 +893,8 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
             _rippleSimulation.CleanUp();
             GL.DeleteTexture(_rippleTexture);
             GL.DeleteTexture(_patternTexture);
+            GL.DeleteTexture(_foamTexture);
+            GL.DeleteBuffer(_shoreBuffer);
             _sceneCopy.cleanUp();
             GL.DeleteVertexArray(_stillVao);
             GL.DeleteVertexArray(_oceanVao);

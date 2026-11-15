@@ -1021,12 +1021,13 @@ namespace Dino_Defenders.Server
             source.SinceStrike = 0f;
 
             float weight = total / MathF.Max(target.Sheet.MaxHealth, 1f);
-            if (skill.DealsDamage) Show(new DamageEvent { Position = point, Amount = total, Critical = hit.Critical, ToHero = target.IsHero, Body = BodyOf(target), Type = StrongestOf(hit), Target = GhostOf(target), Way = way, Weight = weight }, target.Position);
             Shove(target, skill, way, weight, hit.Critical);
 
             if (hit.Critical) source.SinceCrit = 0f;
             Recover(source, skill, total);
             Afflict(source, skill, target, raw, burnFuel, hit.Total, strength);
+            // Shown after the ailments are rolled, so that it can say whether this blow left its target bleeding: blood is only ever drawn for the Bleeding ailment.
+            if (skill.DealsDamage) Show(new DamageEvent { Position = point, Amount = total, Critical = hit.Critical, ToHero = target.IsHero, Body = BodyOf(target), Type = StrongestOf(hit), Bleeding = target.Afflictions.BleedLeft > 0f, Target = GhostOf(target), Way = way, Weight = weight }, target.Position);
 
             // The hardest a hero's own blow has ever landed, for the Archive. Nothing else's: what fights for them has its own hands.
             if (source.Player is ServerPlayer striker && total > striker.Hero.Records.HardestBlow && source.IsFoeOf(target))
@@ -1252,7 +1253,7 @@ namespace Dino_Defenders.Server
             way = way.LengthSquared > 0.01f ? way.Normalized() : Vector2.UnitY;
 
             Vector3 point = new Vector3(target.Position.X, target.Height + 3.4f, target.Position.Y);
-            Show(new DamageEvent { Position = point, Amount = total, ToHero = target.IsHero, Body = BodyOf(target), Type = type, Target = GhostOf(target), Way = way, Weight = total / MathF.Max(target.Sheet.MaxHealth, 1f) }, target.Position);
+            Show(new DamageEvent { Position = point, Amount = total, ToHero = target.IsHero, Body = BodyOf(target), Type = type, Bleeding = target.Afflictions.BleedLeft > 0f, Target = GhostOf(target), Way = way, Weight = total / MathF.Max(target.Sheet.MaxHealth, 1f) }, target.Position);
 
             Watch(target, BookWhen.Damaged, total / MathF.Max(target.Sheet.MaxHealth, 1f) * 100f);
             Wake(target);

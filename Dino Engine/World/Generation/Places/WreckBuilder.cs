@@ -43,6 +43,7 @@ namespace Dino_Engine.World.Generation.Places
             if (_reich) LeaveCages(Random.Fork("cages"));
             else Wreckers(Random.Fork("wreckers"));
             Driftwood(Random.Fork("driftwood"));
+            Aftermath(Random.Fork("aftermath"));
             Hold(Random.Fork("holders"));
         }
 
@@ -266,6 +267,31 @@ namespace Dino_Engine.World.Generation.Places
         // ---------------------------------------------------------------- Who holds it
 
         // On the Reich's wreck, what got out of its cages; on the land's, the wreckers. The chest is the ship's strongbox, by her stern, or what the wreckers have put by in their camp.
+        // What the wreck left on the beach (PLACES.md): the tide line strewn with shells, bits of her and her cargo, the ship's papers blown from her stern; a Reich ship's crew's last
+        // stand where her cages burst, their arms and their bones about it and the shelter they rigged from a sail; a land ship's wreckers with their wagon loaded and their torches.
+        private void Aftermath(WorldRandom r)
+        {
+            for (float x = -Site.Radius * 0.8f; x < Site.Radius * 0.8f; x += r.Range(5f, 7f)) Strew(LitterKind.Shells, new Vector2(x, -_shore + r.Range(0.5f, 2.5f)), r.Range(1.6f, 2.6f), r.Int(10, 16));
+            Vector2 breakLocal = Plan.ToLocal(_break);
+            Strew(LitterKind.Papers, breakLocal + new Vector2(r.Range(-4f, 4f), r.Range(3f, 6f)), 2.4f, r.Int(5, 9));
+            for (int k = 0; k < 3; k++) Tries(8, () => PutBox(new PlaceSpec(PlacePiece.Cargo, NextSeed(), r.Int(0, 3), r.Int(2, 4), _reich ? 1 : 0), W(breakLocal + new Vector2(r.Range(-12f, 12f), r.Range(4f, 12f))), r.Float() * MathF.Tau, new Vector2(1.8f, 1.4f), 1.4f, 0.3f, 0.4f));
+            if (_reich)
+            {
+                // Where the crew stood when the cages burst: their arms, their bones, and the shelter of sailcloth some lived in after.
+                Strew(LitterKind.Gear, breakLocal + new Vector2(r.Range(-5f, 5f), r.Range(4f, 8f)), 3.6f, r.Int(10, 16));
+                Strew(LitterKind.Bones, breakLocal + new Vector2(r.Range(-6f, 6f), r.Range(6f, 10f)), 2.8f, r.Int(8, 14));
+                Tries(10, () => PutBox(new PlaceSpec(PlacePiece.Shelter, NextSeed(), PlaceSpec.Cm(r.Range(3.6f, 4.6f)), PlaceSpec.Cm(r.Range(2.6f, 3.2f))), W(new Vector2(r.Range(-Site.Radius * 0.6f, Site.Radius * 0.6f), -_shore + r.Range(12f, 18f))), YawOf(Vector2.UnitY), new Vector2(2.6f, 2f), 4.4f, 0.4f, 0.4f));
+                Tries(8, () => PutBox(new PlaceSpec(PlacePiece.Crates, NextSeed(), r.Int(2, 4), 1), W(new Vector2(r.Range(-Site.Radius * 0.6f, Site.Radius * 0.6f), -_shore + r.Range(9f, 14f))), r.Float() * MathF.Tau, new Vector2(1.8f, 1.1f), 1.6f, 0.3f, 0.4f));
+            }
+            else
+            {
+                Tries(10, () => PutBox(new PlaceSpec(PlacePiece.Wagon, NextSeed(), 0, 0, PlaceSpec.Cm(r.Range(3.8f, 4.6f))), W(new Vector2(r.Range(-Site.Radius * 0.5f, Site.Radius * 0.5f), -_shore + r.Range(14f, 20f))), r.Range(-0.6f, 0.6f), new Vector2(1.6f, 4f), 2.6f, 0.4f, 0.4f));
+                for (int k = 0; k < 2; k++) PutRound(new PlaceSpec(PlacePiece.Torch, NextSeed(), PlaceSpec.Cm(r.Range(2.2f, 2.6f)), 0), W(new Vector2(r.Range(-Site.Radius * 0.5f, Site.Radius * 0.5f), -_shore + r.Range(8f, 14f))), 0f, 0.35f, 0f, 0.2f, 0.45f);
+                Tries(8, () => PutBox(new PlaceSpec(PlacePiece.Firewood, NextSeed(), PlaceSpec.Cm(r.Range(2f, 3f)), PlaceSpec.Cm(r.Range(0.9f, 1.3f))), W(new Vector2(r.Range(-Site.Radius * 0.6f, Site.Radius * 0.6f), -_shore + r.Range(12f, 18f))), YawOf(Vector2.UnitY), new Vector2(2f, 1.4f), 1.4f, 0.3f, 0.4f));
+                Strew(LitterKind.Chips, breakLocal + new Vector2(r.Range(-4f, 4f), r.Range(3f, 6f)), 2.4f, r.Int(16, 26));
+            }
+        }
+
         private void Hold(WorldRandom r)
         {
             SpawnRole role = _reich ? SpawnRole.Beast : SpawnRole.Raider;

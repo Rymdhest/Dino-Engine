@@ -1264,9 +1264,12 @@ namespace Dino_NetLab
 
             void Click(in InteractableComponent place, Vector2 at) => seen.Fetch.BeginUse(place.SiteIndex, place.SpawnIndex, at);
 
+            // Nobody trades at the landing, so it's a village's merchant.
+            player.Client.TravelTo(seen.World.Sites.First(s => s.Kind == SiteKind.Village).Position);
+            lab.Run(3);
             if (Find(InteractKind.Merchant, out Vector2 stall) is InteractableComponent merchant)
             {
-                player.Client.TravelTo(seen.World.Sites[0].Position + new Vector2(0f, -24f));
+                player.Client.TravelTo(stall + new Vector2(0f, -24f));
                 lab.Run(1);
                 Vector2 start = truth.Sim.Position;
                 Click(merchant, stall);
@@ -1299,6 +1302,9 @@ namespace Dino_NetLab
                 report.Check("Something that's gone is given up on, with no press", !seen.Fetch.Active && !nothing.Interact);
             }
 
+            // Back to the landing, whose village has gone, for its gate.
+            player.Client.TravelTo(seen.World.Sites[0].Position);
+            lab.Run(3);
             if (Find(InteractKind.Waygate, out Vector2 gate) is InteractableComponent waygate)
             {
                 player.Client.TravelTo(gate + new Vector2(0f, -22f));
@@ -1401,6 +1407,9 @@ namespace Dino_NetLab
                 lab.Run(1);
             }
 
+            // Nobody trades at the landing, so it's a village's merchant.
+            player.Client.TravelTo(session.World.Sites.First(s => s.Kind == SiteKind.Village).Position);
+            lab.Run(3);
             Vector2? merchant = Find(InteractKind.Merchant);
             report.Check("A merchant reaches the client as a ghost", merchant != null);
             if (merchant != null)

@@ -42,6 +42,7 @@ namespace Dino_Engine.World.Generation.Places
             Shore(Random.Fork("shoring"));
             LayBeast(form, length, Random.Fork("beast"));
             Works(Random.Fork("works"));
+            Camping(Random.Fork("camping"));
             Hold(Random.Fork("holders"));
         }
 
@@ -256,6 +257,36 @@ namespace Dino_Engine.World.Generation.Places
         }
 
         // What the Ossuary raised, on the pit's floor and its bench; greycoats at the camp; and the chest by the drawing table.
+        // The Ossuary's camp about the dig as it works by night (PLACES.md): its cold lamps round the rim, the tents of the diggers who aren't dead, the wagon of bone crates for the coast,
+        // the barrows and spades left by the spoil, more of what's come up laid out to be counted, and the ways worn from the camp down the ramp and round the rim.
+        private void Camping(WorldRandom r)
+        {
+            Vector2 across = new Vector2(-_rampWay.Y, _rampWay.X);
+            Trail(_camp, _rampOut, 3f, GroundPaint.Yard, 1.6f);
+            // Its cold lamps at the rim's corners and by the ramp.
+            foreach (Vector2 corner in new[] { new Vector2(-1f, -1f), new Vector2(1f, -1f), new Vector2(-1f, 1f), new Vector2(1f, 1f) })
+            {
+                Vector2 at = corner * (_outerHalf + new Vector2(1.2f));
+                PutRound(new PlaceSpec(PlacePiece.Torch, NextSeed(), PlaceSpec.Cm(r.Range(2.6f, 3f)), 4), W(at), YawOf(-corner), 0.35f, 0f, 0.2f, 0.5f);
+            }
+            foreach (float s in new[] { -1f, 1f }) PutRound(new PlaceSpec(PlacePiece.Torch, NextSeed(), PlaceSpec.Cm(r.Range(2.4f, 2.8f)), 4), W(_rampOut + across * (s * 2.6f) + _rampWay * 1f), 0f, 0.35f, 0f, 0.2f, 0.5f);
+            // The living diggers' tents, and the wagon to take the crates to the coast.
+            for (int k = 0, tries = 0; k < 2 && tries < 14; tries++)
+            {
+                Vector2 at = _camp + across * ((k == 0 ? 1f : -1f) * r.Range(7f, 10f)) + _rampWay * r.Range(0f, 4f);
+                if (PutBox(new PlaceSpec(PlacePiece.Tent, NextSeed(), PlaceSpec.Cm(r.Range(4.2f, 5f)), 1), W(at), YawOf(-across * (k == 0 ? 1f : -1f)), new Vector2(3.8f, 3.4f), 3.4f, 0.4f, 0.4f)) k++;
+            }
+            Tries(10, () => PutBox(new PlaceSpec(PlacePiece.Wagon, NextSeed(), 0, 1, PlaceSpec.Cm(r.Range(3.8f, 4.6f))), W(_camp + _rampWay * r.Range(5f, 8f) + across * r.Range(-4f, 4f)), YawOf(_rampWay) + r.Range(-0.4f, 0.4f), new Vector2(1.6f, 4f), 2.6f, 0.4f, 0.4f));
+            for (int k = 0; k < 2; k++) Tries(8, () => PutBox(new PlaceSpec(PlacePiece.BoneCrates, NextSeed()), W(_camp + across * r.Range(-6f, 6f) + _rampWay * r.Range(2f, 5f)), r.Float() * MathF.Tau, new Vector2(1.6f, 1.2f), 1.4f, 0.3f, 0.4f));
+            Tries(8, () => Structure(StructureCatalog.BoneRows, W(_camp + across * r.Range(-5f, 5f) + _rampWay * r.Range(-1f, 2f)), YawOf(across), 0.3f, 0.4f));
+            for (int k = 0; k < 2; k++) Tries(6, () => Structure(StructureCatalog.Barrow, W(_rampOut + across * ((r.Chance(0.5f) ? 1f : -1f) * r.Range(3.5f, 6f)) + _rampWay * r.Range(0f, 2f)), r.Float() * MathF.Tau, 0.3f));
+            Tries(8, () => PutRound(new PlaceSpec(PlacePiece.Brazier, NextSeed(), PlaceSpec.Cm(r.Range(1f, 1.2f))), W(_camp + across * r.Range(-3f, 3f) + _rampWay * r.Range(3f, 5f)), 0f, 0.8f, 1.4f, 0.3f, 0.4f));
+            // What lies about: spoil off the barrows, bones by the crates, the drawing table's papers.
+            Strew(LitterKind.Bones, _camp + _rampWay * 2f, 2.6f, r.Int(8, 14));
+            Strew(LitterKind.Papers, _camp + across * r.Range(-3f, 3f), 2f, r.Int(5, 8));
+            for (int k = 0; k < 3; k++) Strew(LitterKind.Spalls, new Vector2((_outerHalf.X + 2f) * (r.Chance(0.5f) ? 1f : -1f), r.Range(-_outerHalf.Y, _outerHalf.Y)), 2f, r.Int(10, 16), PlaceMaterials.StoneOf(World.Geology));
+        }
+
         private void Hold(WorldRandom r)
         {
             var floor = new List<Vector2>();

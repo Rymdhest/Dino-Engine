@@ -165,6 +165,22 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
             AddFace(first, first + 1, first + 2);
         }
 
+        /// <summary>
+        /// A triangle whose corners' places in the texture are given, in metres, for a surface laid out as a whole rather than face by face, as a lathe's texture runs on round it
+        /// from one face to the next. <paramref name="ea"/> to <paramref name="ec"/> are each corner's metres to the surface's own edges, where its relief comes up to nothing
+        /// (<see cref="Vertex.NoEdges"/> where it has none). Wound as given.
+        /// </summary>
+        public void MappedTriangle(Vector3 a, Vector3 b, Vector3 c, VertexMaterial material, Vector2 ma, Vector2 mb, Vector2 mc, Vector4 ea, Vector4 eb, Vector4 ec)
+        {
+            float tiles = TilesFor(material);
+            float scale = MathF.Cbrt(MathF.Abs(Stretch.X * Stretch.Y * Stretch.Z));
+            int first = _vertices.Count;
+            AddPlaced(Transform(a), material, ma * tiles, ea * scale);
+            AddPlaced(Transform(b), material, mb * tiles, eb * scale);
+            AddPlaced(Transform(c), material, mc * tiles, ec * scale);
+            AddFace(first, first + 1, first + 2);
+        }
+
         public void Triangle(Vector3 a, Vector3 b, Vector3 c, VertexMaterial material)
         {
             Vector3 along = b - a;

@@ -17,6 +17,8 @@ namespace Dino_Engine.World
 
         public float HeightAt(float x, float z) => World.Height.SampleCubic(x, z);
 
+        public float LieAt(float x, float z) => World.DrawnGroundAt(x, z);
+
         public bool LookAround(Vector2 centre, float reach)
         {
             _near.Clear();

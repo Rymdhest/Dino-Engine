@@ -32,7 +32,11 @@ namespace Dino_Engine.World.Generation
             {
                 // A churchyard's shape is worked out from the same fork its builder will have, so that a road ending there stops at its wall (CHURCHYARD.md).
                 if (site.Kind == SiteKind.Graveyard) ChurchyardBuilder.EndRoadsAtWall(world, site.Yard = ChurchyardBuilder.PlanOf(world, site, random.Fork(site.Id)));
-                if (site.Kind is SiteKind.Shrine or SiteKind.StandingStones) EndRoadsShortOf(world, site.Position, StructureCatalog.Altar.HalfExtents.X + AltarForecourt);
+                // A shrine's road stops at its gateway, a ring of stones' at the end of its avenue, a watchtower's at the foot of its yard and a pen's at its gate (PLACES.md), as
+                // each is laid out by a builder of its own that puts its way in where the road comes.
+                if (site.Kind == SiteKind.Shrine) EndRoadsShortOf(world, site.Position, site.Radius * 0.85f);
+                if (site.Kind is SiteKind.StandingStones or SiteKind.Watchtower) EndRoadsShortOf(world, site.Position, site.Radius * 0.88f);
+                if (site.Kind == SiteKind.BanditCamp) EndRoadsShortOf(world, site.Position, site.Radius * 0.86f);
                 if (site.Kind == SiteKind.Waygate) EndRoadsShortOf(world, site.Position, StructureCatalog.Waygate.HalfExtents.Y + AltarForecourt);
                 if (site.Kind == SiteKind.Keep) EndRoadsShortOf(world, site.Position, site.Radius * KeepRoadEnd);
                 // A walled place with a story of its own (PLACES.md) is come into by its gate, which its builder puts where the road comes: the road stops there, and at a quarry's mouth.
@@ -63,11 +67,11 @@ namespace Dino_Engine.World.Generation
                         break;
                     case SiteKind.FishingHamlet: Places.FishingBuilder.Build(builder); break;
                     case SiteKind.LumberCamp: Places.LoggingBuilder.Build(builder); break;
-                    case SiteKind.Shrine: BuildShrine(builder); break;
-                    case SiteKind.StandingStones: BuildStandingStones(builder); break;
-                    case SiteKind.Watchtower: BuildWatchtower(builder); break;
+                    case SiteKind.Shrine: Places.ShrineBuilder.Build(builder); break;
+                    case SiteKind.StandingStones: Places.StonesBuilder.Build(builder); break;
+                    case SiteKind.Watchtower: Places.TowerBuilder.Build(builder); break;
                     case SiteKind.Ruins: Places.RuinsBuilder.Build(builder); break;
-                    case SiteKind.BanditCamp: BuildBanditCamp(builder); break;
+                    case SiteKind.BanditCamp: Places.PenBuilder.Build(builder); break;
                     case SiteKind.Graveyard: ChurchyardBuilder.Build(builder); break;
                     case SiteKind.Keep: BuildKeep(builder); break;
                     case SiteKind.Waygate: BuildWaygate(builder); break;
@@ -145,7 +149,7 @@ namespace Dino_Engine.World.Generation
             b.Place(StructureCatalog.Campfire, b.Centre + side * 6f + toRoad * 5f, 0f, padding: 0.5f);
             b.Scatter(StructureCatalog.Crates, camp, 7f);
             b.Scatter(StructureCatalog.Barrels, camp, 7f);
-            b.Spawn(SpawnRole.Merchant, b.Centre + side * 6.5f - toRoad * 1f);
+            // Nobody trades at the landing: a land's people are found in its villages, and the Haven has its own merchants.
         }
 
         private static void BuildVillage(SiteBuilder b, int houses, int fields)
@@ -886,82 +890,6 @@ namespace Dino_Engine.World.Generation
             }
         }
 
-        private static void BuildShrine(SiteBuilder b)
-        {
-            Vector2 toRoad = b.Site.RoadDirection;
-            Vector2 side = new Vector2(-toRoad.Y, toRoad.X);
-            b.Paint(GroundPaint.Plaza, Footprint.Circle(b.Centre, b.Site.Radius * 0.34f), 7f);
-
-            b.PlaceNear(StructureCatalog.Altar, b.Centre, YawFacing(toRoad), b.Site.Radius * EssentialReach, out Vector2 altar, padding: 0.5f);
-            b.Spawn(SpawnRole.Altar, altar + toRoad * 3f);
-            b.Place(StructureCatalog.GateArch, b.Centre + toRoad * (b.Site.Radius * 0.72f), YawFacing(toRoad), padding: 0.2f);
-            for (int i = -1; i <= 1; i += 2)
-            {
-                b.Place(StructureCatalog.StoneLantern, altar + side * (i * 4.6f) + toRoad * 2.2f, 0f, padding: 0.2f);
-            }
-
-            // The Reich put it out, and keeps it out.
-            b.SpawnAround(SpawnRole.Raider, b.Centre + toRoad * 5f, b.Site.Radius * 0.7f, b.Random.Int(3, 4));
-            SpawnChest(b, altar - toRoad * 3.2f, 3f);
-        }
-
-        private static void BuildStandingStones(SiteBuilder b)
-        {
-            int stones = b.Random.Int(5, 9);
-            float radius = b.Site.Radius * 0.72f;
-            float start = b.Random.Float() * MathF.Tau;
-            for (int i = 0; i < stones; i++)
-            {
-                float angle = start + i * (MathF.Tau / stones);
-                b.Place(StructureCatalog.Monolith, b.Centre + Direction(angle) * radius, b.Random.Float() * MathF.Tau, b.Random.Range(0.85f, 1.3f), padding: 0.2f);
-            }
-            b.PlaceNear(StructureCatalog.Altar, b.Centre, b.Random.Float() * MathF.Tau, b.Site.Radius * EssentialReach, out Vector2 altar, padding: 0.3f);
-            b.Spawn(SpawnRole.Altar, altar + b.Site.RoadDirection * 3f);
-
-            // The old stones belong to whatever power the land has, and its cult keeps them.
-            b.SpawnAround(SpawnRole.Cultist, b.Centre, radius, b.Random.Int(3, 4));
-            SpawnChest(b, b.Centre - b.Site.RoadDirection * 3f, 3f);
-        }
-
-        private static void BuildWatchtower(SiteBuilder b)
-        {
-            Vector2 toRoad = b.Site.RoadDirection;
-            b.Place(StructureCatalog.WatchTower, b.Centre, YawFacing(toRoad), padding: 0.5f);
-            b.Place(StructureCatalog.Campfire, b.Centre + toRoad * 8f, 0f, padding: 0.3f);
-            b.Scatter(StructureCatalog.Barrels, b.Centre, b.Site.Radius);
-            b.SpawnAround(SpawnRole.Guard, b.Centre + toRoad * 7f, 5f, b.Random.Int(2, 3));
-            SpawnChest(b, b.Centre - toRoad * 7f, 3f);
-        }
-
-        private static void BuildBanditCamp(SiteBuilder b)
-        {
-            WorldSite site = b.Site;
-            Vector2 toRoad = site.RoadDirection;
-            b.Paint(GroundPaint.Yard, Footprint.Circle(b.Centre, site.Radius * 0.62f), 12f);
-            b.Ring(FenceUse.Pen, site.Radius, b.Random.Int(9, 13), toRoad, 8f, gateOnEdge: true);
-
-            b.Place(StructureCatalog.Campfire, b.Centre, 0f);
-            Vector2 side = new Vector2(-toRoad.Y, toRoad.X);
-            b.Place(StructureCatalog.GuardTower, b.Centre + toRoad * (site.Radius * 0.62f) + side * 9f, YawFacing(toRoad), padding: 0.5f);
-
-            int tents = b.Random.Int(3, 5);
-            for (int i = 0; i < tents; i++)
-            {
-                float angle = i * (MathF.Tau / tents) + b.Random.Range(-0.3f, 0.3f);
-                Vector2 spot = b.Centre + Direction(angle) * site.Radius * 0.58f;
-                b.Place(i == 0 ? StructureCatalog.LargeTent : StructureCatalog.Tent, spot, YawFacing(b.Centre - spot), padding: 0.6f);
-            }
-            for (int i = 0; i < 4; i++)
-            {
-                b.Scatter(StructureCatalog.Crates, b.Centre, site.Radius * 0.75f);
-                b.Scatter(StructureCatalog.Barrels, b.Centre, site.Radius * 0.75f);
-            }
-
-            b.SpawnAround(SpawnRole.Raider, b.Centre, site.Radius * 0.6f, b.Random.Int(3, 6));
-            b.SpawnAround(SpawnRole.Guard, b.Centre + toRoad * site.Radius * 0.8f, 5f, 2);
-            SpawnChest(b, b.Centre - toRoad * site.Radius * 0.42f, 3f);
-        }
-
         // A road that goes no further than here stops short of what stands in its middle, not at the middle of the ground it would stand on.
         private static void EndRoadsShortOf(WorldData world, Vector2 centre, float reach)
         {
@@ -1146,12 +1074,9 @@ namespace Dino_Engine.World.Generation
                     case SiteKind.Village when b.Style is not (BuildingStyle.Adobe or BuildingStyle.Stilt or BuildingStyle.Eastern) && own.Chance(0.6f):
                         RaiseWindmill(b);
                         break;
+                    // A ring of stones' barrow and a pen's cages and banners are their builders' own now (PLACES.md).
                     case SiteKind.Ruins when own.Chance(0.45f):
-                    case SiteKind.StandingStones when own.Chance(0.4f):
                         OpenDig(b);
-                        break;
-                    case SiteKind.BanditCamp:
-                        DressPen(b);
                         break;
                     case SiteKind.Keep:
                         FlyBanners(b, b.Centre + site.RoadDirection * (site.Radius * 0.86f + 3.5f), site.RoadDirection, 9f);
@@ -1226,33 +1151,6 @@ namespace Dino_Engine.World.Generation
                 if (!PlaceClear(b, StructureCatalog.BoneRows, beside, yaw, padding: 0.4f)) PlaceClear(b, StructureCatalog.BoneRows, spot - across * (StructureCatalog.Dig.HalfExtents.Y + StructureCatalog.BoneRows.HalfExtents.Y + 1.6f), yaw, padding: 0.4f);
                 return;
             }
-        }
-
-        // A brood's pen (LORE.md): cages round the inside of its fence facing the fire, troughs and a rack of meat between them, and its banners at the gate.
-        private static void DressPen(SiteBuilder b)
-        {
-            WorldSite site = b.Site;
-            Vector2 toRoad = site.RoadDirection;
-            float start = MathF.Atan2(toRoad.Y, toRoad.X);
-            int cages = b.Random.Int(2, 3);
-            for (int i = 0; i < cages; i++)
-            {
-                // Round the back of the pen, away from the gate.
-                float angle = start + MathF.PI + (i - (cages - 1) * 0.5f) * 0.95f;
-                for (int attempt = 0; attempt < 4; attempt++)
-                {
-                    Vector2 spot = site.Position + Direction(angle + b.Random.Range(-0.15f, 0.15f)) * site.Radius * b.Random.Range(0.55f, 0.72f);
-                    if (PlaceClear(b, StructureCatalog.Cage, spot, YawFacing(site.Position - spot))) break;
-                }
-            }
-            for (int i = 0; i < 2; i++)
-            {
-                Vector2 spot = site.Position + Direction(start + MathF.PI * (i == 0 ? 0.5f : 1.5f) + b.Random.Range(-0.3f, 0.3f)) * site.Radius * b.Random.Range(0.4f, 0.6f);
-                PlaceClear(b, StructureCatalog.FeedTrough, spot, YawFacing(site.Position - spot), padding: 0.4f);
-            }
-            Vector2 rack = site.Position + Direction(start + MathF.PI * 0.75f + b.Random.Range(-0.3f, 0.3f)) * site.Radius * 0.5f;
-            PlaceClear(b, StructureCatalog.MeatRack, rack, YawFacing(site.Position - rack), padding: 0.4f);
-            FlyBanners(b, site.Position + toRoad * (site.Radius + 2.5f), toRoad, 5f);
         }
 
         // A pair of the Reich's banners either side of a way in, outside it, facing whoever comes up the road: both or neither, as one alone reads as one lost.

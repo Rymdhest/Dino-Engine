@@ -59,6 +59,16 @@ much of that it does and what kind, and the light passes take it from there, so 
 - **Frost** sends back what gets into it mostly on the way it was going (`sssFrostLight`): a half-space of bright grains each scattering once, Lommel and
   Seeliger's law with the canopy's forward-leaning phase, so a snowfield shines brighter looking towards the sun than away from it, and brightest where the light
   comes in low. It's what the old translucency was standing in for on snow, by accident: real snow's reflectance leans forward.
+- None of that shows from the game's camera, which a person found looking at the snow castle: the sun is mostly behind it, a forward lean there is only a
+  little more white, and a flat field has no terminator to carry light past. What does show is where the light that's gone into **frost** comes out, round
+  about where it went in and bluer the further it went, as ice takes red with every centimetre (Ambient_Light.frag). The edge of a shadow on snow runs blue
+  into the shadow, and lit snow beside it gives up a little of its blue: the sun's diffuse light on snow is the screen's sun shadow round it (`frostDiffusedSun`),
+  sixteen taps on a fixed golden-angle spiral, weighted by how far each is from the pixel in the world, in a Gaussian for each colour as wide as frost's `Reach`
+  times the amount (0.11, 0.2 and 0.32 m for settled snow, three to ten pixels from 33 m up), so nothing runs across the edge of what stands in front. Where every
+  tap has the same sun as the pixel, most of a field, it stops after the shadow reads, with the answer it would have had. The highlight keeps the sharp shadow
+  (`lightSurfaceSplit`). And a hollow, a footprint or the joint between two blocks is blue where it's dark: the occlusion's bounces see snow's albedo with red
+  taken out by how far each colour reaches (`frostHollowAlbedo`), as what lights a hollow has come further through the snow. Nothing is random, and
+  nothing is kept from frame to frame.
 - Thin things also let through the light from all round that reaches their backs (`sssAmbientThin`): the sky and ground behind them, or what global
   illumination gathered from that half of the world (`giIrradiance`'s `behind`). In the shade and under cloud it's most of what makes foliage glow.
 
@@ -128,8 +138,8 @@ it went through, as Unity's HDRP and Unreal measure thick transmission, after Ji
 `SubsurfaceSettings` (`RenderEngine.Subsurface`): a profile for each kind, sent to the shaders once a frame as the `SubsurfaceData` block, binding 14
 (`SubsurfaceProfiles`, the block in `Lighting/lightingCalc.glsl`: four rows a kind and the switches, change both together). F3's Render window has a foldout for
 it, and a scripted run takes `--render sss=0` (all of it off), `sssthick=0` (the flesh map off, and with it the sun through flesh), `sssdebug=1` (each surface's kind
-and amount in place of the scene: sheets blue, canopies green, flesh red, frost cyan) and `sssdebug=2` (what of the sun gets through flesh, white where all of it
-would), and `canopy.direct=1.8`, `flesh.reach=0.07`, `sheet.colour=1:0.9:0.8` and the like for any profile's numbers (`SubsurfaceSettings.Set`). A debug picture still
+and amount in place of the scene: sheets blue, canopies green, flesh red, frost cyan), `sssdebug=2` (what of the sun gets through flesh, white where all of it
+would) and `sssdebug=3` (what snow carries of the sun into its shadows, blue where it gains and red where it gives, over its own sun in grey), and `canopy.direct=1.8`, `flesh.reach=0.07`, `sheet.colour=1:0.9:0.8` and the like for any profile's numbers (`SubsurfaceSettings.Set`). A debug picture still
 has whatever comes after the ambient pass laid over it: lamps, reflections and fog.
 
 ## Performance
@@ -141,13 +151,16 @@ light through every leaf and blade, 0.07 to 0.11 ms. The first version cost twic
 a field, found by putting the old shaders back one at a time; the rest was a kind's profile read by an index that differs from pixel to pixel, a load per pixel
 for every lamp, which is why `sssProfileOf` reads each row at an index it knows. `--render sss=0` turns it all off.
 
+Snow carrying the sun into its shadows costs 0.08 ms of the ambient pass with the snow castle filling the screen (0.63 against 0.55, `--weather clear`, three runs
+of the old against three of the new), within the GPU total's noise; without the early stop where every tap agrees it was about twice that.
+
 ## Checks
 
 After any change here run the black test (`--render sun=0,sky=0,lights=0,emission=0`), look with and without it (`--render sss=0`) at a backlit wood (the Haven at
 `--hour 17` is lit from the north, against the camera, and at noon from the south), at creatures (`--haven true --hour 17 --parade
 war-raptor,hornback,strider,reaper,domehead`), and at them close and low as well (`--parade hornback,clubtail,war-raptor --look 18 --angle 40` at noon, at 17 and in
 `--weather rain`, with `sssdebug=2`), as the striped flanks were all but invisible from 33 m up and plain to anyone who zoomed in on a giant, at snow (`--seed 2
---archetype highlands --biome snow`, and the Haven with `--weather snow`), and at the Haven's cloth, and `--perf` in a wood and at a parade against the build before,
+--archetype highlands --site SnowCastle --weather clear`, with `sssdebug=3`, and the Haven with `--weather snow`), and at the Haven's cloth, and `--perf` in a wood and at a parade against the build before,
 with `--meshseed` and `--wind 0:0:0` so two builds grow and move the same.
 
 The main menu's camera stands low and looks across its meadow, where light comes through blades and petals further than it ever can from the game's camera,

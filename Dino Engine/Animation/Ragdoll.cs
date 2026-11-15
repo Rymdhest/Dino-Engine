@@ -446,7 +446,7 @@ namespace Dino_Engine.Animation
                 if (!_plan.Used[i]) continue;
                 if (solids) Stop(ground, i);
                 ref Vector3 at = ref _at[i];
-                float floor = ground.HeightAt(at.X, at.Z) + _plan.Radius[i] * _scale;
+                float floor = ground.LieAt(at.X, at.Z) + _plan.Radius[i] * _scale;
                 if (at.Y >= floor) continue;
 
                 float depth = floor - at.Y;

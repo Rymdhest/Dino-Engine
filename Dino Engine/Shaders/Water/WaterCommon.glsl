@@ -18,6 +18,7 @@
 #include Weather/SurfaceMap.glsl
 #include Weather/Sky.glsl
 #include Weather/Sun_Visibility.glsl
+#include Water/TerrainHeight.glsl
 
 uniform sampler2D rainRipples;
 
@@ -40,6 +41,9 @@ const int WATER_MAX_SPOT_LIGHTS = 8;
 
 uniform sampler2D sceneColour;
 uniform sampler2D sceneDepth;
+// The ambient pass's light from the sky above and the ground round about (AmbientLightRenderer), for foam, which lies low among both.
+uniform vec3 foamSkyLight;
+uniform vec3 foamGroundLight;
 uniform sampler2D windMap;
 uniform sampler3D rippleTexture;
 uniform sampler2D patternTexture;
@@ -61,13 +65,6 @@ uniform int reflectionSteps;
 // Ripples from things moving through the water: xy world corner, zw size of the simulated area (z = 0: none).
 uniform vec4 rippleSimRegion;
 uniform float rippleSimStrength;
-// Foam lace: xy pattern offset (tiles), z 1 / tile size (1/m).
-uniform vec3 foamPattern;
-// The terrain mesh seen from above (WaterShoreField's capture): xy world corner, zw size (z = 0: none); x world height
-// at depth 0, y metres the depth covers.
-uniform sampler2D terrainHeights;
-uniform vec4 terrainRegion;
-uniform vec2 terrainHeightRange;
 
 // The surface being drawn.
 uniform vec3 absorption;
@@ -218,15 +215,6 @@ vec2 waterInteractionSlope(vec2 xz)
     return textureLod(rippleSimulation, uv, 0.0).zw * rippleSimStrength + rain;
 }
 
-// Foam lace coverage 0..1 for an amount of foam: little foam shows only the strongest strands of the lace, a lot covers it.
-float waterFoamCoverage(float amount, vec2 xz, float lod)
-{
-    if (amount <= 1e-3) return 0.0;
-    float pattern = textureLod(patternTexture, xz * foamPattern.z + foamPattern.xy, lod).r;
-    float threshold = 1.0 - clamp(amount, 0.0, 1.0);
-    return smoothstep(threshold, threshold + 0.25, pattern) * clamp(amount * 3.0, 0.0, 1.0);
-}
-
 // Caustic intensity on the bottom (mean 1): two drifting layers crossed with min(), the way light focused by one set
 // of waves is broken up by another.
 float waterCaustics(vec2 xz, float lod)
@@ -238,21 +226,6 @@ float waterCaustics(vec2 xz, float lod)
 }
 
 // ---------------------------------------------------------------- what lies beneath
-
-// Height of the terrain's mesh at xz, false where none was captured. Water decides where it stands from this, not from
-// the depth buffer: parallax mapping draws the ground up to half a metre below its mesh, and water filling those dips
-// would spread far beyond the shoreline (and over the whole of a shallow puddle's outline).
-bool waterTerrainHeight(vec2 xz, out float height)
-{
-    height = -1e4;
-    if (terrainRegion.z <= 0.0) return false;
-    vec2 uv = (xz - terrainRegion.xy) / terrainRegion.zw;
-    if (any(lessThan(uv, vec2(0.0))) || any(greaterThan(uv, vec2(1.0)))) return false;
-    float depth = textureLod(terrainHeights, uv, 0.0).r;
-    if (depth >= 1.0) return false;
-    height = terrainHeightRange.x - depth * terrainHeightRange.y;
-    return true;
-}
 
 struct WaterBed
 {
@@ -360,13 +333,14 @@ struct WaterShading
     vec3 foam;   // foam on this surface, lit
 };
 
-// Adds one light: its glint, the light it sends into the water to scatter back out, and its light on foam.
-void waterAddLight(vec3 N, vec3 V, vec3 L, vec3 radiance, float roughness, float viewCosine, vec3 extinction, float path,
+// Adds one light: its glint, the light it sends into the water to scatter back out, and its light on foam, whose froth has a normal of its own (F).
+void waterAddLight(vec3 N, vec3 F, vec3 V, vec3 L, vec3 radiance, float roughness, float viewCosine, vec3 extinction, float path,
                    inout vec3 specular, inout vec3 inScattered, inout vec3 foamLight)
 {
     specular += waterSpecular(N, V, L, roughness, radiance);
+    // Foam scatters light round into its own shade a little, as anything made of bubbles does.
+    foamLight += radiance * (max(dot(F, L) * 0.8 + 0.2, 0.0) / WATER_PI);
     float NdotL = max(dot(N, L), 0.0);
-    foamLight += radiance * (NdotL / WATER_PI);
     if (NdotL <= 0.0) return;
     // Light entering the water reaches depth z after z / lightCosine metres; seen along the view ray at distance s it
     // has come s * (1 + viewCosine / lightCosine) metres in all. Integrated over the view path in closed form.
@@ -377,8 +351,8 @@ void waterAddLight(vec3 N, vec3 V, vec3 L, vec3 radiance, float roughness, float
 
 // The water surface at `position` with normal N, seen from direction V (towards the camera), over `bed`.
 // alphaSquared is the GGX roughness, causticModulation the factor - 1 the bottom is brightened by in direct light,
-// extraScattering particles stirred up in the water on top of its own scattering (per metre).
-WaterShading waterShade(vec3 position, vec3 N, float alphaSquared, vec3 V, WaterBed bed, float causticModulation, vec3 extraScattering)
+// extraScattering particles stirred up in the water on top of its own scattering (per metre), foamNormal the froth's own.
+WaterShading waterShade(vec3 position, vec3 N, float alphaSquared, vec3 V, WaterBed bed, float causticModulation, vec3 extraScattering, vec3 foamNormal)
 {
     float NdotV = max(dot(N, V), 1e-4);
     float fresnel = waterFresnel(NdotV);
@@ -391,7 +365,9 @@ WaterShading waterShade(vec3 position, vec3 N, float alphaSquared, vec3 V, Water
 
     vec3 specular = vec3(0.0);
     vec3 inScattered = vec3(0.0);
-    vec3 foamLight = skyColour * WATER_SKY_AMBIENT;
+    // Foam is a heap of bubbles lying low on the water: it takes in light from the shore and the sea round about as well as the sky, or in shade it goes the
+    // sky's blue.
+    vec3 foamLight = mix(foamGroundLight, foamSkyLight, 0.5 + 0.35 * clamp(foamNormal.y, 0.0, 1.0));
     float sunVisibility = 0.0;
 
     for (int l = 0; l < directionalLightCount; l++)
@@ -399,7 +375,7 @@ WaterShading waterShade(vec3 position, vec3 N, float alphaSquared, vec3 V, Water
         float visibility = waterDirectionalShadow(l, position);
         if (l == 0) sunVisibility = visibility;
         if (visibility <= 0.0) continue;
-        waterAddLight(N, V, directionalDirections[l], directionalColours[l] * visibility, roughness, viewCosine, extinction, path,
+        waterAddLight(N, foamNormal, V, directionalDirections[l], directionalColours[l] * visibility, roughness, viewCosine, extinction, path,
                       specular, inScattered, foamLight);
     }
     for (int l = 0; l < pointLightCount; l++)
@@ -409,7 +385,7 @@ WaterShading waterShade(vec3 position, vec3 N, float alphaSquared, vec3 V, Water
         if (distanceSquared >= pointPositionRadius[l].w * pointPositionRadius[l].w) continue;
         float attenuation = lightFalloff(sqrt(distanceSquared), pointPositionRadius[l].w);
         if (attenuation <= 0.0) continue;
-        waterAddLight(N, V, toLight * inversesqrt(max(distanceSquared, 1e-8)), pointColour[l].rgb * attenuation, roughness, viewCosine,
+        waterAddLight(N, foamNormal, V, toLight * inversesqrt(max(distanceSquared, 1e-8)), pointColour[l].rgb * attenuation, roughness, viewCosine,
                       extinction, path, specular, inScattered, foamLight);
     }
     for (int l = 0; l < spotLightCount; l++)
@@ -422,7 +398,7 @@ WaterShading waterShade(vec3 position, vec3 N, float alphaSquared, vec3 V, Water
         if (cone <= 0.0) continue;
         float attenuation = lightFalloff(sqrt(distanceSquared), spotPositionRadius[l].w);
         if (attenuation <= 0.0) continue;
-        waterAddLight(N, V, L, spotColour[l].rgb * (cone * attenuation), roughness, viewCosine, extinction, path,
+        waterAddLight(N, foamNormal, V, L, spotColour[l].rgb * (cone * attenuation), roughness, viewCosine, extinction, path,
                       specular, inScattered, foamLight);
     }
 

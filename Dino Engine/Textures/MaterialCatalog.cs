@@ -71,7 +71,7 @@ namespace Dino_Engine.Textures
         public static readonly MaterialSpec Soil = Add("soil", 3f, 0.05f, 0.8f);
         public static readonly MaterialSpec Grass = Add("grass", 3f, 0.045f, 0.35f, SubsurfaceKind.Canopy);
         public static readonly MaterialSpec GrassySoil = Add("grassy-soil", 3f, 0.05f, 0.7f, SubsurfaceKind.Canopy);
-        public static readonly MaterialSpec Sand = Add("sand", 2.4f, 0.03f, 0.9f);
+        public static readonly MaterialSpec Sand = Add("sand", 2.4f, 0.045f, 0.9f);
         public static readonly MaterialSpec SandDunes = Add("sand-dunes", 8f, 0.12f, 0.85f);
         public static readonly MaterialSpec CrackedDesert = Add("cracked-earth", 4f, 0.06f, 0.85f);
         public static readonly MaterialSpec CrackedLava = Add("ash", 4f, 0.08f, 0.6f);

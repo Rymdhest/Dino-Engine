@@ -141,7 +141,8 @@ namespace Dino_Engine.ECS.Systems
         {
             public ScalarField? Height;
 
-            public float HeightAt(float x, float z) => Height?.Sample(x, z) ?? 0f;
+            // The ground as it's drawn, as what lands on it, a spark or a drop of blood, lies on what's seen; on the height map it's under the relief.
+            public float HeightAt(float x, float z) => Height == null ? 0f : WorldData.DrawnGround(Height, x, z);
         }
     }
 }

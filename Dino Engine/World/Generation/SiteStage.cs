@@ -104,6 +104,19 @@ namespace Dino_Engine.World.Generation
                         AddSite(world, definition, pick, again);
                     }
                 }
+
+                // A shrine, a ring of stones or a watchtower that still finds no room looks again at about the size it was before it was given its forecourt, avenue or yard, and
+                // goes down at that size, its builder drawing what it lays out in to fit, rather than the land going without (SiteDefinition.Squeezes). Its own fork, as above.
+                if (definition.Squeezes)
+                {
+                    WorldRandom squeezed = kindRandom.Fork("squeezed");
+                    SiteDefinition smallest = definition.Squeezed();
+                    for (int have = world.Sites.Count(s => s.Kind == definition.Kind); have < definition.Limits.Min; have++)
+                    {
+                        if (!TryPick(world, smallest, candidates, squeezed, out Candidate pick)) break;
+                        AddSite(world, definition, pick, squeezed, smallest.Radius.Min);
+                    }
+                }
             }
 
             MakeEnough(world, candidates, random.Fork("enough"));
@@ -554,16 +567,17 @@ namespace Dino_Engine.World.Generation
             return MathF.Max(interest + 1.5f, 0.01f);
         }
 
-        private static void AddSite(WorldData world, SiteDefinition definition, Candidate candidate, WorldRandom random)
+        private static void AddSite(WorldData world, SiteDefinition definition, Candidate candidate, WorldRandom random, float? radius = null)
         {
             int id = world.Sites.Count;
             uint story = (uint)random.Fork("story").NextULong();
+            float drawn = random.Range(definition.Radius);
             world.Sites.Add(new WorldSite
             {
                 Id = id,
                 Definition = definition,
                 Position = candidate.Position,
-                Radius = random.Range(definition.Radius),
+                Radius = radius ?? drawn,
                 Height = MathF.Max(candidate.Height, WorldPlan.SeaLevel + 1f),
                 Remoteness = world.Remoteness?.Sample(candidate.Position) ?? 0f,
                 Biome = world.DominantBiome(candidate.Position),

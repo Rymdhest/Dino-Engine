@@ -178,7 +178,7 @@ namespace Dino_Engine.ECS.Systems
             // How far down it reaches from its middle, turned as it is.
             Vector3 x = Vector3.Transform(Vector3.UnitX, rotation), y = Vector3.Transform(Vector3.UnitY, rotation), z = Vector3.Transform(Vector3.UnitZ, rotation);
             float below = MathF.Abs(x.Y) * debris.Half.X + MathF.Abs(y.Y) * debris.Half.Y + MathF.Abs(z.Y) * debris.Half.Z;
-            float ground = land.Height.SampleCubic(position.X, position.Z);
+            float ground = land.DrawnGroundAt(position.X, position.Z);
             if (position.Y - below <= ground)
             {
                 position.Y = ground + below;

@@ -237,7 +237,7 @@ namespace Dino_Defenders.Client
             if (Dino_Engine.Modelling.Procedural.Architecture.Arena.ArenaSpec.TryParse(key, out var arena)) return (key, () => Dino_Engine.Modelling.Procedural.Architecture.Arena.ArenaForge.Make(arena, new List<Dino_Engine.World.Content.AssetLight>()));
             // And whatever of a place with a story moves, a cage's door, is one of its pieces (PLACES.md).
             if (Dino_Engine.Modelling.Procedural.Architecture.Places.PlaceSpec.TryParse(key, out var place)) return (key, () => Dino_Engine.Modelling.Procedural.Architecture.Places.PlaceForge.Make(place, new List<Dino_Engine.World.Content.AssetLight>()));
-            if (key == Progression.LootModels.Gold) return (key, () => Ball(new Colour(1f, 0.78f, 0.25f, 2.2f)));
+            if (key == Progression.LootModels.Gold) return (key, GoldPile);
             if (key == Progression.LootModels.Find) return (key, () => Ball(new Colour(0f, 0f, 0f)));
             if (key.StartsWith(BoltPrefix) && Enum.TryParse(key.AsSpan(BoltPrefix.Length), out Stats.DamageType look))
             {
@@ -545,6 +545,66 @@ namespace Dino_Defenders.Client
         private static Mesh Ball(Colour colour)
         {
             return IcoSphereGenerator.CreateIcosphere(1, new VertexMaterial(TextureGenerator.flatGlow, colour));
+        }
+
+        private const float CoinRadius = 0.1f;
+        private const float CoinThickness = 0.026f;
+
+        // Gold as it lies: a heap of coins slumped outwards, a couple of short stacks beside it and a few that rolled off. Each coin is shaded metal with a glowing face, so the pile still
+        // shines as it lies there but reads as coins. Its base is LootShow.GoldLift below its middle, so whatever light it carries sits up off the ground.
+        private static Mesh GoldPile()
+        {
+            var builder = new MeshBuilder();
+            var random = new Random(7);
+            float ground = -LootShow.GoldLift + 0.005f;
+
+            // The heap, in rings, each smaller and higher than the one under it, the lower ones leaning out.
+            (int count, float ring, float tilt)[] layers = { (11, 0.24f, 0.4f), (8, 0.16f, 0.32f), (5, 0.08f, 0.22f), (1, 0f, 0.05f) };
+            for (int layer = 0; layer < layers.Length; layer++)
+            {
+                (int count, float ring, float tilt) = layers[layer];
+                float turn = (float)random.NextDouble() * MathF.Tau;
+                for (int i = 0; i < count; i++)
+                {
+                    float angle = turn + i * MathF.Tau / count + ((float)random.NextDouble() - 0.5f) * 0.4f;
+                    Vector3 outward = new Vector3(MathF.Cos(angle), 0f, MathF.Sin(angle));
+                    float lean = tilt + ((float)random.NextDouble() - 0.5f) * 0.15f;
+                    Vector3 facing = Vector3.UnitY * MathF.Cos(lean) + outward * MathF.Sin(lean);
+                    float height = ground + layer * 0.045f + MathF.Sin(lean) * CoinRadius * 0.7f + CoinThickness * 0.5f;
+                    Coin(builder, outward * (ring + ((float)random.NextDouble() - 0.5f) * 0.03f) + Vector3.UnitY * height, facing);
+                }
+            }
+
+            // Two short stacks, a little crooked.
+            foreach ((float x, float z, int coins) in new[] { (0.34f, -0.13f, 6), (-0.28f, 0.24f, 4) })
+            {
+                for (int i = 0; i < coins; i++)
+                {
+                    Vector3 drift = new Vector3(((float)random.NextDouble() - 0.5f) * 0.016f, 0f, ((float)random.NextDouble() - 0.5f) * 0.016f);
+                    Coin(builder, new Vector3(x, ground + CoinThickness * (i + 0.5f), z) + drift, Vector3.UnitY);
+                }
+            }
+
+            // And a few that got away, lying nearly flat.
+            foreach (float angle in new[] { 0.6f, 2.3f, 3.4f, 4.6f, 5.5f })
+            {
+                float reach = 0.36f + (float)random.NextDouble() * 0.1f;
+                Vector3 outward = new Vector3(MathF.Cos(angle), 0f, MathF.Sin(angle));
+                Vector3 facing = (Vector3.UnitY + outward * ((float)random.NextDouble() * 0.12f)).Normalized();
+                Coin(builder, outward * reach + Vector3.UnitY * (ground + CoinThickness * 0.5f + 0.004f), facing);
+            }
+            return builder.Build();
+        }
+
+        private static readonly VertexMaterial CoinMetal = new VertexMaterial(TextureGenerator.iron, new Colour(0.86f, 0.62f, 0.18f));
+        private static readonly VertexMaterial CoinShine = new VertexMaterial(TextureGenerator.flatGlow, new Colour(1f, 0.76f, 0.26f, 2.2f));
+
+        // One coin, its middle at centre, its face towards facing: a metal disc with a glowing face just inside its rim, proud of the metal so the rim stays a darker edge.
+        private static void Coin(MeshBuilder builder, Vector3 centre, Vector3 facing)
+        {
+            Vector3 half = facing * (CoinThickness * 0.5f);
+            builder.Tube(centre - half, centre + half, CoinRadius, CoinRadius, 14, CoinMetal);
+            builder.Tube(centre + half, centre + half + facing * 0.003f, CoinRadius * 0.8f, CoinRadius * 0.8f, 14, CoinShine);
         }
 
         private static Mesh Arrow()

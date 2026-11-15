@@ -6,6 +6,8 @@
     <RootNamespace>Dino_Defenders</RootNamespace>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <!-- The logo, as the game itself prints it (the game run with the logo option writes it to Marketing/Social/source/logo: UI/Logo.cs): the exe's and the window's icon. -->
+    <ApplicationIcon>..\Marketing\Social\source\logo\dino_defenders.ico</ApplicationIcon>
   </PropertyGroup>
 
   <!-- Hot code is made fast once it's been called 30 times, but .NET waits until nothing new has been compiled for 100 ms before it starts counting, and while a game

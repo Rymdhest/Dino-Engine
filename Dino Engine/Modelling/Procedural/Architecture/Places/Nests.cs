@@ -242,6 +242,100 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Places
             }
         }
 
+        /// <summary>
+        /// A weaver's floor: a sheet of silk spun over the ground among the grass and the roots out to the radius the id says, ragged where its guy threads pull its edge down to the earth,
+        /// and on its lair's (form 1) its retreat in the middle of it, a collar of silk standing up round the dark mouth of the burrow it lives down. What it caught lies on it, wrapped. A
+        /// thread is a pixel from up there at most, and a web strung between trunks is seen edge on as often as not, so this is what the camera sees of a lair: pale silk spread over dark
+        /// trodden earth, and a hole in the middle of it nobody would put their arm down.
+        /// </summary>
+        public static void SilkFloor(MeshBuilder b, in PlaceSpec spec, WorldRandom random)
+        {
+            float radius = Math.Clamp(spec.Metres(0), 1.2f, 7f);
+            bool burrow = spec.Int(1) == 1;
+            const int Around = 20, Rings = 5;
+            var edge = new float[Around];
+            for (int k = 0; k < Around; k++) edge[k] = radius * random.Range(0.7f, 1.05f);
+            var lift = new float[Around, Rings + 1];
+            for (int k = 0; k < Around; k++)
+            {
+                for (int i = 0; i <= Rings; i++) lift[k, i] = random.Range(0f, 0.1f);
+            }
+            float mouth = burrow ? MathF.Min(1f, radius * 0.3f) : 0f;
+            float rise = burrow ? 0.42f : 0.2f;
+            // Highest at its middle, held up by the grass and its own threads, and down to the tops of the grass at its edge, where it's pulled down to the earth: the ground under a
+            // piece is never as flat as the piece, and a sheet laid on it would be under it as often as on it.
+            float Height(float t) => Ground + 0.12f + rise * (1f - t) * (1f - t);
+            Vector3 At(int i, int k)
+            {
+                k %= Around;
+                if (!burrow && i == 0) return new Vector3(0f, Height(0f) + 0.05f, 0f);
+                float t = i / (float)Rings;
+                float a = k * MathF.Tau / Around;
+                float r = mouth + (edge[k] - mouth) * t;
+                return new Vector3(MathF.Cos(a) * r, Height(t) + lift[k, i] * (1f - t), MathF.Sin(a) * r);
+            }
+            VertexMaterial veil = Silk(0.94f);
+            for (int i = 0; i < Rings; i++)
+            {
+                for (int k = 0; k < Around; k++)
+                {
+                    if (!burrow && i == 0) Kit.Face(b, At(0, k), At(1, k), At(1, k + 1), Vector3.UnitY, veil);
+                    else Kit.Face(b, At(i, k), At(i + 1, k), At(i + 1, k + 1), At(i, k + 1), Vector3.UnitY, veil);
+                }
+            }
+            VertexMaterial thread = Silk(1.05f);
+            // Its guy threads, from its edge out and down to the earth, and the tangle over it that knocks down what flies into it.
+            for (int k = 0; k < Around; k += 2)
+            {
+                Vector3 from = At(Rings, k);
+                Vector3 to = new Vector3(from.X * random.Range(1.2f, 1.45f), Ground - 0.05f, from.Z * random.Range(1.2f, 1.45f));
+                Kit.Rope(b, from, to, 0f, 0.03f, thread, 1);
+            }
+            for (int n = 0; n < 6; n++)
+            {
+                Vector3 low = At(random.Int(1, Rings - 1), random.Int(Around));
+                Vector3 high = low * 0.6f + new Vector3(random.Range(-0.6f, 0.6f), 0f, random.Range(-0.6f, 0.6f));
+                high.Y = random.Range(0.9f, 1.6f);
+                Kit.Rope(b, low, high, 0f, 0.025f, thread, 1);
+            }
+            if (burrow)
+            {
+                // The retreat: a collar of silk thickened by being spun over and over, standing round the burrow's mouth and going down into it, and the dark of the burrow.
+                Vector3 Throat(int k)
+                {
+                    float a = (k % Around) * MathF.Tau / Around;
+                    return new Vector3(MathF.Cos(a) * mouth * 0.45f, Ground + 0.1f, MathF.Sin(a) * mouth * 0.45f);
+                }
+                VertexMaterial collar = Silk(0.8f);
+                for (int k = 0; k < Around; k++)
+                {
+                    Vector3 middle = (At(0, k) + At(0, k + 1)) * 0.5f;
+                    Vector3 inward = new Vector3(-middle.X, 0f, -middle.Z).Normalized() * 0.7f + Vector3.UnitY * 0.3f;
+                    Kit.Face(b, At(0, k), At(0, k + 1), Throat(k + 1), Throat(k), inward, collar);
+                    Kit.Face(b, Vector3.UnitY * (Ground + 0.1f), Throat(k), Throat(k + 1), Vector3.UnitY, Dark);
+                }
+            }
+            // What it caught, wrapped where it was brought down: on its lair's, something the size of a beast as well.
+            int bundles = burrow ? random.Int(2, 3) : random.Int(0, 2);
+            for (int n = 0; n < bundles; n++)
+            {
+                float length = burrow && n == 0 ? random.Range(1.6f, 2.4f) : random.Range(0.5f, 1.1f);
+                float a = random.Float() * MathF.Tau, d = random.Range(mouth + 0.8f, MathF.Max(mouth + 1f, radius * 0.7f));
+                float girth = length * 0.2f;
+                Vector3 along = new Vector3(MathF.Cos(a + 1.4f), random.Range(-0.05f, 0.05f), MathF.Sin(a + 1.4f)).Normalized();
+                float t = Math.Clamp((d - mouth) / MathF.Max(radius - mouth, 0.1f), 0f, 1f);
+                Vector3 centre = new Vector3(MathF.Cos(a) * d, Height(t) + girth * 0.7f, MathF.Sin(a) * d);
+                Vector3 foot = centre - along * length * 0.5f;
+                Kit.Lathe(b, foot, along, length, Kit.Profile((0f, 0.04f), (0.15f, girth * 0.75f), (0.45f, girth), (0.8f, girth * 0.75f), (1f, 0.04f)), 9, 6, Silk(0.86f));
+                for (float s = 0.2f; s < 0.85f; s += 0.16f)
+                {
+                    float r = girth * MathF.Sin(MathF.PI * s) + 0.02f;
+                    Vector3 p = foot + along * length * s;
+                    b.Tube(p - along * 0.02f, p + along * 0.02f, r, r, 9, Silk(1.04f), capped: false);
+                }
+            }
+        }
+
         /// <summary>A weaver's egg sac: a pale silk ball hung on a thread from <paramref name="spec"/>'s size up, a little lumpy with what's in it.</summary>
         public static void EggSac(MeshBuilder b, in PlaceSpec spec, WorldRandom random)
         {

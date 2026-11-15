@@ -148,6 +148,12 @@ public class glModel
     /// </summary>
     public bool OpensForFocus;
 
+    /// <summary>
+    /// Whether it's left out of the sun's shadow maps, as what's too thin or small to cast a shadow anyone sees from up here is, a seagrass blade under a metre of water: drawn
+    /// into the maps it's paid for by every map and again by every pixel near it that has to soften what it casts (SunShadow_Mask.comp). <see cref="World.WorldAssetLibrary"/> says it.
+    /// </summary>
+    public bool CastsNoShadow;
+
     public void WorldBounds(in Matrix4 localToWorld, out Vector3 centre, out float radius)
     {
         if (!_boundsKnown)

@@ -61,9 +61,10 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Places
             for (int t = 0; t < tiers; t++)
             {
                 float top = y + tier + (t == 0 ? 0.2f : 0f);
-                Kit.Lathe(b, new Vector3(0f, y, 0f), Vector3.UnitY, top - y, Kit.Profile((0f, r), (0.15f, r * 0.98f), (0.85f, r * 0.94f), (1f, r * 0.9f)), 16, 3, Packed(random));
+                // Each tier is closed on top, where the next stands and round it, as the bucket's bottom pressed it flat.
+                Kit.Lathe(b, new Vector3(0f, y, 0f), Vector3.UnitY, top - y, Kit.Profile((0f, r), (0.15f, r * 0.98f), (0.85f, r * 0.94f), (1f, r * 0.9f)), 28, 3, Packed(random));
                 // The bucket's rings round it.
-                b.Tube(new Vector3(0f, top - 0.18f, 0f), new Vector3(0f, top - 0.1f, 0f), r * 0.92f + 0.02f, r * 0.91f + 0.02f, 16, Packed(random, 0.92f), capped: false);
+                b.Tube(new Vector3(0f, top - 0.18f, 0f), new Vector3(0f, top - 0.1f, 0f), r * 0.93f + 0.02f, r * 0.92f + 0.02f, 28, Packed(random, 0.92f), capped: false);
                 y = top;
                 r *= 0.78f;
             }
@@ -75,29 +76,84 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Places
                 float a = k * MathF.Tau / merlons;
                 Kit.Block(b, new Vector3(MathF.Cos(a) * last * 0.82f, y + 0.18f, MathF.Sin(a) * last * 0.82f), new Vector3(0.18f, 0.18f, last * 0.14f + 0.08f), -a, 0.06f, Packed(random, 1.03f));
             }
-            Kit.Lathe(b, new Vector3(0f, y, 0f), Vector3.UnitY, last * 1.4f, Kit.Profile((0f, last * 0.62f), (1f, 0.03f)), 14, 3, Packed(random, 1.04f));
+            Kit.Lathe(b, new Vector3(0f, y, 0f), Vector3.UnitY, last * 1.4f, Kit.Profile((0f, last * 0.62f), (1f, 0f)), 20, 3, Packed(random, 1.04f));
             Kit.Heap(b, new Vector3(0f, Ground - 0.15f, 0f), new Vector2(radius + 0.7f, radius + 0.7f), 0.35f, 0f, PlaceMaterials.Snow(0.98f), random, 2, 14);
         }
 
-        /// <summary>An arch of snow blocks over the way in, across x, on two piers, the opening along z. Numbers: width, height.</summary>
+        /// <summary>How far the gatehouse reaches out either side of its opening, to where the front wall's stretches begin, and how deep its arch's stones are.</summary>
+        public const float GateSide = 1.75f, GateRing = 0.8f;
+
+        /// <summary>How high a gatehouse of this width and height stands, merlons apart: a course of blocks over its arch's crown.</summary>
+        public static float GateTop(float width, float height)
+        {
+            float r = Math.Clamp(width, 1.6f, 5f) * 0.5f;
+            return MathF.Max(Math.Clamp(height, 2f, 5f) - r, 0.8f) + r + GateRing + 0.3f;
+        }
+
+        /// <summary>
+        /// The gatehouse over the way in, across x, the opening along z: a block of snow as wide as the gap the front wall leaves it, an arch of nine stones through it,
+        /// laid in courses that run out from the opening to the walls on either side and above the springing follow the arch's back to meet over its crown, and
+        /// merlons along its top, as a wall's are. Numbers: width and height of the opening.
+        /// </summary>
         public static void Gate(MeshBuilder b, in PlaceSpec spec, WorldRandom random)
         {
             float width = Math.Clamp(spec.Metres(0), 1.6f, 5f), height = Math.Clamp(spec.Metres(1), 2f, 5f);
-            float r = width * 0.5f, spring = height - r;
-            const float Pier = 0.9f, Depth = 1.1f;
+            float r = width * 0.5f, spring = MathF.Max(height - r, 0.8f);
+            float outer = r + GateSide, back = r + GateRing, top = GateTop(width, height);
+            const float Depth = 1.1f, Course = 0.45f, Foot = -0.25f;
+            // The jambs, from the ground to the springing.
+            int low = Math.Max(2, (int)MathF.Round((spring - Foot) / Course));
+            for (int c = 0; c < low; c++) GateCourse(b, random, Foot + (spring - Foot) * c / low, Foot + (spring - Foot) * (c + 1) / low, r, r, outer, c % 2 == 1, Depth);
+            // Over them, each course's inner end on the arch's back, until they meet over the crown.
+            float BackAt(float y) => y >= spring + back ? 0f : MathF.Sqrt(MathF.Max(back * back - (y - spring) * (y - spring), 0f));
+            int high = Math.Max(2, (int)MathF.Round((top - spring) / Course));
+            for (int c = 0; c < high; c++)
+            {
+                float y0 = spring + (top - spring) * c / high, y1 = spring + (top - spring) * (c + 1) / high;
+                GateCourse(b, random, y0, y1, BackAt(y0), BackAt(y1), outer, (low + c) % 2 == 1, Depth);
+            }
+            // The arch itself.
+            const int Stones = 9;
+            Vector2 In(float a) => new Vector2(MathF.Cos(a) * r, spring + MathF.Sin(a) * r);
+            Vector2 Out(float a) => new Vector2(MathF.Cos(a) * back, spring + MathF.Sin(a) * back);
+            for (int k = 0; k < Stones; k++)
+            {
+                float a0 = MathF.PI * k / Stones, a1 = MathF.PI * (k + 1) / Stones;
+                Waygates.Masonry.Prism(b, In(a1), In(a0), Out(a0), Out(a1), -Depth * 0.5f - 0.03f, Depth * 0.5f + 0.03f, 0.06f, Packed(random, 1.02f));
+            }
+            // Merlons along its top, some knocked off.
+            for (float x = -outer + 0.35f; x < outer - 0.3f; x += 0.9f)
+            {
+                if (random.Chance(0.12f)) continue;
+                Kit.Block(b, new Vector3(x, top + 0.22f, 0f), new Vector3(0.28f, 0.22f, Depth * 0.42f), random.Range(-0.05f, 0.05f), 0.07f, Packed(random, 1.03f));
+            }
+            // Snow banked against its feet, both sides of both jambs.
             foreach (float s in new[] { -1f, 1f })
             {
-                float x0 = s < 0f ? -r - Pier : r, x1 = s < 0f ? -r : r + Pier;
-                for (float y = -0.25f; y < spring; y += 0.45f) Kit.Block(b, new Vector3((x0 + x1) * 0.5f, y + 0.22f, 0f), new Vector3(Pier * 0.5f - 0.01f, 0.22f, Depth * 0.5f), random.Range(-0.02f, 0.02f), 0.06f, Packed(random));
-                Kit.Lathe(b, new Vector3((x0 + x1) * 0.5f, spring + r + 0.3f, 0f), Vector3.UnitY, 0.8f, Kit.Profile((0f, 0.4f), (1f, 0.02f)), 10, 2, Packed(random, 1.04f));
+                foreach (float z in new[] { -1f, 1f }) Kit.Heap(b, new Vector3(s * (r + GateSide * 0.5f), Ground - 0.15f, z * (Depth * 0.5f + 0.2f)), new Vector2(GateSide * 0.5f, 0.5f), 0.3f, 0f, PlaceMaterials.Snow(0.98f), random, 2, 10);
             }
-            int stones = 9;
-            for (int k = 0; k < stones; k++)
+        }
+
+        // One course of the gatehouse on both sides of the opening, from its inner end (in0 at its foot, in1 at its head, which differ where it follows the arch's back) out to
+        // the side, in blocks of a hand's choosing, the first of them cut to the opening or the arch; every other course starts with a shorter block, so the joints break.
+        private static void GateCourse(MeshBuilder b, WorldRandom random, float y0, float y1, float in0, float in1, float outer, bool shifted, float depth)
+        {
+            const float Joint = 0.012f;
+            float back = -depth * 0.5f, front = depth * 0.5f;
+            foreach (float s in new[] { -1f, 1f })
             {
-                float a0 = MathF.PI * k / stones, a1 = MathF.PI * (k + 1) / stones;
-                Vector2 In(float a) => new Vector2(MathF.Cos(a) * r, spring + MathF.Sin(a) * r);
-                Vector2 Out(float a) => new Vector2(MathF.Cos(a) * (r + Pier * 0.8f), spring + MathF.Sin(a) * (r + Pier * 0.8f));
-                Waygates.Masonry.Prism(b, In(a1), In(a0), Out(a0), Out(a1), -Depth * 0.5f, Depth * 0.5f, 0.06f, Packed(random));
+                Vector2 P(float x, float y) => new Vector2(s * x, y);
+                float inner = MathF.Max(in0, in1);
+                float cut = MathF.Min(inner + (shifted ? random.Range(0.3f, 0.5f) : random.Range(0.6f, 0.85f)), outer);
+                if (outer - cut < 0.25f) cut = outer;
+                Waygates.Masonry.Prism(b, P(in0 + Joint, y0 + Joint), P(cut - Joint, y0 + Joint), P(cut - Joint, y1 - Joint), P(in1 + Joint, y1 - Joint), back, front, 0.05f, Packed(random));
+                while (cut < outer - 0.01f)
+                {
+                    float next = MathF.Min(cut + random.Range(0.55f, 0.85f), outer);
+                    if (outer - next < 0.25f) next = outer;
+                    Waygates.Masonry.Prism(b, P(cut + Joint, y0 + Joint), P(next - Joint, y0 + Joint), P(next - Joint, y1 - Joint), P(cut + Joint, y1 - Joint), back, front, 0.05f, Packed(random));
+                    cut = next;
+                }
             }
         }
 
@@ -112,14 +168,14 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Places
             foreach (float share in parts)
             {
                 float rr = height * share * 0.5f;
-                Kit.Lathe(b, new Vector3(0f, y, 0f), Vector3.UnitY, rr * 1.9f, Kit.Profile((0f, rr * 0.3f), (0.15f, rr * 0.8f), (0.5f, rr), (0.85f, rr * 0.8f), (1f, rr * 0.25f)), 12, 5, PlaceMaterials.Snow(random.Range(0.95f, 1.02f)));
+                Kit.Ball(b, new Vector3(0f, y + rr * 0.95f, 0f), new Vector3(rr, rr * 0.95f, rr), 16, 10, PlaceMaterials.Snow(random.Range(0.95f, 1.02f)));
                 headR = rr;
                 headY = y + rr * 0.95f;
                 y += rr * 1.75f;
             }
             VertexMaterial coal = Flat(new Vector3(0.03f, 0.03f, 0.03f));
             foreach (float s in new[] { -0.35f, 0.35f }) Kit.Block(b, new Vector3(s * headR, headY + headR * 0.25f, headR * 0.9f), new Vector3(0.035f), 0f, 0.01f, coal);
-            Kit.Lathe(b, new Vector3(0f, headY, headR * 0.92f), Vector3.UnitZ, headR * 0.9f, Kit.Profile((0f, 0.05f), (1f, 0.005f)), 6, 1, Painted(new Vector3(0.62f, 0.25f, 0.05f)));
+            Kit.Lathe(b, new Vector3(0f, headY, headR * 0.92f), Vector3.UnitZ, headR * 0.9f, Kit.Profile((0f, 0.05f), (1f, 0f)), 6, 1, Painted(new Vector3(0.62f, 0.25f, 0.05f)));
             // Stick arms.
             float bodyY = three ? height * 0.52f : height * 0.32f;
             foreach (float s in new[] { -1f, 1f }) Kit.Pole(b, new Vector3(s * height * 0.18f, bodyY, 0f), new Vector3(s * height * 0.48f, bodyY + height * random.Range(0.08f, 0.22f), random.Range(-0.1f, 0.1f)), 0.025f, Timber(random, 0.7f));
@@ -147,10 +203,14 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Places
                 {
                     float a = (k + ring * 0.5f) * MathF.Tau / count;
                     Vector3 at = new Vector3(MathF.Cos(a) * rr, ball * 0.8f + ring * ball * 1.7f, MathF.Sin(a) * rr);
-                    Kit.Lathe(b, at - Vector3.UnitY * ball, Vector3.UnitY, ball * 2f, Kit.Profile((0f, ball * 0.3f), (0.5f, ball), (1f, ball * 0.3f)), 7, 3, PlaceMaterials.Snow(random.Range(0.96f, 1.03f)));
+                    // Pressed a little flat by what's on them.
+                    Kit.Ball(b, at, new Vector3(1f, 0.92f, 1f) * (ball * random.Range(0.92f, 1.06f)), 12, 7, PlaceMaterials.Snow(random.Range(0.96f, 1.03f)));
                 }
             }
-            Kit.Lathe(b, new Vector3(0f, ball * 4.6f + rings * ball * 1.7f - ball * 2f, 0f), Vector3.UnitY, ball * 2f, Kit.Profile((0f, ball * 0.3f), (0.5f, ball), (1f, ball * 0.3f)), 7, 3, PlaceMaterials.Snow());
+            // The last ball sits down into the top ring, resting on its balls: two radii from each of their middles, less a little for the snow giving.
+            float topRing = size * 0.45f * (1f - (rings - 1) / (float)(rings + 1));
+            float rest = MathF.Sqrt(MathF.Max(4f * ball * ball - topRing * topRing, ball * ball)) * 0.94f;
+            Kit.Ball(b, new Vector3(0f, ball * 0.8f + (rings - 1) * ball * 1.7f + rest, 0f), new Vector3(ball, ball * 0.94f, ball), 12, 7, PlaceMaterials.Snow());
             // The candle inside, and its light.
             Kit.Lathe(b, new Vector3(0f, 0.05f, 0f), Vector3.UnitY, size * 0.25f, Kit.Profile((0f, 0.05f), (1f, 0.05f)), 6, 1, new VertexMaterial(Textures.MaterialCatalog.Wax.Index, new Colour(0.75f, 0.7f, 0.58f)));
             Kit.Lathe(b, new Vector3(0f, 0.05f + size * 0.25f, 0f), Vector3.UnitY, 0.06f, Kit.Profile((0f, 0.022f), (1f, 0f)), 5, 1, LampGlow(3f));
@@ -188,15 +248,23 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Places
             Kit.Lathe(b, new Vector3(random.Range(-1.4f, 1.4f), Ground - 0.02f, random.Range(-1.2f, 1.2f)), Vector3.UnitY, 0.3f, Kit.Profile((0f, 0.18f), (1f, 0.13f)), 10, 1, Painted(BoatPaints[random.Int(BoatPaints.Length)]));
         }
 
-        /// <summary>A pennant on a stick stuck in the snow, a long triangle in one of the land's own colours, never the Reich's. Numbers: height, colour.</summary>
+        /// <summary>The colour a pennant's id gives for the frost cult's violet rather than one of the land's.</summary>
+        public const int CultPennant = 9;
+
+        /// <summary>
+        /// A pennant on a stick stuck in the snow, a long triangle in one of the land's own colours, never the Reich's, or, longer, the frost cult's violet where it's taken a castle
+        /// (<see cref="CultPennant"/>). Numbers: height, colour.
+        /// </summary>
         public static void Pennant(MeshBuilder b, in PlaceSpec spec, WorldRandom random)
         {
             float height = Math.Clamp(spec.Metres(0), 1f, 4f);
-            Vector3 colour = BoatPaints[Math.Clamp(spec.Int(1), 0, BoatPaints.Length - 1)] * 1.15f;
-            Kit.Pole(b, new Vector3(0f, -0.3f, 0f), new Vector3(0f, height, 0f), 0.03f, Timber(random));
+            // The frost cult's (colour 9) is its violet, longer, hung over the children's colours where it's taken their castle.
+            bool cult = spec.Int(1) == CultPennant;
+            Vector3 colour = cult ? new Vector3(0.74f, 0.7f, 1f) * new Vector3(0.6f, 0.5f, 0.82f) : BoatPaints[Math.Clamp(spec.Int(1), 0, BoatPaints.Length - 1)] * 1.15f;
+            Kit.Pole(b, new Vector3(0f, -0.3f, 0f), new Vector3(0f, height, 0f), cult ? 0.04f : 0.03f, Timber(random));
             VertexMaterial cloth = new VertexMaterial(Textures.MaterialCatalog.Cloth.Index, new Colour(colour));
-            float droop = random.Range(0.05f, 0.2f);
-            Vector3 top = new Vector3(0f, height - 0.05f, 0f), foot = new Vector3(0f, height - 0.5f, 0f), tip = new Vector3(0.9f, height - 0.35f - droop, random.Range(-0.15f, 0.15f));
+            float droop = random.Range(0.05f, 0.2f), fly = cult ? 1.5f : 0.9f, drop = cult ? 0.9f : 0.5f;
+            Vector3 top = new Vector3(0f, height - 0.05f, 0f), foot = new Vector3(0f, height - drop, 0f), tip = new Vector3(fly, height - drop * 0.7f - droop, random.Range(-0.15f, 0.15f));
             Kit.Face(b, top, foot, tip, Vector3.UnitZ, cloth);
             Kit.Face(b, top + Vector3.UnitZ * -0.005f, tip + Vector3.UnitZ * -0.005f, foot + Vector3.UnitZ * -0.005f, -Vector3.UnitZ, cloth);
         }

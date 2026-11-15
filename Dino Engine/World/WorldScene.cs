@@ -88,6 +88,9 @@ namespace Dino_Engine.World
         private static WaterSingleton CreateWater(WorldData world)
         {
             var water = new WaterSingleton { SeaLevel = WorldPlan.SeaLevel };
+            // How warm the sea is, from the warmth of the land it washes, and whether it's the sea at all, for what it grows on rock (SEA.md).
+            water.SeaWarmth = world.Plan.Biomes.Count > 0 ? world.Plan.Biomes.Average(biome => biome.Temperature) : 0.5f;
+            water.Salt = !world.Plan.Archetype.StillWater;
             if (world.Plan.Archetype.StillWater)
             {
                 // Inland water: no swell to run up the shore, and the clearer look of a lake.

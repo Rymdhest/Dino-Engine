@@ -22,8 +22,10 @@ namespace Dino_Defenders.Client
     {
         private static readonly Colour GoldGlow = new Colour(1f, 0.74f, 0.3f, 7f);
 
-        private const float GoldScale = 0.26f;
-        private const float GoldHeight = 0.35f;
+        /// <summary>How far above the ground a pile of gold is held, so its light sits up off the ground: the pile's coins are built this far below its middle (CharacterFactory.GoldPile).</summary>
+        public const float GoldLift = 0.35f;
+        private const float ItemLift = 0.04f;      // How far a find lies over the ground, which its middle is a little above.
+        private const float GoldSpin = 1.5f;       // Turns a pile of gold makes in the air.
         private const float GoldArc = 3f;
         private const float BeamRise = 0.3f;        // Seconds for a beam to reach its height.
         private const float BeamFlash = 3.2f;       // How quickly the burst of a beam starting dies down.
@@ -92,7 +94,7 @@ namespace Dino_Defenders.Client
                         }
                     }
 
-                    if (age < flight) Fly(entity, ref pickup, age / flight, gold, effects, deltaTime);
+                    if (age < flight) Fly(entity, ref pickup, age / flight, gold, session, effects, deltaTime);
                     else
                     {
                         if (!pickup.Landed)
@@ -101,7 +103,7 @@ namespace Dino_Defenders.Client
                             effects?.LootLanded(pickup.Find, pickup.Laid ? Rarity.Normal : pickup.Rarity, pickup.Slot, gold, pickup.Rest);
                         }
                         pickup.LandedFor += deltaTime;
-                        if (gold) Settle(entity, session);
+                        if (gold) Settle(entity, pickup.Born, session);
                         else Rest(entity, ref pickup, session, client, effects, deltaTime);
                     }
                     entity.Set(pickup);
@@ -109,15 +111,18 @@ namespace Dino_Defenders.Client
             }
         }
 
-        private static void Fly(in EntityView entity, ref PickupComponent pickup, float share, bool gold, ClientEffects? effects, float deltaTime)
+        private static void Fly(in EntityView entity, ref PickupComponent pickup, float share, bool gold, GameSession session, ClientEffects? effects, float deltaTime)
         {
             float arc = gold ? GoldArc : pickup.Laid ? Arcs[0] : Arcs[(int)pickup.Rarity];
-            Vector3 at = Vector3.Lerp(pickup.From, pickup.Rest, share) + Vector3.UnitY * (MathF.Sin(share * MathF.PI) * arc);
+            // It comes down where it'll lie, so nothing jumps as it lands.
+            Vector3 landing = OnGround(session, pickup.Rest.Xz, gold ? GoldLift : ItemLift);
+            Vector3 at = Vector3.Lerp(pickup.From, landing, share) + Vector3.UnitY * (MathF.Sin(share * MathF.PI) * arc);
             entity.Set(new PositionComponent(at));
-            entity.Set(new ScaleComponent(new Vector3(gold ? GoldScale : pickup.Dressed ? Sizes[(int)pickup.Rarity] * pickup.Fit : Hidden)));
+            entity.Set(new ScaleComponent(new Vector3(gold ? 1f : pickup.Dressed ? Sizes[(int)pickup.Rarity] * pickup.Fit : Hidden)));
 
-            // A whole number of turns, so that it comes down flat.
-            if (!gold) entity.Set(new RotationComponent(Quaternion.FromAxisAngle(new Vector3(0.8f, 0f, 0.6f), share * MathF.Tau * 2f) * Lying(pickup.Find)));
+            // Gold spins as it goes, and comes down the way it'll lie. Anything else turns a whole number of times, so that it comes down flat.
+            if (gold) entity.Set(new RotationComponent(Quaternion.FromAxisAngle(Vector3.UnitY, (share - 1f) * MathF.Tau * GoldSpin) * PileLying(pickup.Born)));
+            else entity.Set(new RotationComponent(Quaternion.FromAxisAngle(new Vector3(0.8f, 0f, 0.6f), share * MathF.Tau * 2f) * Lying(pickup.Find)));
 
             if (gold || pickup.Laid || pickup.Rarity < Rarity.Rare) return;
             pickup.NextMote -= deltaTime;
@@ -126,13 +131,13 @@ namespace Dino_Defenders.Client
             effects?.LootMote(pickup.Rarity, at, 0.2f);
         }
 
-        private static void Settle(in EntityView entity, GameSession session)
+        private static void Settle(in EntityView entity, uint born, GameSession session)
         {
             // It may be on its way to someone, and that's the server's to say.
             Vector3 at = entity.Get<PositionComponent>().value;
-            at.Y = session.World.Height.Sample(at.Xz) + GoldHeight;
-            entity.Set(new PositionComponent(at));
-            entity.Set(new ScaleComponent(new Vector3(GoldScale)));
+            entity.Set(new PositionComponent(OnGround(session, at.Xz, GoldLift)));
+            entity.Set(new RotationComponent(PileLying(born)));
+            entity.Set(new ScaleComponent(Vector3.One));
             if (entity.Has<ColorComponent>()) entity.Set(new ColorComponent(GoldGlow));
         }
 
@@ -148,7 +153,7 @@ namespace Dino_Defenders.Client
 
             float landed = pickup.LandedFor;
             float bounce = 0.8f * MathF.Abs(MathF.Sin(landed * 11f)) * MathF.Exp(-landed * 7f);
-            entity.Set(new PositionComponent(pickup.Rest + Vector3.UnitY * (0.04f + bounce)));
+            entity.Set(new PositionComponent(OnGround(session, pickup.Rest.Xz, ItemLift + bounce)));
             entity.Set(new RotationComponent(Lying(pickup.Find)));
             entity.Set(new ScaleComponent(new Vector3(taken || !pickup.Dressed ? Hidden : Sizes[(int)pickup.Rarity] * pickup.Fit)));
 
@@ -186,8 +191,14 @@ namespace Dino_Defenders.Client
             entity.Set(new ModelComponent(model));
         }
 
+        // On the ground as it's drawn, which stands over the height map the server lays things on (WorldData.Height): on the height map, a find is half buried.
+        private static Vector3 OnGround(GameSession session, Vector2 at, float lift) => new Vector3(at.X, session.World.DrawnGroundAt(at.X, at.Y) + lift, at.Y);
+
         // Each lies its own way, which it keeps however often it's seen.
         private static Quaternion Lying(int find) => Quaternion.FromAxisAngle(Vector3.UnitY, find * 2.399963f);
+
+        // Gold has no find to go by, so each pile turns by when it dropped, which it keeps however often it's seen and however it slides towards whoever's taking it.
+        private static Quaternion PileLying(uint born) => Quaternion.FromAxisAngle(Vector3.UnitY, born % 997 * 2.399963f);
     }
 
     /// <summary>

@@ -152,7 +152,21 @@ void main()
     // Which frames it's between. What goes on plays at its rate from a place of its own; what plays once plays over its life.
     float erosion = curveB.w;
     vBook = vec4(0.0, 0.0, 0.0, erosion);
-    if (sprite == SPRITE_FLAME)
+    if (sprite == SPRITE_DECAL)
+    {
+        // How far a decal's pattern is drawn out along its angle: what its style says, or for a drop that landed, how far along the ground it was going for every metre it
+        // was falling, which is the shape a drop at a slant leaves. The velocity it landed with is kept (Particle_Simulate.comp).
+        float drawn = s.draw.y;
+        if (landed)
+        {
+            vec3 n = p.axis;
+            float down = max(-dot(p.velocity, n), 0.5);
+            vec3 along = p.velocity - n * dot(p.velocity, n);
+            drawn = min(length(along) / down, 2.5);
+        }
+        vBook.x = drawn;
+    }
+    else if (sprite == SPRITE_FLAME)
     {
         int shape = int(s.book.x + 0.5);
         if (shape == 2)

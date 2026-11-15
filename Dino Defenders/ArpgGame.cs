@@ -119,6 +119,9 @@ namespace Dino_Defenders
             // The giants are in the picture behind the menu and in the Haven, and take seconds to grow, so they start now, as soon as the materials have their numbers. A run that goes
             // straight to a land grows them if it ever goes home.
             if (options.StartsAtMenu || options.Haven) CharacterFactory.GrowGiants();
+
+            // The logo, on the menu and as the window's icon, is grown from the tyrant, which takes a second or two, so it starts now too.
+            UI.Logo.Begin();
             if (!options.StartsAtMenu) return;
 
             _earlyWorlds = new WorldCache();
@@ -159,8 +162,10 @@ namespace Dino_Defenders
             NetSchema.Build();
             RegisterSystems();
             _ui = new GameUi(Dino_Engine.Core.Engine.Gui, this, Quit, ToMenu);
+            Dino_Engine.Core.Engine.Loading("game", 0.98f);
             Dino_Defenders.UI.GameCursor.Install(Dino_Engine.Core.Engine.Gui);
             Dino_Engine.Core.Engine.WindowHandler.Closing += _ => ShutDown();
+            Dino_Engine.Core.Engine.WindowHandler.UpdateFrame += _ => UI.Logo.KeepWindowIcon(Dino_Engine.Core.Engine.WindowHandler);
 
             if (options.StartsAtMenu)
             {
@@ -274,9 +279,12 @@ namespace Dino_Defenders
 
             ShowLoading(BuildInfo.Name, "");
             LoadingScreen screen = _ui.Loading;
+            // The first time, the engine's own bar has been moving since the window appeared (StartupScreen), and this one carries on from where it stood.
+            float from = _earlyTitle != null ? Dino_Engine.Core.Engine.StartupShare : 0f;
+            screen.Progress = from;
             _worlds.Progress = (progress, stage) =>
             {
-                screen.Progress = progress;
+                screen.Progress = from + (1f - from) * progress;
                 screen.Stage = stage;
             };
             // The first time, it was begun before there was a window.

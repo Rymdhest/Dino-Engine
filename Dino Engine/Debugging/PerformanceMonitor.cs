@@ -46,6 +46,7 @@ namespace Dino_Engine.Debug
         }
         public void startCPUTask(string name)
         {
+            Core.Engine.Startup?.Task(name);
             if (CPUTasks.TryGetValue(name, out TaskTracker task))
             {
                 task.StartTask();

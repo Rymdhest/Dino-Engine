@@ -34,6 +34,8 @@ They look away from the camera, out over the land. That's what third person is, 
 
 Text on the picture, and a shade that fades to nothing well before the hero. Nothing has a box round it but what's being typed in. The menu's root is `HitTestMode.PassThrough`: `None` looks the same and stops the mouse reaching anything under it.
 
+The game's name at the top is its logo, grown in code as everything else is and never imported (`UI/Logo.cs`): the mark, the tyrant posed by the game's own animator part way through a roar and cut to facets on a hill before the land's mountains, with one Defender on it, and the title set with the engine's own type, all a flat print in the land's red, bone and ink. It takes a second or two, so it's begun as the game starts (`Logo.Begin`, from `ArpgGame.Begin`) and the menu draws it once it's grown. `"Dino Defenders.exe" --logo folder` prints it with no window, the mark at every size a social page takes and the title over nothing, and `Marketing/Social/make_social.py` lays the banners from those, so a change to it in the game is a change everywhere.
+
 ## The pages
 
 Everything that isn't the game itself is one thing (`UI/MenuKit.cs`): words on a scrim, a rail of them down the left at the same place as the main menu's, and rows of a name and a control. There's one size for each kind of text in `Kit`, gold for what's chosen and parchment for what isn't, and nothing has an edge but what takes typing or a key. A new page is a `MenuPage` with rows on it, and a new setting is a `MenuRow`. Don't reach for `Ui.Action` or a dressed panel here: that's what the old pause menu was.

@@ -148,6 +148,54 @@ namespace Dino_Engine.World.Generation.Places
         /// <summary>Ground kept clear of anything put down after, and of trees, as a yard or a way in is.</summary>
         protected void Keep(in Footprint f) => World.Placement.Add(f, PlacementLayer.Keepout);
 
+        /// <summary>
+        /// A way worn between two points of the place's frame, painted <paramref name="width"/> across and fraying at its edges, as feet wear it from a gate to a fire or a door: what
+        /// says from 33 m up how a place is used, as a churchyard's paths do (CHURCHYARD.md).
+        /// </summary>
+        protected void Trail(Vector2 from, Vector2 to, float width, GroundPaint paint = GroundPaint.Yard, float softness = 1.6f)
+        {
+            Vector2 a = W(from), c = W(to);
+            Vector2 d = c - a;
+            float length = d.Length;
+            if (length < 0.2f) return;
+            Paint(paint, Footprint.Box((a + c) * 0.5f, new Vector2(width * 0.5f, length * 0.5f + width * 0.3f), SiteBuilder.YawFacing(d / length)), softness);
+        }
+
+        private WorldRandom? _strew;
+
+        /// <summary>
+        /// Litter of a kind strewn over a patch of the place's frame (<see cref="LitterKind"/>): straw round a pen, chips round a sawpit, bones round a nest. It lies below anything that
+        /// stops a blow and is walked through, so it's laid last, under and round whatever's there, and kept off a road and off ground too steep for a patch of it to lie on.
+        /// <paramref name="stone"/> is the colour of a stone's spalls or rubble.
+        /// </summary>
+        protected void Strew(LitterKind kind, Vector2 local, float radius, int count, (int R, int G, int B)? stone = null)
+        {
+            _strew ??= Random.Fork("strew");
+            Vector2 at = W(local);
+            radius = MathF.Min(radius, 4.5f);
+            if (!World.InBounds(at) || World.Elevation.Sample(at) < WorldPlan.SeaLevel + 0.2f) return;
+            // A patch lies flat in the model, so the steeper the ground the smaller it has to be, or its edge floats.
+            float slope = World.Elevation.SlopeAt(at);
+            if (slope > 0.4f) return;
+            if (slope > 0.06f) radius = MathF.Min(radius, 0.18f / slope + 0.4f);
+            if (World.Placement.Overlaps(Footprint.Circle(at, 0.5f), PlacementLayer.Road, 0f)) return;
+            int[] values = stone is var (r, g, b) ? new[] { (int)kind, PlaceSpec.Cm(radius), count, r, g, b } : new[] { (int)kind, PlaceSpec.Cm(radius), count };
+            World.Pending.Add(new PendingObject(new PlaceSpec(PlacePiece.Litter, NextSeed(), values).Id, at, _strew.Float() * MathF.Tau, Vector3.One, null));
+        }
+
+        /// <summary>Something that lies flat with nothing to stop and nothing to stand on it, a puddle, duckboards, a cloth: drawn where the ground will take it, and in nobody's way.</summary>
+        protected bool LayFlat(PlaceSpec spec, Vector2 local, float yaw, float radius, float maxSlope = 0.12f)
+        {
+            Vector2 at = W(local);
+            if (!World.InBounds(at) || World.Elevation.SlopeAt(at) > maxSlope || World.Elevation.Sample(at) < WorldPlan.SeaLevel + 0.3f) return false;
+            if (World.Placement.Overlaps(Footprint.Circle(at, radius * 0.6f), PlacementLayer.Road | PlacementLayer.Structure, 0f)) return false;
+            World.Pending.Add(new PendingObject(spec.Id, at, yaw, Vector3.One, null));
+            return true;
+        }
+
+        /// <summary>The colour of the land's own stone, freshly cut, as the cliffs are drawn in (<see cref="PlaceMaterials.StoneOf"/>), per mille.</summary>
+        protected (int R, int G, int B) LandStone => PlaceMaterials.StoneOf(World.Geology);
+
         // ---------------------------------------------------------------- Trees and what grows
 
         /// <summary>Plants one of the land's own plants somewhere if it fits, as the land would grow it, and keeps its trunk solid.</summary>

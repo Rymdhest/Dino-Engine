@@ -58,15 +58,29 @@ namespace Dino_Engine.Core
         /// <summary>Clear this while there is no world yet: the systems expect one, but the interface can still draw over nothing.</summary>
         public bool WorldReady = true;
 
+        /// <summary>The bar on the window while the engine is made, until the first frame.</summary>
+        private StartupScreen? _startup;
+
+        /// <summary>How far along a loading bar is when the engine is made and the game's own loading can begin: the game's screen carries on from here.</summary>
+        public const float StartupShare = 0.4f;
+
+        /// <summary>For the game: a stage of its own making done, and the share of the start that's over with it (of the engine's share, which is most of it).</summary>
+        public static void Loading(string stage, float share) => _instance?._startup?.Reached(stage, share);
+
+        internal static StartupScreen? Startup => _instance?._startup;
+
         public Engine(EngineLaunchSettings settings)
         {
             _instance = this;
             Console.WriteLine($"Launching {Name} version {Version}");
             _windowHandler = InitWindow(settings);
+            // Something on the window from the moment it exists, as it's white until something's drawn on it, and the rest of this takes seconds.
+            _startup = new StartupScreen(_windowHandler, !settings._hidden);
             _deltaFrameTimeTracker = new DeltaFrameTimeTracker();
             _performanceMonitor = new PerformanceMonitor();
             _renderEngine = new RenderEngine();
             _renderEngine.InitRenderers(settings._resolution);
+            _startup.Reached("renderers", 0.90f);
 
 
             //ComponentTypeRegistry.Register<Position>();
@@ -79,6 +93,8 @@ namespace Dino_Engine.Core
 
             _gui = new GuiContext(_windowHandler);
             _debugOverlay = new DebugOverlay(_gui);
+            _startup.Reached("gui", 0.93f);
+            _startup.Built();
 
             _windowHandler.UpdateFrame += delegate (FrameEventArgs eventArgs)
             {
@@ -133,6 +149,11 @@ namespace Dino_Engine.Core
         {
             _renderEngine.Render();
             PerformanceMonitor.FinishFrame();
+            if (_startup != null)
+            {
+                _startup.Finish();
+                _startup = null;
+            }
         }
         private void Update()
         {
@@ -169,6 +190,7 @@ namespace Dino_Engine.Core
             _windowHandler.onResize(eventArgs);
             world.OnResize(eventArgs);
             _renderEngine.OnResize(eventArgs);
+            _startup?.Reached("resize", 0.93f);
         }
 
         /// <summary>Saves the next finished frame as a PNG. <paramref name="saved"/> runs once it is written.</summary>

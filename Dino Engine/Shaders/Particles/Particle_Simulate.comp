@@ -175,8 +175,13 @@ void main()
                 }
                 else if (contact == CONTACT_STICK)
                 {
+                    // It lies turned the way it was going, so a drop that came in at a slant leaves a splat drawn out along its path (Particle.vert reads how far from
+                    // the speed it kept). The angle is in the ground frame particleFrame builds, whose right-hand axis is t0 cos a + t1 sin a.
                     p.position -= n * above;
-                    p.velocity = vec3(0.0);
+                    vec3 t0 = abs(n.z) < 0.99 ? normalize(cross(n, vec3(0.0, 0.0, 1.0))) : vec3(1.0, 0.0, 0.0);
+                    vec3 t1 = cross(n, t0);
+                    vec3 along = p.velocity - n * dot(p.velocity, n);
+                    if (dot(along, along) > 1e-6) p.angle = atan(dot(along, t1), dot(along, t0));
                     p.axis = n;
                     p.spin = p.age;
                     p.style |= PARTICLE_LANDED;

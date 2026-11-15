@@ -69,6 +69,8 @@ If a tester has **Smart App Control** on, there's no Run anyway button. It block
 
 **The notes** (`Ui/NotesPanel.cs`) are one page of every release, drawn by hand, as a text box can't hang a wrapped line under its own words or scroll smoothly. The heading of the release being read stays at the top, the list beside it marks that release and jumps to any other, and the search (Ctrl+F, Escape to leave) keeps the lines holding every word typed, or a version number. The wheel moves the page from anywhere in the window, as do the arrows, Page Up and Down, Home and End. `Update/PatchNotes.cs` is the reading and searching, with no UI. Enter in the search box must never press Play, which `live` holds.
 
+**Its icon and the logo on its banner are the game's**, printed by the game itself (`"Dino Defenders.exe" --logo Marketing/Social/source/logo`, `UI/Logo.cs`) and built in from that folder (`ApplicationIcon` and the `lockup.png` resource in the project file), so nothing here draws them. Either changing changes the launcher's bytes, which sends every tester a new launcher with the next release and starts its reputation again, so they change rarely.
+
 **The window** can be resized and maximized, and everything is placed from its size in `Arrange`: the foot stays as it is, the banner gives up what it can, the notes get the rest, and on a very wide screen it all stays in a column in the middle. The size it was left at is in `launcher.window`, beside the launcher (`WindowMemory`). Where it stood isn't kept, as that monitor may be gone.
 
 **Nothing stops someone playing what they have.** No connection, a bad release, a full disk or a failed update all end with the installed game playable and a sentence saying what happened.

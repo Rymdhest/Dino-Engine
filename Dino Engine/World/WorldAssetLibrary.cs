@@ -162,6 +162,7 @@ namespace Dino_Engine.World
                 imposterDistance = species.Asset.ImposterDistance;
                 // Trees, and nothing else that isn't asked for, thin away for the player behind them (glModel.OpensForFocus).
                 model.OpensForFocus = species.Asset.Kind == WorldAssetKind.Tree;
+                model.CastsNoShadow = !species.CastsShadow;
             }
             else if (NatureCatalog.TryGetRock(name, out RockKind kind, out RockForm form))
             {
@@ -197,6 +198,10 @@ namespace Dino_Engine.World
                 AddSpecies(ids, seen, biome.Waterside, world.Plan.Seed, rock);
             }
             AddAsset(ids, seen, NatureCatalog.RockOf(rock, RockForm.Chip), world.Plan.Seed);
+            // The stones the swash leaves on a beach (WorldGroundCover), and what lives in the water (WorldSeaFloor, SEA.md): grown with the rest while the world loads, or the
+            // first beach to stream in grows them on the frame that draws it.
+            AddAsset(ids, seen, NatureCatalog.RockOf(rock, RockForm.Pebble), world.Plan.Seed);
+            foreach (WorldAsset asset in WorldSeaFloor.AssetsOf(world)) AddAsset(ids, seen, asset, world.Plan.Seed);
             return ids;
         }
 

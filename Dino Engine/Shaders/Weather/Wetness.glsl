@@ -59,6 +59,53 @@ float weatherBead(vec3 position, vec3 normal, float thirst)
     return exp(-side * side * 7.0) * tail;
 }
 
+// ---------------------------------------------------------------- How deep water lies here
+// A material's relief tiles every metre or two, and whatever stands in its hollows by a threshold on that alone is the same in every tile: one puddle in each of a
+// beach's ripples, or the same dark spots, lined up in a perfect lattice across a whole shore, which a person saw twice, on mud and then on sand after rain. Real
+// ground isn't level at any size above the texture's, so water stands deeper in some places than others, filling every hollow in one patch and hardly any in the
+// next. So whatever lets water or snow settle by a material's height reads how much it pools here too, from gradient noise at two sizes no material's tile
+// shares, each turned off the world's axes and off the other's, so neither lattice lines up with anything.
+
+const float POOL_BROAD = 2.9;       // Metres across a patch where water lies deeper or shallower,
+const float POOL_FINE = 1.13;       // and the smaller wander inside one.
+
+// A gradient for a lattice point and a layer, each way in [-1, 1].
+vec2 weatherPoolGradient(ivec2 cell, uint layer)
+{
+    uint h = uint(cell.x) * 0x8da6b343u ^ uint(cell.y) * 0xd8163841u ^ layer * 0xcb1ab31fu;
+    h ^= h >> 15u;
+    h *= 0x7feb352du;
+    h ^= h >> 13u;
+    h *= 0x846ca68bu;
+    h ^= h >> 16u;
+    return vec2(float(h & 0xffffu), float(h >> 16u)) * (2.0 / 65535.0) - 1.0;
+}
+
+// Perlin's gradient noise with his quintic fade, its gradients taken straight from the hash rather than turned by an angle, which saves a sine and a cosine at
+// every corner: mean 0, nearly all of it within ±0.7.
+float weatherPoolNoise(vec2 p, uint layer)
+{
+    vec2 i = floor(p);
+    vec2 f = p - i;
+    ivec2 c = ivec2(i);
+    vec2 u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
+    float n00 = dot(weatherPoolGradient(c, layer), f);
+    float n10 = dot(weatherPoolGradient(c + ivec2(1, 0), layer), f - vec2(1.0, 0.0));
+    float n01 = dot(weatherPoolGradient(c + ivec2(0, 1), layer), f - vec2(0.0, 1.0));
+    float n11 = dot(weatherPoolGradient(c + ivec2(1, 1), layer), f - vec2(1.0, 1.0));
+    return mix(mix(n00, n10, u.x), mix(n01, n11, u.x), u.y);
+}
+
+// How much water pools here, 0 (it runs off, the hollows hardly hold any) to 1 (it lies deep, filling them), about a half on average.
+float weatherPooling(vec2 xz)
+{
+    vec2 broad = mat2(0.8, 0.6, -0.6, 0.8) * xz / POOL_BROAD;
+    vec2 fine = mat2(0.28, -0.96, 0.96, 0.28) * xz / POOL_FINE + vec2(17.3, 5.9);
+    float n = 0.72 * weatherPoolNoise(broad, 1u) + 0.38 * weatherPoolNoise(fine, 2u);
+    // Gradients from a square spread about 0.82 of what unit ones do, which these bounds allow for.
+    return smoothstep(-0.27, 0.27, n);
+}
+
 // Geometric specular anti-aliasing (Tokuyoshi and Kaplanyan 2019), as the grass has. A smooth wet surface over a bumpy normal map shows a different highlight in every pixel, and they crawl as
 // the view moves: where the normal turns a lot within a pixel, the highlight widens to what the pixel would average to. Call it in uniform control flow, as it takes derivatives.
 float weatherFilterRoughness(float roughness, vec3 normal)
@@ -85,6 +132,12 @@ float weatherWetten(vec3 worldPosition, vec3 geometryNormal, float porosity, flo
     // What's turned to the rain catches it; what's turned from it stays dry, however hard it comes down.
     float catching = smoothstep(-0.3, 0.3, dot(geometryNormal, -weatherFalling.xyz));
     float upward = smoothstep(0.55, 0.92, geometryNormal.y);
+    // How deep water and snow lie here, against the material's own hollows, the same for both, worked out only where either can settle. What moves carries its
+    // hollows with it, and a pooling fixed in the world would slide across it.
+    float pooling = 0.5;
+#ifndef WEATHER_NOTHING_STANDS
+    if ((upward > 0.0 && here.y > 0.0) || here.z > 0.0) pooling = weatherPooling(worldPosition.xz);
+#endif
 
     // Water coming off what's above keeps the ground under an edge wet, even where no rain gets in.
     vec3 dripped = dripSurfaceAt(worldPosition.xz);
@@ -104,13 +157,14 @@ float weatherWetten(vec3 worldPosition, vec3 geometryNormal, float porosity, flo
     float film = smoothstep(0.45, 1.0, wet) * (1.0 - 0.55 * thirst);
     wetSmoothness = max(wetSmoothness, mix(smoothness, 0.86, film * wetLook.y));
 
-    // Water standing in what's low. Rough material holds it between its stones first.
+    // Water standing in what's low. Rough material holds it between its stones first, deeper in some places than others (weatherPooling), or it would lie in
+    // the same hollows of every tile.
     float standing = 0.0;
 #ifndef WEATHER_NOTHING_STANDS
     if (upward > 0.0)
     {
         float level = here.y * wetLook.z * max(reach, dripWet);
-        float low = max(hollow, (1.0 - relief) * 0.45 * step(0.05, level));
+        float low = max(hollow, (1.0 - relief) * 0.45 * mix(0.2, 1.7, pooling) * step(0.05, level));
         standing = upward * smoothstep(0.0, 0.2, level * 1.2 - (1.0 - low));
         // Still water hides what's under it, and shows the sky.
         albedo *= mix(1.0, 0.72, standing);
@@ -156,9 +210,9 @@ float weatherWetten(vec3 worldPosition, vec3 geometryNormal, float porosity, flo
     float alpha = roughness * roughness;
     roughness = sqrt(sqrt(alpha * alpha + ringSpread));
 
-    // Snow settles on what faces up, and in what's low before what stands proud.
+    // Snow settles on what faces up, and in what's low before what stands proud, drifting deeper in some places than others, as water pools.
     float settled = here.z * reach * smoothstep(0.1, 0.65, geometryNormal.y);
-    settled = smoothstep(0.0, 0.5, settled * (1.25 - 0.5 * relief));
+    settled = smoothstep(0.0, 0.5, settled * (1.25 - 0.5 * relief) * mix(0.85, 1.15, pooling));
     albedo = mix(albedo, vec3(0.82, 0.85, 0.9), settled);
     roughness = mix(roughness, 0.72, settled);
     normal = normalize(mix(normal, geometryNormal, settled * 0.7));

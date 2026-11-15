@@ -26,6 +26,7 @@ namespace Dino_Engine.Modelling.Procedural.Flora
         public FloatRange Scale = new FloatRange(0.85f, 1.15f);
         public int Variants = 4;            // How many different plants of this kind a world grows.
         public bool Sways = true;
+        public bool CastsShadow = true;     // False for what's too thin or small to cast one anyone sees, as a blade under a metre of water: the sun's maps skip it (SEA.md).
 
         private WorldAsset? _asset;
 

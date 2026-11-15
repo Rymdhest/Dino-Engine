@@ -302,7 +302,7 @@ namespace Dino_WorldLab
 
             WorldSite landing = world.Sites[0];
             if (!landing.Spawns.Any(s => s.Role == SpawnRole.Waygate)) Problem("the landing has no waygate");
-            if (!landing.Spawns.Any(s => s.Role == SpawnRole.Merchant)) Problem("the landing has no merchant");
+            if (landing.Spawns.Any(s => s.Role == SpawnRole.Merchant)) Problem("the landing has a merchant, and nobody trades where a hero arrives");
 
             int keeps = world.Sites.Count(s => s.Kind == SiteKind.Keep);
             if (keeps == 0) Problem("no keep");

@@ -221,7 +221,7 @@ namespace Dino_Engine.Particles
             var spawn = new ParticleSpawn(at, size, life)
             {
                 Velocity = velocity,
-                Angle = emitter.Turned ? random.Range(0f, MathF.Tau) : 0f,
+                Angle = emitter.Along ? AlongForward() : emitter.Turned ? random.Range(0f, MathF.Tau) : 0f,
                 Spin = random.Range(emitter.Spin) * (random.Chance(0.5f) ? 1f : -1f),
                 Tint = emitter.Tint * Tint,
                 Strength = emitter.Strength * faint,
@@ -344,6 +344,15 @@ namespace Dino_Engine.Particles
             Vector3 a = MathF.Abs(direction.Y) < 0.99f ? Vector3.Cross(direction, Vector3.UnitY).Normalized() : Vector3.UnitX;
             Vector3 b = Vector3.Cross(direction, a);
             return direction * cos + (a * MathF.Cos(turn) + b * MathF.Sin(turn)) * sin;
+        }
+
+        // The angle at which a particle lying on level ground has its right-hand axis along Forward: the ground frame in Particle.glsl's particleFrame has that axis at
+        // (cos a, 0, -sin a) for angle a, so the two have to agree.
+        private float AlongForward()
+        {
+            Vector2 heading = Forward.Xz;
+            if (heading.LengthSquared < 1e-8f) return 0f;
+            return MathF.Atan2(-heading.Y, heading.X);
         }
 
         // From the effect's own frame, where +z is Forward, into the world. Only its heading counts: up stays up.

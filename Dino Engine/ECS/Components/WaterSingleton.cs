@@ -29,11 +29,14 @@ namespace Dino_Engine.ECS.Components
         public float WindWaveHeight;        // Multiplier on the sea the wind raises (1 = fully developed sea, Pierson-Moskowitz).
         public float SeaStateResponseTime;  // Seconds the sea takes to follow changes of the wind.
 
-        // --- Foam and wet sand ---
+        // --- Foam and wet sand (SHORE.md) ---
         public float Foam;                  // Multiplier on breaking-wave and shoreline foam.
         public float Whitecaps;             // Multiplier on the whitecaps the wind raises out at sea (Monahan 1980).
-        public float WetSandDarkening;      // 0..1, how much the swash darkens the sand it wets.
-        public float DryingTime;            // Seconds the sand takes to dry once the swash has left it (to about 37%).
+        public float WetSandDarkening;      // 0..1, how much darker sand soaked through by the swash is.
+        public float DryingTime;            // Seconds the sand takes to drain once the swash has left it (to about 37%), before it's only damp.
+        public float FilmTime;              // Seconds the glassy film of water the swash leaves takes to drain off the grains (to about 37%); longer in the hollows.
+        public float SeaWarmth;             // 0..1, how warm the sea is, as a biome's warmth: what the sea grows on rock goes by it (Water/ShoreGrowth.glsl, SEA.md).
+        public bool Salt;                   // The sea, or the fresh water of a land of lakes, which grows nothing of the sea's.
 
         // --- Every water surface ---
         public float RippleScale;           // Multiplier on wind ripples (1 = a clean sea surface, Cox and Munk 1954).
@@ -55,6 +58,7 @@ namespace Dino_Engine.ECS.Components
         public float SeaState;              // Wind speed in m/s the sea has built up to.
         public Vector2 SeaDirection;        // Unit, direction the wind-raised sea travels on the xz plane.
         public float ShorePhase;            // Cycles, wrapped to WaterWaves.SetLength.
+        public int ShoreSets;               // Whole sets the shore waves have gone through, wrapped to WaterWaves.SetsCounted: with ShorePhase, which wave this is.
         public Vector4 SwellPhasesA;        // Cycles of the open-sea swell waves 0..3, wrapped to 1.
         public Vector4 SwellPhasesB;        // Waves 4..7.
         public Vector2 RippleOffsetA;       // Ripple pattern offsets in tiles, wrapped to 1.
@@ -64,6 +68,7 @@ namespace Dino_Engine.ECS.Components
         public Vector2 CausticOffsetA;      // Caustic pattern offsets in tiles, wrapped to 1.
         public Vector2 CausticOffsetB;
         public Vector2 FoamOffset;          // Foam pattern offset in tiles, wrapped to 1.
+        public Vector2 ShoreFoamOffset;     // How far the wind has carried the shore's foam, in metres, wrapped to WaterRenderer.ShoreFoamTile.
         public List<WaterSplash> Splashes;  // Splashes waiting for the ripple simulation (Water.AddSplash); WaterSystem consumes them.
 
         public WaterSingleton()
@@ -86,7 +91,10 @@ namespace Dino_Engine.ECS.Components
             Foam = 1f;
             Whitecaps = 1f;
             WetSandDarkening = 0.45f;
-            DryingTime = 12f;
+            DryingTime = 30f;
+            FilmTime = 3f;
+            SeaWarmth = 0.5f;
+            Salt = true;
 
             RippleScale = 1f;
             RippleDrift = 0.15f;
@@ -104,6 +112,7 @@ namespace Dino_Engine.ECS.Components
             SeaState = 0f;
             SeaDirection = Vector2.UnitY;
             ShorePhase = 0f;
+            ShoreSets = 0;
             SwellPhasesA = Vector4.Zero;
             SwellPhasesB = Vector4.Zero;
             RippleOffsetA = Vector2.Zero;
@@ -113,6 +122,7 @@ namespace Dino_Engine.ECS.Components
             CausticOffsetA = Vector2.Zero;
             CausticOffsetB = Vector2.Zero;
             FoamOffset = Vector2.Zero;
+            ShoreFoamOffset = Vector2.Zero;
             Splashes = new List<WaterSplash>();
         }
     }

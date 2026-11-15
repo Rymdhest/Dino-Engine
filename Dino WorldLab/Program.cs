@@ -19,7 +19,11 @@ namespace Dino_WorldLab
     ///   relief  [--seed N] [--count N] [--archetype id]                        What the land is made of, and where the rock stands highest.
     ///   view    --at x,z [--seed N] [--archetype id] [--span m] [--angle d] [--yaw d] [--out f]  A drawing of a place, for shaping land with no game.
     ///   skin    [--seed N] [--count N] [--archetype id] [--at x,z] [--radius m]  Grows the skin of the rock and says what it costs and whether its tiles meet.
-    ///   wind                                                                   Puts the wind through what a game does to it. Exit code 1 on any problem.
+    ///   sea     [--seed N] [--count N] [--archetype id]                        Grows the sea floor as the game does and holds it to its rules (SEA.md), and says where
+    ///           each kind grows thickest. Exit code 1 on any problem.
+    ///   cover   [--seed N] [--count N] [--archetype id]                        Grows the ground cover as the game does and holds every card lying on the ground (litter,
+    ///           moss, the cushions) to lying on the ground as it's drawn and being seen there (GroundCards). Exit code 1 on any problem.
+    ///   wind                                                                  Puts the wind through what a game does to it. Exit code 1 on any problem.
     ///   halls                                                                  Builds every hall's models and says what they cost. Exit code 1 if one costs too much.
     ///   square                                                                 Builds every piece of the Haven's square and says what it costs. Exit code 1 on any problem.
     ///   lexicon [--out file.png] [--size pixels] [--game dll] [--find words]   Grows the asset lexicon (LEXICON.md), holds it to its promises and draws its plan, or lists where what's
@@ -69,6 +73,10 @@ namespace Dino_WorldLab
                         return SkinCheck.Probe(options.Int("seed", 1), options.Text("archetype"), new Vector3(fa[0], fa[1], fa[2]), new Vector3(fb[0], fb[1], fb[2]), options.Int("steps", 40));
                     }
                     return SkinCheck.Run(options.Int("seed", 1), options.Int("count", 1), options.Text("archetype"), around, options.Int("radius", 80));
+                case "sea":
+                    return SeaCheck.Run(options.Int("seed", 1), options.Int("count", 3), options.Text("archetype"));
+                case "cover":
+                    return CoverCheck.Run(options.Int("seed", 1), options.Int("count", 3), options.Text("archetype"));
                 case "wind":
                     return WindCheck.Run();
                 case "halls":

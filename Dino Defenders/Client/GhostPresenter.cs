@@ -563,7 +563,11 @@ namespace Dino_Defenders.Client
                     if (enemy.State != EnemyState.Dead) continue;
 
                     CharacterAnimator animator = entity.Get<AnimatorComponent>().Animator;
-                    if (!animator.Dead) animator.Die(enemy.Thrown);
+                    if (!animator.Dead)
+                    {
+                        animator.Die(enemy.Thrown);
+                        Bled(entity, enemy.Thrown);
+                    }
 
                     enemy.DeadFor += deltaTime;
                     entity.Set(enemy);
@@ -581,10 +585,22 @@ namespace Dino_Defenders.Client
                 {
                     CharacterAnimator animator = entity.Get<AnimatorComponent>().Animator;
                     bool down = entity.Get<HealthComponent>().Current <= 0f;
-                    if (down && !animator.Dead) animator.Die(entity.Get<HeroComponent>().Thrown);
+                    if (down && !animator.Dead)
+                    {
+                        animator.Die(entity.Get<HeroComponent>().Thrown);
+                        Bled(entity, entity.Get<HeroComponent>().Thrown);
+                    }
                     else if (!down && animator.Dead) animator.Revive();
                 }
             }
+        }
+
+        // Whoever has just fallen bleeds out where they lie, if they were bleeding when they fell, and otherwise leaves no blood: it's the ailment's sign alone.
+        private void Bled(in EntityView entity, Vector3 thrown)
+        {
+            if (_effects() is not ClientEffects effects || !effects.Ailments.BledLately(entity.Entity.Id) || !entity.Has<PositionComponent>()) return;
+            ParticleShow.Flesh flesh = entity.Has<VisualComponent>() ? ParticleShow.FleshOf(entity.Get<VisualComponent>().Model) : ParticleShow.Flesh.Blood;
+            ParticleShow.Fallen(entity, entity.Get<PositionComponent>().value, thrown, flesh);
         }
 
         // Something flying straight can be drawn at any moment, so an arrow needn't be stuck in the past with everything else. It starts
@@ -830,11 +846,13 @@ namespace Dino_Defenders.Client
             bool own = ghost == client.OwnGhost;
             Vector3 way = new Vector3(e.Way.X, 0f, e.Way.Y);
 
-            // This player's own blow was shown the moment it landed. All that's left to say is whether it turned out to be a good one, and what it was made of.
+            // This player's own blow was shown the moment it landed. All that's left to say is whether it turned out to be a good one, what it was made of, and whether it
+            // left its target bleeding, which only the server knows: blood is the Bleeding ailment's sign and nothing else's, so it waits for the word rather than guess.
             if (body.JustStruck && !own)
             {
                 if (e.Critical) Jolt(e.Way, JoltSpeed);
                 if (ParticleShow.HitOf(e.Type) is Dino_Engine.Particles.ParticleEffect element) Particles.Play(element, e.Position, forward: way);
+                else if (e.Bleeding && e.Note != HitNote.Blocked && e.Body != HitBody.Bone && FleshOf(view) != ParticleShow.Flesh.Bone) ParticleShow.Wound(e.Position, e.Way, FleshOf(view), false, e.Weight, e.Critical, true);
                 return;
             }
 
@@ -845,7 +863,7 @@ namespace Dino_Defenders.Client
             // What comes off the blow: sparks off a shield, or what the body's made of, or the element it was dealt in.
             if (e.Note == HitNote.Blocked) Particles.Play(Impact.Sparks, e.Position, forward: way);
             else if (ParticleShow.HitOf(e.Type) is Dino_Engine.Particles.ParticleEffect hit) Particles.Play(hit, e.Position, forward: way);
-            else ParticleShow.Wound(e.Position, e.Way, e.Body == HitBody.Bone ? ParticleShow.Flesh.Bone : FleshOf(view), e.Body == HitBody.Armour, e.Weight, e.Critical);
+            else ParticleShow.Wound(e.Position, e.Way, e.Body == HitBody.Bone ? ParticleShow.Flesh.Bone : FleshOf(view), e.Body == HitBody.Armour, e.Weight, e.Critical, e.Bleeding);
         }
 
         private static ParticleShow.Flesh FleshOf(in EntityView view) => view.Has<VisualComponent>() ? ParticleShow.FleshOf(view.Get<VisualComponent>().Model) : ParticleShow.Flesh.Blood;
@@ -856,7 +874,8 @@ namespace Dino_Defenders.Client
             CharacterAnimator body = target.Get<AnimatorComponent>().Animator;
             float held = HeldBy(weight, false);
             Strike(body, new Vector3(way.X, 0f, way.Y), weight, false, new Vector3(1f, 0.95f, 0.85f), held);
-            ParticleShow.Wound(at, way, FleshOf(target), false, weight, false);
+            // No blood here: whether the blow opened a wound is the server's to say, and comes with its DamageEvent a tick later (Landed).
+            ParticleShow.Wound(at, way, FleshOf(target), false, weight, false, bleeding: false);
 
             if (_client.OwnGhost is not Ghost own || !_world.TryGetEntityLocation(own.Entity, out _, out _)) return;
             _world.GetEntityView(own.Entity).Get<AnimatorComponent>().Animator.Connected(held);

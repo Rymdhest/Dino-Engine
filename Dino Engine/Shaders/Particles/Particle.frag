@@ -316,12 +316,45 @@ vec4 shadeDecal(float sceneDepth)
         light = palette(vGlow.y * mix(0.6, 1.0, band)) * vTint.rgb * (vGlow.x * amount);
         alpha = vGlow.w * amount;
     }
-    else
+    else if (pattern == 5)
     {
         // Burnt black, ragged at the edge.
         float burn = smoothstep(1.0, 0.3, r + edge * 0.6);
         alpha = burn * 0.85;
         light = vTint.rgb * (ground + ambient()) * alpha;
+    }
+    else
+    {
+        // Spilt blood. It isn't paint: it's a liquid that was moving. Its shape is drawn out along its angle by how far it was going (vBook.x, from its style or the slant
+        // it landed at), the far side a tail and the near side blunt, as a drop at a slant leaves. Its edge is sharp and lobed, pushed out in fingers where it ran, with
+        // spatter flung out past it, mostly ahead. Where it lies thick, in the middle where it pooled, it's near black and glossy with the sky on it; where it's thin, at
+        // its edge, down the tail and in the spatter, it's crimson and matt. It dries as it lies: the gloss goes first, then it darkens to brown. Its noise is in metres,
+        // so a pool that spreads over its life grows new edge rather than swelling what it had, and nothing reaches the card: the shape sits inside a radius under 1.
+        float drawn = vBook.x;
+        float forward = 1.0 + min(drawn, 1.0) * 0.3;
+        vec2 e = vec2(d.x > 0.0 ? d.x / forward : d.x * (1.0 + drawn * 0.35), d.y * (1.0 + drawn * 0.45));
+        float re = length(e);
+        vec2 m = d * vFrameA.w;
+        float coarse = particleFbm(m * 1.6 + seed, 3) - 0.5;
+        float fine = particleFbm(m * 5.5 - seed * 1.3, 2) - 0.5;
+        float angle = atan(e.y, e.x);
+        float lobes = particleFbm(vec2(cos(angle), sin(angle)) * 1.7 + seed * 0.7, 2) - 0.5;
+        float rim = re + coarse * 0.36 + fine * 0.12 + lobes * 0.22;
+        float body = smoothstep(0.76, 0.70, rim);
+        float tail = smoothstep(0.0, 1.0, max(e.x, 0.0)) * 0.7 * step(0.3, drawn);
+        float thick = smoothstep(0.74, 0.3, rim) * (0.6 + 0.4 * smoothstep(-0.2, 0.3, coarse)) * (1.0 - tail) * body;
+
+        vec2 sp = vec2(d.x * mix(1.0, 0.55, smoothstep(0.0, 1.5, drawn)), d.y);
+        vec3 w = particleWorley(sp * 5.5 + seed * 3.1);
+        float ahead = mix(1.0, smoothstep(-0.4, 0.5, d.x), smoothstep(0.2, 1.0, drawn));
+        float drops = smoothstep(0.16, 0.06, w.x) * step(0.45, w.z) * smoothstep(1.0, 0.6, r) * ahead * (1.0 - body);
+
+        float dry = smoothstep(0.25, 0.9, vLife.x);
+        alpha = max(body * 0.97, drops * 0.9);
+        vec3 colour = mix(vTint.rgb, vTint.rgb * 0.12, thick);
+        colour = mix(colour, vec3(0.1, 0.03, 0.02), dry * 0.6);
+        float gloss = (0.25 + 0.75 * thick) * (1.0 - dry) * body;
+        light = colour * (ground + ambient()) * alpha + wetShine(scene, n, gloss) * alpha;
     }
     // Whatever reaches the edge of the card fades out before it, rather than being cut off round.
     return vec4(light, alpha) * (vTint.a * thickness * smoothstep(1.0, 0.88, r));

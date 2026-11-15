@@ -16,12 +16,21 @@ namespace Dino_Engine.Physics
         public const float BreakingRatio = 0.78f;
         /// <summary>Waves per set: shore wave heights rise and fall over this many waves. WATER_SET_LENGTH.</summary>
         public const float SetLength = 7f;
+        /// <summary>
+        /// Sets counted before the count starts again (WaterSingleton.ShoreSets): every wave until then has random numbers of its own, which say how far it
+        /// runs up the beach and where its foam lies (Water/ShoreData.glsl), and the count stays small enough for the phase to keep its precision. At 6 s a wave
+        /// it comes round every half a day.
+        /// </summary>
+        public const int SetsCounted = 1024;
         /// <summary>Mean square slope of a clean sea surface per m/s of wind (Cox and Munk 1954, swell excluded).</summary>
         public const float CoxMunkSlopePerWind = 0.00512f;
         /// <summary>Largest factor the along-shore variation scales shore waves by. WATER_ALONGSHORE_MAX.</summary>
         public const float AlongShoreMax = 1.25f;
-        /// <summary>The swash climbs at most this many wave heights up a steep shore. WATER_RUNUP_VERTICAL.</summary>
-        public const float MaxRunUpHeight = 1.2f;
+        /// <summary>
+        /// The swash climbs at most this many wave heights up a steep shore. WATER_RUNUP_VERTICAL. Hunt's run-up is the wave height times the Iribarren number,
+        /// which is past 1.5 on a 1 in 6 beach, and waves that surge up a steeper bank climb about twice their height.
+        /// </summary>
+        public const float MaxRunUpHeight = 2f;
 
         /// <summary>Wavelength in deep water of waves with this period: g T^2 / (2 pi).</summary>
         public static float DeepWaterWavelength(float period) => Gravity * period * period / MathF.Tau;

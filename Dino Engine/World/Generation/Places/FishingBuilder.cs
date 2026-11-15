@@ -27,6 +27,7 @@ namespace Dino_Engine.World.Generation.Places
             Waterside(Random.Fork("waterside"));
             Houses(Random.Fork("houses"));
             Drying(Random.Fork("drying"));
+            Waterline(Random.Fork("waterline"));
             Hold(Random.Fork("holders"));
         }
 
@@ -144,6 +145,25 @@ namespace Dino_Engine.World.Generation.Places
         }
 
         // The raiders about the houses and the shore, the fishers who'll come back once it's free, and what's been taken in a chest by the fire.
+        // The waterside as the fishers left it and the Reich keeps it (PLACES.md): shells, fish bones and floats along the tide line, nets spread on the shingle to be mended, the
+        // gutting table by the jetty's foot with its buckets, barrels of salted fish and the Reich's wagon to take them, the greycoats' tent, brazier and spears, the ways worn from the
+        // houses to the boats, and torches at the jetty's foot.
+        private void Waterline(WorldRandom r)
+        {
+            for (float x = -Site.Radius * 0.8f; x < Site.Radius * 0.8f; x += r.Range(4f, 6f)) Strew(LitterKind.Shells, new Vector2(x, _shore - r.Range(0.8f, 2.4f)), r.Range(1.4f, 2.4f), r.Int(10, 18));
+            for (int k = 0; k < 2; k++) Tries(10, () => LayFlat(new PlaceSpec(PlacePiece.MendingNet, NextSeed(), PlaceSpec.Cm(r.Range(3.2f, 5f)), PlaceSpec.Cm(r.Range(1.8f, 2.6f))), new Vector2(r.Range(-Site.Radius * 0.6f, Site.Radius * 0.6f), _shore - r.Range(4f, 7f)), YawOf(Vector2.UnitY) + r.Range(-0.4f, 0.4f), 2.6f, 0.2f));
+            Tries(10, () => PutBox(new PlaceSpec(PlacePiece.GuttingTable, NextSeed(), PlaceSpec.Cm(r.Range(2f, 2.8f))), W(new Vector2(r.Range(-8f, 8f), _shore - r.Range(5f, 8f))), YawOf(Vector2.UnitY) + r.Range(-0.3f, 0.3f), new Vector2(1.6f, 1f), 1.2f, 0.3f, 0.4f));
+            for (int k = 0; k < 2; k++) Tries(8, () => PutBox(new PlaceSpec(PlacePiece.Barrels, NextSeed(), r.Int(3, 5)), W(new Vector2(r.Range(-Site.Radius * 0.5f, Site.Radius * 0.5f), _shore - r.Range(7f, 11f))), r.Float() * MathF.Tau, new Vector2(1.6f), 1.4f, 0.3f, 0.4f));
+            Tries(10, () => PutBox(new PlaceSpec(PlacePiece.Wagon, NextSeed(), 0, 1, PlaceSpec.Cm(r.Range(3.8f, 4.6f))), W(new Vector2(r.Range(-Site.Radius * 0.4f, Site.Radius * 0.4f), _shore - r.Range(14f, 20f))), r.Range(-0.5f, 0.5f), new Vector2(1.6f, 4f), 2.6f, 0.4f, 0.4f));
+            float side = r.Chance(0.5f) ? 1f : -1f;
+            Vector2 post = new Vector2(side * Site.Radius * r.Range(0.4f, 0.65f), _shore - r.Range(12f, 18f));
+            Tries(10, () => PutBox(new PlaceSpec(PlacePiece.Tent, NextSeed(), PlaceSpec.Cm(r.Range(4.2f, 5f)), 1), W(post), YawOf(Vector2.UnitY), new Vector2(3.8f, 3.4f), 3.4f, 0.4f, 0.4f));
+            Tries(8, () => PutRound(new PlaceSpec(PlacePiece.Brazier, NextSeed(), PlaceSpec.Cm(r.Range(1f, 1.2f))), W(post + new Vector2(-side * r.Range(3f, 4f), r.Range(2f, 3f))), 0f, 0.8f, 1.4f, 0.3f, 0.4f));
+            Tries(8, () => PutBox(new PlaceSpec(PlacePiece.WeaponRack, NextSeed(), PlaceSpec.Cm(r.Range(2f, 2.6f)), 1), W(post + new Vector2(-side * r.Range(1f, 2f), r.Range(4f, 5f))), YawOf(Vector2.UnitY), new Vector2(1.5f, 0.6f), 2f, 0.3f, 0.4f));
+            Trail(new Vector2(0f, _shore - 18f), new Vector2(0f, _shore - 1f), 2.6f, GroundPaint.Yard, 1.6f);
+            Strew(LitterKind.Embers, post + new Vector2(-side * 3.5f, 2.5f), 1.2f, r.Int(5, 8));
+        }
+
         private void Hold(WorldRandom r)
         {
             Vector2 middle = W(new Vector2(0f, _shore - 12f));

@@ -32,6 +32,7 @@ namespace Dino_Engine.Particles
         Pool,       // A bubbling pool, glowing by its palette.
         Ring,       // A ring going out, as a shockwave on the ground.
         Scorch,     // Ground burnt black.
+        Blood,      // Spilt blood: thick and near black where it pools, thin and crimson at its edge, flung out along the way it went, with spatter round it, and drying as it lies.
     }
 
     /// <summary>Which way a particle's picture faces.</summary>
@@ -94,7 +95,7 @@ namespace Dino_Engine.Particles
 
         // ---------------------------------------------------------------- how it's drawn
         public float Softness = 0.4f;       // Metres it fades over where it meets something solid, as a fraction of its size above 1.
-        public float Stretch;               // Seconds of its path a Stretched particle is drawn along.
+        public float Stretch;               // Seconds of its path a Stretched particle is drawn along. For a Decal, how far its pattern is drawn out along its angle (0 round, 1 twice as long as wide).
         public float Cover;                 // How much something glowing hides what's behind it, at its densest. Light alone goes to white over a sunlit field.
         public float Stand = 0.5f;          // How far an Upright particle stands up, from square to the eye (0) to straight up (1).
         public float FrameRate;             // Flipbook frames a second, for a flame that goes on. 0 plays the flipbook once over its life.

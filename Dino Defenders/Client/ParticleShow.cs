@@ -11,7 +11,7 @@ namespace Dino_Defenders.Client
 {
     /// <summary>
     /// What each kind of damage looks like as particles (read PARTICLES.md). Fire, cold, lightning, venom and magic each have a burst, a patch of ground, a bolt's trail, a blow
-    /// landing and what someone suffering from them gives off, and physical blows have blood, bone and sparks. It's all for show, on this machine alone.
+    /// landing and what someone suffering from them gives off, and physical blows have bone, sparks, a thud, and blood only on what's bleeding. It's all for show, on this machine alone.
     /// </summary>
     public static class ParticleShow
     {
@@ -73,8 +73,12 @@ namespace Dino_Defenders.Client
 
         private static readonly Vector3 Ichor = new Vector3(0.28f, 0.42f, 0.18f);
 
-        /// <summary>A blow landing on a body, going <paramref name="way"/>: blood thrown along it, or bone chipped, or sparks off armour. A heavy one throws more, and a killing one pools.</summary>
-        public static void Wound(Vector3 at, Vector2 way, Flesh flesh, bool armour, float weight, bool critical)
+        /// <summary>
+        /// A blow landing on a body, going <paramref name="way"/>: bone chipped, or sparks off armour, and blood thrown along it only if the body is <paramref name="bleeding"/>, which
+        /// is the server's word for the Bleeding ailment (DamageEvent.Bleeding): blood on the ground is a promise that the wound is open. A blow on anything else lands with a dull
+        /// thud and nothing red. A heavy blow on something bleeding throws more.
+        /// </summary>
+        public static void Wound(Vector3 at, Vector2 way, Flesh flesh, bool armour, float weight, bool critical, bool bleeding)
         {
             Vector3 forward = new Vector3(way.X, 0f, way.Y);
             if (forward.LengthSquared < 1e-6f) forward = Vector3.UnitZ;
@@ -86,10 +90,26 @@ namespace Dino_Defenders.Client
                 Particles.Play(Impact.Bone, at, scale, forward: forward);
                 return;
             }
+            if (!bleeding)
+            {
+                if (!armour) Particles.Play(Impact.Thud, at, MathF.Min(scale, 1.3f), forward: forward);
+                return;
+            }
             bool gush = weight >= 0.45f || (critical && weight >= 0.2f);
-            Vector3 tint = flesh == Flesh.Rot ? Ichor : Vector3.One;
-            Particles.Play(gush ? Blood.Gush : Blood.Hit, at, scale, forward: forward, tint: tint);
+            Particles.Play(gush ? Blood.Gush : Blood.Hit, at, scale, forward: forward, tint: TintOf(flesh));
         }
+
+        /// <summary>Something that was bleeding has fallen where it stood, thrown <paramref name="thrown"/>: a pool spreads under it, sized to its body. Nothing that wasn't bleeding pools.</summary>
+        public static void Fallen(in EntityView entity, Vector3 at, Vector3 thrown, Flesh flesh)
+        {
+            if (flesh == Flesh.Bone) return;
+            Vector3 forward = new Vector3(thrown.X, 0f, thrown.Z);
+            if (forward.LengthSquared < 1e-6f) forward = Vector3.UnitZ;
+            float scale = Math.Clamp(BodyOf(entity).Radius / 0.9f, 0.7f, 2.4f);
+            Particles.Play(Blood.Fallen, at, scale, forward: forward, tint: TintOf(flesh));
+        }
+
+        private static Vector3 TintOf(Flesh flesh) => flesh == Flesh.Rot ? Ichor : Vector3.One;
 
         /// <summary>How big a body is for what's shown happening all over it, from its model's own size.</summary>
         public static EffectShape BodyOf(in EntityView entity)
@@ -206,16 +226,24 @@ namespace Dino_Defenders.Client
             public int Seen;
         }
 
+        private const int Lately = 40;      // Frames someone counts as having bled, after the last frame they were seen bleeding: long enough to outlast the packet that fells them.
+
         private readonly Dictionary<uint, Sufferer> _sufferers = new();
+        private readonly Dictionary<uint, int> _bled = new();
         private readonly List<uint> _gone = new();
         private int _frame;
 
-        /// <summary>Someone who's afflicted with <paramref name="afflicted"/> this frame.</summary>
+        /// <summary>Whether this one was seen bleeding in the last few frames, for a pool under whoever falls bleeding, as the dead give off nothing.</summary>
+        public bool BledLately(uint id) => _bled.TryGetValue(id, out int at) && _frame - at <= Lately;
+
+        /// <summary>Someone who's afflicted with <paramref name="afflicted"/> this frame. The dead give off nothing, whatever was on them when they fell.</summary>
         public void Show(in EntityView entity, uint id, in AfflictedComponent afflicted)
         {
+            if (afflicted.Has(Condition.Bleeding)) _bled[id] = _frame;
+            bool dead = entity.Has<EnemyComponent>() ? entity.Get<EnemyComponent>().State == EnemyState.Dead : entity.Has<HealthComponent>() && entity.Get<HealthComponent>().Current <= 0f;
             if (!_sufferers.TryGetValue(id, out Sufferer? sufferer))
             {
-                if (afflicted.Flags == 0) return;
+                if (afflicted.Flags == 0 || dead) return;
                 sufferer = new Sufferer();
                 _sufferers.Add(id, sufferer);
             }
@@ -227,7 +255,7 @@ namespace Dino_Defenders.Client
             for (int i = 0; i < Shown.Length; i++)
             {
                 // Frozen solid is more than chilled, and shows instead.
-                bool on = afflicted.Has(Shown[i].Condition) && !(Shown[i].Condition == Condition.Chilled && afflicted.Has(Condition.Frozen));
+                bool on = !dead && afflicted.Has(Shown[i].Condition) && !(Shown[i].Condition == Condition.Chilled && afflicted.Has(Condition.Frozen));
                 EffectRun? run = sufferer.Runs[i];
                 if (on && run == null) run = sufferer.Runs[i] = Particles.Begin(Shown[i].Effect, position, body);
                 else if (!on && run != null)
@@ -255,6 +283,12 @@ namespace Dino_Defenders.Client
                 _gone.Add(id);
             }
             foreach (uint id in _gone) _sufferers.Remove(id);
+            if ((_frame & 63) == 0)
+            {
+                _gone.Clear();
+                foreach (var (id, at) in _bled) if (_frame - at > Lately) _gone.Add(id);
+                foreach (uint id in _gone) _bled.Remove(id);
+            }
             _frame++;
         }
     }

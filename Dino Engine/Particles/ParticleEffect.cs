@@ -68,6 +68,7 @@ namespace Dino_Engine.Particles
         public FloatRange Life = new FloatRange(1f, 1f);
         public FloatRange Spin = new FloatRange(0f, 0f);   // Radians a second, either way.
         public bool Turned = true;              // Born at any angle. Otherwise upright.
+        public bool Along;                      // Born turned along the effect's Forward, so a decal drawn out by its Stretch lies the way the blow went.
         public Vector3 Tint = Vector3.One;
         public float Strength = 1f;
 

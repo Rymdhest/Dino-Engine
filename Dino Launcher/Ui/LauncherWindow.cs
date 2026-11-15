@@ -49,6 +49,7 @@ namespace Dino_Launcher.Ui
         private readonly float _scale;
 
         private readonly Image? _banner;
+        private readonly Image? _lockup;
         private readonly NotesPanel _notes;
         private readonly Label _status;
         private readonly ProgressStrip _progress;
@@ -90,6 +91,7 @@ namespace Dino_Launcher.Ui
             Font = new Font("Segoe UI", 10f);
 
             _banner = LoadBanner();
+            _lockup = LoadLockup();
 
             _notes = new NotesPanel(_scale);
 
@@ -242,9 +244,14 @@ namespace Dino_Launcher.Ui
             return _notes.Press(key) || base.ProcessCmdKey(ref message, key);
         }
 
-        private static Image? LoadBanner()
+        private static Image? LoadBanner() => LoadPicture("banner.jpg");
+
+        // The game's logo as the game itself printed it ("Dino Defenders.exe" --logo), the mark beside the name, over nothing.
+        private static Image? LoadLockup() => LoadPicture("lockup.png");
+
+        private static Image? LoadPicture(string name)
         {
-            using Stream? stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("banner.jpg");
+            using Stream? stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(name);
             return stream == null ? null : new Bitmap(Image.FromStream(stream));
         }
 
@@ -301,13 +308,14 @@ namespace Dino_Launcher.Ui
             var gradient = Rectangle.Inflate(fade, 0, 1); // A brush tiles, and its exact size leaves a dark line where the last row wraps to the first.
             using (var brush = new LinearGradientBrush(gradient, Color.FromArgb(0, Ink), Ink, LinearGradientMode.Vertical)) g.FillRectangle(brush, fade);
 
-            g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
-            using var title = new Font("Georgia", 32f, FontStyle.Bold);
-            using var shadow = new SolidBrush(Color.FromArgb(200, 0, 0, 0));
-            using var ink = new SolidBrush(Parchment);
-            var place = new PointF(_left - Scaled(4), area.Height - Scaled(66));
-            g.DrawString("Dino Defenders", title, shadow, place.X + Scaled(2), place.Y + Scaled(2));
-            g.DrawString("Dino Defenders", title, ink, place);
+            // The game's name is its logo, standing on the dark at the foot of the picture.
+            if (_lockup != null)
+            {
+                float height = Scaled(60);
+                float width = height * _lockup.Width / _lockup.Height;
+                g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                g.DrawImage(_lockup, new RectangleF(_left, area.Height - Scaled(22) - height, width, height));
+            }
         }
 
         // A flat button draws disabled text in its own pale grey, which disappears on this background.

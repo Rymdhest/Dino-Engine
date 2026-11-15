@@ -12,7 +12,8 @@
     <Version>1.0.0</Version>
     <Product>Dino Defenders</Product>
     <AssemblyTitle>Dino Defenders Launcher</AssemblyTitle>
-    <ApplicationIcon>Assets\icon.ico</ApplicationIcon>
+    <!-- The game's logo, as the game itself prints it (the game run with its logo option writes it to Marketing/Social/source/logo): nothing here draws it. -->
+    <ApplicationIcon>..\Marketing\Social\source\logo\dino_defenders.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <Prefer32Bit>false</Prefer32Bit>
     <!--
@@ -27,6 +28,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Assets\banner.jpg" LogicalName="banner.jpg" />
+    <EmbeddedResource Include="..\Marketing\Social\source\logo\lockup_512.png" LogicalName="lockup.png" />
     <Reference Include="System.IO.Compression" />
     <Reference Include="System.IO.Compression.FileSystem" />
     <Reference Include="System.Runtime.Serialization" />

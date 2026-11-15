@@ -54,6 +54,7 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Places
         EggSac,         // A weaver's egg sac hung from a branch: size.
         Cocoon,         // Something a weaver caught, wrapped up and hung: length.
         Wrap,           // Silk wound round a trunk a web is anchored to: the trunk's radius, how high it's wound.
+        SilkFloor,      // A weaver's floor spun over the ground: radius, form (0 a sheet at a trunk's roots, 1 its lair's, round the dark mouth of its burrow).
 
         // ---- A logging camp (Logging.cs). Its wood is the wood round it (bark, per NestKind-like choice below).
         Stump,          // A tree's stump, its cut face pale and its bark the tree's: radius, height, bark (BarkKind, then its colour, three per mille).
@@ -114,8 +115,62 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Places
         Snowman,        // A snowman, of two balls or three: height, form.
         SnowLantern,    // A lantern of snowballs piled round a candle, as the north builds them: size.
         Sledges,        // Sledges, wooden spades and buckets the children left: count.
-        Pennant,        // A pennant on a stick, stuck in the snow: height, colour.
+        Pennant,        // A pennant on a stick, stuck in the snow: height, colour (one of the land's, or 9 the frost cult's violet, longer).
         IceAltar,       // The frost cult's altar of ice, with the cold burning on it.
+
+        // ---- A shrine of the land's (Shrine.cs), its altar the catalog's, which a hero kindles.
+        ShrineHall,     // The hall behind the altar, open to it: width, depth, roof (0 hipped, 1 gabled, 2 eaves swept up), damage (0 to 2), stone (r, g, b).
+        ShrineGate,     // The gateway its path comes in by, hung with ribbons and bells: span, height, stone (r, g, b).
+        ShrineLantern,  // A tall lantern of stone, kept out: height, form (0 standing, 1 knocked down, 2 its roof knocked off), stone (r, g, b).
+        Offerings,      // The table offerings are left on: form (0 kept, 1 kicked over), stone (r, g, b).
+        Basin,          // A basin cut from one block with its spout and ladles: stone (r, g, b).
+        Bell,           // The shrine's bell in its frame: form (0 hung, 1 cut down and lying cracked).
+        Ribbons,        // Ribbons and tokens wound round a trunk: radius, how high.
+        Cairns,         // Little cairns of stones left by whoever came: count, spread, stone (r, g, b).
+        PrayerLine,     // Flags of the land's colours strung on a line along +z: length, height at its start, at its end, sag, a pole at its end (0, 1), at its start (0, 1).
+
+        // ---- A ring of old stones (Stones.cs), held by one of the land's cults (Cult).
+        Menhir,         // A standing stone of the land's rock: height, width, form (0 plain, 1 carved and humming, 2 broken, 3 fallen), lean (degrees), stone (r, g, b).
+        Trilithon,      // Two stones with a lintel across them: height, span, form (0 standing, 1 its lintel fallen), stone (r, g, b).
+        Barrow,         // The barrow the ring was raised over, its kerb and portal: length, width, height, opened by the Ossuary (0, 1), stone (r, g, b).
+        Totem,          // A totem of the cult that holds the stones: height, cult (Cult).
+        CultHeart,      // The cult's heart in the ring's middle, its fire, ice, struck stone or black pool: cult, radius.
+
+        // ---- A watchtower of the land's (Beacon.cs), its beacon cold since the ships came.
+        BeaconTower,    // The beacon tower, its basket heaped with wood never lit: height, radius, form (0 round, 1 square), stone (r, g, b).
+        BeaconPyre,     // The beacon's wood stacked at the tower's foot under the Reich's sealed tarp: length.
+        SightStone,     // The stone the keepers sighted the next beacon by, along its +z: stone (r, g, b).
+        Horn,           // The beacon's horn on its tripod.
+
+        // ---- A brood's pen (Pen.cs).
+        Kennel,         // A row of kennels for war-raptors, barred and roofed at the back: stalls, a stall's width, depth.
+        ButcherBlock,   // The block, its cleavers, offal and the rack of meat over it.
+        BiteDummy,      // Straw dummies in the land's clothes, gashed by claws: count.
+        Midden,         // The heap of dung and straw with a fork in it: radius.
+
+        // ---- What the works and the farms run on (Works.cs).
+        Boiler,         // The Institute's boiler on its brick firebox, its chimney smoking and its coal heaped by it.
+        Haystack,       // Hay stacked round a pole under a cap of thatch: radius.
+        MendingNet,     // A net spread on the shingle to be mended, pegged, floats along its edge, the mender's stool by it: length, width.
+        GuttingTable,   // A table where the catch is gutted, its buckets and basket under it: length.
+        Slash,          // The boughs a felling lops off, heaped in a brown tangle: radius, bark (as a stump's).
+
+        // ---- What lies on the ground (Underfoot.cs).
+        Litter,         // Litter of a kind over a disc: kind (LitterKind), radius, count, and a stone's colour (r, g, b) for spalls and rubble.
+        Puddle,         // Water standing in a yard's ruts, with a rim of churned mud: radius.
+        Duckboards,     // Boards laid over the mud on runners: length, width.
+
+        // ---- What whoever holds a place lives and works with (Camp.cs).
+        WeaponRack,     // A rack of weapons: width, whose (1 the Reich's spears, goads and shields; 0 the land's pitchforks, axes, a scythe and a bow).
+        Torch,          // A torch on a pole, burning: height, form (0 the land's, 1 the Reich's cresset, 2 a fire cult's, 3 the frost cult's cold flame, 4 the Ossuary's cold lamp).
+        Brazier,        // The Reich's brazier by itself, logs by it: height.
+        Firewood,       // Split wood stacked with its ends to the front, a chopping block and its axe: length, height.
+        Wagon,          // A four-wheeled wagon: form (0 loaded, 1 broken down), whose (1 the Reich's tilted wagon), length.
+        Gibbet,         // The Reich's gibbet, its cage hung empty and its notice on the post: height.
+        Barricade,      // Stakes through a log, sharpened outwards: length, whose.
+        CommandTent,    // A brood's wall tent, its fly out over a table of maps, its standard at the door: length.
+        Signpost,       // A signpost, the Reich's boards nailed over the land's names: arms, whose.
+        MessTable,      // A trestle table with benches, bowls and a lantern over it: length.
 
         // ---- Shared by anything (Kit.cs).
         Crates,         // Crates stacked: count, marked (1 with the Reich's mark).

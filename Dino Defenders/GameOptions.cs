@@ -71,6 +71,8 @@ namespace Dino_Defenders
     ///   --texturecheck true  Measures each kind of noise once the materials are made and prints it, for Canvas.OctaveStatistics.
     ///   --perf file     Measures --perfframes N frames from frame --perfstart N, writes the report to this file and quits. Timing each pass slows the
     ///                   GPU down a little: --perfgpu false measures what a player really gets, with no passes in the report.
+    ///   --logo folder   Writes the game's logo to that folder as pictures, the mark at every size a social page takes and the title over nothing,
+    ///                   with no window, and quits: Marketing/Social/make_social.py lays the banners from them (UI/Logo.cs).
     /// A scripted run otherwise neither reads nor writes the player's save.
     /// </summary>
     internal sealed class GameOptions
@@ -171,6 +173,7 @@ namespace Dino_Defenders
         public string? Fx;              // Effects by name (Particles/Content), or "all", stood in a row in front of the hero.
         public string? ParticleSheet;   // A folder to write the grown flame and smoke flipbooks to, as pictures.
         public string? MaterialSheet;   // A folder to write every material's maps to, as pictures.
+        public string? Logo;            // A folder to write the logo to, as pictures, with no window.
         public string? Materials;       // Materials by name, or "all", stood in a row of shapes in front of the hero.
         public bool TextureCheck;
         public Vector2 FxAt = new Vector2(0f, 4f);  // Metres from the hero the first of them stands, across and away from the camera.
@@ -291,6 +294,7 @@ namespace Dino_Defenders
                     case "fx": options.Fx = value; break;
                     case "particlesheet": options.ParticleSheet = value; break;
                     case "materialsheet": options.MaterialSheet = value; break;
+                    case "logo": options.Logo = value; break;
                     case "materials": options.Materials = value; break;
                     case "texturecheck": options.TextureCheck = bool.Parse(value); break;
                     case "fxat":

@@ -26,6 +26,7 @@ namespace Dino_FloraLab
         private const float TallestTree = 30f;  // The camera is some 33 m up, and a crown that reaches it is a wall.
 
         private static int _failures;
+        private static readonly List<string> _underWater = new();
 
         private static void Fail(string message)
         {
@@ -36,6 +37,7 @@ namespace Dino_FloraLab
         public static int Run(Options options)
         {
             _failures = 0;
+            _underWater.Clear();
             int seeds = options.Int("count", 12);
             var clock = Stopwatch.StartNew();
             long plants = 0, triangles = 0, slowest = 0;
@@ -47,6 +49,7 @@ namespace Dino_FloraLab
                 if (species.Kind == WorldAssetKind.Tree && species.SolidRadius <= 0f) Fail($"{species.Id} is a tree that can be walked through");
                 if (species.Variants < 1) Fail($"{species.Id} has no variants");
 
+                float grown = 0f;
                 for (int i = 0; i < seeds; i++)
                 {
                     ulong seed = (ulong)(i * 2654435761L + 17);
@@ -60,8 +63,16 @@ namespace Dino_FloraLab
                     }
                     if (ms > MostMs) Fail($"{species.Id} took {ms} ms at seed {seed}");
                     Sound(species, mesh, seed);
+                    if (species.Form is IUnderWater) grown = MathF.Max(grown, Highest(mesh));
                     plants++;
                     triangles += mesh.TriangleCount;
+                }
+
+                // What lives under water says how tall it can stand, and the sea floor keeps it under the surface by that (SEA.md): taller than it says, it stands out of the water.
+                if (species.Form is IUnderWater under)
+                {
+                    if (grown > under.Tallest + 0.002f) Fail($"{species.Id} stands {grown:0.000} m at scale 1, over the {under.Tallest:0.000} m it says it can, so it comes out of the water");
+                    _underWater.Add($"{species.Id} {grown:0.00}/{under.Tallest:0.00}");
                 }
 
                 // The same seed is the same plant, on any thread, however many have grown since.
@@ -80,10 +91,18 @@ namespace Dino_FloraLab
             }
 
             CheckBiomes();
+            if (_underWater.Count > 0) Console.WriteLine($"Under water, tallest grown of what each says: {string.Join(", ", _underWater)}");
 
             Console.WriteLine($"{plants} plants of {FloraCatalog.Species.Count} species and {FloraCatalog.Cards.Count} cards, {triangles / Math.Max(plants, 1)} triangles on average, slowest {slowestName} at {slowest} ms, in {clock.Elapsed.TotalSeconds:0.0} s");
             Console.WriteLine(_failures == 0 ? "Every plant is sound." : $"{_failures} plant problem(s).");
             return _failures == 0 ? 0 : 1;
+        }
+
+        private static float Highest(FloraMesh mesh)
+        {
+            float most = float.MinValue;
+            for (int i = 0; i < mesh.VertexCount; i++) most = MathF.Max(most, mesh.Vertices[i].Position.Y);
+            return most;
         }
 
         private static void Sound(PlantSpecies species, FloraMesh mesh, ulong seed)
@@ -162,6 +181,16 @@ namespace Dino_FloraLab
                     }
                 }
                 if (biome.ForestCover > 0.05f && biome.Canopy.Length == 0) Fail($"{biome.Id} has forest and no trees");
+            }
+
+            // What lives in the water grows by the coast's sea life (SEA.md), which every biome has one of.
+            foreach (SeaLife life in SeaLife.All)
+            {
+                foreach (Species species in life.Everything)
+                {
+                    used.Add(species.Asset.Id);
+                    if (species.Weight <= 0f) Fail($"{life.Id} sea grows {species.Asset.Id} at a weight of {species.Weight}");
+                }
             }
 
             // Crops are placed by the settlements, and a dead pine by the sites.

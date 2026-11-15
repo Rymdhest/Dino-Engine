@@ -237,7 +237,7 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Places
             Kit.Brazier(b, new Vector3(-1.9f, 0f, -0.6f), 1.05f, random, lights);
             // The quench tub: half a barrel of black water.
             Vector3 tub = new Vector3(1.7f, 0f, -0.7f);
-            Kit.Lathe(b, tub, Vector3.UnitY, 0.75f, Kit.Profile((0f, 0.5f), (1f, 0.58f)), 10, 2, Timber(random, 0.55f));
+            Kit.Lathe(b, tub, Vector3.UnitY, 0.75f, Kit.Profile((0f, 0.5f), (1f, 0.58f)), 10, 2, Timber(random, 0.55f), openEnd: true);
             Kit.Lathe(b, tub + Vector3.UnitY * 0.7f, Vector3.UnitY, 0.01f, Kit.Profile((0f, 0.55f), (1f, 0f)), 10, 1, Flat(new Vector3(0.03f, 0.035f, 0.04f)));
             // Tongs and hammers on a rack behind.
             Vector3 rack = new Vector3(0f, 0f, -1.6f);

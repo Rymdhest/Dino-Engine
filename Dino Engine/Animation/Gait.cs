@@ -5,7 +5,14 @@ namespace Dino_Engine.Animation
     /// <summary>What a foot stands on. It's all that animation asks of a world, so a lab can have a flat floor or a staircase in its place.</summary>
     public interface IGround
     {
+        /// <summary>Where a foot stands.</summary>
         float HeightAt(float x, float z);
+
+        /// <summary>
+        /// What a body lying on the ground rests on, which can be above where feet stand: a world's ground is drawn higher than people stand on it (WorldData.DrawnGroundAt), and a body
+        /// laid where feet are is half under it.
+        /// </summary>
+        float LieAt(float x, float z) => HeightAt(x, z);
 
         /// <summary>Gets ready to be asked about what's standing around here, and says whether anything is. Most ground has nothing on it.</summary>
         bool LookAround(Vector2 centre, float reach) => false;

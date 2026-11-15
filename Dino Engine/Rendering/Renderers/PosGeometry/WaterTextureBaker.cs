@@ -8,6 +8,8 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
     /// average slopes into the surface normal and squared slopes into roughness (LEAN mapping), so ripples too small to
     /// see widen the sun's glint instead of sparkling.</para>
     /// <para>Pattern (2D, RGBA8): r foam lace, g caustics (intensity / 3), b and a smooth noise for large-scale variation.</para>
+    /// <para>Foam (2D, RGBA8, Water/ShoreFoam.glsl): r the lace thinning foam breaks into, strands thickest where they meet; g bubbles of every size;
+    /// b broad patches, which leave holes in even thick foam; a streaks, long along u, for the sticks in the wrack.</para>
     /// </summary>
     internal static class WaterTextureBaker
     {
@@ -18,6 +20,7 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
         private const int RippleWaveCount = 40;
 
         public const int PatternResolution = 512;
+        public const int FoamResolution = 512;  // FOAM_RESOLUTION in Water/ShoreFoam.glsl
         public const float CausticEncodeScale = 3f;   // Caustic intensity is stored divided by this (it clips above).
         // Second caustic layer, rotated and scaled against the first. Must match CAUSTIC_ROTATION / CAUSTIC_SCALE in WaterCommon.glsl.
         public const float CausticRotation = 0.8f;
@@ -165,13 +168,124 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
                     int i = (z * n + x) * 4;
                     data[i] = ToByte(foam);
                     data[i + 1] = ToByte(caustics[z * n + x] / CausticEncodeScale);
-                    data[i + 2] = ToByte(Fbm(u, v, 4, 4, 404u));
-                    data[i + 3] = ToByte(Fbm(u, v, 4, 4, 505u));
+                    data[i + 2] = ToByte(SmoothNoise(u, v, 4, 4, 404u));
+                    data[i + 3] = ToByte(SmoothNoise(u, v, 4, 4, 505u));
                 }
             });
 
             causticMinMean = MeanOfCrossedCaustics(data, n);
             return data;
+        }
+
+        // ---------------------------------------------------------------- foam
+
+        /// <summary>
+        /// What foam is made of, at every scale it shows from the game's camera, where a metre is thirty pixels (Water/ShoreFoam.glsl). A tile is
+        /// <see cref="WaterRenderer.ShoreFoamTile"/> metres. Foam that's thinning breaks up into a network of strands round holes of every size, its
+        /// strands thickest where three meet (r); thick foam is bubbles crowded together, big and small (g); it lies in patches, with holes in it even
+        /// where there's a lot (b); and streaks (a, long along u), which the wrack's sticks are cut from. Cells are warped, so nothing reads as paving.
+        /// </summary>
+        public static byte[] BakeFoam()
+        {
+            int n = FoamResolution;
+            byte[] data = new byte[n * n * 4];
+
+            Parallel.For(0, n, z =>
+            {
+                for (int x = 0; x < n; x++)
+                {
+                    float u = (x + 0.5f) / n, v = (z + 0.5f) / n;
+
+                    // The lace: two networks of strands, wandering at two sizes, each strand a thickness of its own and some of them broken, thickest where
+                    // they meet, far from every cell's middle; the finer network only in some of the big cells, and fainter.
+                    float wu = (Fbm(u, v, 3, 3, 611u) - 0.5f) * 0.09f + (Fbm(u, v, 9, 2, 613u) - 0.5f) * 0.025f;
+                    float wv = (Fbm(u, v, 3, 3, 612u) - 0.5f) * 0.09f + (Fbm(u, v, 9, 2, 614u) - 0.5f) * 0.025f;
+                    Worley(u + wu, v + wv, 11, 621u, out float a1, out float a2);
+                    Worley(u + wu * 1.6f, v + wv * 1.6f, 26, 622u, out float b1, out float b2);
+                    float apart = SmoothStep(0.15f, 0.55f, a1);
+                    float width = (0.06f + 0.04f * apart) * (0.55f + 0.9f * Fbm(u, v, 7, 2, 625u));
+                    float broken = SmoothStep(0.22f, 0.42f, Fbm(u, v, 6, 2, 626u));
+                    float coarse = (1f - SmoothStep(0f, width, a2 - a1)) * broken;
+                    float fine = (1f - SmoothStep(0f, 0.13f, b2 - b1)) * SmoothStep(0.35f, 0.75f, Fbm(u, v, 5, 2, 623u));
+                    float grain = Fbm(u, v, 48, 2, 624u);
+                    float lace = Math.Clamp(MathF.Max(coarse, fine * 0.55f) * (0.85f + 0.3f * grain), 0f, 1f);
+
+                    // Bubbles: round cells of a size each, in two sizes, crowding.
+                    WorleyNearest(u, v, 38, 631u, out float c1, out uint cellA);
+                    WorleyNearest(u, v, 57, 632u, out float d1, out uint cellB);
+                    float big = 1f - SmoothStep(0.18f + 0.22f * ((cellA & 0xffu) / 255f), 0.62f, c1);
+                    float small = 1f - SmoothStep(0.12f + 0.2f * ((cellB & 0xffu) / 255f), 0.55f, d1);
+                    float bubbles = Math.Clamp(MathF.Max(big * 0.9f, small * 0.5f), 0f, 1f);
+
+                    float patches = Fbm(u, v, 3, 4, 641u);
+                    // Long along u: few cells that way, many across.
+                    float streaks = StretchedFbm(u, v, 2, 7, 3, 651u);
+
+                    int i = (z * n + x) * 4;
+                    data[i] = ToByte(lace);
+                    data[i + 1] = ToByte(bubbles);
+                    data[i + 2] = ToByte(patches);
+                    data[i + 3] = ToByte(streaks);
+                }
+            });
+            return data;
+        }
+
+        /// <summary>Distance to the nearest feature point of a cells x cells grid tiling the unit square, and that point's hash.</summary>
+        private static void WorleyNearest(float u, float v, int cells, uint seed, out float f1, out uint nearest)
+        {
+            float px = u * cells, pz = v * cells;
+            int cx = (int)MathF.Floor(px), cz = (int)MathF.Floor(pz);
+            f1 = 10f;
+            nearest = 0u;
+            for (int dz = -1; dz <= 1; dz++)
+            {
+                for (int dx = -1; dx <= 1; dx++)
+                {
+                    int ix = cx + dx, iz = cz + dz;
+                    uint h = Hash((uint)Wrap(ix, cells) + Hash((uint)Wrap(iz, cells) + seed));
+                    float fx = ix + (h & 0xffffu) / 65535f;
+                    float fz = iz + (h >> 16) / 65535f;
+                    float d = MathF.Sqrt((fx - px) * (fx - px) + (fz - pz) * (fz - pz));
+                    if (d < f1)
+                    {
+                        f1 = d;
+                        nearest = Hash(h + 977u);
+                    }
+                }
+            }
+        }
+
+        /// <summary>Value noise fBm tiling the unit square with periods of its own each way, about 0..1: long along whichever has fewer.</summary>
+        private static float StretchedFbm(float u, float v, int periodU, int periodV, int octaves, uint seed)
+        {
+            float sum = 0f, amplitude = 1f, total = 0f;
+            for (int o = 0; o < octaves; o++)
+            {
+                sum += amplitude * TileableValueNoise2(u * periodU, v * periodV, periodU, periodV, seed + (uint)o * 7919u);
+                total += amplitude;
+                amplitude *= 0.5f;
+                periodU *= 2;
+                periodV *= 2;
+            }
+            return Math.Clamp((sum / total - 0.5f) * 1.7f + 0.5f, 0f, 1f);
+        }
+
+        private static float TileableValueNoise2(float x, float z, int periodX, int periodZ, uint seed)
+        {
+            int ix = (int)MathF.Floor(x), iz = (int)MathF.Floor(z);
+            float tx = x - ix, tz = z - iz;
+            float ux = tx * tx * tx * (tx * (tx * 6f - 15f) + 10f);
+            float uz = tz * tz * tz * (tz * (tz * 6f - 15f) + 10f);
+            float a = Lattice2(ix, iz, periodX, periodZ, seed), b = Lattice2(ix + 1, iz, periodX, periodZ, seed);
+            float c = Lattice2(ix, iz + 1, periodX, periodZ, seed), d = Lattice2(ix + 1, iz + 1, periodX, periodZ, seed);
+            return a + (b - a) * ux + (c - a) * uz + (a - b - c + d) * ux * uz;
+        }
+
+        private static float Lattice2(int x, int z, int periodX, int periodZ, uint seed)
+        {
+            uint h = Hash((uint)Wrap(x, periodX) + Hash((uint)Wrap(z, periodZ) + seed));
+            return (h & 0xffffffu) / 16777215f;
         }
 
         /// <summary>
@@ -344,6 +458,47 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
                 period *= 2;
             }
             return Math.Clamp((sum / total - 0.5f) * 1.7f + 0.5f, 0f, 1f);
+        }
+
+        /// <summary>
+        /// Gradient noise fBm tiling the unit square, mean a half, as spread as <see cref="Fbm"/> (a deviation of about 0.235). Each octave's lattice is shifted off
+        /// the others', which still tiles, as the lattice wraps. Value noise is flat at every lattice point, and with every octave's lattice on the first's, each
+        /// octave was flat where all the others were: read as the slopes of the swash's sheet, the sun's highlight on a wet beach lay in a perfect grid, which a
+        /// person saw. What's smooth in the water's pattern (b and a) is this.
+        /// </summary>
+        private static float SmoothNoise(float u, float v, int period, int octaves, uint seed)
+        {
+            float sum = 0f, amplitude = 1f, squares = 0f;
+            for (int o = 0; o < octaves; o++)
+            {
+                uint octaveSeed = seed + (uint)o * 7919u;
+                float shiftX = (Hash(octaveSeed ^ 0x68bc21ebu) & 0xffffffu) / 16777216f * period;
+                float shiftZ = (Hash(octaveSeed ^ 0x02e5be93u) & 0xffffffu) / 16777216f * period;
+                sum += amplitude * TileableGradientNoise(u * period + shiftX, v * period + shiftZ, period, octaveSeed);
+                squares += amplitude * amplitude;
+                amplitude *= 0.5f;
+                period *= 2;
+            }
+            // Measured: the standardised sum has a deviation of about 0.215.
+            return Math.Clamp(0.5f + sum / MathF.Sqrt(squares) * 1.09f, 0f, 1f);
+        }
+
+        private static float TileableGradientNoise(float x, float z, int period, uint seed)
+        {
+            int ix = (int)MathF.Floor(x), iz = (int)MathF.Floor(z);
+            float tx = x - ix, tz = z - iz;
+            float ux = tx * tx * tx * (tx * (tx * 6f - 15f) + 10f);
+            float uz = tz * tz * tz * (tz * (tz * 6f - 15f) + 10f);
+            float a = Corner(ix, iz, tx, tz, period, seed), b = Corner(ix + 1, iz, tx - 1f, tz, period, seed);
+            float c = Corner(ix, iz + 1, tx, tz - 1f, period, seed), d = Corner(ix + 1, iz + 1, tx - 1f, tz - 1f, period, seed);
+            return a + (b - a) * ux + (c - a) * uz + (a - b - c + d) * ux * uz;
+        }
+
+        // A lattice point's gradient, a unit vector at a random angle, against the way from it to the point.
+        private static float Corner(int x, int z, float dx, float dz, int period, uint seed)
+        {
+            float angle = Lattice(x, z, period, seed) * MathF.Tau;
+            return MathF.Cos(angle) * dx + MathF.Sin(angle) * dz;
         }
 
         private static float TileableValueNoise(float x, float z, int period, uint seed)

@@ -38,6 +38,10 @@ namespace Dino_WorldLab
             [SiteKind.Tradepost] = (new[] { PlacePiece.Scales, PlacePiece.Bales }, 2),
             [SiteKind.Farm] = (new[] { PlacePiece.FeedRack, PlacePiece.HatchingShed }, 2),
             [SiteKind.SnowCastle] = (new[] { PlacePiece.SnowWall, PlacePiece.SnowTower }, 4),
+            [SiteKind.Shrine] = (new[] { PlacePiece.ShrineHall, PlacePiece.ShrineGate, PlacePiece.ShrineLantern }, 3),
+            [SiteKind.StandingStones] = (new[] { PlacePiece.Menhir, PlacePiece.Trilithon }, 7),
+            [SiteKind.Watchtower] = (new[] { PlacePiece.BeaconTower }, 1),
+            [SiteKind.BanditCamp] = (new[] { PlacePiece.Kennel }, 1),
         };
 
         public static int Run(int first, int count, string? archetype, string? kind, bool pieces = false)

@@ -31,6 +31,7 @@ namespace Dino_Engine.World.Generation.Places
             Cut(Random.Fork("cut"));
             Works(Random.Fork("works"));
             Camp(Random.Fork("camp"));
+            Labour(Random.Fork("labour"));
             Hold(Random.Fork("holders"));
         }
 
@@ -195,6 +196,63 @@ namespace Dino_Engine.World.Generation.Places
         }
 
         // The greycoats on the floor and at its mouth, the guards by the tower, the land's quarrymen who'll come back to the face once it's free, and the chest by the tents.
+        // The quarry at work (PLACES.md): spalls round every banker and the split line, rubble along the face's foot, more blocks dressed and split about the floor, the quarrymen's
+        // tools racked under a shelter, the overseers' tent, table, brazier and spears by the mouth, cressets along the face, water barrels, and the way the sledges go worn to the mouth.
+        private void Labour(WorldRandom r)
+        {
+            (int R, int G, int B) stone = (_stone[0], _stone[1], _stone[2]);
+            float mouth = _faceZ + _floorDepth;
+            Trail(new Vector2(0f, _faceZ + 3f), new Vector2(0f, mouth + 4f), 3.2f, GroundPaint.Plaza, 1.6f);
+            for (int k = 0; k < 3; k++) Tries(10, () => Down(new PlaceSpec(PlacePiece.Banker, NextSeed(), stone.R, stone.G, stone.B), W(new Vector2(r.Range(-_width * 0.4f, _width * 0.4f), _faceZ + r.Range(4f, _floorDepth - 3f))), r.Float() * MathF.Tau, new Vector2(1.4f, 1f), 1.4f, 0.3f, 0.45f));
+            for (int k = 0; k < 4; k++) Tries(10, () =>
+            {
+                float w = r.Range(1f, 1.8f), h = r.Range(0.7f, 1.1f), d = r.Range(0.8f, 1.2f);
+                return Down(new PlaceSpec(PlacePiece.Block, NextSeed(), PlaceSpec.Cm(w), PlaceSpec.Cm(h), PlaceSpec.Cm(d), stone.R, stone.G, stone.B, r.Chance(0.5f) ? 1 : 0, r.Chance(0.4f) ? 1 : 0), W(new Vector2(r.Range(-_width * 0.45f, _width * 0.45f), _faceZ + r.Range(3f, _floorDepth - 2f))), r.Float() * MathF.Tau, new Vector2(w * 0.5f + 0.1f, d * 0.5f + 0.1f), h, 0.3f, 0.45f);
+            });
+            // The quarrymen's tools under a lean-to at a side of the floor.
+            float side = r.Chance(0.5f) ? 1f : -1f;
+            Vector2 shelter = Vector2.Zero;
+            bool sheltered = false;
+            for (int attempt = 0; attempt < 16 && !sheltered; attempt++)
+            {
+                // On the floor's side towards the mouth if there's room among the rubble and the stacks, and up on the ground at the pit's flank if there isn't.
+                shelter = attempt < 8
+                    ? new Vector2(side * _width * r.Range(0.3f, 0.45f), mouth - r.Range(3f, 9f))
+                    : new Vector2(side * (_width * 0.5f + r.Range(4f, 7f)), mouth + r.Range(-6f, 3f));
+                sheltered = Down(new PlaceSpec(PlacePiece.Shelter, NextSeed(), PlaceSpec.Cm(r.Range(3.6f, 4.6f)), PlaceSpec.Cm(r.Range(2.6f, 3.2f))), W(shelter), YawOf(new Vector2(-side, 0f)), new Vector2(2.6f, 1.9f), 4.4f, 0.4f, 0.45f);
+            }
+            if (sheltered)
+            {
+                Tries(6, () => Down(new PlaceSpec(PlacePiece.WeaponRack, NextSeed(), PlaceSpec.Cm(r.Range(2f, 2.6f)), 2), W(shelter + new Vector2(-side * r.Range(3f, 4f), r.Range(-1.5f, 1.5f))), YawOf(new Vector2(-side, 0f)), new Vector2(1.5f, 0.6f), 2f, 0.3f, 0.45f));
+                Tries(6, () => Down(new PlaceSpec(PlacePiece.Barrels, NextSeed(), r.Int(2, 3)), W(shelter + new Vector2(-side * r.Range(2f, 3f), r.Range(2f, 3f))), r.Float() * MathF.Tau, new Vector2(1.2f), 1.4f, 0.3f, 0.45f));
+            }
+            // The overseers' corner by the mouth, on the other side.
+            Vector2 corner = new Vector2(-side * _width * r.Range(0.25f, 0.4f), mouth + r.Range(-2f, 2f));
+            Tries(10, () => Down(new PlaceSpec(PlacePiece.Tent, NextSeed(), PlaceSpec.Cm(r.Range(4.2f, 5f)), 1), W(corner + new Vector2(-side * r.Range(1f, 3f), r.Range(0f, 3f))), YawOf(new Vector2(side, 0f)), new Vector2(3.8f, 3.4f), 3.4f, 0.4f, 0.45f));
+            Tries(8, () => Down(new PlaceSpec(PlacePiece.MessTable, NextSeed(), PlaceSpec.Cm(r.Range(2.4f, 3f))), W(corner + new Vector2(side * r.Range(2f, 4f), r.Range(-2f, 0f))), YawOf(Vector2.UnitX), new Vector2(2.2f, 1.3f), 1.2f, 0.3f, 0.45f));
+            Tries(8, () => DownRound(new PlaceSpec(PlacePiece.Brazier, NextSeed(), PlaceSpec.Cm(r.Range(1f, 1.2f))), W(corner + new Vector2(side * r.Range(1f, 2f), r.Range(1.5f, 3f))), 0f, 0.8f, 1.4f, 0.3f, 0.45f));
+            Tries(8, () => Down(new PlaceSpec(PlacePiece.WeaponRack, NextSeed(), PlaceSpec.Cm(r.Range(2f, 2.6f)), 1), W(corner + new Vector2(side * r.Range(4f, 5f), r.Range(1f, 2f))), YawOf(Vector2.UnitY), new Vector2(1.5f, 0.6f), 2f, 0.3f, 0.45f));
+            // Cressets along the foot of the face.
+            for (float x = -_width * 0.42f; x < _width * 0.45f; x += r.Range(7f, 9f))
+            {
+                float along = x;
+                Tries(5, () => DownRound(new PlaceSpec(PlacePiece.Torch, NextSeed(), PlaceSpec.Cm(r.Range(2.6f, 3f)), 1), W(new Vector2(along + r.Range(-2f, 2f), _faceZ + r.Range(1.6f, 3.2f))), 0f, 0.35f, 0f, 0.2f, 0.45f));
+            }
+            // Spalls and rubble where the stone's worked and where it fell.
+            for (int k = 0; k < 6; k++) Strew(LitterKind.Spalls, new Vector2(r.Range(-_width * 0.45f, _width * 0.45f), _faceZ + r.Range(3f, _floorDepth - 2f)), r.Range(1.8f, 3f), r.Int(20, 34), stone);
+            for (float x = -_width * 0.4f; x < _width * 0.42f; x += r.Range(5f, 7f)) Strew(LitterKind.Rubble, new Vector2(x, _faceZ + 1.4f), 1.8f, r.Int(6, 10), stone);
+        }
+
+        // Something of the quarry's work: laid level on the floor at the floor's height where it's on the floor, which is kept clear of anything put down as other places put
+        // things down (Keep, in Cut), and put down as anything else is where it isn't.
+        private bool Down(PlaceSpec spec, Vector2 at, float yaw, Vector2 half, float height, float padding = 0.3f, float maxSlope = 0.45f)
+        {
+            Vector2 local = Plan.ToLocal(at);
+            return Inside(local, half.Length) ? Floor(spec, local, yaw, half + new Vector2(padding), height) : PutBox(spec, at, yaw, half, height, padding, maxSlope);
+        }
+
+        private bool DownRound(PlaceSpec spec, Vector2 at, float yaw, float radius, float height, float padding = 0.3f, float maxSlope = 0.45f) => Down(spec, at, yaw, new Vector2(radius), height, padding, maxSlope);
+
         private void Hold(WorldRandom r)
         {
             Vector2 floorMiddle = W(new Vector2(0f, _faceZ + _floorDepth * 0.5f));

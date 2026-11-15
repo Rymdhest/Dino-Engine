@@ -22,6 +22,17 @@ uniform float bodyEdgeSoftness;
 uniform float bodyEdgeNoise;
 uniform float bodyInvNoiseScale;
 uniform float bodyEdgeFoam;
+// Foam lace: xy pattern offset (tiles), z 1 / tile size (1/m). The sea's foam is the shore's own (Water/ShoreFoam.glsl).
+uniform vec3 foamPattern;
+
+// Foam lace coverage 0..1 for an amount of foam: little foam shows only the strongest strands of the lace, a lot covers it.
+float waterFoamCoverage(float amount, vec2 xz, float lod)
+{
+    if (amount <= 1e-3) return 0.0;
+    float pattern = textureLod(patternTexture, xz * foamPattern.z + foamPattern.xy, lod).r;
+    float threshold = 1.0 - clamp(amount, 0.0, 1.0);
+    return smoothstep(threshold, threshold + 0.25, pattern) * clamp(amount * 3.0, 0.0, 1.0);
+}
 
 void main(void)
 {
@@ -54,7 +65,7 @@ void main(void)
     WaterBed bed = waterRefractedBed(position, N, straight);
     float causticLod = waterPatternLod(xzDx, xzDy, causticParameters.x);
     float caustics = waterCausticModulation(bed, rippleSlope + dot(slope, slope) * 0.5, causticLod);
-    WaterShading shading = waterShade(position, N, alphaSquared, V, bed, caustics, vec3(0.0));
+    WaterShading shading = waterShade(position, N, alphaSquared, V, bed, caustics, vec3(0.0), N);
 
     // Fade in over the first few centimetres of depth, and over the outline's soft edge.
     float edge = smoothstep(0.0, max(edgeFade, 1e-3), edgeDepth) * coverage;

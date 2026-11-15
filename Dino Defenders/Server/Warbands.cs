@@ -219,6 +219,8 @@ namespace Dino_Defenders.Server
                     if (roll < FeralShare + SwarmShare) return random.Chance(NestShare) ? Nest : Swarm;
                     return random.Chance(biome.Temperature >= 0.55f ? 0.6f : 0.3f) ? Boars : Wolves;
                 case SpawnRole.Cultist:
+                    // A ring of old stones is dressed for the cult that holds it (PlaceStory.CultOf), so the two have to agree.
+                    if (site.Kind == SiteKind.StandingStones) return Cults[(int)PlaceStory.CultOf(biome, site.Story)];
                     return CultOf(biome, random);
                 default:
                     if (random.Chance(TurncoatShare)) return Outlaws;

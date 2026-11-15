@@ -94,7 +94,7 @@ namespace Dino_Engine.ECS.Systems
                     float distSq = (pos - cameraPos).LengthSquared;
 
                     glModel model = modelArray[i].model;
-                    if (model.Hidden) continue;
+                    if (model.Hidden || model.CastsNoShadow) continue;
                     bool useImposter = false;
 
                     if (model.Imposter != null)

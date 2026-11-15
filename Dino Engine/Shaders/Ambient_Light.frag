@@ -110,6 +110,75 @@ vec4 giIrradiance(vec3 normal, float viewZ, vec3 direction, out vec3 reflected, 
     return vec4(irradiance, clamp(known / total, 0.0, 1.0));
 }
 
+// Snow and ice (SUBSURFACE.md): nearly all the light they send back has gone in and come out again somewhere round about, and the further it goes the bluer it is,
+// as ice takes red with every centimetre. Seen from this camera that's in two places, as the rest is only white: the edge of a shadow on snow runs blue into the
+// shadow, and a hollow, a footprint or the joint between two blocks is blue where it's dark. The first is the sun's light on the snow round about, by how far
+// each tap is from here in the world, in a Gaussian for each colour as wide as its reach (the profile's, times the amount): the screen's shadow at a fixed spiral
+// of taps, with nothing random, as wide as blue's reach at this pixel's distance. A tap is any surface at all, which across a few tenths of a metre is the snow
+// itself or something standing on it.
+const int FROST_TAPS = 16;
+// The taps' spiral reaches this many of blue's reaches out, and never more than this many pixels.
+const float FROST_SPAN = 2.0;
+const float FROST_MOST_PIXELS = 28.0;
+
+// Where a pixel's middle is in view space, a distance along the view away (the occlusion's depth, which is that), for a perspective projection.
+vec3 frostTapPosition(ivec2 pixel, float distance)
+{
+    vec2 ndc = (vec2(pixel) + 0.5) / resolution * 2.0 - 1.0;
+    return vec3((ndc.x + projectionMatrix[2][0]) / projectionMatrix[0][0], (ndc.y + projectionMatrix[2][1]) / projectionMatrix[1][1], -1.0) * distance;
+}
+
+// How much of the sun lights the light that comes out of the snow here, per colour, given how much reaches it directly (lit).
+vec3 frostDiffusedSun(Surface s, GBufferSample g, float lit)
+{
+    SssProfile p = sssProfileOf(SSS_FROST);
+    vec3 sigma = p.reach.rgb * s.scatter;
+    float distance = abs(texelFetch(occlusionDepth, g.screenPixel, 0).r);
+    float metresPerPixel = 2.0 * distance / (projectionMatrix[1][1] * resolution.y);
+    float span = min(FROST_SPAN * sigma.b / max(metresPerPixel, 1e-5), FROST_MOST_PIXELS);
+    if (span < 1.0) return vec3(lit);
+
+    // The sun at each tap first: where it's the same as here at all of them, as over most of a field in the sun or deep in a shadow, there's nothing to carry, and the
+    // answer is exactly what it would be with the rest worked out.
+    ivec2 last = textureSize(sunShadow, 0) - 1;
+    ivec2 taps[FROST_TAPS];
+    float sun[FROST_TAPS];
+    float differs = 0.0;
+    for (int i = 0; i < FROST_TAPS; i++)
+    {
+        // A golden-angle spiral, evenly over the disc, so that a straight shadow's edge is met at every distance rather than in rings.
+        float radius = sqrt((float(i) + 0.5) / float(FROST_TAPS)) * span;
+        float angle = float(i) * 2.39996323;
+        taps[i] = clamp(g.screenPixel + ivec2(round(vec2(cos(angle), sin(angle)) * radius)), ivec2(0), last);
+        vec2 shadow = texelFetch(sunShadow, taps[i], 0).rg;
+        sun[i] = clamp(shadow.x + shadow.y, 0.0, 1.0);
+        differs = max(differs, abs(sun[i] - lit));
+    }
+    if (differs < 1.0 / 1024.0) return vec3(lit);
+
+    vec3 here = frostTapPosition(g.screenPixel, distance);
+    vec3 falloff = 0.5 / max(sigma * sigma, vec3(1e-6));
+    vec3 sum = vec3(lit);
+    vec3 weights = vec3(1.0);
+    for (int i = 0; i < FROST_TAPS; i++)
+    {
+        vec3 apart = frostTapPosition(taps[i], abs(texelFetch(occlusionDepth, taps[i], 0).r)) - here;
+        vec3 w = exp(-dot(apart, apart) * falloff);
+        sum += w * sun[i];
+        weights += w;
+    }
+    return sum / weights;
+}
+
+// And the second: occlusion takes red from snow before blue, as what lights a hollow in it has come further through it, by how far each colour reaches (its
+// reach's square root, 1 for blue). It stands for the albedo the occlusion's bounces between the hollow's sides see.
+vec3 frostHollowAlbedo(Surface s)
+{
+    SssProfile p = sssProfileOf(SSS_FROST);
+    vec3 deep = sqrt(p.reach.rgb / max(p.reach.b, 1e-4));
+    return s.albedo * mix(vec3(1.0), deep, clamp(s.scatter / SNOW_SCATTER, 0.0, 1.0));
+}
+
 void main(void)
 {
     GBufferSample g = readGBufferSample();
@@ -152,7 +221,8 @@ void main(void)
     vec3 specular = environmentBRDF(F0, roughness, NdotV);
     vec3 diffuse = s.albedo * (1.0 - s.metallic) * (1.0 - specular);
 
-    vec3 ambient = diffuse * surrounding * occlusionMultiBounce(g.ambient, s.albedo);
+    bool frost = s.scatterKind == SSS_FROST && s.scatter > 0.0 && sssSwitches.x > 0.0;
+    vec3 ambient = diffuse * surrounding * occlusionMultiBounce(g.ambient, frost ? frostHollowAlbedo(s) : s.albedo);
     // A leaf, a blade or a cloth lets through what lights its back: in the shade and under cloud it's most of what makes it glow (SUBSURFACE.md).
     if (s.scatter > 0.0 && s.scatterKind <= SSS_CANOPY) ambient += sssAmbientThin(s, behind) * g.ambient;
     if (!reflectionWanted(s.roughness, g.albedo.a))
@@ -162,8 +232,8 @@ void main(void)
     vec3 colour = ambient + decodeEmission(s.albedo, g.materials.g) * emissionScale;
 
     // --render sssdebug=1: what each surface says of light under it (SUBSURFACE.md), as bright as how much: sheets blue, canopies green, flesh red, frost cyan. 2: nothing
-    // here, for Flesh_Light.frag to draw what of the sun gets through flesh over.
-    if (sssSwitches.z > 0.5)
+    // here, for Flesh_Light.frag to draw what of the sun gets through flesh over. 3 is drawn with the sun, below.
+    if (sssSwitches.z > 0.5 && sssSwitches.z < 2.5)
     {
         vec3 kindColour = s.scatterKind == SSS_SHEET ? vec3(0.1, 0.25, 1.0) : s.scatterKind == SSS_CANOPY ? vec3(0.1, 1.0, 0.15) : s.scatterKind == SSS_FLESH ? vec3(1.0, 0.12, 0.08) : vec3(0.1, 0.9, 1.0);
         vec3 shown = kindColour * (0.15 + 0.85 * s.scatter) * step(1e-3, s.scatter) + vec3(0.02);
@@ -209,6 +279,16 @@ void main(void)
 #endif
         float contact = texelFetch(contactShadows, g.screenPixel, 0).r;
         float lit = clamp(min(shadow.x, contact) + shadow.y, 0.0, 1.0);
+        // Snow's own light comes from round about it (frostDiffusedSun); a sample on something thin over its pixel, which worked its shadow out for itself, isn't snow's.
+        vec3 litUnder = vec3(lit);
+        if (frost && g.screenApart <= SUN_SHADOW_APART) litUnder = frostDiffusedSun(s, g, lit);
+        // --render sssdebug=3: what snow carries of the sun into its shadows, blue where it gains and red where it gives, over its own shadow in grey.
+        if (sssSwitches.z > 2.5)
+        {
+            vec3 moved = litUnder - vec3(lit);
+            out_Colour = vec4(vec3(lit * 0.3) + max(moved, vec3(0.0)) * 3.0 + vec3(max(-moved.b, 0.0) * 3.0, 0.0, 0.0), 1.0);
+            return;
+        }
         // --render shadowdebug=1: how soft the shadow here is, black sharpest and white softest; 2: the sun's shadow alone, on white.
         if (shadowDebug == 1)
         {
@@ -222,7 +302,8 @@ void main(void)
         }
         float through = weatherSunVisibility((invViewMatrix * vec4(g.position, 1.0)).xz);
         vec3 radiance = sunColour * lit * g.materials.a * through;
-        colour += lightSurfaceSpread(s, sunDirectionViewSpace, radiance, SUN_SPREAD + CLOUD_SPREAD * (1.0 - clamp(through, 0.0, 1.0)));
+        vec3 underRadiance = sunColour * litUnder * g.materials.a * through;
+        colour += lightSurfaceSplit(s, sunDirectionViewSpace, radiance, underRadiance, SUN_SPREAD + CLOUD_SPREAD * (1.0 - clamp(through, 0.0, 1.0)));
     }
     out_Colour = vec4(colour, 1.0);
 }

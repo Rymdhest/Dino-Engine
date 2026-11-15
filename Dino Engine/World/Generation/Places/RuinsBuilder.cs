@@ -31,6 +31,7 @@ namespace Dino_Engine.World.Generation.Places
             Colonnade(Random.Fork("colonnade"));
             Fragments(Random.Fork("fragments"));
             Overgrowth(Random.Fork("overgrowth"));
+            Fallen(Random.Fork("fallen"));
             Hold(Random.Fork("holders"));
         }
 
@@ -140,8 +141,44 @@ namespace Dino_Engine.World.Generation.Places
             }
             if (r.Chance(0.6f) && CanopyTree() is PlantSpecies tree)
             {
-                Tries(6, () => Plant(tree.Asset, W(new Vector2(r.Range(-_hx + 3f, _hx - 3f), r.Range(-_hz + 2.5f, _hz - 2.5f))), tree.Scale.Lerp(r.Range(0.6f, 1f)), r.Float() * MathF.Tau));
+                // Grown up against the back wall, as one seeded there in its lee would have, its crown over the wall rather than over the floor the camera wants to see.
+                Tries(6, () => Plant(tree.Asset, W(new Vector2((r.Chance(0.5f) ? 1f : -1f) * r.Range(_hx * 0.35f, _hx - 3f), r.Range(-_hz + 2.5f, -_hz * 0.35f))), tree.Scale.Lerp(r.Range(0.5f, 0.85f)), r.Float() * MathF.Tau));
             }
+        }
+
+        // What the old hall's floor and its fall left (PLACES.md): the old roads' slabs still showing through inside it, rubble and spalls of its stone about every wall and column, and
+        // whoever holds it now: the Reich's diggers' camp at its foundations, their tents, wagon, crates and cressets, or the Ossuary's dead among bones and its cold lamps.
+        private void Fallen(WorldRandom r)
+        {
+            (int R, int G, int B) stone = RuinStone();
+            Paint(GroundPaint.Paving, Footprint.Box(W(new Vector2(0f, -_hz * 0.15f)), new Vector2(_hx * 0.8f, _hz * 0.7f), Plan.Yaw), 2.5f);
+            for (int k = 0; k < 8; k++) Strew(LitterKind.Rubble, new Vector2(r.Range(-_hx - 3f, _hx + 3f), r.Range(-_hz - 3f, _hz + 6f)), r.Range(1.6f, 2.6f), r.Int(6, 12), stone);
+            for (int k = 0; k < 3; k++) Strew(LitterKind.Spalls, new Vector2(r.Range(-_hx, _hx), r.Range(-_hz, _hz)), 2f, r.Int(12, 20), stone);
+            bool diggers = !Random.Fork("holders").Chance(0.5f);
+            if (diggers)
+            {
+                float side = r.Chance(0.5f) ? 1f : -1f;
+                Vector2 camp = new Vector2(side * (_hx + r.Range(4f, 6f)), r.Range(0f, _hz + 4f));
+                Tries(10, () => PutBox(new PlaceSpec(PlacePiece.Tent, NextSeed(), PlaceSpec.Cm(r.Range(4.2f, 5f)), 1), W(camp), YawOf(new Vector2(-side, 0f)), new Vector2(3.8f, 3.4f), 3.4f, 0.4f, 0.45f));
+                Tries(10, () => PutBox(new PlaceSpec(PlacePiece.Wagon, NextSeed(), 0, 1, PlaceSpec.Cm(r.Range(3.8f, 4.4f))), W(camp + new Vector2(0f, r.Range(5f, 7f))), YawOf(Vector2.UnitY) + r.Range(-0.4f, 0.4f), new Vector2(1.6f, 4f), 2.6f, 0.4f, 0.45f));
+                Tries(8, () => PutBox(new PlaceSpec(PlacePiece.Crates, NextSeed(), r.Int(2, 4), 1), W(camp + new Vector2(-side * r.Range(2f, 4f), r.Range(-3f, -1f))), r.Float() * MathF.Tau, new Vector2(1.8f, 1.1f), 1.6f, 0.3f, 0.45f));
+                Tries(8, () => PutRound(new PlaceSpec(PlacePiece.Brazier, NextSeed(), PlaceSpec.Cm(r.Range(1f, 1.2f))), W(camp + new Vector2(-side * r.Range(3f, 4f), r.Range(1f, 3f))), 0f, 0.8f, 1.4f, 0.3f, 0.45f));
+                for (int k = 0; k < 3; k++) PutRound(new PlaceSpec(PlacePiece.Torch, NextSeed(), PlaceSpec.Cm(r.Range(2.4f, 2.8f)), 1), W(new Vector2(r.Range(-_hx, _hx), _hz + r.Range(2f, 5f))), 0f, 0.35f, 0f, 0.2f, 0.45f);
+                Trail(camp, new Vector2(0f, _hz + 2f), 2.4f, GroundPaint.Yard, 1.6f);
+            }
+            else
+            {
+                for (int k = 0; k < 4; k++) Strew(LitterKind.Bones, new Vector2(r.Range(-_hx, _hx), r.Range(-_hz, _hz + 4f)), r.Range(1.8f, 2.6f), r.Int(8, 14));
+                for (int k = 0; k < 3; k++) PutRound(new PlaceSpec(PlacePiece.Torch, NextSeed(), PlaceSpec.Cm(r.Range(2.4f, 2.8f)), 4), W(new Vector2(r.Range(-_hx - 2f, _hx + 2f), r.Range(-_hz, _hz + 4f))), 0f, 0.35f, 0f, 0.2f, 0.45f);
+            }
+        }
+
+        // The ruins' stone as rubble wants it: the waygates' grey at this place's shade and warmth.
+        private (int R, int G, int B) RuinStone()
+        {
+            float shade = _shade / 1000f, warm = _warm / 1000f;
+            var c = new OpenTK.Mathematics.Vector3(0.52f, 0.51f, 0.49f) * shade;
+            return ((int)(c.X * (1f + warm) * 1000f), (int)(c.Y * 1000f), (int)(c.Z * (1f - warm) * 1000f));
         }
 
         // The dead the Ossuary raises among the old stones, or the Reich's diggers at its foundations, and the chest inside the hall.

@@ -31,14 +31,17 @@ namespace Dino_Engine.World.Generation.Places
             (_gateSide, _gate) = GateOnRoad(_half);
             Enclose(FenceUse.Pen, _half, _gateSide, _gate, 4.8f);
             ReichGate(_gateSide, _gate, 4.8f, Random.Fork("gate"));
-            Paint(GroundPaint.Yard, Footprint.Box(Plan.Centre, _half - new Vector2(1f), Plan.Yaw), 4f);
+            // Its yard kept as the Institute keeps everything: gravelled, and not let go to grass.
+            Paint(GroundPaint.Plaza, Footprint.Box(Plan.Centre, _half - new Vector2(1.5f), Plan.Yaw), 3f);
             House(Random.Fork("house"));
             Hatchery(Random.Fork("hatchery"));
             Vats(Random.Fork("vats"));
             Workshop(Random.Fork("workshop"));
             Failures(Random.Fork("failures"));
             Yard(Random.Fork("yard"));
+            Works(Random.Fork("works"));
             Hold(Random.Fork("holders"));
+            Underfoot(Random.Fork("underfoot"));
         }
 
         // The blood-doctors' house across the back, its front and its door to the yard, the ground levelled under it and a paved forecourt before its door.
@@ -184,6 +187,53 @@ namespace Dino_Engine.World.Generation.Places
             {
                 PutRound(new PlaceSpec(PlacePiece.Lantern, NextSeed(), PlaceSpec.Cm(4.2f), 1), W(corner), YawOf(-corner), 0.4f, 0f, 0.2f, 0.5f);
             }
+        }
+
+        // What keeps it working (PLACES.md): the ways worn from the gate to the house's door and out to its works, the boiler that keeps the broth warm smoking by the house, amber
+        // come in from the diggings in its split chests, eggs crated for the farms and the wagon to take them, the greycoats' table, brazier and spears by the gate, the Reich's lamps
+        // along the way in, and what it throws out heaped by the failures' pen.
+        private void Works(WorldRandom r)
+        {
+            Vector2 inward = -Outward(_gateSide);
+            Vector2 across = new Vector2(inward.Y, -inward.X);
+            float front = _gateSide == Side.Back ? -1f : 1f;
+            Trail(_gate, _door, 3.2f, GroundPaint.Plaza, 1.6f);
+            Trail(_door + new Vector2(-6f, 0f), _door + new Vector2(6f, 0f), 2.4f, GroundPaint.Plaza, 1.4f);
+            // The boiler beside the house, its chimney up by the house's own.
+            foreach (float s in r.Chance(0.5f) ? new[] { -1f, 1f } : new[] { 1f, -1f })
+            {
+                if (Tries(6, () => PutBox(new PlaceSpec(PlacePiece.Boiler, NextSeed()), W(new Vector2(_door.X + s * r.Range(10f, 13f), _door.Y - front * r.Range(0.5f, 2.5f))), YawOf(new Vector2(0f, front)), new Vector2(2.6f, 1.6f), Tall, 0.4f, 0.36f))) break;
+            }
+            // Amber in its split chests, and eggs crated for the farms with the wagon that takes them.
+            for (int k = 0; k < 2; k++) Tries(8, () => PutBox(new PlaceSpec(PlacePiece.Cargo, NextSeed(), 2, r.Int(2, 3), 1), W(_door + new Vector2(r.Range(-8f, 8f), front * r.Range(4f, 7f))), r.Float() * MathF.Tau, new Vector2(1.8f, 1.4f), 1.4f, 0.3f, 0.4f));
+            Tries(10, () => PutBox(new PlaceSpec(PlacePiece.Wagon, NextSeed(), 0, 1, PlaceSpec.Cm(r.Range(3.8f, 4.6f))), W(_gate + inward * r.Range(7f, 10f) + across * ((r.Chance(0.5f) ? 1f : -1f) * r.Range(4f, 7f))), YawOf(-inward) + r.Range(-0.3f, 0.3f), new Vector2(1.6f, 4f), 2.6f, 0.4f, 0.4f));
+            // The greycoats' corner by the gate.
+            float side = r.Chance(0.5f) ? 1f : -1f;
+            Vector2 mess = _gate + inward * r.Range(5f, 7f) + across * (side * r.Range(8f, 11f));
+            Tries(8, () => PutBox(new PlaceSpec(PlacePiece.MessTable, NextSeed(), PlaceSpec.Cm(r.Range(2.4f, 3.2f))), W(mess + new Vector2(r.Range(-1f, 1f), r.Range(-1f, 1f))), YawOf(across), new Vector2(2.2f, 1.3f), 1.2f, 0.3f, 0.4f));
+            Tries(8, () => PutRound(new PlaceSpec(PlacePiece.Brazier, NextSeed(), PlaceSpec.Cm(r.Range(1f, 1.2f))), W(mess + inward * r.Range(2.5f, 3.5f)), 0f, 0.8f, 1.4f, 0.3f, 0.4f));
+            Tries(8, () => PutBox(new PlaceSpec(PlacePiece.WeaponRack, NextSeed(), PlaceSpec.Cm(r.Range(2f, 2.6f)), 1), W(mess - across * side * r.Range(3f, 4f)), YawOf(inward), new Vector2(1.5f, 0.6f), 2f, 0.3f, 0.4f));
+            // The Reich's lamps along the way in.
+            Vector2 way = (_door - _gate).LengthSquared > 1f ? (_door - _gate).Normalized() : inward;
+            Vector2 aside = new Vector2(-way.Y, way.X);
+            float length = (_door - _gate).Length;
+            for (float t = 5f; t < length - 3f; t += r.Range(6f, 8f))
+            {
+                foreach (float s in new[] { -1f, 1f }) PutRound(new PlaceSpec(PlacePiece.Lantern, NextSeed(), PlaceSpec.Cm(r.Range(3.6f, 4f)), 1), W(_gate + way * t + aside * (s * 2.6f)), YawOf(-aside * s), 0.4f, 0f, 0.2f, 0.45f);
+            }
+            // What it throws out, heaped by the failures' pen for the Ossuary's carts.
+            if (_hasPen) Tries(8, () => PutRound(new PlaceSpec(PlacePiece.Midden, NextSeed(), PlaceSpec.Cm(r.Range(1.4f, 2f))), W(_pen + new Vector2(r.Range(-9f, 9f), front * r.Range(7f, 9f))), r.Float() * MathF.Tau, 2f, 1f, 0.3f, 0.45f));
+            for (int k = 0; k < 2; k++) Tries(6, () => PutBox(new PlaceSpec(PlacePiece.Barrels, NextSeed(), r.Int(2, 4)), W(_door + new Vector2(r.Range(-9f, 9f), front * r.Range(3f, 6f))), r.Float() * MathF.Tau, new Vector2(1.5f), 1.4f, 0.3f, 0.4f));
+        }
+
+        // What lies underfoot: papers blown from the house, coal dust by the boiler, straw from the hatchery, and what the failures were fed.
+        private void Underfoot(WorldRandom r)
+        {
+            float front = _gateSide == Side.Back ? -1f : 1f;
+            Strew(LitterKind.Papers, _door + new Vector2(r.Range(-3f, 3f), front * r.Range(1.5f, 3f)), 2.4f, r.Int(6, 10));
+            Strew(LitterKind.Embers, _door + new Vector2(r.Chance(0.5f) ? 11f : -11f, front * 3f), 1.6f, r.Int(8, 12));
+            if (_hasPen) Strew(LitterKind.Bones, _pen, 3f, r.Int(10, 16));
+            Strew(LitterKind.Straw, new Vector2(r.Range(-8f, 8f), r.Range(-4f, 4f)), 2f, r.Int(10, 16));
         }
 
         // Guards at the gate, greycoats in the yard, the failures in their pen, and the Institute's strongbox by the house's door.

@@ -143,18 +143,39 @@ namespace Dino_Engine.Textures
             return soil.Stack(green, 0.04f).Stack(litter with { Height = litter.Height * turf.Max(0.35f) }, 0.02f);
         }
 
-        // Fine sand rippled by the wind: a gentle slope up to each crest and a steep one down, the crests wandering, the darker grains gathered in the troughs.
+        // A beach's fine sand, seen from 33 m up, where a metre is thirty pixels: ripples running a little across the tile, bent and wandering, their crests
+        // sharper than their troughs, in patches, with sand planed smooth between them where the backwash ran; under everything broad soft swells that catch
+        // the light; the dark grains gathered in the troughs; grains of every shade; and here and there a shell or a pebble the sea left. What's coarse is soft
+        // and close in shade, as a dozen tiles are in view, and the contrast is in what's many to a tile. Its hollows are where water stands longest as the
+        // swash drains (Water/ShoreWet.glsl), so they're the ripples' troughs and the low places between the swells. Colours are albedos under a sun of
+        // about 13: sand's is less than half, or a beach in the sun goes white.
         private static Surface Sand(Canvas c)
         {
-            Field wander = c.Noise(new Vector2(3f, 2f), octaves: 4, warp: 0.08f) - 0.5f;
-            Field phase = (c.V * 15f + wander * 2.2f + (c.Noise(9f, octaves: 3) - 0.5f) * 0.6f).Fract();
-            // A wind ripple's long gentle side and short steep one.
-            Field ripple = phase.Smooth(0f, 0.78f) * (1f - phase.Smooth(0.78f, 1f));
-            Field grains = c.Noise(180f, octaves: 2);
-            Field height = ripple * 0.62f + c.Noise(5f, octaves: 4) * 0.28f + grains * 0.08f;
-            Paint colour = c.Ramp(ripple, (0f, Rgb(118, 96, 64)), (0.6f, Rgb(150, 125, 86)), (1f, Rgb(170, 146, 104)));
-            colour = colour * Field.Lerp(0.9f, 1.07f, grains);
-            return new Surface(colour, 0.95f, height) { Subsurface = 1f };
+            Field wander = c.Noise(new Vector2(2f, 3f), octaves: 4, warp: 0.1f) - 0.5f;
+            Field phase = (c.U * 3f + c.V * 14f + wander * 2.6f + (c.Noise(7f, octaves: 3) - 0.5f) * 0.8f).Fract();
+            Field ripple = phase.Smooth(0f, 0.7f) * (1f - phase.Smooth(0.7f, 1f));
+            Field rippled = Patches(c, 3f, 0.62f, softness: 0.22f, warp: 0.08f);
+            Field swell = c.Noise(3f, octaves: 3, warp: 0.06f);
+            Field dust = c.Noise(46f, octaves: 3);
+            Field grains = c.Noise(170f, octaves: 2);
+            // A shell or a pebble in a few of the cells of a grid, gathered where the water left them, small, half buried and a little proud of the sand: few
+            // enough that nothing lines up.
+            Stones bits = c.Scatter(new Vector2(17f), count: 1, radius: 0.32f, radiusJitter: 0.6f, elongation: 0.6f, heightJitter: 0.5f, flatness: 0.55f);
+            Field strewn = bits.Cover * bits.Id.Threshold(0.93f, 0.01f) * Patches(c, 2f, 0.45f, softness: 0.2f);
+            Field shell = strewn * bits.Id2.Threshold(0.4f, 0.02f);
+            Field pebble = strewn - shell;
+
+            Field waves = ripple * rippled;
+            Field height = (swell * 0.36f + waves * 0.44f + dust * 0.12f + grains * 0.05f + bits.Height * strewn * 0.12f).Clamp(0f, 1f);
+
+            Paint sand = c.Ramp(waves * 0.6f + swell * 0.4f, (0f, Rgb(80, 67, 48)), (0.55f, Rgb(97, 82, 59)), (1f, Rgb(111, 95, 70)));
+            // The heavy dark grains settle in the troughs.
+            Field settled = (1f - ripple) * rippled * c.Noise(9f, octaves: 3).Smooth(0.35f, 0.75f);
+            sand = Paint.Lerp(sand, Rgb(72, 64, 54), settled * 0.38f);
+            sand = sand * Field.Lerp(0.86f, 1.1f, grains) * Field.Lerp(0.95f, 1.04f, dust);
+            Paint colour = Paint.Lerp(Paint.Lerp(sand, Rgb(150, 141, 126), shell * 0.8f), Rgb(70, 65, 59) * Field.Lerp(0.8f, 1.25f, bits.Id2), pebble * 0.8f);
+            Field roughness = Field.Lerp(0.95f, 0.72f, strewn);
+            return new Surface(colour, roughness, height) { Subsurface = 1f };
         }
 
         // Dunes seen close: long sharp-crested ridges with ripples running over them, the lee sides shadowed.
@@ -245,16 +266,21 @@ namespace Dino_Engine.Textures
             return new Surface(colour, Field.Lerp(0.08f, 0.5f, frost), height) { Subsurface = 0.85f };
         }
 
-        // Churned wet mud: lumps, prints of feet and hooves pressed into it, ruts, and water lying smooth and dark only in what's lowest.
+        // Wet mud, as a lake's shore, a bog or a pen leaves it: broad soft swells, lumps on them, prints of feet and hooves pressed in where something's walked,
+        // thicker in some places than others, and water lying smooth and dark only in what's lowest. Nothing in it lines up. A tile is three metres and a dozen
+        // are in view, and its lowest places are where a wet shore darkens and rain stands first: when they were strung along three straight ruts a tile, every
+        // mud shore was a grid of puddles. So the low places are the swells' hollows, warped, several to a tile and none alike, and the lumps are warped enough
+        // that their lattice never shows, and no more, or they swirl like marble. Ruts are a road's (its own material, along it).
         private static Surface Mud(Canvas c)
         {
-            Field lumps = c.Noise(7f, octaves: 6, gain: 0.5f, warp: 0.02f);
-            Field ruts = (c.U * 3f + (c.Noise(new Vector2(2f, 3f), octaves: 3) - 0.5f) * 0.35f).Sine(1f, 0.25f).Pow(3f);
+            Field swell = c.Noise(3f, octaves: 3, warp: 0.12f);
+            Field lumps = c.Noise(7f, octaves: 5, gain: 0.5f, warp: 0.06f);
             Stones prints = c.Scatter(new Vector2(6f), count: 2, radius: 0.22f, radiusJitter: 0.25f, elongation: 0.65f, heightJitter: 0.2f, flatness: 0.6f);
-            Field height = lumps * 0.62f + (1f - ruts) * 0.25f - prints.Height * 0.1f + (c.Noise(60f, octaves: 3) - 0.5f) * 0.05f;
+            Field trodden = Patches(c, 3f, 0.55f, softness: 0.25f, warp: 0.1f);
+            Field height = 0.06f + swell * 0.45f + lumps * 0.42f - prints.Height * trodden * 0.1f + (c.Noise(60f, octaves: 3) - 0.5f) * 0.05f;
             Field wet = height.Smooth(0.3f, 0.16f);   // Falling: wet where it's low.
             Paint colour = Paint.Lerp(Rgb(62, 48, 34), Rgb(36, 28, 20), wet);
-            colour = colour * Field.Lerp(0.9f, 1.08f, c.Noise(30f, octaves: 3)) * Field.Lerp(1f, 0.9f, prints.Cover);
+            colour = colour * Field.Lerp(0.9f, 1.08f, c.Noise(30f, octaves: 3)) * Field.Lerp(1f, 0.9f, prints.Cover * trodden);
             return new Surface(colour, Field.Lerp(0.72f, 0.12f, wet), height);
         }
 

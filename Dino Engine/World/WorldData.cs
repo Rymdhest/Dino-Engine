@@ -91,8 +91,21 @@ namespace Dino_Engine.World
         public readonly List<WorldHall> Halls = new();
 
         // --- The final ground, from TerrainBakeStage on, at DetailCell ---
-        /// <summary>The ground as it will be walked on and drawn.</summary>
+        /// <summary>
+        /// The ground as it's walked on: where people stand, and what anything standing upright is set on, so it stands a little way into the drawn ground's relief. The ground is drawn
+        /// <see cref="Rendering.Renderers.Geometry.TerrainRenderer.SurfaceOffset"/> higher (Terrain.vert), as the relief can only go down from what's drawn: something small that lies on the
+        /// ground, a find, coins, a body, a broken piece, is half buried on this. Lay those on <see cref="DrawnGroundAt"/>.
+        /// </summary>
         public ScalarField Height = null!;
+
+        /// <summary>
+        /// The top of the ground as Terrain.vert draws it, <see cref="Rendering.Renderers.Geometry.TerrainRenderer.SurfaceOffset"/> over the cubic height map: what anything lying on the ground
+        /// rests on. Anything standing goes on <see cref="Height"/>, which is where feet are.
+        /// </summary>
+        public float DrawnGroundAt(float x, float z) => DrawnGround(Height, x, z);
+
+        /// <inheritdoc cref="DrawnGroundAt"/>
+        public static float DrawnGround(ScalarField height, float x, float z) => height.SampleCubic(x, z) + Rendering.Renderers.Geometry.TerrainRenderer.SurfaceOffset;
         public ByteField PavedRoad = null!;
         public ByteField TrailRoad = null!;
         public ByteField Yard = null!;

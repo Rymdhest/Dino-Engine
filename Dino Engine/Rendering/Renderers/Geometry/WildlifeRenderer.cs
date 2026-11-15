@@ -42,6 +42,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             _shader.loadUniformInt("normalMapModelTextureArray", 4);
             _shader.loadUniformInt("materialMapModelTextureArray", 5);
             Simulation.WeatherRenderer.LinkSurfaceSamplers(_shader);
+            PosGeometry.WaterRenderer.LinkShoreSamplers(_shader);
             _shader.unBind();
 
             _shadowShader.bind();

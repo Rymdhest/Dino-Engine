@@ -877,6 +877,28 @@ namespace Dino_AnimLab
                 if (!sound) unsound++;
             }
             Check("Nor does a tree stop being there", tried >= 30 && through <= tried / 5 && unsound == 0, $"{tried} thrown, {through} carried on past, {unsound} came apart");
+
+            // A body lies on the ground as it's drawn, which is over where feet stand (WorldData.DrawnGroundAt, AGENTS.md): laid on the height map, its hands and feet are under the relief.
+            BoneType[] lowest = { BoneType.Pelvis, BoneType.Chest, BoneType.Head, BoneType.HandL, BoneType.HandR, BoneType.LowerArmL, BoneType.LowerArmR, BoneType.FootL, BoneType.FootR, BoneType.LowerLegL, BoneType.LowerLegR };
+            int laid = 0;
+            float buried = 0f;
+            for (int look = 0; look < 2000 && laid < 12; look++)
+            {
+                Vector2 at = new Vector2(random.NextSingle(), random.NextSingle()) * world.Size;
+                if (!world.InBounds(at) || world.WaterDepthAt(at) > 0f || world.Height.SlopeAt(at) > 0.15f || world.Placement.OverlapsSolid(Footprint.Circle(at, 5f))) continue;
+                var input = AnimationInput.At(new Vector3(at.X, world.Height.Sample(at), at.Y), 0f);
+                CharacterAnimator animator = Body.Named("bare").NewAnimator();
+                for (int i = 0; i < 30; i++) animator.Step(input, Step, ground);
+                animator.Die(new Vector3(2f, 1f, 0f));
+                for (int i = 0; i < 360; i++) animator.Step(input, Step, ground);
+                foreach (BoneType bone in lowest)
+                {
+                    Vector3 joint = input.Position + animator.JointOf(bone);
+                    buried = MathF.Max(buried, world.DrawnGroundAt(joint.X, joint.Z) - joint.Y);
+                }
+                laid++;
+            }
+            Check("A fallen body lies on the drawn ground, not half under it", laid >= 8 && buried < 0.01f, $"{laid} laid down, deepest joint {buried:0.000} m under the drawn ground");
         }
 
         private static CharacterAnimator Thrown(Body body, IGround ground, Vector3 push)

@@ -13,6 +13,8 @@ namespace Dino_Engine.World
         public Vector3 Position;
         public float Yaw;
         public float Scale;
+        /// <summary>Which way its top faces, for a card lying on a slope (<see cref="GroundCards"/>): zero for upright.</summary>
+        public Vector3 Up;
     }
 
     /// <summary>
@@ -31,18 +33,22 @@ namespace Dino_Engine.World
         private readonly WorldData _world;
         private readonly uint _seed;
         private readonly WorldNoise _drifts;
+        private readonly WorldSeaFloor _sea;
 
         public WorldGroundCover(WorldData world)
         {
             _world = world;
             _seed = (uint)world.Plan.Seed * 2654435761u + 0x9E3779B9u;
             _drifts = new WorldNoise(world.Random.Fork("ground cover"));
+            _sea = new WorldSeaFloor(world);
         }
 
         /// <summary>Fills <paramref name="results"/> with the plants of the square from <paramref name="origin"/> with sides of <paramref name="size"/>.</summary>
         public void Generate(Vector2 origin, float size, List<GroundPlant> results)
         {
             results.Clear();
+            // Rock standing up off the bed under the water first, as nothing else grows where it stands (SEA.md).
+            _sea.BeginSquare(origin, size, results);
             int first = (int)MathF.Round(origin.X / Cell);
             int firstZ = (int)MathF.Round(origin.Y / Cell);
             int cells = (int)MathF.Round(size / Cell);
@@ -71,7 +77,35 @@ namespace Dino_Engine.World
 
             float height = world.Height.Sample(point);
             float above = world.ShoreHeightAt(point);
+            // Under the water, what lives there (WorldSeaFloor, SEA.md); at the very edge of it, nothing.
+            if (above < 0f)
+            {
+                _sea.TryGrow(point, height, ref state, results);
+                return;
+            }
             if (above < 0.12f) return;
+
+            // A beach is bare as far as the waves run up it (WorldShore, SHORE.md), but for the stones they've rolled smooth, lying in drifts.
+            if (WorldShore.Swashed(world, point) > 0.35f)
+            {
+                SurfaceMaterial shore = world.BiomeAt(point).Shore;
+                if (shore is not (SurfaceMaterial.Sand or SurfaceMaterial.Gravel or SurfaceMaterial.Shingle)) return;
+                float strand = Smoothstep(0.45f, 0.78f, _drifts.Fbm01(point.X + 733f, point.Y - 157f, 13f, 2));
+                if (Random01(ref state) >= 0.04f + 0.42f * strand || world.Height.SlopeAt(point) > 0.8f) return;
+                WorldAsset pebble = NatureCatalog.RockOf(world.Geology.Kind, RockForm.Pebble);
+                float size = pebble.Scale.Lerp(Random01(ref state));
+                if (world.Placement.Overlaps(Footprint.Circle(point, pebble.Footprint * size * 0.7f), Avoid)) return;
+                results.Add(new GroundPlant
+                {
+                    Asset = pebble,
+                    Model = NatureCatalog.ModelAt(pebble, world.Plan.Seed, point),
+                    // Half sunk in the sand, as the swash leaves them.
+                    Position = new Vector3(point.X, height - 0.04f, point.Y),
+                    Yaw = Random01(ref state) * MathF.Tau,
+                    Scale = size,
+                });
+                return;
+            }
 
             float slope = world.Height.SlopeAt(point);
 
@@ -123,14 +157,25 @@ namespace Dino_Engine.World
             Footprint footprint = Footprint.Circle(point, reach);
             if (world.Placement.Overlaps(footprint, Avoid) || world.Placement.OverlapsSolid(footprint)) return;
 
-            results.Add(new GroundPlant
+            string model = NatureCatalog.ModelAt(asset, world.Plan.Seed, point);
+            float yaw = Random01(ref state) * MathF.Tau;
+            var position = new Vector3(point.X, height - 0.02f, point.Y);
+            Vector3 up = Vector3.Zero;
+            // A card lying on the ground lies on it as it's drawn, tilted to it, or isn't laid (GroundCards): on the height map it was buried.
+            if (CardOf(model) is GroundCards.Shape card && !GroundCards.TryLay(world, point, yaw, scale, card, out position, out up)) return;
+            results.Add(new GroundPlant { Asset = asset, Model = model, Position = position, Yaw = yaw, Scale = scale, Up = up });
+        }
+
+        // What laying each card needs of its model, grown once a model, and null for whatever isn't a card.
+        private readonly Dictionary<string, GroundCards.Shape?> _cards = new();
+
+        private GroundCards.Shape? CardOf(string model)
+        {
+            lock (_cards)
             {
-                Asset = asset,
-                Model = NatureCatalog.ModelAt(asset, world.Plan.Seed, point),
-                Position = new Vector3(point.X, height - 0.02f, point.Y),
-                Yaw = Random01(ref state) * MathF.Tau,
-                Scale = scale,
-            });
+                if (!_cards.TryGetValue(model, out GroundCards.Shape? shape)) _cards[model] = shape = GroundCards.ShapeOf(model);
+                return shape;
+            }
         }
 
         private BiomeDefinition PickBiome(Vector2 point, ref uint state)
@@ -171,7 +216,7 @@ namespace Dino_Engine.World
             }
         }
 
-        private static float Random01(ref uint state)
+        internal static float Random01(ref uint state)
         {
             unchecked
             {

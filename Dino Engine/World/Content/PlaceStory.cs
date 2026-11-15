@@ -11,6 +11,15 @@ namespace Dino_Engine.World.Content
         Wader,      // Mounds of reeds and mud at the water's edge.
     }
 
+    /// <summary>The land's own powers whose cults hold the old stones (LORE.md), in the order Warbands keeps their recipes.</summary>
+    public enum Cult
+    {
+        Fire,       // The badlands' fire: soot, ochre, horns and a great fire burning.
+        Frost,      // The snow's frost: bleached wood, antlers, ice and a cold violet flame.
+        Storm,      // The heights' storm: iron rods, bound stones and the scorch of the lightning they call.
+        Mire,       // The wet country's mire: reeds, bones in the water and a sickly green fen-light.
+    }
+
     /// <summary>
     /// What a place's story number says (<see cref="WorldSite.Story"/>), which its name, its builder and whoever holds it in the game all read the same way, so that they can never
     /// disagree: a wreck named for one of the Reich's ships is one, and a weaver's lair is held by weavers. Headless.
@@ -92,6 +101,19 @@ namespace Dino_Engine.World.Content
                 < 0.9f => "clubtail",
                 _ => "giant",
             };
+        }
+
+        /// <summary>
+        /// Which of the land's cults holds a ring of old stones (LORE.md): the frost's in the cold, the mire's in the wet, the storm's up high, the fire's where it's hot and dry, and
+        /// otherwise whichever the place's story says, so that the stones are dressed for whoever the game stands there (Warbands reads this too). In the order Warbands keeps them.
+        /// </summary>
+        public static Cult CultOf(BiomeDefinition biome, uint story)
+        {
+            if (biome.Temperature <= 0.3f) return Cult.Frost;
+            if (biome.Moisture >= 0.75f) return Cult.Mire;
+            if (biome.Altitude >= 0.5f) return Cult.Storm;
+            if (biome.Temperature >= 0.7f && biome.Moisture < 0.4f) return Cult.Fire;
+            return (Cult)Math.Min((int)(Share(story, 5) * 4f), 3);
         }
 
         /// <summary>A number between 0 and 1 from a story number, a different one for each <paramref name="part"/>.</summary>

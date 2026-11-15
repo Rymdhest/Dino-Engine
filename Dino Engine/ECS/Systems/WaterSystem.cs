@@ -34,6 +34,10 @@ namespace Dino_Engine.ECS.Systems
         private Dictionary<uint, (Vector3 position, bool inWater)> _waders = new();
         private Dictionary<uint, (Vector3 position, bool inWater)> _wadersNext = new();
         private readonly float[] _swellAmplitudes = new float[WaterWaves.SwellCount];
+        // The shore field's square (ChooseShoreSquare).
+        private Vector2 _shoreCorner;
+        private float _shoreSize;
+        private bool _shoreSquare;
 
         public WaterSystem()
             : base(new BitMask(typeof(WaterSingleton)))
@@ -127,7 +131,11 @@ namespace Dino_Engine.ECS.Systems
                 }
             }
 
-            water.ShorePhase = Wrap(water.ShorePhase + dt / MathF.Max(water.ShoreWavePeriod, 0.5f), WaterWaves.SetLength);
+            // The phase wraps at a set, and the sets are counted, so the shaders can tell one wave from another (Water/ShoreData.glsl).
+            float shorePhase = water.ShorePhase + dt / MathF.Max(water.ShoreWavePeriod, 0.5f);
+            int setsDone = (int)MathF.Floor(shorePhase / WaterWaves.SetLength);
+            water.ShorePhase = Wrap(shorePhase, WaterWaves.SetLength);
+            water.ShoreSets = ((water.ShoreSets + setsDone) % WaterWaves.SetsCounted + WaterWaves.SetsCounted) % WaterWaves.SetsCounted;
             for (int i = 0; i < WaterWaves.SwellCount; i++)
             {
                 float phase = Wrap(WaterWaves.SwellPhase(water, i) + dt * WaterWaves.SwellAngularFrequency(i) / MathF.Tau, 1f);
@@ -146,6 +154,7 @@ namespace Dino_Engine.ECS.Systems
             water.CausticOffsetB = Wrap(water.CausticOffsetB - Rotate(drift, -0.5f) * (1.3f * dt / WaterRenderer.CausticTile));
             // Foam rides the surface current, about 3% of the wind speed.
             water.FoamOffset = Wrap(water.FoamOffset - wind * (0.03f * dt / WaterRenderer.FoamTile));
+            water.ShoreFoamOffset = Wrap(water.ShoreFoamOffset / WaterRenderer.ShoreFoamTile - wind * (0.03f * dt / WaterRenderer.ShoreFoamTile)) * WaterRenderer.ShoreFoamTile;
         }
 
         /// <summary>Seconds one loop of the ripple texture lasts at a tile size: one period of its longest waves.</summary>
@@ -215,31 +224,23 @@ namespace Dino_Engine.ECS.Systems
             float chunkSize = terrain.ChunkSize;
             if (terrain.Chunks.Count == 0 || !(chunkSize > 0f)) return 2;
 
-            // The shore field covers the loaded terrain, or a square around the camera if that is larger than allowed.
             Vector2i minCell = new Vector2i(int.MaxValue), maxCell = new Vector2i(int.MinValue);
             foreach (Vector2i cell in terrain.Chunks.Keys)
             {
                 minCell = Vector2i.ComponentMin(minCell, cell);
                 maxCell = Vector2i.ComponentMax(maxCell, cell);
             }
-            int cells = Math.Max(maxCell.X - minCell.X, maxCell.Y - minCell.Y) + 1;
-            int maxCells = Math.Max((int)(water.MaxShoreFieldSize / chunkSize), 1);
-            Vector2i cornerCell = minCell;
-            if (cells > maxCells)
-            {
-                cells = maxCells;
-                Vector2i cameraCell = new Vector2i((int)MathF.Floor(cameraPosition.X / chunkSize), (int)MathF.Floor(cameraPosition.Z / chunkSize));
-                cornerCell = cameraCell - new Vector2i(cells / 2);
-            }
-            shoreCorner = new Vector2(cornerCell.X, cornerCell.Y) * chunkSize;
-            shoreSize = cells * chunkSize;
+            ChooseShoreSquare(water, terrain, minCell, maxCell);
+            shoreCorner = _shoreCorner;
+            shoreSize = _shoreSize;
+            Vector2 shoreFar = shoreCorner + new Vector2(shoreSize);
 
             unchecked
             {
                 long signature = 17;
-                signature = signature * 31 + cornerCell.X;
-                signature = signature * 31 + cornerCell.Y;
-                signature = signature * 31 + cells;
+                signature = signature * 31 + BitConverter.SingleToInt32Bits(shoreCorner.X);
+                signature = signature * 31 + BitConverter.SingleToInt32Bits(shoreCorner.Y);
+                signature = signature * 31 + BitConverter.SingleToInt32Bits(shoreSize);
                 signature = signature * 31 + BitConverter.SingleToInt32Bits(water.SeaLevel);
                 signature = signature * 31 + BitConverter.SingleToInt32Bits(chunkSize);
                 long chunkHash = 0;
@@ -257,7 +258,7 @@ namespace Dino_Engine.ECS.Systems
                         arrayID = chunk.normalHeightTextureArrayID,
                     };
 
-                    bool inShoreField = cell.X >= cornerCell.X && cell.Y >= cornerCell.Y && cell.X < cornerCell.X + cells && cell.Y < cornerCell.Y + cells;
+                    bool inShoreField = origin.X < shoreFar.X && origin.Y < shoreFar.Y && origin.X + chunkSize > shoreCorner.X && origin.Y + chunkSize > shoreCorner.Y;
                     if (inShoreField)
                     {
                         _shoreChunks.Add(renderData);
@@ -273,6 +274,37 @@ namespace Dino_Engine.ECS.Systems
                 }
                 return signature * 31 + chunkHash;
             }
+        }
+
+        /// <summary>
+        /// Picks the shore field's square: big enough for the whole square of chunks the terrain keeps and the slack it moves in, on a grid fixed to the world
+        /// in steps of <see cref="WaterShoreField.MoveMetres"/>, and moved only when what's loaded no longer fits in it, so a new build finds every texel where
+        /// the last had it (WaterShoreField). Laid over the loaded chunks as they happened to be, every crossing of a chunk moved it by a fraction of a texel.
+        /// </summary>
+        private void ChooseShoreSquare(in WaterSingleton water, in TerrainQuadTreeSingleton terrain, Vector2i minCell, Vector2i maxCell)
+        {
+            float chunkSize = terrain.ChunkSize;
+            float ring = (2 * terrain.Radius + 1) * chunkSize;
+            // In whole lots of 48 m, so that a texel is a whole sixteenth of a metre, exact in a float.
+            float wanted = MathF.Ceiling(ring * WaterShoreField.Resolution / (WaterShoreField.Resolution - WaterShoreField.MoveTexels) / 48f) * 48f;
+            float size = MathF.Max(MathF.Min(wanted, water.MaxShoreFieldSize), chunkSize);
+            float step = WaterShoreField.MoveMetres(size);
+
+            // What it has to hold: every loaded chunk, as far as a square that fits in it with room to move allows.
+            Vector2 low = new Vector2(minCell.X, minCell.Y) * chunkSize;
+            Vector2 high = new Vector2(maxCell.X + 1, maxCell.Y + 1) * chunkSize;
+            Vector2 centre = (low + high) * 0.5f;
+            Vector2 half = new Vector2((size - step) * 0.5f);
+            low = Vector2.ComponentMax(low, centre - half);
+            high = Vector2.ComponentMin(high, centre + half);
+
+            bool fits = _shoreSquare && _shoreSize == size
+                && low.X >= _shoreCorner.X && low.Y >= _shoreCorner.Y && high.X <= _shoreCorner.X + size && high.Y <= _shoreCorner.Y + size;
+            if (fits) return;
+            Vector2 middle = (low + high) * 0.5f;
+            _shoreCorner = new Vector2(MathF.Round((middle.X - size * 0.5f) / step) * step, MathF.Round((middle.Y - size * 0.5f) / step) * step);
+            _shoreSize = size;
+            _shoreSquare = true;
         }
 
         private static float LowestHeight(in TerrainChunkComponent chunk)

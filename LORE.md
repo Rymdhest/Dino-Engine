@@ -120,9 +120,9 @@ What each kind of place is under the Reich, as `Chronicle.Describe` tells it:
 |---|---|
 | Landing | Where a Defender comes ashore |
 | Keep | The commander's seat, and the tyrant's pen |
-| Camp (`SiteKind.BanditCamp`) | A brood's pen: cages, chains and the smell of blood, where the beasts are kept between hunts |
+| Camp (`SiteKind.BanditCamp`) | A brood's pen: kennels of its war-raptors, the ring they're taught in on straw dummies in the land's clothes, its butchery, its cages, chains and the smell of blood, where the beasts are kept between hunts (`PLACES.md`) |
 | Churchyard | Where the Ossuary digs, among the land's own dead: a church in the middle of plots of graves inside a wall, the oldest by the church, the poor's on the north side, a family's railed plot, chest tombs and mausoleums, graves it has opened, and candles still left by whoever comes (`CHURCHYARD.md`) |
-| Shrine | Put out by the Reich, and kindled again by a Defender |
+| Shrine | Put out by the Reich, and kindled again by a Defender: its altar's embers banked under the hall behind it, its lanterns kept out and knocked down, the Reich's notice nailed over its name (`PLACES.md`) |
 | Village | People hiding behind barred doors, with a waygate, a shrine and a merchant, who trade with anyone who isn't the Reich |
 | Hamlet, farmstead | Overrun: the Reich's people or its beasts are in them now |
 | Fishing village (`SiteKind.FishingHamlet`) | Held for its catch, which goes to the Reich's broods; its fishers come back once it's freed (`PLACES.md`) |
@@ -136,7 +136,7 @@ What each kind of place is under the Reich, as `Chronicle.Describe` tells it:
 | Trading post | Where the roads met and the land's merchants with them, which the turncoats sell to the Reich from; its trader comes back |
 | Ruins | Raised by the same hands as the waygates, in their stone, and fallen long before anyone came; their runes are the waygates' own |
 | Snow castle | What the north's children build every winter, kept by the frost's cult round its altar of ice |
-| Shrine, standing stones, watchtower | Held, so that nobody can kindle them or light the beacon |
+| Shrine, standing stones, watchtower | Held, so that nobody can kindle them or light the beacon: a ring of stones by the cult of its country's power, fire, frost, storm or mire, round the barrow it was raised over; a watchtower by the Reich, its beacon's wood under the Reich's sealed tarp and its sighting stone turned to the next beacon down the chain |
 | Waygate | One of the land's old roads: it knows the way home, and to every other gate a Defender has found |
 | The Haven | The one place the Reich has never found, where every waygate's road comes first |
 | Arena (`SiteKind.Arena`) | Where the Reich shows the conquered its tyrant: the whole of every tenth land, each of six kinds (`ARENAS.md`), with gates of black iron and the land's people made to watch. A keep's tyrant waits in the open yard in its middle instead |
@@ -174,7 +174,7 @@ Said in the game now: each land's chronicle, what places are, what villagers say
 Not built:
 
 - **A story across the lands.** Each land has a chronicle of its own, and nothing ties them into a campaign: no first landing, no Reich homeland, no end to the climb, and no leader of the Reich.
-- **The rest of the Reich in the world's buildings.** Since 2026-11-11 a brood's pen has its beasts' cages of black iron, feeding troughs, a rack of meat and a pair of its banners at the gate, oxblood with the mark in brass on both faces, a keep flies the same pair at its gate, and the Ossuary digs in churchyards, among ruins and under standing stones, with a pit, a hoist and what it has dug up laid out on an oxblood cloth to be counted (`SettlementStage.PlaceLandmarks`, `PropGenerator.Countryside.cs`). Since 2026-11-14 the Reich has its prisons, the Institute's laboratories, rearing farms, quarries, logging camps and wrecked iron ships, and the Ossuary its excavations (`PLACES.md`). The small camps of whoever holds the roads (`CampStage`) are still an outlaw's fire and tents.
+- **The rest of the Reich in the world's buildings.** Since 2026-11-11 a brood's pen has its beasts' cages of black iron, feeding troughs, a rack of meat and a pair of its banners at the gate, oxblood with the mark in brass on both faces, a keep flies the same pair at its gate, and the Ossuary digs in churchyards, among ruins and under standing stones, with a pit, a hoist and what it has dug up laid out on an oxblood cloth to be counted (`SettlementStage.PlaceLandmarks`, `PropGenerator.Countryside.cs`). Since 2026-11-14 the Reich has its prisons, the Institute's laboratories, rearing farms, quarries, logging camps and wrecked iron ships, and the Ossuary its excavations (`PLACES.md`); and a brood's pen is a place of its own, its kennels, butchery, teaching ring and command tent, with the handlers' corner and the Reich's wagons, braziers and cressets wherever it holds anything. The small camps of whoever holds the roads (`CampStage`) are still an outlaw's fire and tents.
 - **Music of its own.** The score doesn't change for the Reich.
 - **A first screen that says any of this.** The menu shows the title, a hero standing in a world and the Haven's giants grazing beyond them, with nothing of the invasion.
 - **Who a Defender is**, beyond the name the people give them.

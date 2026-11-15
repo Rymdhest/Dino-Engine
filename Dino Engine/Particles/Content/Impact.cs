@@ -49,6 +49,16 @@ namespace Dino_Engine.Particles.Content
             },
         };
 
+        /// <summary>A blow landing on a body that isn't bleeding: a small dull puff of dust off it along the effect's Forward, and nothing red. Blood is a sign of the Bleeding ailment alone.</summary>
+        public static readonly ParticleEffect Thud = new()
+        {
+            Priority = ParticlePriority.Vital, Reach = 4f,
+            Emitters = new[]
+            {
+                new ParticleEmitter { Style = Smoke.Dust, Burst = 2, Direction = new Vector3(0f, 0.5f, 1f), Spread = 0.5f, Speed = R(1f, 2.2f), Size = R(0.5f, 0.8f), Life = R(0.5f, 0.8f), Tint = new Vector3(0.85f, 0.82f, 0.78f), Strength = 0.55f, Spin = R(0.2f, 0.6f) },
+            },
+        };
+
         /// <summary>Bone struck: a puff of pale dust and chips of it.</summary>
         public static readonly ParticleEffect Bone = new()
         {

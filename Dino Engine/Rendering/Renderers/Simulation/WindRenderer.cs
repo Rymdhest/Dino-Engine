@@ -45,6 +45,7 @@ namespace Dino_Engine.Rendering.Renderers.Simulation
         public const float CanopySize = 256f;
 
         private const int ContactsPerPass = 64;
+        private const int TerrainCaptureUnit = 4;   // Past the state and the wind map.
         // WindData in Wind.glsl: 10 vec4s, the wave trains, then 3 vec4s per emitter.
         private const int WaveSlot = 10;
         private const int HeaderVec4s = WaveSlot + WindField.WaveTrains;
@@ -78,6 +79,8 @@ namespace Dino_Engine.Rendering.Renderers.Simulation
             _vegetationShader.loadUniformInt("previousTouch", 1);
             _vegetationShader.loadUniformInt("previousMemory", 2);
             _vegetationShader.loadUniformInt("windMap", 3);
+            // Under the sea the waves sway what grows there, not the wind (SEA.md): the shore's maps where the geometry pass has them, and the water's depth.
+            PosGeometry.WaterRenderer.LinkShoreSamplers(_vegetationShader);
             _vegetationShader.unBind();
 
             _canopyShader.bind();
@@ -281,6 +284,9 @@ namespace Dino_Engine.Rendering.Renderers.Simulation
             _vegetationShader.loadUniformFloat("touchDamping", Math.Clamp(wind.TouchDamping, 0.01f, 0.99f));
             _vegetationShader.loadUniformFloat("flattenRecoveryTime", wind.FlattenRecoveryTime);
             _vegetationShader.loadUniformFloat("pressRecoveryTime", wind.PressRecoveryTime);
+            // The shore as the water last worked it out, which is the frame before's: a wave takes seconds to pass, so a frame behind is nothing.
+            renderEngine._waterRenderer.BindShoreMaps();
+            renderEngine._waterRenderer.BindTerrainCapture(_vegetationShader, TerrainCaptureUnit);
 
             int passes = Math.Max(1, (_contacts.Count + ContactsPerPass - 1) / ContactsPerPass);
             for (int pass = 0; pass < passes; pass++)

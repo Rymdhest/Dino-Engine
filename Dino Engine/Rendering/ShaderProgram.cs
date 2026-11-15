@@ -32,6 +32,7 @@ namespace Dino_Engine.Rendering
             GL.AttachShader(programID, vertexShaderID);
             GL.AttachShader(programID, fragmentShaderID);
             GL.LinkProgram(programID);
+            Core.Engine.Startup?.Shader();
             GL.ValidateProgram(programID);
 
             LoadAllUniformsFromShaderString(vertexString, vertexFile);
@@ -52,6 +53,7 @@ namespace Dino_Engine.Rendering
             GL.AttachShader(programID, fragmentShaderID);
             GL.AttachShader(programID, geometryShaderID);
             GL.LinkProgram(programID);
+            Core.Engine.Startup?.Shader();
             GL.ValidateProgram(programID);
 
             LoadAllUniformsFromShaderString(vertexString, vertexFile);
@@ -71,6 +73,7 @@ namespace Dino_Engine.Rendering
 
             GL.AttachShader(programID, computeShaderID);
             GL.LinkProgram(programID);
+            Core.Engine.Startup?.Shader();
             GL.GetProgram(programID, GetProgramParameterName.LinkStatus, out var linked);
             if (linked != (int)All.True)
             {

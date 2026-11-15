@@ -122,6 +122,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             _terrainShader.loadUniformInt("surfaceWeightsC", 11);
             Simulation.WeatherRenderer.LinkSurfaceSamplers(_terrainShader);
             _terrainShader.loadUniformInt("snowTrail", Simulation.SnowTrailRenderer.Unit);
+            PosGeometry.WaterRenderer.LinkShoreSamplers(_terrainShader);
 
             _terrainShader.unBind();
 

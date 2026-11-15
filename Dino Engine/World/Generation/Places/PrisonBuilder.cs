@@ -38,7 +38,9 @@ namespace Dino_Engine.World.Generation.Places
             Yard(Random.Fork("yard"));
             CageRows(Random.Fork("cages"));
             Works(Random.Fork("works"));
+            Keeping(Random.Fork("keeping"));
             Hold(Random.Fork("holders"));
+            Underfoot(Random.Fork("underfoot"));
         }
 
         private static Vector2 Outward(Side side) => side switch
@@ -136,7 +138,7 @@ namespace Dino_Engine.World.Generation.Places
         {
             var rows = new List<Side>();
             foreach (Side side in new[] { Side.Back, Side.Left, Side.Right }) if (side != _gateSide) rows.Add(side);
-            int wanted = r.Int(3, 5), placed = 0;
+            int wanted = r.Int(4, 7), placed = 0;
             foreach (Side side in rows)
             {
                 bool along = side == Side.Back;
@@ -229,6 +231,43 @@ namespace Dino_Engine.World.Generation.Places
             {
                 PutRound(new PlaceSpec(PlacePiece.Lantern, NextSeed(), PlaceSpec.Cm(4.2f), 1), W(corner), YawOf(-corner), 0.4f, 0f, 0.2f, 0.5f);
             }
+        }
+
+        // How the place is kept (PLACES.md): the ways worn from the gate to the breaking yard and along the cages, boards over the mud, hay stacked for what's in the cages with a wagon
+        // of it come in, troughs before them, the wranglers' master's tent and their table, woodpile, brazier and spears by the gate, the Reich's cressets along the cages, and the midden.
+        private void Keeping(WorldRandom r)
+        {
+            Vector2 inward = -Outward(_gateSide);
+            Vector2 side = _gateSide is Side.Front or Side.Back ? Vector2.UnitX : Vector2.UnitY;
+            Trail(_gateLocal, _post, 3f, GroundPaint.Plaza, 1.6f);
+            Trail(new Vector2(-_hx + 3f, -_hz + 5.4f), new Vector2(_hx - 3f, -_hz + 5.4f), 2.4f, GroundPaint.Plaza, 1.4f);
+            float toPost = (_post - _gateLocal).Length;
+            if (toPost > 8f) LayFlat(new PlaceSpec(PlacePiece.Duckboards, NextSeed(), PlaceSpec.Cm(MathF.Min(10f, toPost - 6f)), PlaceSpec.Cm(1.3f)), _gateLocal + (_post - _gateLocal).Normalized() * (3f + MathF.Min(10f, toPost - 6f) * 0.5f), YawOf((_post - _gateLocal).Normalized()), 5f, 0.2f);
+            // Hay stacked for the grazers in the cages, and the wagon it came in on.
+            for (int k = 0; k < 2; k++) Tries(10, () => PutRound(new PlaceSpec(PlacePiece.Haystack, NextSeed(), PlaceSpec.Cm(r.Range(1.2f, 1.6f))), W(new Vector2(r.Range(-_hx + 4f, _hx - 4f), -_hz + r.Range(8f, 11f))), r.Float() * MathF.Tau, 1.9f, Tall, 0.4f, 0.4f));
+            Tries(10, () => PutBox(new PlaceSpec(PlacePiece.Wagon, NextSeed(), 0, 0, PlaceSpec.Cm(r.Range(3.8f, 4.6f))), W(_gateLocal + inward * r.Range(6f, 9f) + side * ((r.Chance(0.5f) ? 1f : -1f) * r.Range(5f, 8f))), YawOf(-inward) + r.Range(-0.3f, 0.3f), new Vector2(1.6f, 4f), 2.6f, 0.4f, 0.4f));
+            for (int k = 0; k < 2; k++) Tries(8, () => Structure(StructureCatalog.Trough, W(new Vector2(r.Range(-_hx + 5f, _hx - 5f), -_hz + r.Range(6.5f, 7.5f))), YawOf(Vector2.UnitX), 0.3f, 0.4f));
+            // The wranglers' master's tent and their corner by the gate.
+            float s = r.Chance(0.5f) ? 1f : -1f;
+            Vector2 corner = _gateLocal + inward * r.Range(6f, 9f) + side * (s * r.Range(9f, 13f));
+            Tries(10, () => PutBox(new PlaceSpec(PlacePiece.CommandTent, NextSeed(), PlaceSpec.Cm(r.Range(5.2f, 6.4f))), W(corner + new Vector2(r.Range(-1.5f, 1.5f), r.Range(-1.5f, 1.5f))), YawOf((_post - corner).Normalized()), new Vector2(3.3f, 4.6f), 4f, 0.4f, 0.38f));
+            Tries(8, () => PutBox(new PlaceSpec(PlacePiece.MessTable, NextSeed(), PlaceSpec.Cm(r.Range(2.4f, 3.2f))), W(corner - side * s * r.Range(5f, 7f) + inward * r.Range(0f, 2f)), YawOf(side), new Vector2(2.2f, 1.3f), 1.2f, 0.3f, 0.4f));
+            Tries(8, () => PutBox(new PlaceSpec(PlacePiece.Firewood, NextSeed(), PlaceSpec.Cm(r.Range(2.4f, 3.4f)), PlaceSpec.Cm(r.Range(1.1f, 1.5f))), W(corner + inward * r.Range(4f, 6f)), YawOf(-inward), new Vector2(2.2f, 1.4f), 1.6f, 0.3f, 0.4f));
+            Tries(8, () => PutRound(new PlaceSpec(PlacePiece.Brazier, NextSeed(), PlaceSpec.Cm(r.Range(1f, 1.2f))), W(corner + inward * r.Range(2.5f, 3.5f) - side * s * 2.5f), 0f, 0.8f, 1.4f, 0.3f, 0.4f));
+            Tries(8, () => PutRound(new PlaceSpec(PlacePiece.Brazier, NextSeed(), PlaceSpec.Cm(r.Range(1f, 1.2f))), W(_post + SiteBuilder.Direction(r.Float() * MathF.Tau) * r.Range(8.5f, 10f)), 0f, 0.8f, 1.4f, 0.3f, 0.4f));
+            Tries(8, () => PutBox(new PlaceSpec(PlacePiece.WeaponRack, NextSeed(), PlaceSpec.Cm(r.Range(2.2f, 2.8f)), 1), W(corner + side * s * r.Range(4f, 5f)), YawOf(-side * s), new Vector2(1.6f, 0.6f), 2f, 0.3f, 0.4f));
+            // Cressets along the cages, and the midden in a corner away from the gate.
+            for (float x = -_hx + 4f; x < _hx - 3f; x += r.Range(7f, 9f)) PutRound(new PlaceSpec(PlacePiece.Torch, NextSeed(), PlaceSpec.Cm(r.Range(2.6f, 3f)), 1), W(new Vector2(x, -_hz + 6.6f)), 0f, 0.35f, 0f, 0.2f, 0.45f);
+            Tries(8, () => PutRound(new PlaceSpec(PlacePiece.Midden, NextSeed(), PlaceSpec.Cm(r.Range(1.5f, 2f))), W(new Vector2(-s * (_hx - 3f), -_hz + r.Range(3f, 6f))), r.Float() * MathF.Tau, 2f, 1f, 0.3f, 0.45f));
+            for (int k = 0; k < 2; k++) LayFlat(new PlaceSpec(PlacePiece.Puddle, NextSeed(), PlaceSpec.Cm(r.Range(0.8f, 1.3f))), _post + SiteBuilder.Direction(r.Float() * MathF.Tau) * r.Range(2.5f, 5f), r.Float() * MathF.Tau, 1.1f, 0.15f);
+        }
+
+        // What's underfoot: straw trodden out of the cages and round the hay, and what the breaking left in the yard.
+        private void Underfoot(WorldRandom r)
+        {
+            for (float x = -_hx + 5f; x < _hx - 4f; x += r.Range(6f, 9f)) Strew(LitterKind.Straw, new Vector2(x, -_hz + r.Range(6f, 8f)), 2.4f, r.Int(16, 26));
+            Strew(LitterKind.Straw, _post + new Vector2(r.Range(-3f, 3f), r.Range(-3f, 3f)), 2.6f, r.Int(10, 16));
+            Strew(LitterKind.Gear, _post + new Vector2(r.Range(-2f, 2f), r.Range(2f, 4f)), 2f, r.Int(3, 6));
         }
 
         // Guards at the gate, wranglers about the yard and the cages, and what they've taken in a chest by their tents.

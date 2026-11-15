@@ -51,6 +51,16 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
         public float ShadowDistance = 60f;
 
         /// <summary>Sets a value by name, as --render gives them. Returns whether there is one of that name.</summary>
+        /// <summary>
+        /// --render shoredebug=N: what the sea does to the ground, as colours in place of it (Water/ShoreGround.glsl, SHORE.md). 1: red how wet, green the
+        /// film, blue under water. 2: how far up the mean wave's run-up (red ramps 0 to 1 and again), green past it, blue the seconds since the water left.
+        /// 3: red the waves' height here of the most they'd be, green how open the water is, blue metres inland of the shoreline over 10.
+        /// </summary>
+        public int ShoreDebug = 0;
+
+        /// <summary>--render shorecheck=1: logs how much each build of the shore field changed near the view (WaterShoreField.CheckStability), which should be nothing.</summary>
+        public bool ShoreCheck = false;
+
         public bool Set(string name, string value)
         {
             bool on = value != "0" && value != "false" && value != "off";
@@ -74,6 +84,8 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
                 case "bloomstrength": BloomStrength = number; break;
                 case "shadows": ShadowedPointLights = (int)number; break;
                 case "stillshadows": StillShadowedPointLights = (int)number; break;
+                case "shoredebug": ShoreDebug = (int)number; break;
+                case "shorecheck": ShoreCheck = on; break;
                 default: return false;
             }
             return true;

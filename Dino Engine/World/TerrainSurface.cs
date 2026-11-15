@@ -246,8 +246,8 @@ namespace Dino_Engine.World
             float small = 0.8f + 0.2f * _noise.Fbm01(x, z, 2.2f, 2);
             float broad = 0.72f + 0.28f * _noise.Fbm01(x + 91f, z - 13f, 6f, 2);
             float grows = (1f - rock) * (1f - bare * 0.55f) * notRoad * (1f - plaza) * (1f - farm) * (1f - yard * 0.7f) * (1f - hall) * (1f - paving) * (1f - Saturate(floor * 1.6f)) * (1f - pavement * 0.8f);
-            // Grass thins out over the last of the dry ground and stops at the water.
-            grows *= Smoothstep(0.02f, 0.5f, above);
+            // Grass thins out over the last of the dry ground and stops at the water, and by the sea it stays above where the waves run up the beach (WorldShore).
+            grows *= Smoothstep(0.02f, 0.5f, above) * (1f - WorldShore.Swashed(world, position));
 
             // Sand and ash drink whatever falls on them, and mud holds it, as a pen's floor does.
             float hollow = Hollow(position, height, slope, MathF.Max(MathF.Max(MathF.Max(onRoad, paving), MathF.Max(MathF.Max(yard, plaza), farm)), MathF.Max(mud, chips)), shore) * (1f - Saturate(sand + ash));
