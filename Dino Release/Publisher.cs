@@ -28,11 +28,25 @@ namespace Dino_Release
         private readonly IReleaseStore _store;
         private readonly string _trusted;
 
+        /// <summary>
+        /// Where releases used to go, when moving them (`--move-from owner/name`). Launchers out there still look there, so the move is
+        /// one release, signed once, put up in both places: the new first, then the old, whose launcher looks in the new place.
+        /// </summary>
+        private readonly IReleaseStore? _old;
+
         public Publisher(Options options)
         {
             _options = options;
             _trusted = options.Text("trust") ?? Feed.PublicKey;
             _store = OpenStore(options);
+
+            string? from = options.Text("move-from");
+            if (from != null)
+            {
+                if (options.Text("folder") != null || options.Text("api") != null) throw new ReleaseException("--move-from only moves between GitHub repositories.");
+                if (string.Equals(from, $"{Feed.Owner}/{Feed.Repository}", StringComparison.OrdinalIgnoreCase)) throw new ReleaseException($"Releases already go to {from}.");
+                _old = new GitHubStore("https://api.github.com", $"https://github.com/{from}/releases/", from, FindToken);
+            }
         }
 
         private static IReleaseStore OpenStore(Options options)
@@ -40,8 +54,26 @@ namespace Dino_Release
             string? folder = options.Text("folder");
             if (folder != null) return new FolderStore(folder);
 
-            return new GitHubStore(options.Text("api") ?? "https://api.github.com", options.Text("feed") ?? Feed.Url,
-                () => Environment.GetEnvironmentVariable("GITHUB_TOKEN") ?? Environment.GetEnvironmentVariable("GH_TOKEN") ?? Git.StoredGitHubToken());
+            return new GitHubStore(options.Text("api") ?? "https://api.github.com", options.Text("feed") ?? Feed.Url, $"{Feed.Owner}/{Feed.Repository}", FindToken);
+        }
+
+        private static string? FindToken() =>
+            Environment.GetEnvironmentVariable("GITHUB_TOKEN") ?? Environment.GetEnvironmentVariable("GH_TOKEN") ?? Git.StoredGitHubToken();
+
+        private IEnumerable<IReleaseStore> Stores => _old == null ? new[] { _store } : new[] { _store, _old };
+
+        // What's live is whichever place has gone furthest: when moving, the new place has nothing yet, and launchers won't believe a
+        // manifest with a lower sequence than the one they have.
+        private Manifest? ReadLive()
+        {
+            Manifest? live = null;
+            foreach (IReleaseStore store in Stores)
+            {
+                byte[]? signed = store.ReadLive();
+                Manifest? seen = signed == null ? null : Open(signed);
+                if (seen != null && (live == null || seen.Sequence > live.Sequence)) live = seen;
+            }
+            return live;
         }
 
         public void Status()
@@ -70,12 +102,11 @@ namespace Dino_Release
             }
 
             using SigningKey key = LoadKey();
-            byte[]? signedLive = _store.ReadLive();
-            Manifest? live = signedLive == null ? null : Open(signedLive);
+            Manifest? live = ReadLive();
 
             string version = _options.Text("version") ?? NextVersion(live);
             string tag = $"v{version}";
-            if (_store.HasRelease(tag)) throw new ReleaseException($"{tag} already exists.");
+            if (Stores.Any(store => store.HasRelease(tag))) throw new ReleaseException($"{tag} already exists.");
             string commit = real ? Git.Head() + (dirty ? "+dirty" : "") : "test";
 
             Console.WriteLine(live == null ? $"First release: {version}" : $"Releasing {version}, after {live.Version}");
@@ -137,10 +168,14 @@ namespace Dino_Release
                 new(Feed.LauncherName, launcher),
                 new(Feed.ManifestName, signedPath),
             };
-            _store.Publish(tag, $"Dino Defenders {version}", notes, commit, true, assets);
-
-            Confirm(manifest, uploadRuntime != null ? manifest.Packs : new[] { gamePack });
+            foreach (IReleaseStore store in Stores)
+            {
+                if (_old != null) Console.WriteLine(store == _old ? "Into the old place, which sends launchers to the new one" : "Into the new place");
+                store.Publish(tag, $"Dino Defenders {version}", notes, commit, true, assets);
+                Confirm(store, manifest, uploadRuntime != null ? manifest.Packs : new[] { gamePack });
+            }
             Console.WriteLine($"\nReleased {version}. Testers get it the next time they open the launcher.");
+            if (_old != null) Console.WriteLine("Leave the old place's releases up until every tester has opened their launcher once since this.");
             Console.WriteLine($"New testers: {Feed.LauncherLink}");
         }
 
@@ -183,7 +218,7 @@ namespace Dino_Release
 
             Console.WriteLine($"Going back to the build of {to}, as {version}.");
             _store.Publish(tag, $"Dino Defenders {version}", notes, manifest.Commit, true, new List<Asset> { new(Feed.LauncherName, launcher), new(Feed.ManifestName, signedPath) });
-            Confirm(manifest, new PackEntry[0]);
+            Confirm(_store, manifest, new PackEntry[0]);
             Console.WriteLine($"\nReleased {version}. Testers go back the next time they open the launcher.");
         }
 
@@ -334,22 +369,32 @@ namespace Dino_Release
             string url = $"download/{tag}/{Feed.RuntimePackName}";
 
             PackEntry? same = live?.Packs.FirstOrDefault(p => p.Url == url);
-            if (same != null && _store.SizeOf(url) == same.Size) return (same, null);
+            if (same != null && Stores.All(store => store.SizeOf(url) == same.Size)) return (same, null);
 
-            // An earlier run may have got this far before something else failed. It's the same files, but the zip is what's believed.
-            if (_store.HasRelease(tag))
-            {
-                byte[] existing = _store.Read(url) ?? throw new ReleaseException($"{tag} exists without its pack. Delete that release and try again.");
-                return (new PackEntry { Name = RuntimePack, Url = url, Size = existing.Length, Sha256 = Hashing.OfBytes(existing) }, null);
-            }
-
+            // An earlier run may have got this far before something else failed, or, when moving, the old place has it and the new one
+            // doesn't. It's the same files, but the zip already out there is what's believed, so that very zip is what goes anywhere else.
             string zip = Path.Combine(work, Feed.RuntimePackName);
-            Console.WriteLine("The runtime has changed, so it goes up too");
-            WriteZip(zip, game, runtime);
+            IReleaseStore? holder = Stores.FirstOrDefault(store => store.HasRelease(tag));
+            if (holder != null)
+            {
+                byte[] existing = holder.Read(url) ?? throw new ReleaseException($"{tag} exists without its pack. Delete that release and try again.");
+                File.WriteAllBytes(zip, existing);
+            }
+            else
+            {
+                Console.WriteLine("The runtime has changed, so it goes up too");
+                WriteZip(zip, game, runtime);
+            }
             PackEntry pack = PackFor(RuntimePack, url, zip);
 
+            List<IReleaseStore> lacking = Stores.Where(store => !store.HasRelease(tag)).ToList();
+            if (lacking.Count == 0) return (pack, null);
+
             string notes = "The .NET runtime and libraries, which releases of the game point to. Don't delete this: launchers download it.";
-            return (pack, () => _store.Publish(tag, $"Runtime {identity.Substring(0, 12)}", notes, commit, false, new List<Asset> { new(Feed.RuntimePackName, zip) }));
+            return (pack, () =>
+            {
+                foreach (IReleaseStore store in lacking) store.Publish(tag, $"Runtime {identity.Substring(0, 12)}", notes, commit, false, new List<Asset> { new(Feed.RuntimePackName, zip) });
+            });
         }
 
         private static PackEntry PackFor(string name, string url, string zip)
@@ -388,13 +433,13 @@ namespace Dino_Release
         /// Looks at what's really out there, as a stranger, because the only thing that matters is what launchers will see. What this
         /// release uploaded is read back whole; the rest was checked once already, and only has to still be there.
         /// </summary>
-        private void Confirm(Manifest manifest, IReadOnlyList<PackEntry> uploaded)
+        private void Confirm(IReleaseStore store, Manifest manifest, IReadOnlyList<PackEntry> uploaded)
         {
             Console.WriteLine("Checking what testers will see");
             Manifest? seen = null;
             for (int attempt = 0; attempt < 10; attempt++)
             {
-                byte[]? signed = _store.ReadLive();
+                byte[]? signed = store.ReadLive();
                 seen = signed == null ? null : Open(signed);
                 if (seen?.Sequence == manifest.Sequence) break;
                 Thread.Sleep(3000);
@@ -407,7 +452,7 @@ namespace Dino_Release
 
             foreach (PackEntry pack in manifest.Packs)
             {
-                bool good = uploaded.Contains(pack) ? _store.Read(pack.Url) is byte[] bytes && Hashing.OfBytes(bytes) == pack.Sha256 : _store.SizeOf(pack.Url) == pack.Size;
+                bool good = uploaded.Contains(pack) ? store.Read(pack.Url) is byte[] bytes && Hashing.OfBytes(bytes) == pack.Sha256 : store.SizeOf(pack.Url) == pack.Size;
                 if (!good) throw new ReleaseException($"The release is up, but {pack.Url} isn't what the manifest says. Roll back.");
             }
         }

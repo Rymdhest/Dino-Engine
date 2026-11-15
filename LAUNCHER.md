@@ -2,6 +2,8 @@
 
 How Dino Defenders gets from this repository to the people testing it, and what to do so that keeps working.
 
+**The code is private and the releases aren't.** This repository (`Rymdhest/Dino-Engine`) is private, as the code is all rights reserved (`LICENSE.txt`). Releases go to a public repository of their own, `Rymdhest/Dino-Defenders` (`Feed.Owner`, `Feed.Repository`), which holds nothing but a page for testers, the licence and `ErosionFilter.cs`, whose source the MPL says has to be available wherever the game is. GitHub serves a private repository's releases to nobody but its owner, so a launcher can't read them. Releases moved there in 0.2.4 (below).
+
 ## The one idea
 
 **A release is a folder of files on a web server, and a signature that says it's real.** There's no server of ours. The launcher fetches one small signed file, makes the game on disk match what it says, and lights the Play button. Installing, updating and repairing are the same operation, so anything broken on a tester's machine fixes itself the next time they open it.
@@ -44,7 +46,7 @@ The GitHub token is the one git already pushes with, so there's nothing to set u
 Send them this link. It never changes, and always gives the newest launcher:
 
 ```
-https://github.com/Rymdhest/Dino-Engine/releases/latest/download/DinoDefendersLauncher.exe
+https://github.com/Rymdhest/Dino-Defenders/releases/latest/download/DinoDefendersLauncher.exe
 ```
 
 They run it once. It installs itself, with no administrator rights, adds a desktop shortcut, and downloads the game. After that they open the shortcut and press Play. Anyone who runs what they downloaded again ends up in the same place: it leaves the installed launcher alone if that's the one its release names and it hasn't died, and starts it. Launchers from before 0.1.5 copied themselves over it every time, so one kept from then shows its old look for a moment and updates itself again, on every run. It needs Windows 10 or 11 and nothing else: the launcher uses the .NET Framework that comes with Windows, and the game brings its own runtime.
@@ -111,6 +113,8 @@ DinoDefendersLauncher.exe --root C:\Temp\try --feed http://127.0.0.1:<port>/
 ## Moving somewhere else
 
 **To another host:** copy the feed there (`publish --folder` lays one out), change `Feed.Url`, and release once from GitHub. Every launcher replaces itself with one that looks in the new place.
+
+**To another GitHub repository,** as releases went from `Dino-Engine` to `Dino-Defenders` in 0.2.4: make the new one public with at least one commit (a release needs one to tag), change `Feed.Repository`, and release once with `publish --move-from owner/old-name`. That's one manifest signed once and put up in both places, carrying on from the old one's version, sequence and notes (launchers won't believe a lower sequence), with the old place's runtime zip copied across byte for byte, the new place first and then the old, whose launcher looks in the new place. Tags only go on commits in the repository that holds the code (`Git.IsOrigin`). Anyone who opens their launcher afterwards moves over. Leave the old repository public until every tester has, and then send anyone who didn't the new link: a launcher that can't reach its feed keeps playing what it has and never updates.
 
 **To Steam:** the game doesn't know the launcher exists, so `out/release/<version>/game` is what goes in a depot, and Steam takes over updating. Two things change on the way. `OutputType` in `Dino Defenders.csproj` should become `WinExe`, or Steam players see a console window, which the launcher only hides by starting it hidden; `--dedicated` then needs `AllocConsole`, or a build of its own. And the launcher can stay for anyone who wants the game without Steam: it's the same build.
 

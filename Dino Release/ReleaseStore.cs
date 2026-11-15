@@ -65,12 +65,15 @@ namespace Dino_Release
         private readonly HttpClient _api = new() { Timeout = TimeSpan.FromMinutes(15) };
         private readonly string _root;
         private readonly Func<string?> _findToken;
+        private readonly bool _holdsCode;
 
+        /// <param name="repository">Owner/name. The releases live apart from the code, which is private (LAUNCHER.md).</param>
         /// <param name="findToken">Only asked when there's something to publish. Looking at what's out there needs no credentials.</param>
-        public GitHubStore(string apiUrl, string feed, Func<string?> findToken) : base(feed)
+        public GitHubStore(string apiUrl, string feed, string repository, Func<string?> findToken) : base(feed)
         {
-            _root = $"{apiUrl.TrimEnd('/')}/repos/{Dino_Launcher.Update.Feed.Owner}/{Dino_Launcher.Update.Feed.Repository}/releases";
+            _root = $"{apiUrl.TrimEnd('/')}/repos/{repository}/releases";
             _findToken = findToken;
+            _holdsCode = Git.IsOrigin(repository);
 
             _api.DefaultRequestHeaders.UserAgent.ParseAdd("DinoRelease");
             _api.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
@@ -98,10 +101,11 @@ namespace Dino_Release
                 ["draft"] = true,
                 ["prerelease"] = !latest,
             };
-            // A tag can only go on a commit GitHub has. The manifest says what was really built either way.
+            // A tag can only go on a commit GitHub has, and a repository of releases alone has none of the code's. The manifest says what
+            // was really built either way.
             string built = commit.Split('+')[0];
-            if (Git.IsPushed(built)) draft["target_commitish"] = built;
-            else Console.WriteLine($"  {built} isn't pushed, so the tag goes on the default branch. Push it to keep them together.");
+            if (_holdsCode && Git.IsPushed(built)) draft["target_commitish"] = built;
+            else if (_holdsCode) Console.WriteLine($"  {built} isn't pushed, so the tag goes on the default branch. Push it to keep them together.");
 
             JsonNode created = Send(HttpMethod.Post, _root, draft, "Creating the release");
             long id = created["id"]!.GetValue<long>();

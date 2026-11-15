@@ -6,6 +6,8 @@ namespace Dino_Release
     ///   rollback --to x.y.z [--notes text]   Sends everyone back to an earlier build, as a new release.
     ///   status                               What's out there now.
     ///   keygen                               Makes the signing key, once. Never needed again unless it's lost.
+    ///   publish --move-from owner/name       Moves releases to Feed.Owner/Feed.Repository: one release in both places, carrying on from
+    ///                                        the old one, whose launcher then looks in the new place. See LAUNCHER.md.
     /// For testing without touching GitHub or the real key:
     ///   --key path        Signs with this key instead.
     ///   --trust base64    Expects launchers to believe this public key instead of the one in Feed.cs.

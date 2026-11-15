@@ -7,7 +7,7 @@ namespace Dino_Launcher.Update
     public static class Feed
     {
         public const string Owner = "Rymdhest";
-        public const string Repository = "Dino-Engine";
+        public const string Repository = "Dino-Defenders";
         public const string Url = "https://github.com/" + Owner + "/" + Repository + "/releases/";
 
         public const string ManifestName = "manifest.signed";

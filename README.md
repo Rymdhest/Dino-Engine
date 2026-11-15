@@ -13,7 +13,7 @@
 
 This is a fully **procedural game engine** built from scratch in C# using OpenGL and OpenTK. The engine does **not use any external libraries** beyond OpenTK (the game adds LiteNetLib and Mono.Nat for playing over the internet, behind an interface the engine defines). Every asset, from textures and models to terrain, effects, sound and music, is generated **procedurally at runtime**.
 
-The code is under the MIT licence, but for [`ErosionFilter.cs`](Dino%20Engine/World/Generation/ErosionFilter.cs), a port of Rune Skovbo Johansen's erosion filter, which stays under the Mozilla Public License 2.0.
+The code is proprietary, all rights reserved (see [LICENSE.txt](LICENSE.txt)), but for [`ErosionFilter.cs`](Dino%20Engine/World/Generation/ErosionFilter.cs), a port of Rune Skovbo Johansen's erosion filter, which stays under the Mozilla Public License 2.0 and is published beside the game's releases, and Bend Studio's contact shadows, under the Apache License 2.0.
 
 ---
 
@@ -46,7 +46,7 @@ There are no classes. There is one great talent tree, of over 850 nodes, and wha
 
 Start it with `dotnet run --project "Dino Defenders" -c Release`.
 
-To play without building it, [download the launcher](https://github.com/Rymdhest/Dino-Engine/releases/latest/download/DinoDefendersLauncher.exe) (Windows 10 or 11). It installs the game and keeps it up to date. Windows will warn about it once, as it isn't code signed: choose **More info**, then **Run anyway**. See [LAUNCHER.md](LAUNCHER.md), which also covers sending out a new build with `release.cmd`.
+To play without building it, [download the launcher](https://github.com/Rymdhest/Dino-Defenders/releases/latest/download/DinoDefendersLauncher.exe) (Windows 10 or 11). It installs the game and keeps it up to date. Windows will warn about it once, as it isn't code signed: choose **More info**, then **Run anyway**. See [LAUNCHER.md](LAUNCHER.md), which also covers sending out a new build with `release.cmd`.
 
 Up to five heroes can share a world, with no server to run: in the pause menu, **Travel with friends** opens your world and gives you an invite to send, and takes an invite you've been sent. See [NETWORKING.md](NETWORKING.md).
 

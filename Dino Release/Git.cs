@@ -10,6 +10,15 @@ namespace Dino_Release
         /// <summary>Changes to tracked files. Stray untracked files don't make it into a build.</summary>
         public static bool HasUncommittedChanges() => Run("status --porcelain --untracked-files=no").Trim().Length > 0;
 
+        /// <summary>Whether owner/name is where this code is pushed, rather than somewhere only releases go.</summary>
+        public static bool IsOrigin(string repository)
+        {
+            if (!TryRun("remote get-url origin", out string url)) return false;
+            string trimmed = url.Trim().TrimEnd('/');
+            if (trimmed.EndsWith(".git", StringComparison.OrdinalIgnoreCase)) trimmed = trimmed.Substring(0, trimmed.Length - 4);
+            return trimmed.EndsWith("/" + repository, StringComparison.OrdinalIgnoreCase) || trimmed.EndsWith(":" + repository, StringComparison.OrdinalIgnoreCase);
+        }
+
         public static bool IsPushed(string commit) => TryRun($"branch -r --contains {commit}", out string branches) && branches.Trim().Length > 0;
 
         /// <summary>The subjects of the commits since the last release, which read well enough as notes. Newest first.</summary>
