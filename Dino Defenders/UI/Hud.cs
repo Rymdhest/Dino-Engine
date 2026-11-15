@@ -418,7 +418,7 @@ namespace Dino_Defenders.UI
                 height += lines.Count * 18f + 4f;
             }
 
-            string? standing = session.Client.Out ? "You've fallen. You'll go home with the others." : session.Liberated ? "The land is free. Go home through any waygate." : null;
+            string? standing = session.Client.Out ? session.Client.Over ? "You've fallen, and so has everyone. Go home when you're ready." : "You've fallen. You'll go home with the others." : session.Liberated ? "The land is free. Go home through any waygate." : null;
             List<string> standingLines = standing != null ? Ui.Wrap(Context!, standing, 14f, wrap) : new List<string>();
             height += standingLines.Count * 18f + (standingLines.Count > 0 ? 4f : 0f);
 

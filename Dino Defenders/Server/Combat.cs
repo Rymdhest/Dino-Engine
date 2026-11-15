@@ -234,7 +234,7 @@ namespace Dino_Defenders.Server
                     break;
                 case Later.Burst:
                     Show(PageEvent.Round(Ground(c.Origin), PageSign.Blast(DamageType.Fire), c.Radius), c.Origin);
-                    Blast(c.Source, c.Origin, c.Radius, c.Type, c.Amount, c.Tags, null);
+                    Blast(c.Source, c.Origin, c.Radius, c.Type, c.Amount, c.Tags, null, HarmCause.Burst);
                     break;
                 case Later.Rally:
                     Rally(c.Source);
@@ -913,9 +913,14 @@ namespace Dino_Defenders.Server
             target.Alarm = EnemyBrainSystem.StruckAlarm;
             Vector3 point = new Vector3(target.Position.X, target.Height + 3.4f, target.Position.Y);
 
+            // Everything that reaches a hero goes in the account of how they fall, if they do (DEATHS.md).
+            Ledger? ledger = target.Player?.Ledger;
+            ledger?.Know(source);
+
             if (target.Player is ServerPlayer hero && hero.Sim.Safe > 0f)
             {
                 Dodged(target, point);
+                ledger?.Missed(RecapKind.Dodged, source, skill, 0f, 0f);
                 return;
             }
 
@@ -931,9 +936,11 @@ namespace Dino_Defenders.Server
 
             bool attack = (skill.Tags & Tags.Attack) != 0;
             float evasion = attack ? target.Sheet.Evasion : (skill.Tags & Tags.Spell) != 0 ? target.Sheet.Evasion * target.Sheet.SpellEvasion / 100f : 0f;
-            if (evasion > 0f && _luck.Float() < Hits.EvadeChance(evasion, skill.Accuracy))
+            float evade = evasion > 0f ? Hits.EvadeChance(evasion, skill.Accuracy) : 0f;
+            if (evasion > 0f && _luck.Float() < evade)
             {
                 Show(new DamageEvent { Position = point, Note = HitNote.Evaded, ToHero = target.IsHero, Target = GhostOf(target) }, target.Position);
+                ledger?.Missed(RecapKind.Evaded, source, skill, evade * 100f, 0f);
                 return;
             }
 
@@ -942,6 +949,7 @@ namespace Dino_Defenders.Server
             if (target.Sheet.Has(Rule.ThirdBlock) && ++target.Struck % ThirdBlockEvery == 0) block = 100f;
             if (block > 0f && _luck.Float() * 100f < block)
             {
+                ledger?.Missed(RecapKind.Blocked, source, skill, evade * 100f, MathF.Min(block, 100f));
                 Blocked(source, skill, target, foe, point, way);
                 return;
             }
@@ -988,12 +996,21 @@ namespace Dino_Defenders.Server
                 for (int i = 0; i < DamageKinds.Count; i++) hit.Damage[i] *= bonus;
             }
 
-            float total = Hits.Mitigate(target.Sheet, ref hit, source.State, target.Afflictions.ResistanceLost, target.TakenIncrease);
+            float resistanceLost = target.Afflictions.ResistanceLost;
+            float takenIncrease = target.TakenIncrease;
+            HitPacket arrived = hit;
+            Mitigation trace = default;
+            RecapEntry entry = default;
+            float total = ledger != null
+                ? Hits.Mitigate(target.Sheet, ref hit, source.State, resistanceLost, takenIncrease, ref trace)
+                : Hits.Mitigate(target.Sheet, ref hit, source.State, resistanceLost, takenIncrease);
+            if (ledger != null) entry.Dealt = hit.Dealt;
 
             if (source.Sheet.Has(Rule.FreezeStores) && target.Afflictions.FreezeLeft > 0f)
             {
                 target.Afflictions.Stored += total;
                 target.Afflictions.StoredBy = source;
+                entry.Stored = total;
                 total = 0f;
                 hit.Total = 0f;
             }
@@ -1003,19 +1020,29 @@ namespace Dino_Defenders.Server
                 float fire = hit.Dealt[(int)DamageType.Fire] * FireHealShare;
                 hit.Total -= fire;
                 hit.Dealt[(int)DamageType.Fire] -= fire;
-                Hits.Heal(target.Sheet, ref target.Vitals, fire * target.Sheet.RecoveryScale);
+                entry.Healed = fire;
+                float healed = Hits.Heal(target.Sheet, ref target.Vitals, fire * target.Sheet.RecoveryScale);
+                ledger?.Turned(healed);
             }
 
+            float owed = hit.Total;
             if (Shoulder(target, ref hit)) total = hit.Total;
             if (Screen(source, target, ref hit)) total = hit.Total;
+            entry.Shared = owed - hit.Total;
+            owed = hit.Total;
             if (PayInGold(target, ref hit)) total = hit.Total;
+            entry.Gold = owed - hit.Total;
+            owed = hit.Total;
             if (target.Sheet.Has(Rule.HitCap) && hit.Total > target.Sheet.MaxHealth * HitCapShare)
             {
                 Scale(ref hit, target.Sheet.MaxHealth * HitCapShare / hit.Total);
                 total = hit.Total;
             }
+            entry.Capped = owed - hit.Total;
             float healthBefore = target.Vitals.Health;
             float barrierBefore = target.Vitals.Barrier;
+            Vitals paidFrom = target.Vitals;
+            AilmentClock ailing = ledger != null ? AilmentClock.Of(target.Afflictions) : default;
             float lost = hit.Total > 0f ? Hits.Pay(target.Sheet, ref target.Vitals, hit) : 0f;
             target.SinceHit = 0f;
             source.SinceStrike = 0f;
@@ -1038,9 +1065,11 @@ namespace Dino_Defenders.Server
 
             bool anyHit = source.Sheet.Has(Rule.ExecuteAny);
             float execute = skill.Execute + (anyHit ? ExecuteAnyReach : 0f);
-            if ((hit.Critical || anyHit) && execute > 0f && target.Vitals.Health < target.Sheet.MaxHealth * execute / 100f) target.Vitals.Health = 0f;
+            bool executed = (hit.Critical || anyHit) && execute > 0f && target.Vitals.Health < target.Sheet.MaxHealth * execute / 100f;
+            if (executed) target.Vitals.Health = 0f;
+            if (ledger != null) ledger.Struck(Entry(entry, RecapKind.Hit, HarmCause.Other, skill.Tags, hit.Critical, executed, evade * 100f, block, arrived.Damage, trace, paidFrom, target, AilmentClock.Of(target.Afflictions).Since(ailing)), source, skill);
 
-            if (target.Sheet.Reflect > 0f && ((skill.Tags & Tags.Melee) != 0 || target.Sheet.Has(Rule.ThornsAlways)) && total > 0f) Harm(target, source, total * target.Sheet.Reflect / 100f, DamageType.Physical);
+            if (target.Sheet.Reflect > 0f && ((skill.Tags & Tags.Melee) != 0 || target.Sheet.Has(Rule.ThornsAlways)) && total > 0f) Harm(target, source, total * target.Sheet.Reflect / 100f, DamageType.Physical, cause: HarmCause.Reflected);
             if ((skill.Tags & Tags.Melee) != 0 && total > 0f && source.Sheet.Has(Rule.MeleeSplash)) Splash(source, target, raw);
             if (barrierBefore > 0f && target.Vitals.Barrier <= 0f) SetOff(target, TriggerEvent.BarrierBroke, target.Position);
             if (total > 0f && target.Sheet.Has(Rule.Adapts)) Adapt(target, StrongestOf(hit));
@@ -1144,7 +1173,7 @@ namespace Dino_Defenders.Server
             if (next == null) return;
 
             Show(new LinkEvent { From = Ground(from.Position) + Vector3.UnitY * 2f, To = Ground(next.Position) + Vector3.UnitY * 2f, Look = DamageType.Physical }, from.Position);
-            Harm(source, next, amount, DamageType.Physical, Tags.Reaction, from.Position);
+            Harm(source, next, amount, DamageType.Physical, Tags.Reaction, from.Position, HarmCause.Overflow);
         }
 
         // How much of a blow is behind it: slow ones have more, and whatever went round the whole body has most.
@@ -1201,7 +1230,10 @@ namespace Dino_Defenders.Server
                 float taken = hit.Total * GuardianShare;
                 for (int i = 0; i < DamageKinds.Count; i++) hit.Dealt[i] *= 1f - GuardianShare;
                 hit.Total *= 1f - GuardianShare;
+                Vitals before = guardian.Vitals;
                 Hits.Pay(guardian.Sheet, ref guardian.Vitals, taken, 0f);
+                hero.Ledger.Know(target);
+                hero.Ledger.Shouldered(target, taken, before.Barrier - guardian.Vitals.Barrier, before.Mana - guardian.Vitals.Mana, before.Health - guardian.Vitals.Health, guardian.Vitals.Debt - before.Debt);
                 return true;
             }
             return false;
@@ -1231,22 +1263,55 @@ namespace Dino_Defenders.Server
             float blocked = turned.Damage.Total;
             if (keeps) target.Kept = MathF.Min(target.Kept + blocked, sheet.MaxHealth * RetortMost);
             if (feeds) target.Vitals.Mana = MathF.Min(target.Vitals.Mana + blocked * BlockManaShare, sheet.MaxMana);
-            if (sheet.Has(Rule.BlockReflects)) Harm(target, source, blocked, DamageType.Physical);
+            if (sheet.Has(Rule.BlockReflects)) Harm(target, source, blocked, DamageType.Physical, cause: HarmCause.BlockReflected);
+        }
+
+        // What a line in a hero's account says of a blow, once it's landed.
+        private static RecapEntry Entry(RecapEntry entry, RecapKind kind, HarmCause cause, Tags tags, bool critical, bool executed, float evade, float block, in DamageTable rolled, in Mitigation trace, in Vitals before, Actor target, byte left)
+        {
+            entry.Kind = kind;
+            entry.Cause = cause;
+            entry.Tags = tags & ~(Tags.Hit | Tags.Opening | Tags.Turned | Tags.Closing);     // Where a page is in its Book is nothing to whoever it reached.
+            entry.Critical = critical;
+            entry.Executed = executed;
+            entry.EvadeChance = evade;
+            entry.BlockChance = MathF.Min(block, 100f);
+            entry.Rolled = rolled;
+            entry.Defences = trace;
+            entry.ToBarrier = before.Barrier - target.Vitals.Barrier;
+            entry.ToMana = before.Mana - target.Vitals.Mana;
+            entry.ToHealth = before.Health - target.Vitals.Health;
+            entry.ToDebt = target.Vitals.Debt - before.Debt;
+            entry.Health = target.Vitals.Health;
+            entry.Barrier = target.Vitals.Barrier;
+            entry.Left = left;
+            return entry;
         }
 
         /// <summary>Damage that isn't a blow: thorns, a blow turned back, a burst of something. It's resisted, but it can't be dodged, and it sets nothing off.</summary>
         /// <param name="from">Where it came from, if not from whoever did it.</param>
-        public void Harm(Actor source, Actor target, float amount, DamageType type, Tags tags = Tags.None, Vector2? from = null)
+        /// <param name="cause">What it was, for the account of a hero who falls to it.</param>
+        public void Harm(Actor source, Actor target, float amount, DamageType type, Tags tags = Tags.None, Vector2? from = null, HarmCause cause = HarmCause.Other)
         {
             if (target.Dead || amount <= 0f) return;
 
             HitPacket hit = default;
             hit.Damage[(int)type] = amount;
             hit.Tags = tags;
-            float total = Hits.Mitigate(target.Sheet, ref hit, source.State, target.Afflictions.ResistanceLost, target.TakenIncrease);
+            Ledger? ledger = target.Player?.Ledger;
+            ledger?.Know(source);
+            float resistanceLost = target.Afflictions.ResistanceLost;
+            float takenIncrease = target.TakenIncrease;
+            HitPacket arrived = hit;
+            Mitigation trace = default;
+            float total = ledger != null
+                ? Hits.Mitigate(target.Sheet, ref hit, source.State, resistanceLost, takenIncrease, ref trace)
+                : Hits.Mitigate(target.Sheet, ref hit, source.State, resistanceLost, takenIncrease);
             float healthBefore = target.Vitals.Health;
+            Vitals paidFrom = target.Vitals;
             Hits.Pay(target.Sheet, ref target.Vitals, hit);
             target.SinceHit = 0f;
+            if (ledger != null) ledger.Struck(Entry(new RecapEntry { Dealt = hit.Dealt }, RecapKind.Indirect, cause, tags, false, false, 0f, 0f, arrived.Damage, trace, paidFrom, target, 0), source, null);
 
             Vector2 origin = from ?? source.Position;
             Vector2 way = target.Position - origin;
@@ -1262,14 +1327,14 @@ namespace Dino_Defenders.Server
             Die(target, source, null, origin, Throw(way, (total - healthBefore) / MathF.Max(target.Sheet.MaxHealth, 1f), BlastForce));
         }
 
-        private void Blast(Actor source, Vector2 at, float radius, DamageType type, float amount, Tags tags, Actor? spared)
+        private void Blast(Actor source, Vector2 at, float radius, DamageType type, float amount, Tags tags, Actor? spared, HarmCause cause = HarmCause.Explosion)
         {
             // An explosion is an area like any other, and what's marked of it has to be true.
             _chained.Clear();
             Within(GroundShape.Circle(at, radius), source.Team, _chained);
             foreach (Actor foe in _chained)
             {
-                if (foe != spared) Harm(source, foe, amount, type, tags, at);
+                if (foe != spared) Harm(source, foe, amount, type, tags, at, cause);
             }
         }
 
@@ -1296,7 +1361,11 @@ namespace Dino_Defenders.Server
             ActorSheet sheet = source.Sheet;
 
             float health = dealt * skill.HealthLeech + skill.HealthOnHit;
-            if (health > 0f) Hits.Heal(sheet, ref source.Vitals, health * sheet.RecoveryScale);
+            if (health > 0f)
+            {
+                float healed = Hits.Heal(sheet, ref source.Vitals, health * sheet.RecoveryScale);
+                source.Player?.Ledger.Leeched(healed);
+            }
 
             float mana = dealt * skill.ManaLeech + skill.ManaOnHit;
             if (mana > 0f) source.Vitals.Mana = MathF.Min(source.Vitals.Mana + mana * sheet.RecoveryScale, sheet.MaxMana);
@@ -1402,7 +1471,7 @@ namespace Dino_Defenders.Server
             {
                 if (foe == target || !Conductive(source, foe) || !Sight.Clear(_hops, target.Position, foe.Position)) continue;
                 Show(new LinkEvent { From = Ground(target.Position) + Vector3.UnitY, To = Ground(foe.Position) + Vector3.UnitY, Look = DamageType.Lightning }, target.Position);
-                Harm(source, foe, amount, DamageType.Lightning, Tags.Reaction);
+                Harm(source, foe, amount, DamageType.Lightning, Tags.Reaction, cause: HarmCause.Conducted);
             }
         }
 
@@ -1582,20 +1651,28 @@ namespace Dino_Defenders.Server
             Afflictions a = actor.Afflictions;
             ActorSheet sheet = actor.Sheet;
             float resistanceLost = a.ResistanceLost;
-            float taken = 1f + actor.TakenIncrease;
+            float takenIncrease = actor.TakenIncrease;
             Actor? killer = null;
             float dealt = 0f;
+            Ledger? ledger = actor.Player?.Ledger;
+            Span<float> each = stackalloc float[AilmentRules.Count];
+            Span<Mitigation> traces = ledger != null ? stackalloc Mitigation[AilmentRules.Count] : default;
+            Actor? burnFrom = a.BurnSource, bleedFrom = a.BleedSource, venomFrom = a.Venom is { Count: > 0 } ? a.Venom[0].Source : null;
 
-            float Through(DamageType type, float perSecond)
+            // Only Resistance and Damage Taken touch damage over time, by the same arithmetic the account reads.
+            float Through(DamageType type, float perSecond, Ailment ailment, Span<float> each, Span<Mitigation> traces)
             {
-                float resistance = sheet.Resistance[(int)type] - resistanceLost;
-                return perSecond * seconds * (1f - MathF.Max(resistance, Hits.LeastResistance) / 100f) * sheet.Taken[(int)type] * taken;
+                float through = Hits.OverTime(sheet, type, perSecond * seconds, resistanceLost, takenIncrease, out Mitigation trace);
+                each[(int)ailment] += through;
+                if (traces.Length > 0) Add(ref traces[(int)ailment], trace);
+                return through;
             }
 
             if (a.BurnLeft > 0f)
             {
                 a.BurnLeft -= seconds;
-                float burnt = Through(DamageType.Fire, a.BurnPerSecond);
+                if (a.BurnSource != null) ledger?.Know(a.BurnSource);
+                float burnt = Through(DamageType.Fire, a.BurnPerSecond, Ailment.Burn, each, traces);
                 dealt += burnt;
                 LeechOverTime(a.BurnSource, burnt);
                 killer = a.BurnSource;
@@ -1605,7 +1682,8 @@ namespace Dino_Defenders.Server
             if (a.BleedLeft > 0f)
             {
                 a.BleedLeft -= seconds;
-                float bled = Through(DamageType.Physical, a.BleedPerSecond * (actor.Moving ? 1f + AilmentRules.BleedMoving : 1f));
+                if (a.BleedSource != null) ledger?.Know(a.BleedSource);
+                float bled = Through(DamageType.Physical, a.BleedPerSecond * (actor.Moving ? 1f + AilmentRules.BleedMoving : 1f), Ailment.Bleed, each, traces);
                 dealt += bled;
                 LeechOverTime(a.BleedSource, bled);
                 killer ??= a.BleedSource;
@@ -1617,7 +1695,8 @@ namespace Dino_Defenders.Server
                 for (int i = a.Venom.Count - 1; i >= 0; i--)
                 {
                     VenomStack stack = a.Venom[i];
-                    float poisoned = Through(DamageType.Poison, stack.PerSecond);
+                    if (stack.Source != null) ledger?.Know(stack.Source);
+                    float poisoned = Through(DamageType.Poison, stack.PerSecond, Ailment.Venom, each, traces);
                     dealt += poisoned;
                     LeechOverTime(stack.Source, poisoned);
                     killer ??= stack.Source;
@@ -1649,11 +1728,15 @@ namespace Dino_Defenders.Server
 
             if (dealt > 0f)
             {
+                Vitals before = actor.Vitals;
                 Hits.Pay(sheet, ref actor.Vitals, dealt, 0f);
+                if (ledger != null) Account(ledger, actor, before, dealt, each, traces, burnFrom, bleedFrom, venomFrom);
                 if (actor.Vitals.Health <= 0f) Die(actor, killer ?? actor, null, actor.Position, Vector3.Zero);
             }
 
-            Hits.Recover(sheet, ref actor.Vitals, seconds, actor.SinceHit);
+            Vitals owing = actor.Vitals;
+            Hits.Recover(sheet, ref actor.Vitals, seconds, actor.SinceHit, out Recovery recovered);
+            if (ledger != null) Account(ledger, actor, owing, recovered);
             if (!actor.IsHero && actor.Vitals.Mana < sheet.MaxMana) actor.Vitals.Mana = MathF.Min(actor.Vitals.Mana + sheet.ManaRegen * seconds, sheet.MaxMana);
 
             // A dummy left alone a while is as good as new, so that a second try starts where the first did.
@@ -1663,10 +1746,55 @@ namespace Dino_Defenders.Server
             // Death is waiting for a kill, and doesn't wait long.
             if (actor.GaspLeft <= 0f || actor.Dead) return;
             actor.GaspLeft -= seconds;
+            float gasping = actor.Vitals.Health;
             actor.Vitals.Health = MathF.Max(actor.Vitals.Health, 1f);
+            actor.Player?.Ledger.Turned(actor.Vitals.Health - gasping);
             if (actor.GaspLeft > 0f) return;
+            actor.Player?.Ledger.GaspEnded(actor.Vitals.Health);
             actor.Vitals.Health = 0f;
             Die(actor, actor, null, actor.Position, Vector3.Zero);
+        }
+
+        // A moment of damage over time on a hero, into their account: one line a run for each ailment, and what each pool paid shared out by how much of it each ailment was.
+        private static void Account(Ledger ledger, Actor actor, in Vitals before, float dealt, ReadOnlySpan<float> each, ReadOnlySpan<Mitigation> traces, Actor? burnFrom, Actor? bleedFrom, Actor? venomFrom)
+        {
+            float barrier = before.Barrier - actor.Vitals.Barrier;
+            float mana = before.Mana - actor.Vitals.Mana;
+            float health = before.Health - actor.Vitals.Health;
+            float debt = actor.Vitals.Debt - before.Debt;
+            for (int i = 0; i < AilmentRules.Count; i++)
+            {
+                if (each[i] <= 0f) continue;
+                var ailment = (Ailment)i;
+                float share = each[i] / dealt;
+                DamageTable got = default;
+                got[(int)AilmentRules.TypeOf(ailment)] = each[i];
+                RecapKind kind = ailment == Ailment.Burn ? RecapKind.Burn : ailment == Ailment.Bleed ? RecapKind.Bleed : RecapKind.Venom;
+                Actor? source = ailment == Ailment.Burn ? burnFrom : ailment == Ailment.Bleed ? bleedFrom : venomFrom;
+                ledger.OverTime(kind, source, traces[i], got, barrier * share, mana * share, health * share, debt * share);
+            }
+        }
+
+        // What time alone did to a hero's Health: drained, owed falling due, and regenerated.
+        private static void Account(Ledger ledger, Actor actor, in Vitals before, in Recovery recovered)
+        {
+            if (recovered.Drained > 0f) ledger.OverTime(RecapKind.Drain, actor, default, default, 0f, 0f, recovered.Drained, 0f);
+            if (recovered.Due > 0f) ledger.OverTime(RecapKind.Debt, actor, default, default, 0f, 0f, recovered.Due, 0f);
+            if (recovered.Regenerated != 0f) ledger.Regenerated(recovered.Regenerated);
+        }
+
+        private static void Add(ref Mitigation to, in Mitigation more)
+        {
+            for (int t = 0; t < DamageKinds.Count; t++)
+            {
+                to.Arrived[t] += more.Arrived[t];
+                to.Resisted[t] += more.Resisted[t];
+                to.Armoured[t] += more.Armoured[t];
+                to.Reduced[t] += more.Reduced[t];
+                to.Flat[t] += more.Flat[t];
+                to.Scaled[t] += more.Scaled[t];
+                to.Shocked[t] += more.Shocked[t];
+            }
         }
 
         /// <summary>Someone's time is up, through nobody's doing.</summary>
@@ -1714,9 +1842,11 @@ namespace Dino_Defenders.Server
             }
 
             // Gasping, they can't die until the time's up.
+            float fallingAt = actor.Vitals.Health;
             if (actor.GaspLeft > 0f)
             {
                 actor.Vitals.Health = 1f;
+                actor.Player?.Ledger.Turned(actor.Vitals.Health - fallingAt);
                 return;
             }
 
@@ -1725,6 +1855,7 @@ namespace Dino_Defenders.Server
                 Dismiss(standIn);
                 actor.Vitals.Health = actor.Sheet.MaxHealth * MinionShieldHealth;
                 actor.Vitals.Debt = 0f;
+                actor.Player?.Ledger.Saved(RecapSave.MinionShield, fallingAt);
                 return;
             }
 
@@ -1733,6 +1864,7 @@ namespace Dino_Defenders.Server
                 actor.RebirthIn = RebirthCooldown;
                 actor.Vitals.Health = actor.Sheet.MaxHealth * RebirthHealth;
                 actor.Vitals.Debt = 0f;
+                actor.Player?.Ledger.Saved(RecapSave.Rebirth, fallingAt);
                 Show(PageEvent.Round(Ground(actor.Position), PageSign.Blast(DamageType.Fire), RebirthRadius), actor.Position);
                 Defer(new Consequence { Kind = Later.Blast, At = Now, Source = actor, Origin = actor.Position, Radius = RebirthRadius, Type = DamageType.Fire, Amount = actor.Sheet.MaxHealth * RebirthBlast, Tags = Tags.Reaction });
                 return;
@@ -1744,11 +1876,13 @@ namespace Dino_Defenders.Server
                 actor.GaspLeft = GaspSeconds;
                 actor.Vitals.Health = 1f;
                 actor.Vitals.Debt = 0f;
+                actor.Player?.Ledger.Saved(RecapSave.LastGasp, fallingAt);
                 AddBuff(actor, BuffCatalog.LastGasp, GaspSeconds);
                 return;
             }
 
             actor.Dead = true;
+            actor.Player?.Ledger.Settled(-MathF.Min(actor.Vitals.Health, 0f));
             actor.Vitals.Health = 0f;
             if (actor.Owner != null) Gone(actor);
 
@@ -1819,12 +1953,12 @@ namespace Dino_Defenders.Server
             if (killer.GaspLeft > 0f)
             {
                 killer.GaspLeft = 0f;
-                Hits.Heal(sheet, ref killer.Vitals, sheet.MaxHealth * GaspHeal);
+                killer.Player?.Ledger.OnKill(Hits.Heal(sheet, ref killer.Vitals, sheet.MaxHealth * GaspHeal));
                 RemoveBuff(killer, BuffCatalog.LastGasp);
             }
             if (skill != null)
             {
-                if (skill.HealthOnKill > 0f) Hits.Heal(sheet, ref killer.Vitals, skill.HealthOnKill * sheet.RecoveryScale);
+                if (skill.HealthOnKill > 0f) killer.Player?.Ledger.OnKill(Hits.Heal(sheet, ref killer.Vitals, skill.HealthOnKill * sheet.RecoveryScale));
                 if (skill.ManaOnKill > 0f) killer.Vitals.Mana = MathF.Min(killer.Vitals.Mana + skill.ManaOnKill * sheet.RecoveryScale, sheet.MaxMana);
                 if (skill.BarrierOnKill > 0f) killer.Vitals.Barrier = MathF.Min(killer.Vitals.Barrier + skill.BarrierOnKill, sheet.MaxBarrier);
             }

@@ -1,4 +1,5 @@
 using Dino_Engine.World;
+using System.Runtime.CompilerServices;
 
 namespace Dino_Defenders.Stats
 {
@@ -147,6 +148,29 @@ namespace Dino_Defenders.Stats
     }
 
     /// <summary>
+    /// What each of someone's defences took off a blow, by type, which the account of how a hero fell is made from (DEATHS.md). Each is what came off at that step, so they add up from what arrived to
+    /// what got through, and one is negative where it added instead: a Resistance below zero, Damage Taken over its base, a Shock.
+    /// </summary>
+    public struct Mitigation
+    {
+        public DamageTable Arrived;     // After whatever arrives as another type has done so.
+        public DamageTable Resisted;
+        public DamageTable Armoured;
+        public DamageTable Reduced;     // Physical Damage Reduction.
+        public DamageTable Flat;        // Damage from Hits: a fixed amount off each.
+        public DamageTable Scaled;      // Damage Taken.
+        public DamageTable Shocked;     // What ailments and rules add to everything taken.
+    }
+
+    /// <summary>What a moment's passing did to someone's pools, for the same account.</summary>
+    public struct Recovery
+    {
+        public float Drained;
+        public float Due;
+        public float Regenerated;
+    }
+
+    /// <summary>
     /// How a blow goes, from either side. This is the one place damage is worked out, for everyone, and it reads only what sheets and profiles
     /// have finished. It allocates nothing and asks nothing of the world, which also means it can be tested on its own.
     ///
@@ -259,6 +283,18 @@ namespace Dino_Defenders.Stats
         /// </summary>
         public static float Mitigate(ActorSheet target, ref HitPacket hit, Condition attacker = Condition.None, float resistanceLost = 0f, float takenIncrease = 0f)
         {
+            return Mitigate(target, ref hit, attacker, resistanceLost, takenIncrease, ref Unsafe.NullRef<Mitigation>(), false);
+        }
+
+        /// <summary>The same, writing down what each defence took off it, for the account of how someone fell (<see cref="Mitigation"/>). It's the one piece of arithmetic either way.</summary>
+        public static float Mitigate(ActorSheet target, ref HitPacket hit, Condition attacker, float resistanceLost, float takenIncrease, ref Mitigation trace)
+        {
+            trace = default;
+            return Mitigate(target, ref hit, attacker, resistanceLost, takenIncrease, ref trace, true);
+        }
+
+        private static float Mitigate(ActorSheet target, ref HitPacket hit, Condition attacker, float resistanceLost, float takenIncrease, ref Mitigation trace, bool tracing)
+        {
             if (target.TakenAs is float[] shift) Shift(shift, ref hit);
 
             float total = 0f;
@@ -275,31 +311,71 @@ namespace Dino_Defenders.Stats
                 float resistance = target.Resistance[i] - resistanceLost;
                 if (resistance > 0f) resistance = MathF.Max(resistance - hit.Penetration[i], 0f);
                 float through = amount * (1f - MathF.Max(resistance, LeastResistance) / 100f);
+                float resisted = through;
 
-                float reduction = i == (int)DamageType.Physical ? target.PhysicalReduction / 100f : 0f;
+                float physical = i == (int)DamageType.Physical ? target.PhysicalReduction / 100f : 0f;
+                float armour = 0f;
                 float share = target.ArmourApplies[i] / 100f;
-                if (share > 0f) reduction += ArmourReduction(target.Armour * share * (1f - hit.ArmourIgnore / 100f), through);
-                through *= 1f - MathF.Min(MathF.Max(reduction, 0f), MostReduction);
+                if (share > 0f) armour = ArmourReduction(target.Armour * share * (1f - hit.ArmourIgnore / 100f), through);
+                through *= 1f - MathF.Min(MathF.Max(physical + armour, 0f), MostReduction);
+                float reduced = through;
 
                 through = MathF.Max(through - target.FlatReduction[i], 0f);
+                float flattened = through;
 
                 float scale = target.Taken[i];
                 if (scoped.Length > 0) scale = ScaleBy(scoped, hit.Tags | DamageKinds.TagsOf((DamageType)i), attacker, scale);
-                through *= scale * (1f + takenIncrease);
+                through *= scale;
+                float scaled = through;
+                through *= 1f + takenIncrease;
 
                 hit.Dealt[i] = through;
                 total += through;
+
+                if (!tracing) continue;
+                trace.Arrived[i] = amount;
+                trace.Resisted[i] = amount - resisted;
+                // Armour and Physical Damage Reduction come off together, under one limit, so what they took is split between them by how much each asked for.
+                float asked = physical + armour;
+                float off = resisted - reduced;
+                trace.Armoured[i] = MathF.Abs(asked) > 1e-5f ? off * armour / asked : 0f;
+                trace.Reduced[i] = off - trace.Armoured[i];
+                trace.Flat[i] = reduced - flattened;
+                trace.Scaled[i] = flattened - scaled;
+                trace.Shocked[i] = scaled - through;
             }
 
             if (target.FlatReductionAll > 0f && total > 0f)
             {
                 float kept = MathF.Max(total - target.FlatReductionAll, 0f) / total;
-                for (int i = 0; i < DamageKinds.Count; i++) hit.Dealt[i] *= kept;
+                for (int i = 0; i < DamageKinds.Count; i++)
+                {
+                    if (tracing) trace.Flat[i] += hit.Dealt[i] * (1f - kept);
+                    hit.Dealt[i] *= kept;
+                }
                 total *= kept;
             }
 
             hit.Total = total;
             return total;
+        }
+
+        /// <summary>
+        /// What a moment of damage over time comes to on someone, of a type: only Resistance and Damage Taken touch it (<see cref="Tags.DamageOverTime"/>). <paramref name="trace"/> gets what each took off.
+        /// </summary>
+        public static float OverTime(ActorSheet target, DamageType type, float amount, float resistanceLost, float takenIncrease, out Mitigation trace)
+        {
+            trace = default;
+            int i = (int)type;
+            float resistance = target.Resistance[i] - resistanceLost;
+            float resisted = amount * (1f - MathF.Max(resistance, LeastResistance) / 100f);
+            float scaled = resisted * target.Taken[i];
+            float through = scaled * (1f + takenIncrease);
+            trace.Arrived[i] = amount;
+            trace.Resisted[i] = amount - resisted;
+            trace.Scaled[i] = resisted - scaled;
+            trace.Shocked[i] = scaled - through;
+            return through;
         }
 
         private static void Shift(float[] shift, ref HitPacket hit)
@@ -415,13 +491,18 @@ namespace Dino_Defenders.Stats
         }
 
         /// <summary>A moment passing for someone: their health and barrier coming back, and what they owe falling due. Mana is apart, as a hero's step has to predict it.</summary>
-        public static void Recover(ActorSheet sheet, ref Vitals vitals, float seconds, float sinceHit)
+        public static void Recover(ActorSheet sheet, ref Vitals vitals, float seconds, float sinceHit) => Recover(sheet, ref vitals, seconds, sinceHit, out _);
+
+        /// <param name="what">Gets what was drained, what fell due and what came back, which is all that touched Health here.</param>
+        public static void Recover(ActorSheet sheet, ref Vitals vitals, float seconds, float sinceHit, out Recovery what)
         {
+            what = default;
             if (vitals.Health <= 0f) return;
 
             if (sheet.HealthDrain > 0f)
             {
-                vitals.Health -= sheet.MaxHealth * sheet.HealthDrain / 100f * seconds;
+                what.Drained = sheet.MaxHealth * sheet.HealthDrain / 100f * seconds;
+                vitals.Health -= what.Drained;
                 if (vitals.Health <= 0f) return;
             }
 
@@ -430,10 +511,16 @@ namespace Dino_Defenders.Stats
                 float due = MathF.Min(vitals.Debt, MathF.Max(vitals.Debt / DebtSeconds, sheet.MaxHealth * Rulebook.DebtLeast) * seconds);
                 vitals.Debt -= due;
                 vitals.Health -= due;
+                what.Due = due;
                 if (vitals.Health <= 0f) return;
             }
 
-            if (vitals.Health < sheet.MaxHealth) vitals.Health = MathF.Min(vitals.Health + sheet.HealthRegen * seconds, sheet.MaxHealth);
+            if (vitals.Health < sheet.MaxHealth)
+            {
+                float before = vitals.Health;
+                vitals.Health = MathF.Min(vitals.Health + sheet.HealthRegen * seconds, sheet.MaxHealth);
+                what.Regenerated = vitals.Health - before;
+            }
 
             // For some, a full well spills over into barrier, and that's the only way it ever fills.
             if (sheet.Has(Rule.StillWaters))

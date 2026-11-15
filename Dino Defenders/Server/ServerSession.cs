@@ -21,7 +21,6 @@ namespace Dino_Defenders.Server
         private const float MinionSight = 28f;
         private const float RisenReach = 160f;      // Metres from every hero past which what the Ossuary raised is let go, as it belongs to no place to be kept by.
         private const float RisenAggro = 34f;
-        private const float LostLinger = 5f;        // Seconds between the last hero falling and everyone going home, long enough to take in what happened.
 
         private readonly List<Actor> _nearby = new();
         private readonly List<(double At, Vector2 Where, bool Beast, int Level)> _rising = new();
@@ -86,6 +85,9 @@ namespace Dino_Defenders.Server
 
         /// <summary>When everyone has fallen, the moment they all go home.</summary>
         public double? HomeAt;
+
+        /// <summary>Everyone here has fallen, so the land is over: they stay with what happened to them for as long as they like, and go home when one of them says so (DEATHS.md).</summary>
+        public bool Over;
 
         /// <summary>Who has fallen here, by name, so that leaving and coming back in isn't a second life.</summary>
         public readonly HashSet<string> Fallen = new();
@@ -391,12 +393,12 @@ namespace Dino_Defenders.Server
         /// </summary>
         public bool SettleIfAllOut()
         {
-            if (IsHaven || HomeAt != null || !Heroes.All(hero => hero.Out)) return false;
+            if (IsHaven || Over || !Heroes.All(hero => hero.Out)) return false;
             Lost = !Liberated;
-            HomeAt = Time + LostLinger;
+            Over = true;
             ObjectivesChanged = true;
             if (!Lost) return true;
-            foreach (ServerPlayer hero in Heroes) Server.Announce(hero, "The land is lost", $"The map table will show it again, to try once more at level {World.Plan.Level}.", LostLinger);
+            foreach (ServerPlayer hero in Heroes) Server.Note(hero, $"The land is lost. The map table will show it again, to try once more at level {World.Plan.Level}.");
             return true;
         }
 
@@ -598,7 +600,7 @@ namespace Dino_Defenders.Server
         /// <summary>Writes where the world stands into a save. The hero goes in on the player's own machine. The Haven is always the same, so there's nothing to write, and a land that's over is over.</summary>
         public void Capture(SaveGame save)
         {
-            save.InLand = !IsHaven && !IsLexicon && !Lost && HomeAt == null;     // Lexicon (developer tool, LEXICON.md): the room is never saved, so a hero who leaves the game in it comes back home.
+            save.InLand = !IsHaven && !IsLexicon && !Lost && !Over && HomeAt == null;     // Lexicon (developer tool, LEXICON.md): the room is never saved, so a hero who leaves the game in it comes back home.
             if (!save.InLand) return;
 
             // The request, not what it became: drawing an archetype is part of what a seed makes, so naming it would make another world.

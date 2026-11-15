@@ -21,6 +21,7 @@ namespace Dino_Defenders.Client
         private const int MostAttempts = 4;
         private const int MostFramesHeld = 120;     // At the 60 frames a second a scripted run keeps to.
         private const int FramesToArrive = 30;      // Being moved goes by way of the server, so it isn't done the moment it's asked.
+        private const int FramesDown = 240;         // How long it looks at how it fell before it does what a person would, at sixty frames a second.
 
         private const float LootReach = 16f;
         private const float QuietEnough = 12f;      // How far off enemies have to be for it to stop for what's on the ground.
@@ -38,6 +39,7 @@ namespace Dino_Defenders.Client
         private Vector2 _heldAt;
         private int _framesHeld;
         private int _arriving;
+        private int _down;
 
         public int Unreachable { get; private set; }
 
@@ -55,6 +57,20 @@ namespace Dino_Defenders.Client
             if (_arriving > 0)
             {
                 _arriving--;
+                return intent;
+            }
+
+            // Fallen, nothing gets it up or home but pressing for it, as for anyone (DEATHS.md): where nothing's lost it gets up, and from a land that's over it takes everyone home.
+            if (session.Client.Recap != null && (session.Health <= 0f || session.Client.Out))
+            {
+                if (++_down < FramesDown) return intent;
+                _down = 0;
+                if (session.IsHaven || session.IsLexicon)
+                {
+                    session.Client.Rise();
+                    session.Client.Forget();
+                }
+                else if (session.Client.Over) session.Client.ReturnHome();
                 return intent;
             }
 

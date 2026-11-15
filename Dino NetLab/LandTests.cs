@@ -429,6 +429,9 @@ namespace Dino_NetLab
             int level = scene.Truth.Hero.LandLevel;
             scene.Fall();
             scene.Lab.Run(HeroRules.DeathDelay + 1.5);
+            report.Check("Falling in the Haven stands nobody up by the clock, so how it happened can be read", scene.Truth.Sim.Down && scene.Player.Client.Recap != null);
+            scene.Player.Client.Rise();
+            scene.Lab.Run(1.5);
             report.Check("Falling in the Haven costs nothing", !scene.Truth.Sim.Down && !scene.Truth.Out && scene.Truth.Hero.LandLevel == level && scene.Hero.Vitals.Health > 0f);
             report.Check("And nobody is sent anywhere", scene.Player.Arrivals == 1 && scene.Session.IsHaven);
         }
@@ -524,9 +527,16 @@ namespace Dino_NetLab
                 scene.Player.Script = null;
                 report.Check("And does nothing more in it", (scene.Truth.Sim.Position - at).Length < 0.01f);
                 report.Check("And isn't stood back up", scene.Truth.Sim.Down);
+                report.Check("They're told how they fell, down to what ended it", scene.Player.Client.Recap is { Fatal: >= 0 } recap && recap.Entries.Count > 0, $"{scene.Player.Client.Recap?.Entries.Count} lines");
+                report.Check("And the client knows the land is over", scene.Player.Client.Over && scene.Session.Over);
 
+                // Nobody is sent home by the clock: they stay with what happened for as long as they like (DEATHS.md).
+                scene.Lab.Run(8);
+                report.Check("Nobody is sent home until they ask", !scene.Session.IsHaven && scene.Player.Arrivals == 1);
+
+                scene.Player.Client.ReturnHome();
                 scene.WaitForWorld();
-                report.Check("A moment later everyone is home", scene.Session.IsHaven && scene.Player.Arrivals == 2 && scene.Seen.IsHaven);
+                report.Check("Asking takes everyone home", scene.Session.IsHaven && scene.Player.Arrivals == 2 && scene.Seen.IsHaven);
                 report.Check("On their feet, and no longer out of anything", !scene.Truth.Sim.Down && !scene.Truth.Out && !scene.Player.Client.Out && scene.Hero.Vitals.Health > 0f);
                 report.Check("With the climb as it was", scene.Truth.Hero.LandLevel == 6 && scene.Player.Client.Hero.LandLevel == 6);
                 report.Check("And the same lands to try again", Lands.Offer(scene.Truth.Hero, 6).Select(o => (ulong)o.Request.Seed).SequenceEqual(before) && Lands.Offer(scene.Player.Client.Hero, 6).Select(o => (ulong)o.Request.Seed).SequenceEqual(before));
@@ -542,7 +552,7 @@ namespace Dino_NetLab
             scene.Fall(friend);
             report.Check("A friend who falls is out", scene.TruthOf(friend).Out && friend.Client.Out && !scene.Truth.Out && !scene.Player.Client.Out);
             report.Check("And loses nothing of their climb", scene.TruthOf(friend).Hero.LandLevel == 6 && scene.Truth.Hero.LandLevel == 6);
-            report.Check("But the land isn't lost while someone stands", !scene.Session.Lost && scene.Session.HomeAt == null);
+            report.Check("But the land isn't lost while someone stands", !scene.Session.Lost && !scene.Session.Over);
             report.Check("And the rest fight on", scene.Player.Client.State == ClientState.Playing && !scene.Truth.Sim.Down);
 
             // Going and coming back isn't another life.
@@ -555,6 +565,7 @@ namespace Dino_NetLab
 
             scene.Fall();
             report.Check("Once everyone's fallen the land is lost", scene.Session.Lost);
+            back.Client.ReturnHome();
             scene.WaitForWorld();
             report.Check("And everyone goes home", scene.Session.IsHaven && !scene.TruthOf(back).Out && !scene.Truth.Out);
 
@@ -562,11 +573,21 @@ namespace Dino_NetLab
             scene.Venture(0);
             LabPlayer last = scene.Lab.Players.First(p => p.Name == "Friend");
             scene.Fall(last);
-            report.Check("A fallen friend waits on whoever's left", !scene.Session.Lost && scene.Session.HomeAt == null);
+            report.Check("A fallen friend waits on whoever's left", !scene.Session.Lost && !scene.Session.Over);
+            report.Check("And can't take anyone home while they do", ReturnsNobody(scene, last));
             scene.Player.Client.Dispose();
             scene.Lab.Players.Remove(scene.Player);
             scene.Lab.Run(2);
-            report.Check("And if they go, the land is over", scene.Session.HomeAt != null);
+            report.Check("And if they go, the land is over", scene.Session.Over);
+        }
+
+        // A fallen hero asking to go home while someone still stands does nothing.
+        private static bool ReturnsNobody(Scene scene, LabPlayer fallen)
+        {
+            int before = scene.Player.Arrivals;
+            fallen.Client.ReturnHome();
+            scene.Lab.Run(1.5);
+            return !scene.Session.IsHaven && scene.Player.Arrivals == before;
         }
 
         private static void Leaving(Report report, WorldCache worlds)
@@ -618,8 +639,10 @@ namespace Dino_NetLab
                 scene.Fall();
                 report.Check("Falling once it's free costs nothing", scene.Truth.Hero.LandLevel == 7 && !scene.Session.Lost);
                 scene.Fall(friend);
+                report.Check("And everyone falling ends it, but sends nobody anywhere by itself", scene.Session.Over && !scene.Session.Lost && !scene.Session.IsHaven);
+                friend.Client.ReturnHome();
                 scene.WaitForWorld();
-                report.Check("And everyone falling only sends them home", scene.Session.IsHaven && scene.Truth.Hero.LandLevel == 7 && scene.TruthOf(friend).Hero.LandLevel == 7);
+                report.Check("And when one of them asks, only sends them home", scene.Session.IsHaven && scene.Truth.Hero.LandLevel == 7 && scene.TruthOf(friend).Hero.LandLevel == 7);
             }
 
             using (var scene = new Scene(worlds, Home, hero: Sturdy(6)))

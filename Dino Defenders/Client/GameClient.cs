@@ -108,6 +108,12 @@ namespace Dino_Defenders.Client
         /// <summary>Whether this hero has fallen in the land they're in, and is out of it until everyone goes home.</summary>
         public bool Out { get; private set; }
 
+        /// <summary>Whether everyone in this land has fallen, so that it's over and any of them can take everyone home.</summary>
+        public bool Over { get; private set; }
+
+        /// <summary>How this hero last fell, as the server saw it, until they're on their feet again or somewhere else (DEATHS.md).</summary>
+        public DeathRecap? Recap { get; private set; }
+
         /// <summary>Where the way out of the Haven leads, once someone has opened it: what the land is called, and what it is.</summary>
         public (string Name, WorldRequest Request, LandTerms Terms)? Portal { get; private set; }
 
@@ -374,6 +380,9 @@ namespace Dino_Defenders.Client
                     case Message.GroundItem:
                         OnGroundItem(reader);
                         break;
+                    case Message.Recap:
+                        Recap = DeathRecap.Read(reader);
+                        break;
                     case Message.Worn:
                         (int wearer, List<WornLook> worn) = Protocol.ReadWorn(reader);
                         Worn[wearer] = worn;
@@ -400,6 +409,8 @@ namespace Dino_Defenders.Client
             _request = Lands.IsHaven(request) ? request : _terms.Shape(request);
             _landMods = Lands.IsHaven(request) ? Array.Empty<Mod>() : _terms.HeroMods();
             Out = false;
+            Over = false;
+            Recap = null;
             Portal = null;
             Recompile();
 
@@ -541,6 +552,7 @@ namespace Dino_Defenders.Client
             int falls = reader.ReadVarInt();
             bool lost = reader.ReadBool();
             Out = reader.ReadBool();
+            Over = reader.ReadBool();
             Portal = reader.ReadBool() ? (reader.ReadString(Protocol.LongestName), Protocol.ReadRequest(reader), Protocol.ReadTerms(reader)) : null;
             int objectives = reader.ReadCount(64);
             var progress = new int[objectives];
@@ -806,6 +818,15 @@ namespace Dino_Defenders.Client
 
         /// <summary>From a waygate, home to the Haven. The server decides whether this hero is at one.</summary>
         public void ReturnHome() => Send(Action(HeroAction.ReturnHome));
+
+        /// <summary>Up again after falling, where nothing's lost by it.</summary>
+        public void Rise()
+        {
+            Send(Action(HeroAction.Rise));
+        }
+
+        /// <summary>Done reading how they fell: it's gone from the screen, and comes back only with the next fall.</summary>
+        public void Forget() => Recap = null;
 
         /// <summary>Lexicon (developer tool, LEXICON.md): into the asset lexicon, home from it, or to a point in it. The server decides whether this hero can.</summary>
         public void AskLexicon(Dino_Defenders.AssetLexicon.LexiconAsk ask, Vector2 to = default)

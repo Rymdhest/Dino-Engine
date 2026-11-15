@@ -519,6 +519,7 @@ namespace Dino_Defenders.UI
         public readonly MultiplayerPage Multiplayer;
         public readonly LoadingScreen Loading = new();
         public readonly TipLayer Tips = new();
+        public readonly DeathScreen Death = new();
         public readonly GroundCatcher Ground = new();
         public readonly HandLayer Hand = new();
         public readonly ActionBar Bar;
@@ -555,6 +556,7 @@ namespace Dino_Defenders.UI
             foreach (GuiElement panel in _panels) gui.Root.Add(panel);
             gui.Root.Add(Bar);
             gui.Root.Add(Crescent);
+            gui.Root.Add(Death);
             gui.Root.Add(Menu);
             Lift(gui);
             gui.Root.Add(Tips);
@@ -618,6 +620,7 @@ namespace Dino_Defenders.UI
             Plaques.Visible = showing;
             Labels.Visible = showing;
             Ground.Visible = showing;
+            Death.Visible = showing;
             LexiconLayer.Visible = showing;     // Lexicon (developer tool, LEXICON.md).
         }
 

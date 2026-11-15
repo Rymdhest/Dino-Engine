@@ -1,3 +1,4 @@
+using Dino_Defenders.Gameplay;
 using Dino_Defenders.Progression;
 using Dino_Defenders.Server;
 using Dino_Defenders.Books;
@@ -47,6 +48,15 @@ namespace Dino_BuildLab
 
             report.Section("Tooltips: they stay readable");
             Readable(report);
+
+            report.Section("Tooltips: the death screen");
+            DamageTable mixed = default;
+            mixed[(int)DamageType.Physical] = 300f;
+            mixed[(int)DamageType.Fire] = 112f;
+            DamageTable cold = default;
+            cold[(int)DamageType.Cold] = 317f;
+            report.Check("A blow of several types says the sum first, then each type in brackets, largest first", RecapText.Types(mixed) == "412 (300 Physical, 112 Fire)", RecapText.Types(mixed));
+            report.Check("And a blow of one type just says it", RecapText.Types(cold) == "317 Cold", RecapText.Types(cold));
         }
 
         private static IEnumerable<T> Single<T>(ulong except = 0) where T : struct, Enum
@@ -174,6 +184,75 @@ namespace Dino_BuildLab
             var terms = new LandTerms();
             foreach (OmenDefinition omen in Omens.All) terms.Omens.Add(new ItemLine(omen.Id, omen.Tiers[^1].High));
             yield return ("What a land pays", terms.Pays());
+            foreach ((string where, string text) in RecapSentences()) yield return (where, text);
+        }
+
+        /// <summary>A made-up account of a fall with one of everything in it, every line of it the last in turn, and everything the death screen would say of it (DEATHS.md).</summary>
+        public static DeathRecap AnyFall()
+        {
+            var recap = new Dino_Defenders.Gameplay.DeathRecap { Window = Ledger.Window, MaxHealth = 400f };
+            recap.Heals = new RecapHeals { Regenerated = 12f, Leeched = 30f, OnKill = 8f, Flask = 120f, Other = 4f };
+            recap.Unaccounted = 2f;
+            EnemyKind kind = Bestiary.Everyone[0];
+            recap.Sources.Add(new RecapSource { Name = kind.Name, Rarity = Rarity.Rare, Level = 12, Who = RecapWho.Enemy, Tyrant = true });
+            recap.Sources.Add(new RecapSource { Name = Bestiary.Everyone[1].Name, Rarity = Rarity.Magic, Level = 12, Who = RecapWho.Minion, Owner = kind.Name });
+            recap.Sources.Add(new RecapSource { Level = 12, Who = RecapWho.Arena });
+            recap.Sources.Add(new RecapSource { Level = 12, Who = RecapWho.You });
+            recap.Sources.Add(new RecapSource { Level = 12, Who = RecapWho.Unknown });
+            ActorSheet sheet = Everyone();
+            recap.Books.Add(new RecapBook { Name = Shelf.Strike.Name, Card = Cards.Book(sheet.Preview(Shelf.Strike)) });
+
+            short source = 0;
+            foreach (RecapKind entryKind in Enum.GetValues<RecapKind>())
+            {
+                foreach (HarmCause cause in entryKind == RecapKind.Indirect ? Enum.GetValues<HarmCause>() : new[] { HarmCause.Other })
+                {
+                    foreach (RecapSave save in entryKind == RecapKind.Saved ? Enum.GetValues<RecapSave>() : new[] { RecapSave.None })
+                    {
+                        var entry = new RecapEntry
+                        {
+                            Kind = entryKind, Cause = cause, Save = save, Source = (short)(source++ % recap.Sources.Count), Book = 0, Tags = Tags.Attack | Tags.Melee, Critical = true, Executed = true,
+                            EvadeChance = 22f, BlockChance = 15f, Ago = 1.2f, Lasted = 0.8f, Shared = 5f, Gold = 3f, Capped = 9f, Healed = 4f, Stored = 2f,
+                            ToBarrier = 20f, ToMana = 6f, ToHealth = 140f, ToDebt = 7f, Restored = 60f, Health = -30f, Barrier = 0f, Left = 0xff,
+                        };
+                        for (int t = 0; t < DamageKinds.Count; t++)
+                        {
+                            entry.Rolled[t] = 100f;
+                            entry.Defences.Arrived[t] = 90f;
+                            entry.Defences.Resisted[t] = t == (int)DamageType.Cold ? -10f : 20f;
+                            entry.Defences.Armoured[t] = 10f;
+                            entry.Defences.Reduced[t] = 5f;
+                            entry.Defences.Flat[t] = 2f;
+                            entry.Defences.Scaled[t] = -3f;
+                            entry.Defences.Shocked[t] = -4f;
+                            entry.Dealt[t] = 60f;
+                        }
+                        recap.Entries.Add(entry);
+                    }
+                }
+            }
+            return recap;
+        }
+
+        private static IEnumerable<(string where, string text)> RecapSentences()
+        {
+            DeathRecap recap = AnyFall();
+            const string Where = "The death screen";
+            for (int fatal = -1; fatal < recap.Entries.Count; fatal++)
+            {
+                recap.Fatal = fatal;
+                yield return (Where, RecapText.Cause(recap));
+                yield return (Where, RecapText.Blow(recap));
+            }
+            yield return (Where, RecapText.Title(recap));
+            for (int i = 0; i < recap.Entries.Count; i++)
+            {
+                RecapRow row = RecapText.Row(recap, i);
+                yield return (Where, row.Who);
+                yield return (Where, row.What);
+                yield return (Where, row.Outcome);
+                foreach (string line in RecapText.Entry(recap, i).Words()) yield return (Where, line);
+            }
         }
 
         // Names of things are their own, and nothing has to define them. They're shown with a card of their own.

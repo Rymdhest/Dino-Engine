@@ -41,6 +41,9 @@ namespace Dino_Defenders.Server
         public float DownFor;
         public Entity Entity;
 
+        /// <summary>The account of what's happening to them, for when they fall (DEATHS.md).</summary>
+        public readonly Ledger Ledger = new();
+
         /// <summary>What they've put away, as their own machine keeps it: none if they couldn't bring it, as when another copy of the game has it. See NETWORKING.md.</summary>
         public Stash? Stash;
         public bool StashChanged;

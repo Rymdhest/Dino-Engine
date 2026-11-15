@@ -139,6 +139,10 @@ namespace Dino_Defenders.Server
             {
                 StepHeroes();
                 foreach (SystemBase system in _systems) system.Step(Ecs, NetTime.TickSeconds);
+                foreach (ServerPlayer hero in _heroes)
+                {
+                    if (!hero.Sim.Down) hero.Ledger.Sample(hero.Actor.Vitals, hero.Actor.Sheet);
+                }
                 Ecs.ApplyDeferredCommands();
                 Ecs.DirtyEntities.Clear();
                 if (Session.PortalChanged) ShowPortal(Session);
@@ -239,6 +243,10 @@ namespace Dino_Defenders.Server
             player.Timed = !fallen && !session.IsHaven && !(_saved is { InLand: true });
             var actor = new Actor(Team.Heroes, HeroBuild.Compile(player.Hero, null, player.LandMods), start, HeroRules.Radius) { Player = player, Body = "hero" };
             player.Actor = actor;
+            player.Ledger.Clear();
+            player.Ledger.World = Ecs;
+            player.Ledger.Hero = actor;
+            player.Ledger.Now = session.Time;
             player.Kit = new HeroKit(player.Hero, actor.Sheet);
             player.WatchBooks();
             foreach (string id in _settings.Buffs)
@@ -423,6 +431,7 @@ namespace Dino_Defenders.Server
                 Paused = alone && command.Has(HeroButtons.Frozen);
 
                 Actor actor = player.Actor;
+                player.Ledger.Now = session.Time;
                 if (!ReferenceEquals(player.Kit.Sheet, actor.Sheet)) player.Kit = new HeroKit(player.Hero, actor.Sheet);
                 Brief(player);
 
@@ -434,7 +443,11 @@ namespace Dino_Defenders.Server
                 actor.Vitals.Mana = player.Sim.Mana;
                 actor.Vitals.Health = player.Sim.Health;
                 actor.Vitals.Barrier = player.Sim.Barrier;
-                if (player.Sim.Health < healthBefore) actor.HealthSpent += (healthBefore - player.Sim.Health) / actor.Sheet.MaxHealth * 100f;
+                if (player.Sim.Health < healthBefore)
+                {
+                    actor.HealthSpent += (healthBefore - player.Sim.Health) / actor.Sheet.MaxHealth * 100f;
+                    if (player.Sim.Using >= 0 && player.Kit.Slots[player.Sim.Using] is BookProfile paidFor) player.Ledger.Paid(paidFor, healthBefore - player.Sim.Health);
+                }
 
                 if (!Paused)
                 {
@@ -512,6 +525,7 @@ namespace Dino_Defenders.Server
             {
                 if (actor.Vitals.Health <= book.Cost) return false;
                 actor.Vitals.Health -= book.Cost;
+                player.Ledger.Paid(book, book.Cost);
             }
             else
             {
@@ -646,7 +660,7 @@ namespace Dino_Defenders.Server
             player.Hero.Flasks--;
             player.SummaryChanged = true;
             float heal = heals ? sheet.MaxHealth * HeroRules.FlaskHeal * sheet.FlaskScale : 0f;
-            Hits.Heal(sheet, ref actor.Vitals, heal);
+            player.Ledger.Drank(Hits.Heal(sheet, ref actor.Vitals, heal));
             Session!.Combat.SetOff(actor, TriggerEvent.Flask, actor.Position);
             Broadcast(new SoundEvent { Position = position, Cue = SoundCue.Flask }, position.Xz);
             Broadcast(new FlourishEvent { Who = player.GhostId, Kind = Flourish.Drink }, position.Xz);
@@ -671,23 +685,44 @@ namespace Dino_Defenders.Server
                 player.Actor.RaresSlain = 0;
                 player.Hero.Gold -= lost;
                 player.SummaryChanged = true;
-                bool freed = Session!.Liberated;
+                // What happened to them goes to them before anything else does, and the screen it's on says the rest (DEATHS.md).
                 // Lexicon (developer tool, LEXICON.md): the room, as the Haven, isn't lost by falling in it.
-                Announce(player, "You have fallen", Session.IsHaven || Session.IsLexicon ? "" : freed ? "The land is already free." : _heroes.Count > 1 && _heroes.Any(hero => hero != player && !hero.Out) ? "You're out of this land. Your friends fight on." : "The land is lost.");
+                SendRecap(player, Session!.IsHaven || Session.IsLexicon);
                 if (lost > 0) Note(player, $"{lost} gold lost.");
                 Session.HeroFell(player);
             }
-
-            // Lexicon (developer tool, LEXICON.md): in the room, as in the Haven, a fallen hero is only knocked down for a moment.
             player.DownFor += NetTime.TickSeconds;
-            if (!(Session!.IsHaven || Session.IsLexicon) || player.DownFor < HeroRules.DeathDelay) return;
+        }
 
+        // The account of how someone fell. A fault in making it is never a reason for the fall itself to go wrong.
+        private void SendRecap(ServerPlayer player, bool haven)
+        {
+            try
+            {
+                DeathRecap recap = player.Ledger.Fall(haven);
+                BitWriter writer = Protocol.Begin(Message.Recap);
+                recap.Write(writer);
+                player.Connection.Send(writer.ToArray(), Delivery.Reliable);
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine($"No recap for {player.Name}'s fall: {e}");
+            }
+        }
+
+        // Back on their feet where nothing's lost by falling, when they say so: the Haven, and the asset lexicon (developer tool, LEXICON.md).
+        private void StandUp(ServerPlayer player)
+        {
+            if (!player.Sim.Down || !(Session!.IsHaven || Session.IsLexicon)) return;
             player.Sim.Down = false;
             player.Actor.Dead = false;
             player.Actor.Afflictions.Clear();
             player.Actor.Vitals = Vitals.Full(player.Actor.Sheet);
             player.Hero.Flasks = HeroState.MaxFlasks;
             player.SummaryChanged = true;
+            player.Ledger.Clear();
+            player.Ledger.Hero = player.Actor;
+            player.Ledger.World = Ecs;
         }
 
         // Back to the Haven, everyone, from wherever this is. What the land meant for each of them is settled first, and goes out before the world does.
@@ -1182,8 +1217,13 @@ namespace Dino_Defenders.Server
                     break;
 
                 case HeroAction.ReturnHome:
-                    if (Session!.IsHaven || player.Out || !AtWaygate(player)) break;
+                    // From a waygate, or by anyone fallen once everyone has, which is what ends a land nobody's left standing in.
+                    if (Session!.IsHaven || (player.Out ? !Session.Over : !AtWaygate(player))) break;
                     GoHome();
+                    break;
+
+                case HeroAction.Rise:
+                    StandUp(player);
                     break;
 
                 case HeroAction.CallRoads:
@@ -1482,6 +1522,7 @@ namespace Dino_Defenders.Server
             writer.WriteVarInt(session.Falls);
             writer.WriteBool(session.Lost);
             writer.WriteBool(player.Out);
+            writer.WriteBool(session.Over);
             writer.WriteBool(session.Portal != null);
             if (session.Portal is var (portalRequest, portalTerms, portalName))
             {
