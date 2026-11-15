@@ -20,6 +20,10 @@ namespace Dino_Engine.Core
 
         public WindowHandler(GameWindowSettings gws, NativeWindowSettings nws) : base(gws, nws)
         {
+            // The context is current once the window exists. Named here rather than found by OpenTK, so a trimmed build keeps exactly these.
+            var bindings = new GLFWBindingsContext();
+            GL.LoadBindings(bindings);
+            OpenTK.Graphics.OpenGL4.GL.LoadBindings(bindings);
             refreshViewport();
         }
         public void refreshViewport()

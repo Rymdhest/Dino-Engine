@@ -11,8 +11,8 @@ How Dino Defenders gets from this repository to the people testing it, and what 
 ```
   you                         GitHub Releases                    a tester
   release.cmd  ---------->    manifest.signed   <-------------   DinoDefendersLauncher.exe
-  builds, starts it,          game.zip     (1 MB)                checks the signature,
-  signs, uploads              runtime.zip  (33 MB, once)         fetches what changed,
+  builds, starts it,          game.zip     (3 MB)                checks the signature,
+  signs, uploads              runtime.zip  (7 MB, once)          fetches what changed,
                               launcher                           swaps it in, Play
 ```
 
@@ -63,6 +63,8 @@ If a tester has **Smart App Control** on, there's no Run anyway button. It block
 
 **A build is split into two packs.** `game.zip` is everything from this repository and changes every time. `runtime.zip` is .NET and the libraries, and only changes when they do, so it goes up once under its own `runtime-<hash>` tag, as a prerelease, and every release after it points there. `Publisher.PackOf` decides which is which. Changing .NET version or a NuGet package needs nothing from you: the hash changes and it goes up by itself.
 
+**The game is trimmed** (`PublishTrimmed`, `TrimMode` partial, in the game's project), as being grown rather than stored is why it's small: 25 MB installed and 10.5 MB to download, from 84 and 36. Partial means only .NET's own libraries, which are marked trimmable, lose what nothing reaches, and the game's assemblies stay whole, so catalogues, shelves, components and net codecs found by reflection are all still there. Saves, the stash and settings are JSON by reflection, which trimming turns off unless `JsonSerializerIsReflectionEnabledByDefault` says otherwise. The game names OpenTK itself as well as the engine, as reached only through the engine it was passed to the trimmer as a reference alone and none of it was published. OpenTK's graphics bindings, maths, OpenCL and OpenAL are trimmed too (`TrimmableAssembly`), which takes its every version of OpenGL and OpenGL ES from 4.4 MB to a quarter of one, so the engine loads the two sets it calls by name (`WindowHandler`) rather than letting OpenTK find all of them. What only a debugger or a dump reads a process with is left out (`LeaveOutDebuggers`: the runtime's data access layer, its debugging interface, the Windows symbol reader, `createdump`, the standalone collector, and QUIC), 6.9 MB, and `game.log` still has line numbers, read from the portable symbols, which stay. Trimming is deterministic, so the runtime pack is the same bytes for the same code, but what's kept of .NET depends on what the game calls, so a release that first calls something new in .NET sends the runtime again (7 MB). Anything new reflecting over .NET's own types, rather than the game's, can find them gone: the release's smoke run is the first check, and a trimmed `publish` run by hand the second.
+
 **`manifest.signed`** lists every file with its hash, which pack it's in, and which launcher goes with it. Its first line is the signature of the rest. The hashes vouch for the packs and files, so that one signature covers everything, and it's checked before anything in the file is read. GitHub being compromised, or your token being stolen, can't send testers anything: only the key can.
 
 **Updating** (`GameInstall`): hash every file, fetch the packs holding wrong ones, build a complete new folder beside the old, hash that too, and swap the two with two renames. Those renames are the only moment anything changes. A crash at any point leaves the old game or the new one, and `Recover` sorts out which. The folder keeps the same path for good, as Windows Firewall remembers a program by its path, and a folder per version would ask again after every update.
@@ -89,7 +91,7 @@ If a tester has **Smart App Control** on, there's no Run anyway button. It block
 - **Changing what `schema` or `launcher` mean in the manifest.** Launchers read those forever. Everything else can change, as long as `Manifest.CurrentSchema` goes up: old launchers replace themselves first, and leave what they can't read alone.
 - **Writing into the game's folder from the game.** It's replaced whole by every update, and anything the manifest doesn't list goes with it. Keep to `%APPDATA%` and `%LOCALAPPDATA%`.
 - **Naming a file `manifest.signed` in the build**, which is the name the installed manifest is kept under. Or anything else that needs renaming for GitHub: asset names stay plain letters, digits, dots and dashes.
-- **Trimming the build.** The game finds components by reflection. It would go 33 MB down, and fail at runtime.
+- **Trimming the game's own assemblies** (`TrimMode` full). The game finds components, catalogues and codecs by reflection over its own types, which a full trim removes, and it fails at runtime.
 - **Releasing without thinking about saves.** Testers carry theirs across builds. A new field is fine. Changing a field's type makes the game start a new journey, and the only copy of the old hero is then in `backups`.
 
 ## Testing it

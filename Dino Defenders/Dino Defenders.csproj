@@ -17,8 +17,41 @@
     <RuntimeHostConfigurationOption Include="System.Runtime.TieredCompilation.CallCountingDelayMs" Value="0" />
   </ItemGroup>
 
+  <!-- A release carries its own runtime, and most of .NET is never called: everything is grown, so what's shipped is code. Publishing trims what the game
+       can't reach out of .NET's own libraries, which with what's below took the installed game from 84 MB to 25 (LAUNCHER.md). Partial, so only libraries marked
+       trimmable are cut and the game's own assemblies stay whole, as catalogues, shelves and net codecs are found by reflection over them. Saves,
+       the stash and settings are written by reflection, which trimming turns off unless asked. Only `dotnet publish` reads any of this. -->
+  <PropertyGroup>
+    <PublishTrimmed>true</PublishTrimmed>
+    <TrimMode>partial</TrimMode>
+    <JsonSerializerIsReflectionEnabledByDefault>true</JsonSerializerIsReflectionEnabledByDefault>
+    <!-- Its warnings are about reflection over the game's own code, which partial trimming never touches: they'd only bury real ones in every build. -->
+    <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
+  </PropertyGroup>
+
+  <!-- OpenTK isn't marked trimmable, but its graphics bindings are every version of OpenGL and OpenGL ES, 4.4 MB of which the engine calls a share, and
+       it has OpenCL and OpenAL, which nothing calls (sound is WASAPI). The window's own GLFW code is left whole. The two sets of bindings the engine uses
+       are loaded by name in WindowHandler, not found by OpenTK, which looked for all of them. -->
+  <ItemGroup>
+    <TrimmableAssembly Include="OpenTK.Graphics" />
+    <TrimmableAssembly Include="OpenTK.Mathematics" />
+    <TrimmableAssembly Include="OpenTK.Compute" />
+    <TrimmableAssembly Include="OpenTK.Audio.OpenAL" />
+  </ItemGroup>
+
+  <!-- What a debugger or a dump reads a process with, which no player runs: the runtime's data access layer (both copies), its debugging interface, the
+       reader for Windows symbols (ours are portable, read by the runtime itself for line numbers in game.log), the dump writer, and the standalone
+       garbage collector, which is only loaded when asked for. QUIC is HTTP/3, which nothing asks for. 6.9 MB. -->
+  <Target Name="LeaveOutDebuggers" AfterTargets="ComputeResolvedFilesToPublishList">
+    <ItemGroup>
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="$([System.String]::Copy('%(Filename)').StartsWith('mscordaccore')) Or '%(Filename)' == 'mscordbi' Or '%(Filename)' == 'Microsoft.DiaSymReader.Native.amd64' Or '%(Filename)' == 'createdump' Or '%(Filename)' == 'clrgc' Or '%(Filename)' == 'msquic'" />
+    </ItemGroup>
+  </Target>
+
   <ItemGroup>
     <PackageReference Include="LiteNetLib" Version="2.1.4" />
+    <!-- The engine's, named here too: reached only through the engine, the trimmer was handed OpenTK as a reference alone and published none of it. -->
+    <PackageReference Include="OpenTK" Version="4.8.2" />
     <PackageReference Include="Mono.Nat" Version="3.0.4" />
   </ItemGroup>
 

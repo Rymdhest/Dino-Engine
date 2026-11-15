@@ -18,8 +18,19 @@ namespace Dino_Defenders
 
         private static long _lastBeat;
 
+        // A dump is several gigabytes that nobody would ever send, so a copy the launcher installed (it keeps its manifest beside the exe) only
+        // writes the log, and clears away a dump an older build left behind. A build run from the repository still dumps.
+        private static readonly bool Installed = File.Exists(Path.Combine(AppContext.BaseDirectory, "manifest.signed"));
+
+        private static string DumpPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DinoDefenders", "logs", "hang.dmp");
+
         public static void Start()
         {
+            if (Installed)
+            {
+                try { File.Delete(DumpPath); }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+            }
             Beat();
             new Thread(Watch) { Name = "Hang watch", IsBackground = true }.Start();
         }
@@ -42,7 +53,7 @@ namespace Dino_Defenders
                 {
                     Console.WriteLine($"The main loop has stopped for {SecondsSinceBeat:0} s, at {DateTime.Now:HH:mm:ss}.");
                     ReportThreads();
-                    if (!dumped) dumped = Dump();
+                    if (!dumped && !Installed) dumped = Dump();
                 }
                 catch (Exception e)
                 {
@@ -98,8 +109,7 @@ namespace Dino_Defenders
         // One dump a run, and each run's replaces the last, as they're large. A process can't dump itself reliably, so a second copy of the game does it.
         private static bool Dump()
         {
-            string folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DinoDefenders", "logs");
-            string path = Path.Combine(folder, "hang.dmp");
+            string path = DumpPath;
 
             var start = new ProcessStartInfo(Environment.ProcessPath!) { UseShellExecute = false, CreateNoWindow = true };
             start.ArgumentList.Add(DumpArgument);

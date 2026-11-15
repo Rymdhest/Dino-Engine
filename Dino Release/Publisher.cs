@@ -6,8 +6,8 @@ using Dino_Launcher.Update;
 namespace Dino_Release
 {
     /// <summary>
-    /// Makes a release. A build is split in two: the runtime, about 33 MB zipped, which only changes when .NET or a library does, and the game,
-    /// about 1 MB, which changes every time. The runtime goes up once under a tag of its own and every release after it points there,
+    /// Makes a release. A build is split in two: the runtime, about 7 MB zipped as the game is trimmed, which only changes when .NET, a library or what the game calls of them does, and the game,
+    /// about 3 MB, which changes every time. The runtime goes up once under a tag of its own and every release after it points there,
     /// so a release is a small upload and an update is a small download. See LAUNCHER.md.
     /// </summary>
     internal sealed class Publisher

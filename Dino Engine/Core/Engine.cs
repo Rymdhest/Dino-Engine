@@ -130,7 +130,9 @@ namespace Dino_Engine.Core
             // 4.3 for compute shaders, shader storage buffers and indirect draws (GPU grass).
             nws.APIVersion = new Version(4,3);
             
-            nws.AutoLoadBindings = true;
+            // WindowHandler loads the two sets of bindings the engine calls. OpenTK's own loading finds every set it has by name, OpenGL ES's too,
+            // which a trimmed release has taken out as nothing calls them (LAUNCHER.md).
+            nws.AutoLoadBindings = false;
             nws.Title = settings._gameTitle;
             nws.ClientSize = settings._resolution;
             nws.Location = new Vector2i(0, 0);

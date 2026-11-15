@@ -49,9 +49,7 @@ namespace Dino_Engine.ECS.ECS_Architecture
             entities.Add(e);
             foreach (var kv in ComponentArrays)
             {
-                int compID = kv.Key;
-                dynamic compArray = kv.Value;
-                compArray.Add((dynamic)components[compID]);
+                ((System.Collections.IList)kv.Value).Add(components[kv.Key]);
             }
         }
 
@@ -59,8 +57,7 @@ namespace Dino_Engine.ECS.ECS_Architecture
         {
             foreach (var kv in ComponentArrays)
             {
-                dynamic compArray = kv.Value;
-                IComponent component = compArray[index];
+                var component = (IComponent)((System.Collections.IList)kv.Value)[index]!;
                 if (component is ICleanupComponent) component.Cleanup();
             }
 
@@ -71,7 +68,7 @@ namespace Dino_Engine.ECS.ECS_Architecture
 
                 foreach (var kvp in ComponentArrays)
                 {
-                    dynamic list = kvp.Value;
+                    var list = (System.Collections.IList)kvp.Value;
                     list[index] = list[last];
                 }
             }
@@ -80,8 +77,7 @@ namespace Dino_Engine.ECS.ECS_Architecture
 
             foreach (var kvp in ComponentArrays)
             {
-                dynamic list = kvp.Value;
-                list.RemoveAt(last);
+                ((System.Collections.IList)kvp.Value).RemoveAt(last);
             }
         }
 
