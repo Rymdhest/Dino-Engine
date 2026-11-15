@@ -35,7 +35,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             upsamplingShader.loadUniformInt("srcTexture", 0);
             upsamplingShader.unBind();
 
-            Vector2i resolution = Engine.Resolution;
+            Vector2i resolution = Engine.RenderResolution;
 
             for (int i = 0; i < downSamples; i++)
             {
@@ -120,7 +120,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             renderer.Render(blend: true, clearColor: false);
             buffer.StepToggle();
 
-            Engine.WindowHandler.refreshViewport();
+            RenderEngine.SceneViewport();
 
         }
 

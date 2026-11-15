@@ -45,9 +45,9 @@ float occlusionPackEdges(vec4 edges)
     return dot(edges, vec4(64.0, 16.0, 4.0, 1.0)) / 255.0;
 }
 
-vec4 occlusionUnpackEdges(float packed)
+vec4 occlusionUnpackEdges(float stored) // never "packed", a reserved word NVIDIA refuses
 {
-    uint bits = uint(packed * 255.0 + 0.5);
+    uint bits = uint(stored * 255.0 + 0.5);
     return vec4(float((bits >> 6u) & 3u), float((bits >> 4u) & 3u), float((bits >> 2u) & 3u), float(bits & 3u)) / 3.0;
 }
 

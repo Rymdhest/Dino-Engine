@@ -1,4 +1,4 @@
-using Dino_Engine.Core;
+﻿using Dino_Engine.Core;
 using Dino_Engine.Modelling.Model;
 using Dino_Engine.Rendering.Renderers.AntiAliasing;
 using OpenTK.Graphics.OpenGL;
@@ -34,10 +34,14 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
         private readonly FrameBuffer _mask;
         private readonly float[] _clear = { 0f, 0f, 0f, 0f };
         private bool _any;
+        // The screen rectangle the bodies drawn into the mask cover, in pixels, which is all the composite has to look at (Finish).
+        private Vector2 _least, _most;
+        private bool _wholeScreen;
+        private const float PoseReach = 1.5f;      // How far past its bind pose's bounds a body's limbs and tail can swing, as a share of them.
 
         public OutlineRenderer() : base("Outlines")
         {
-            var settings = new FrameBufferSettings(Engine.Resolution);
+            var settings = new FrameBufferSettings(Engine.RenderResolution);
             settings.drawBuffers.Add(new DrawBufferSettings(FramebufferAttachment.ColorAttachment0)
             {
                 formatInternal = PixelInternalFormat.Rgba8,
@@ -66,10 +70,33 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
             GL.Disable(EnableCap.Blend);
 
             _maskShader.bind();
+            _least = new Vector2(float.MaxValue);
+            _most = new Vector2(float.MinValue);
+            _wholeScreen = false;
+        }
+
+        // Grows the rectangle the composite covers by this body's bounds, projected.
+        private void Cover(in OutlineCommand command, RenderEngine renderEngine)
+        {
+            if (_wholeScreen) return;
+            command.Model.WorldBounds(command.ModelMatrix, out Vector3 centre, out float radius);
+            radius *= PoseReach;
+            if (!float.IsFinite(radius)) { _wholeScreen = true; return; }
+            Matrix4 viewProjection = renderEngine.context.viewMatrix * renderEngine.context.projectionMatrix;
+            for (int corner = 0; corner < 8; corner++)
+            {
+                Vector3 offset = new Vector3((corner & 1) != 0 ? radius : -radius, (corner & 2) != 0 ? radius : -radius, (corner & 4) != 0 ? radius : -radius);
+                Vector4 clip = new Vector4(centre + offset, 1f) * viewProjection;
+                if (clip.W <= 1e-3f) { _wholeScreen = true; return; }
+                Vector2 ndc = clip.Xy / clip.W;
+                _least = Vector2.ComponentMin(_least, ndc);
+                _most = Vector2.ComponentMax(_most, ndc);
+            }
         }
 
         public override void PerformCommand(OutlineCommand command, RenderEngine renderEngine)
         {
+            Cover(command, renderEngine);
             glModel model = command.Model;
             GL.BindVertexArray(model.getVAOID());
             GL.EnableVertexAttribArray(0); // Position
@@ -92,11 +119,24 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
             GL.BlendFuncSeparate(BlendingFactorSrc.One, BlendingFactorDest.OneMinusSrcAlpha, BlendingFactorSrc.Zero, BlendingFactorDest.One);
 
             _compositeShader.bind();
-            _compositeShader.loadUniformFloat("thickness", Thickness * Engine.Resolution.Y / LinesForThickness);
+            _compositeShader.loadUniformFloat("thickness", Thickness * Engine.RenderResolution.Y / LinesForThickness);
             _compositeShader.loadUniformFloat("brightness", Brightness);
             GL.ActiveTexture(TextureUnit.Texture0);
             GL.BindTexture(TextureTarget.Texture2D, _mask.GetAttachment(0));
+            // Only round the bodies, and the line's width past them: the rest of the screen is outside every mask and nowhere near one.
+            Vector2i size = Engine.RenderResolution;
+            if (!_wholeScreen)
+            {
+                int margin = (int)MathF.Ceiling(Thickness * size.Y / LinesForThickness) + 2;
+                Vector2i min = new Vector2i((int)MathF.Floor((_least.X * 0.5f + 0.5f) * size.X) - margin, (int)MathF.Floor((_least.Y * 0.5f + 0.5f) * size.Y) - margin);
+                Vector2i max = new Vector2i((int)MathF.Ceiling((_most.X * 0.5f + 0.5f) * size.X) + margin, (int)MathF.Ceiling((_most.Y * 0.5f + 0.5f) * size.Y) + margin);
+                min = Vector2i.Clamp(min, Vector2i.Zero, size);
+                max = Vector2i.Clamp(max, Vector2i.Zero, size);
+                GL.Enable(EnableCap.ScissorTest);
+                GL.Scissor(min.X, min.Y, Math.Max(max.X - min.X, 0), Math.Max(max.Y - min.Y, 0));
+            }
             renderEngine.ScreenQuadRenderer.DrawQuad();
+            GL.Disable(EnableCap.ScissorTest);
 
             GL.Disable(EnableCap.Blend);
             GL.Enable(EnableCap.CullFace);

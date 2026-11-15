@@ -165,7 +165,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         /// </summary>
         public int LayersAt(ShellStyle style, float distance, RenderEngine engine)
         {
-            float pixelsPerMetre = engine.context.projectionMatrix.M22 * Engine.Resolution.Y / (2f * MathF.Max(distance, 0.5f));
+            float pixelsPerMetre = engine.context.projectionMatrix.M22 * Engine.RenderResolution.Y / (2f * MathF.Max(distance, 0.5f));
             int most = Math.Max(style.LeastShells, (int)MathF.Round(style.MostShells * Settings.Most));
             int wanted = (int)MathF.Ceiling(style.Length * (1f - style.Floor) * pixelsPerMetre * Settings.LayersPerPixel);
             return Math.Clamp(wanted, style.LeastShells, most);

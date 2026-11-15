@@ -209,7 +209,7 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
             GL.BindBuffer(BufferTarget.UniformBuffer, 0);
             GL.BindBufferBase(BufferRangeTarget.UniformBuffer, ShoreUniformBinding, _shoreBuffer);
 
-            FrameBufferSettings copySettings = new FrameBufferSettings(Engine.Resolution);
+            FrameBufferSettings copySettings = new FrameBufferSettings(Engine.RenderResolution);
             copySettings.drawBuffers.Add(new DrawBufferSettings(FramebufferAttachment.ColorAttachment0)
             {
                 formatInternal = PixelInternalFormat.Rgba16f,
@@ -492,7 +492,7 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
             PrepareLights(renderEngine);
             _foamSky = renderEngine._ambientLightRenderer.SkyLight;
             _foamGround = renderEngine._ambientLightRenderer.GroundLight;
-            Vector2 resolution = Engine.Resolution;
+            Vector2 resolution = Engine.RenderResolution;
             Vector4 sceneRect = new Vector4(
                 (rect.Min.X + 0.5f) / resolution.X, (rect.Min.Y + 0.5f) / resolution.Y,
                 (rect.Max.X - 0.5f) / resolution.X, (rect.Max.Y - 0.5f) / resolution.Y);
@@ -514,7 +514,7 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
         /// <summary>Grows a pixel rectangle by a fraction of the screen height on every side, within the screen.</summary>
         private static Box2i Expand(Box2i rect, float fraction)
         {
-            Vector2i resolution = Engine.Resolution;
+            Vector2i resolution = Engine.RenderResolution;
             int margin = (int)MathF.Ceiling(fraction * resolution.Y);
             return new Box2i(Math.Max(rect.Min.X - margin, 0), Math.Max(rect.Min.Y - margin, 0),
                 Math.Min(rect.Max.X + margin, resolution.X), Math.Min(rect.Max.Y + margin, resolution.Y));
@@ -531,7 +531,7 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
         /// </summary>
         private static bool TryGetScreenRect(WaterBodyRenderData[] bodies, Vector4[] oceanQuads, Vector2 oceanSlab, Matrix4 viewProjection, out Box2i rect)
         {
-            Vector2i resolution = Engine.Resolution;
+            Vector2i resolution = Engine.RenderResolution;
             rect = new Box2i(0, 0, resolution.X, resolution.Y);
             if (resolution.X <= 0 || resolution.Y <= 0 || (bodies.Length == 0 && oceanQuads.Length == 0)) return false;
 

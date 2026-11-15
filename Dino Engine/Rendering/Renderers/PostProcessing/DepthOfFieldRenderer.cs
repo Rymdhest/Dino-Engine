@@ -19,6 +19,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
         /// </summary>
         public bool LeftToToneMap { get; private set; }
         private float _focus;
+        private bool _inPlay;     // Left out altogether this frame (Render).
 
         public DepthOfFieldRenderer() : base("Depth of Field")
         {
@@ -43,8 +44,6 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             FrameBuffer gBuffer = renderEngine.GBuffer;
             GaussianBlurRenderer gaussianBlurRenderer = renderEngine.GaussianBlurRenderer;
 
-            gaussianBlurRenderer.Render(buffer.GetLastFrameBuffer(), 5, renderEngine.ScreenQuadRenderer);
-
             // In focus at the hero. Focused on the camera itself, the whole picture is a little out of focus.
             ref ShaderGlobals context = ref renderEngine.context;
             float focus = context.focusPoint.W > 0f ? (context.focusPoint.Xyz - context.viewPos).Length : 0f;
@@ -54,6 +53,12 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
 
             _focus = focus;
             LeftToToneMap = landscape <= 0f && !renderEngine._sunRenderer.Shows(renderEngine);
+            // In play the game's camera has the hero's ground within a dozen metres or so of the focus, a hundredth or two of a blur at most (Range),
+            // which isn't worth a blurred copy of the screen at any quality.
+            _inPlay = LeftToToneMap;
+            if (_inPlay) return;
+
+            gaussianBlurRenderer.Render(buffer.GetLastFrameBuffer(), 5, renderEngine.ScreenQuadRenderer);
             if (LeftToToneMap) return;
 
             _depthOfFieldShader.bind();
@@ -81,7 +86,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
         /// </summary>
         public void LendToToneMap(ShaderProgram shader, RenderEngine renderEngine)
         {
-            bool lent = LeftToToneMap;
+            bool lent = LeftToToneMap && !_inPlay;
             shader.loadUniformInt("depthOfField", lent ? 1 : 0);
             if (!lent) return;
             shader.loadUniformFloat("depthOfFieldRange", Range);

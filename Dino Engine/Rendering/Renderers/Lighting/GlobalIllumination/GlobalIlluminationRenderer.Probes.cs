@@ -127,7 +127,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting.GlobalIllumination
         {
             if (_gathered != 0) GL.DeleteTexture(_gathered);
             if (_gatheredBefore != 0) GL.DeleteTexture(_gatheredBefore);
-            _gatherSize = new Vector2i((Engine.Resolution.X + 1) / 2, (Engine.Resolution.Y + 1) / 2);
+            _gatherSize = new Vector2i((Engine.RenderResolution.X + 1) / 2, (Engine.RenderResolution.Y + 1) / 2);
             _gathered = NewGathered();
             _gatheredBefore = NewGathered();
             _gatheredHistory = false;
@@ -195,7 +195,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting.GlobalIllumination
 
             _probeMarkShader.bind();
             _probeMarkShader.loadUniformInt("stride", MarkStride);
-            Dispatch(Groups(Groups(Engine.Resolution.X, MarkStride), 8), Groups(Groups(Engine.Resolution.Y, MarkStride), 8));
+            Dispatch(Groups(Groups(Engine.RenderResolution.X, MarkStride), 8), Groups(Groups(Engine.RenderResolution.Y, MarkStride), 8));
             Barrier();
 
             _probeParentsShader.bind();
@@ -342,7 +342,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting.GlobalIllumination
         private Vector2i ReportedTexel()
         {
             if (_settings.Debug == 0 || _settings.ProbeX < 0 || _settings.ProbeY < 0) return new Vector2i(-1, -1);
-            return new Vector2i(_settings.ProbeX / 2, (Engine.Resolution.Y - 1 - _settings.ProbeY) / 2);
+            return new Vector2i(_settings.ProbeX / 2, (Engine.RenderResolution.Y - 1 - _settings.ProbeY) / 2);
         }
 
         private static readonly string[] Reasons = { "none", "buried", "behind", "weightless", "blocked", "used" };

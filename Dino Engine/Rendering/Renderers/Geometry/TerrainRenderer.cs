@@ -46,7 +46,11 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
     public class TerrainRenderer : GeometryCommandDrivenRenderer<TerrainRenderCommand>
     {
-        private ShaderProgram _terrainShader = new ShaderProgram("Terrain.vert", "Terrain.frag");
+        // With relief and without it (TERRAIN_FLAT, when Graphics quality draws none): the march and its shadow compiled out, and no depth of its own written, so the
+        // GPU rejects what's hidden early. With them merely skipped, the lowest quality still paid for them in the shader's size, 0.7 ms of 3.2 at 1080p on a GTX 1660 Ti.
+        private readonly ShaderProgram _reliefShader = new ShaderProgram("Terrain.vert", "Terrain.frag");
+        private readonly ShaderProgram _flatShader = new ShaderProgram("Terrain.vert", "Terrain.frag", new[] { "TERRAIN_FLAT" });
+        private ShaderProgram _terrainShader;
         private ShaderProgram _terrainShadowShader = new ShaderProgram("Terrain_Shadow.vert", "Terrain_Shadow.frag");
         private ShaderProgram _grassCarveShader = new ShaderProgram("GrassCarve.vert", "GrassCarve.frag");
         private ShaderProgram _farShadowShader = new ShaderProgram("Terrain_Far_Shadow.vert", "Terrain_Shadow.frag");
@@ -105,26 +109,31 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
         public TerrainRenderer() : base("Terrain")
         {
-            _terrainShader.bind();
-            _terrainShader.loadUniformInt("albedoMapTextureArray", 0);
-            _terrainShader.loadUniformInt("normalMapTextureArray", 1);
-            _terrainShader.loadUniformInt("materialMapTextureArray", 2);
+            foreach (ShaderProgram shader in new[] { _reliefShader, _flatShader })
+            {
+                _terrainShader = shader;
+                _terrainShader.bind();
+                _terrainShader.loadUniformInt("albedoMapTextureArray", 0);
+                _terrainShader.loadUniformInt("normalMapTextureArray", 1);
+                _terrainShader.loadUniformInt("materialMapTextureArray", 2);
 
-            // The ground reads no cards, so the units their arrays would take carry the roads instead: a stage is only promised sixteen.
-            _terrainShader.loadUniformInt("roadFrameTextureArray", 3);
-            _terrainShader.loadUniformInt("roadInfoTextureArray", 4);
+                // The ground reads no cards, so the units their arrays would take carry the roads instead: a stage is only promised sixteen.
+                _terrainShader.loadUniformInt("roadFrameTextureArray", 3);
+                _terrainShader.loadUniformInt("roadInfoTextureArray", 4);
 
-            _terrainShader.loadUniformInt("normalHeightTextureArray", 6);
-            _terrainShader.loadUniformInt("grassTextureArray", 7);
-            _terrainShader.loadUniformInt("grassColourTextureArray", 8);
-            _terrainShader.loadUniformInt("surfaceWeightsA", 9);
-            _terrainShader.loadUniformInt("surfaceWeightsB", 10);
-            _terrainShader.loadUniformInt("surfaceWeightsC", 11);
-            Simulation.WeatherRenderer.LinkSurfaceSamplers(_terrainShader);
-            _terrainShader.loadUniformInt("snowTrail", Simulation.SnowTrailRenderer.Unit);
-            PosGeometry.WaterRenderer.LinkShoreSamplers(_terrainShader);
+                _terrainShader.loadUniformInt("normalHeightTextureArray", 6);
+                _terrainShader.loadUniformInt("grassTextureArray", 7);
+                _terrainShader.loadUniformInt("grassColourTextureArray", 8);
+                _terrainShader.loadUniformInt("surfaceWeightsA", 9);
+                _terrainShader.loadUniformInt("surfaceWeightsB", 10);
+                _terrainShader.loadUniformInt("surfaceWeightsC", 11);
+                Simulation.WeatherRenderer.LinkSurfaceSamplers(_terrainShader);
+                _terrainShader.loadUniformInt("snowTrail", Simulation.SnowTrailRenderer.Unit);
+                PosGeometry.WaterRenderer.LinkShoreSamplers(_terrainShader);
 
-            _terrainShader.unBind();
+                _terrainShader.unBind();
+            }
+            _terrainShader = _reliefShader;
 
 
             _terrainShadowShader.bind();
@@ -554,7 +563,8 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
         public override void CleanUp()
         {
-            _terrainShader.cleanUp();
+            _reliefShader.cleanUp();
+            _flatShader.cleanUp();
             _terrainShadowShader.cleanUp();
             _farShadowShader.cleanUp();
             GL.DeleteBuffer(geologyBuffer);
@@ -567,6 +577,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.Enable(EnableCap.CullFace);
             GL.CullFace(CullFaceMode.Back);
             GL.Disable(EnableCap.Blend);
+            _terrainShader = renderEngine.ReliefScale > 0f ? _reliefShader : _flatShader;
             _terrainShader.bind();
 
             _terrainShader.loadUniformFloat("textureTileSize", 4.0f);

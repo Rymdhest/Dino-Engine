@@ -140,7 +140,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             terrainSettings.depthAttachmentSettings = new DepthAttachmentSettings { isTexture = true };
             _terrainHeightBuffer = new FrameBuffer(terrainSettings);
 
-            Vector2i halfResolution = HalfResolution(Engine.Resolution);
+            Vector2i halfResolution = HalfResolution(Engine.RenderResolution);
 
             FrameBufferSettings marchSettings = new FrameBufferSettings(halfResolution);
             marchSettings.drawBuffers.Add(FogDrawBuffer(FramebufferAttachment.ColorAttachment0));
@@ -219,7 +219,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             _noiseShader.unBind();
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
             GL.DeleteFramebuffer(frameBuffer);
-            Engine.WindowHandler.refreshViewport();
+            RenderEngine.SceneViewport();
 
             GL.BindTexture(TextureTarget.Texture3D, _noiseTexture);
             GL.GenerateMipmap(GenerateMipmapTarget.Texture3D);

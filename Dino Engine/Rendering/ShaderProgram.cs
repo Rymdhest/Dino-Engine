@@ -181,6 +181,13 @@ namespace Dino_Engine.Rendering
             GL.Uniform4(start, count, values);
         }
 
+        // The first `count` of an array of uvec2s, in one call from where it starts, out of uints laid two to an element.
+        public void loadUniformUVector2Array(string variableName, uint[] values, int count)
+        {
+            if (count <= 0 || !_arrayStarts.TryGetValue(variableName, out int start) || start < 0) return;
+            GL.Uniform2(start, count, values);
+        }
+
         private readonly Dictionary<string, int> _arrayStarts = new Dictionary<string, int>();
 
         private int CreateShader(string shaderString, ShaderType type)

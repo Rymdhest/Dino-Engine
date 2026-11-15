@@ -39,7 +39,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             _blurShader.loadUniformInt("source", 0);
             _blurShader.loadUniformInt("linearDepth", 1);
             _blurShader.unBind();
-            CreateTextures(Engine.Resolution);
+            CreateTextures(Engine.RenderResolution);
         }
 
         private void CreateTextures(Vector2i size)

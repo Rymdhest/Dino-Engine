@@ -1,4 +1,4 @@
-using Dino_Engine.Core;
+﻿using Dino_Engine.Core;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.ECS.ECS_Architecture;
 using OpenTK.Mathematics;
@@ -36,20 +36,30 @@ namespace Dino_Engine.Rendering
     /// <param name="OcclusionSteps">Samples along each side of a slice.</param>
     /// <param name="ShadowSoftest">The radius in the sun's shadow map's texels that no shadow softens beyond (SHADOWS.md): the same in metres at every level, as a smaller map's
     /// texels are wider, and what a pixel can cost goes with its square.</param>
+    /// <param name="ContactShadows">Whether the sun's contact shadows are traced (SHADOWS.md): what the shadow map is too coarse to see, under a stone or a foot. From the game's camera
+    /// they're the least of the shadows, and two passes over the screen, 0.7 ms of a GTX 1660 Ti's frame at 1080p.</param>
+    /// <param name="Occlusion">Whether there's ambient occlusion at all (OCCLUSION.md): four passes over the screen, 1.1 ms at 1080p on a GTX 1660 Ti.</param>
+    /// <param name="Bloom">Whether what's too bright glows past its edges.</param>
+    /// <param name="LightReach">What lamps' radii are drawn at, as a share of their own (LightingSettings.LightReach).</param>
+    /// <param name="RenderScale">The share of the window's width and height the scene is drawn at, then sharpened onto it (RenderEngine.RenderScale): what the GPU does for
+    /// each pixel goes with its square, and nothing else took Low to 120 frames a second on a GTX 1660 Ti at 1080p.</param>
     public readonly record struct QualityPreset(int Samples, float GrassDensity, float GrassWidth, float GrassDistance, float GrassShadowDistance, float GrassShadowDensity, int ShadowMap, int ShadowedLights, int FogSteps, int ReflectionSteps, int Creatures, int Leaves, float Anisotropy, float Relief, float ShellLayers, bool ShellGround, int StillLights,
-        int OcclusionSlices, int OcclusionSteps, float ShadowSoftest);
+        int OcclusionSlices, int OcclusionSteps, float ShadowSoftest, bool ContactShadows, bool Occlusion, bool Bloom, float RenderScale, float LightReach);
 
     /// <summary>
     /// What each level of quality comes to. Everything here was chosen by what it buys for what it costs to look at, measured at the most expensive kind of place there is: what the player sees from the game's own camera
-    /// stays the same picture, and what goes first is what can't be noticed from up there. See the Graphics section of MENU.md.
+    /// stays the same picture, and what goes first is what can't be noticed from up there. See the Graphics section of MENU.md. The two lower levels were
+    /// thinned again for a GTX 1660 Ti at 1080p: fewer, wider blades of grass, which cover the same ground for a fifth less, and fewer steps through the fog;
+    /// and Low, to reach 120 frames a second there, has no contact shadows, ambient occlusion or bloom, shadows on fewer lamps, whose light reaches four fifths as far,
+    /// grass that ends sooner, and draws the scene at two thirds of the window.
     /// </summary>
     public static class GraphicsPresets
     {
         private static readonly QualityPreset[] Presets =
         {
-            new(2, 70f, 1.3f, 85f, 30f, 0.15f, 2048, 1, 16, 0, 80, 500, 1f, 0f, 1f, false, 8, 1, 2, 4f),
-            new(2, 100f, 1.15f, 100f, 50f, 0.25f, 3072, 2, 24, 32, 140, 900, 2f, 1f, 1.25f, true, 16, 1, 3, 6f),
-            new(4, 140f, 1f, 115f, 70f, 0.35f, 4096, 4, 32, 56, 200, 1400, 4f, 1f, 1.5f, true, 32, 1, 3, 8f),
+            new(2, 42f, 1.6f, 65f, 30f, 0.15f, 2048, 1, 10, 0, 80, 500, 1f, 0f, 1f, false, 4, 1, 2, 4f, false, false, false, 0.667f, 0.8f),
+            new(2, 80f, 1.25f, 100f, 50f, 0.25f, 3072, 2, 18, 32, 140, 900, 2f, 1f, 1.25f, true, 16, 1, 3, 6f, true, true, true, 1f, 1f),
+            new(4, 140f, 1f, 115f, 70f, 0.35f, 4096, 4, 32, 56, 200, 1400, 4f, 1f, 1.5f, true, 32, 1, 3, 8f, true, true, true, 1f, 1f),
         };
 
         public static QualityPreset Of(GraphicsQuality quality) => Presets[(int)quality];
@@ -71,6 +81,11 @@ namespace Dino_Engine.Rendering
             render.Occlusion.Slices = preset.OcclusionSlices;
             render.Occlusion.Steps = preset.OcclusionSteps;
             render.SunShadows.Softest = preset.ShadowSoftest;
+            render.ContactShadows.Enabled = preset.ContactShadows;
+            render.Occlusion.Enabled = preset.Occlusion;
+            render.Lighting.Bloom = preset.Bloom;
+            render.Lighting.LightReach = preset.LightReach;
+            render.SetRenderScale(preset.RenderScale);
         }
 
         /// <summary>What is kept in a world, which goes when that does, so a new one has to be told.</summary>

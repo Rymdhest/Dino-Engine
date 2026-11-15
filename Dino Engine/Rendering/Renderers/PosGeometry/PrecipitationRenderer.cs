@@ -58,13 +58,18 @@ namespace Dino_Engine.Rendering.Renderers.PosGeometry
         {
         }
 
+        /// <summary>Whether anything falls or drips this frame, which is when this reads the lit scene's blur (<see cref="RenderEngine.SceneBlurTexture"/>).</summary>
+        public static bool Draws(RenderEngine renderEngine)
+        {
+            return renderEngine._weatherRenderer.Frame is WeatherRenderCommand frame && (frame.weather.Here.Fall >= 0.004f || renderEngine._weatherRenderer.DripsOn);
+        }
+
         internal override void Render(RenderEngine renderEngine)
         {
-            if (renderEngine._weatherRenderer.Frame is not WeatherRenderCommand frame) return;
+            if (!Draws(renderEngine) || renderEngine._weatherRenderer.Frame is not WeatherRenderCommand frame) return;
             WeatherSingleton weather = frame.weather;
             WeatherSample here = weather.Here;
             WeatherRenderer renderer = renderEngine._weatherRenderer;
-            if (here.Fall < 0.004f && !renderer.DripsOn) return;
 
             renderEngine.Msaa.SceneBuffer.bind();
             GL.Enable(EnableCap.DepthTest);

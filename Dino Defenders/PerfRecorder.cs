@@ -48,6 +48,7 @@ namespace Dino_Defenders
             {
                 _running = true;
                 Engine.PerformanceMonitor.ResetTotals();
+                GpuFrameClock.Reset();
                 (_collections0, _collections1, _collections2) = (GC.CollectionCount(0), GC.CollectionCount(1), GC.CollectionCount(2));
                 _collectionsSeen = _collections0;
                 _pausedBefore = GC.GetTotalPauseDuration().TotalMilliseconds;
@@ -113,6 +114,10 @@ namespace Dino_Defenders
             text.AppendLine(culture, $"{Engine.Resolution.X} x {Engine.Resolution.Y}, {_frameTimes.Count} frames");
             text.AppendLine(culture, $"FPS {1000f / average:0.0}");
             text.AppendLine(culture, $"Frame ms: average {average:0.00}, median {At(0.5f):0.00}, 95% {At(0.95f):0.00}, 99% {At(0.99f):0.00}, worst {sorted[^1]:0.00}");
+
+            // The GPU's own clock: a frame from its first command to its last, and what the GPU stood idle between frames, which the passes' timers can't see.
+            if (GpuFrameClock.Frames > 0)
+                text.AppendLine(culture, $"GPU per frame: {GpuFrameClock.SpanNanoseconds / (double)GpuFrameClock.Frames / 1e6:0.00} ms from first command to last, {GpuFrameClock.IdleNanoseconds / (double)GpuFrameClock.Frames / 1e6:0.00} ms idle between frames");
 
             // NVIDIA alone says how much video memory is left and how much the driver had to move out to system memory, where every pass that reads it crawls.
             int videoMemory = VideoMemory(0x9048);

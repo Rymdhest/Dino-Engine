@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 
 namespace Dino_Engine.Rendering.Renderers.Lighting
 {
@@ -14,6 +14,11 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
         public bool Emission = true;
         public bool Fog = true;
         public bool Bloom = true;
+        /// <summary>
+        /// What every lamp's and spotlight's radius is drawn at, as a share of its own (Graphics quality). The tiled pass pays for each light in each pixel it reaches, and what's
+        /// far out in a light's reach is a hundredth of what's near it: four fifths dims the light six metres from a lamp of seventeen by a seventh, for two thirds of the cost.
+        /// </summary>
+        public float LightReach = 1f;
 
         /// <summary>At least this much night everywhere, 0 to 1, whatever the game has made of it (NightfallSingleton).</summary>
         public float Night = 0f;
@@ -77,6 +82,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
                 case "sun": Sun = on; break;
                 case "sky": Sky = on; break;
                 case "lights": LocalLights = on; break;
+                case "lightreach": LightReach = Math.Clamp(number, 0.25f, 1f); break;
                 case "emission": Emission = on; break;
                 case "fog": Fog = on; break;
                 case "bloom": Bloom = on; break;

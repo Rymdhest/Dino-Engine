@@ -45,12 +45,14 @@ uniform float pressRecoveryTime;
 uniform int contactCount;
 uniform vec4 contactPath[64];       // xy where it is, zw where it was last step
 uniform vec4 contactShape[64];      // x radius, y lean, z press, w drag
+uniform uvec2 contactCells[256];    // Per cell of the region, CONTACT_CELLS a side: a bit for each of this pass's contacts that can reach into it (WindRenderer.MarkCells).
 
 const float STIFFNESS_PATCH = 5.0;  // Metres across a patch of plants of about the same stiffness.
 const float EDGE_PATCH = 1.3;       // Metres across the unevenness of the edge of what a body parts: a circle in a field looks drawn on.
 const float CONTACT_RATE = 30.0;    // Per second: how fast plants go down under a contact.
 const float SOFT_MIDDLE = 0.3;      // Share of a contact's radius over which the push out from it fades, so that it passes smoothly through its middle.
 const float SETTLED_SHARE = 0.8;    // How much of the push a patch keeps, once what pushed it has gone.
+const int CONTACT_CELLS = 16;       // Must match WindRenderer.ContactCells.
 const float WATER_PULL = 29.0;      // Water drags on a plant as air this many times as fast does: the square root of how much denser it is.
 
 vec2 clampLength(vec2 v, float maxLength)
@@ -138,8 +140,16 @@ void main(void)
     float pressed = 1.0 - exp(-deltaTime * CONTACT_RATE);
     float edgeHere = 0.8 + 0.4 * vegetationStiffness(xz + 31.0, EDGE_PATCH);
     vec2 held = vec2(0.0);
-    for (int i = 0; i < contactCount; i++)
+    // Only the contacts that can reach this texel's cell: nearly all of the region is nowhere near anyone, and looping over everyone at every texel was most of what this cost.
+    ivec2 cell = clamp(ivec2((xz - vegetationRegion.xy) * (float(CONTACT_CELLS) / vegetationRegion.zw)), ivec2(0), ivec2(CONTACT_CELLS - 1));
+    uvec2 nearby = contactCells[cell.y * CONTACT_CELLS + cell.x];
+    for (int word = 0; word < 2; word++)
     {
+    uint bits = word == 0 ? nearby.x : nearby.y;
+    while (bits != 0u)
+    {
+        int i = word * 32 + findLSB(bits);
+        bits &= bits - 1u;
         vec4 path = contactPath[i];
         vec4 shape = contactShape[i];
 
@@ -168,6 +178,7 @@ void main(void)
         if (dot(left, left) > dot(settled, settled)) settled = left;
 
         press = max(press, mix(press, shape.z * smoothstep(0.3, 0.9, near), pressed));
+    }
     }
 
     // A patch swings about whatever's holding it, or where it was left once nothing is, and what's held goes over at once: a body doesn't wait for a spring.

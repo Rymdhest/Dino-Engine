@@ -90,14 +90,14 @@ namespace Dino_Engine.Rendering.Renderers.AntiAliasing
             _maxSamples = Math.Clamp(Math.Min(colourSamples, Math.Min(depthSamples, framebufferSamples)), 1, MaxSamples);
 
             // Built with one sample here; Rebuild then makes them what the settings ask for.
-            _geometrySettings = new FrameBufferSettings(Engine.Resolution) { samples = 1 };
+            _geometrySettings = new FrameBufferSettings(Engine.RenderResolution) { samples = 1 };
             _geometrySettings.drawBuffers.Add(new DrawBufferSettings(FramebufferAttachment.ColorAttachment0) { formatInternal = PixelInternalFormat.Rgba8 });
             _geometrySettings.drawBuffers.Add(new DrawBufferSettings(FramebufferAttachment.ColorAttachment1) { formatInternal = PixelInternalFormat.Rgba8 });
             _geometrySettings.drawBuffers.Add(new DrawBufferSettings(FramebufferAttachment.ColorAttachment2) { formatInternal = PixelInternalFormat.Rgba8 });
             _geometrySettings.depthAttachmentSettings = new DepthAttachmentSettings { isTexture = true, stencil = true };
             _geometryBuffer = new FrameBuffer(_geometrySettings);
 
-            _sceneSettings = new FrameBufferSettings(Engine.Resolution) { samples = 1, sharedDepth = _geometryBuffer };
+            _sceneSettings = new FrameBufferSettings(Engine.RenderResolution) { samples = 1, sharedDepth = _geometryBuffer };
             _sceneSettings.drawBuffers.Add(new DrawBufferSettings(FramebufferAttachment.ColorAttachment0) { formatInternal = PixelInternalFormat.Rgba16f });
             _sceneBuffer = new FrameBuffer(_sceneSettings);
 

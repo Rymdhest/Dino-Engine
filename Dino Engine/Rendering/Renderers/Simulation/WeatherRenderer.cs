@@ -1,4 +1,4 @@
-using Dino_Engine.Core;
+﻿using Dino_Engine.Core;
 using Dino_Engine.ECS.Components;
 using Dino_Engine.Physics;
 using Dino_Engine.Rendering.Renderers.Geometry;
@@ -44,6 +44,7 @@ namespace Dino_Engine.Rendering.Renderers.Simulation
         private const int SkyMapResolution = 512;
         private const int SkyMapLevels = 9;
         private const int SkyInterval = 4;              // Frames between redraws of the sky.
+        private const int RestFromFrameRate = 90;       // Frames a second from which the rings and drips are drawn every other frame.
         private const int CloudShadowResolution = 256;
         private const float CloudShadowSize = 1024f;
         private const int RippleResolution = 256;
@@ -298,10 +299,13 @@ namespace Dino_Engine.Rendering.Renderers.Simulation
 
             int fresh = _frame++;
             WeatherSingleton weather = command.weather;
+            // At a rate like this the rings and drips are drawn every other frame, which is more often than the eye follows them: both are worked out from
+            // their clocks, so a frame that skips shows the one before's. The drips only skip where they lie as they did, as they're laid round the hero.
+            bool resting = Engine.FramesLastSecond >= RestFromFrameRate && (fresh & 1) == 1;
 
             if (_weatherOn && weather.Here.Fall > 0.002f)
             {
-                DrawRipples(weather, renderEngine);
+                if (!resting || _rippleCleared) DrawRipples(weather, renderEngine);
                 _rippleCleared = false;
             }
             else if (!_rippleCleared)
@@ -312,7 +316,8 @@ namespace Dino_Engine.Rendering.Renderers.Simulation
 
             if (DripsOn)
             {
-                DrawDripSurface();
+                if (!resting || _dripSurfaceCleared || _dripCorner != _dripDrawnAt) DrawDripSurface();
+                _dripDrawnAt = _dripCorner;
                 _dripSurfaceCleared = false;
             }
             else if (!_dripSurfaceCleared)
@@ -329,7 +334,7 @@ namespace Dino_Engine.Rendering.Renderers.Simulation
                 else Clear(_cloudShadowFramebuffer, 1f);
             }
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
-            Engine.WindowHandler.refreshViewport();
+            RenderEngine.SceneViewport();
         }
 
         private void UploadMaps(float[] map)
@@ -426,6 +431,8 @@ namespace Dino_Engine.Rendering.Renderers.Simulation
             }
             return false;
         }
+
+        private Vector2 _dripDrawnAt;     // Where the drips last drawn lie, which a frame that skips them has to share.
 
         private void DrawRipples(in WeatherSingleton weather, RenderEngine renderEngine)
         {
@@ -602,7 +609,7 @@ namespace Dino_Engine.Rendering.Renderers.Simulation
             renderEngine.ScreenQuadRenderer.Render(clearColor: false);
             _dripSourceShader.unBind();
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
-            Engine.WindowHandler.refreshViewport();
+            RenderEngine.SceneViewport();
             _dripCaptured = true;
         }
 

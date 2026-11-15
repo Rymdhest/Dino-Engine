@@ -106,7 +106,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
 
         public override void PerformCommand(PointlightRenderCommand command, RenderEngine renderEngine)
         {
-            Vector3 reach = new Vector3(command.radius);
+            Vector3 reach = new Vector3(command.radius * Engine.RenderEngine.Lighting.LightReach);
             if (_view.IntersectsAABB(new AABB(command.positionWorld - reach, command.positionWorld + reach)) == IntersectionResult.Outside) return;
             _visible.Add(command);
         }
@@ -116,7 +116,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             base.Render(renderEngine);
             foreach (SpotlightRenderCommand spot in _spots)
             {
-                Vector3 reach = new Vector3(spot.radius);
+                Vector3 reach = new Vector3(spot.radius * renderEngine.Lighting.LightReach);
                 if (_view.IntersectsAABB(new AABB(spot.positionWorld - reach, spot.positionWorld + reach)) != IntersectionResult.Outside) _visibleSpots.Add(spot);
             }
             _spots.Clear();
@@ -153,14 +153,45 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
                 GL.Enable(EnableCap.Blend);
                 GL.BlendFunc(BlendingFactor.One, BlendingFactor.One);
                 GL.BlendEquation(BlendEquationMode.FuncAdd);
+                // Only where this batch's lights can reach: a pixel with none in its tile still reads the G-buffer, and a few lamps rarely cover a tenth of the screen.
+                Box2i reach = ScreenReach(start, count, size, renderEngine);
+                if (reach.Size.X <= 0 || reach.Size.Y <= 0) continue;
+                GL.Enable(EnableCap.ScissorTest);
+                GL.Scissor(reach.Min.X, reach.Min.Y, reach.Size.X, reach.Size.Y);
                 renderEngine.Msaa.DrawSplit(_shader, _sampleShader, shader =>
                 {
                     shader.loadUniformInt("tilesAcross", _tiles.X);
                     renderEngine.ScreenQuadRenderer.DrawQuad();
                 });
+                GL.Disable(EnableCap.ScissorTest);
             }
             _visible.Clear();
             _visibleSpots.Clear();
+        }
+
+        // The pixels a batch's lights can reach: the corners of each one's box round its radius, projected, and all of the screen if any of them is behind the eye.
+        private Box2i ScreenReach(int start, int count, Vector2i size, RenderEngine renderEngine)
+        {
+            Matrix4 viewProjection = renderEngine.context.viewMatrix * renderEngine.context.projectionMatrix;
+            Vector2 least = new Vector2(float.MaxValue), most = new Vector2(float.MinValue);
+            for (int i = start; i < start + count; i++)
+            {
+                (Vector3 centre, float radius) = i < _visible.Count
+                    ? (_visible[i].positionWorld, _visible[i].radius * renderEngine.Lighting.LightReach)
+                    : (_visibleSpots[i - _visible.Count].positionWorld, _visibleSpots[i - _visible.Count].radius * renderEngine.Lighting.LightReach);
+                for (int corner = 0; corner < 8; corner++)
+                {
+                    Vector3 offset = new Vector3((corner & 1) != 0 ? radius : -radius, (corner & 2) != 0 ? radius : -radius, (corner & 4) != 0 ? radius : -radius);
+                    Vector4 clip = new Vector4(centre + offset, 1f) * viewProjection;
+                    if (clip.W <= 1e-3f) return new Box2i(Vector2i.Zero, size);
+                    Vector2 ndc = clip.Xy / clip.W;
+                    least = Vector2.ComponentMin(least, ndc);
+                    most = Vector2.ComponentMax(most, ndc);
+                }
+            }
+            Vector2i min = new Vector2i((int)MathF.Floor((least.X * 0.5f + 0.5f) * size.X) - 1, (int)MathF.Floor((least.Y * 0.5f + 0.5f) * size.Y) - 1);
+            Vector2i max = new Vector2i((int)MathF.Ceiling((most.X * 0.5f + 0.5f) * size.X) + 1, (int)MathF.Ceiling((most.Y * 0.5f + 0.5f) * size.Y) + 1);
+            return new Box2i(Vector2i.Clamp(min, Vector2i.Zero, size), Vector2i.Clamp(max, Vector2i.Zero, size));
         }
 
         // Lays out a batch of lights as Lighting/PointLightTiles.glsl's PointLight reads them. Returns the array their shadow maps are in, if any has one.
@@ -199,7 +230,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
                 _lightData[o + 0] = positionView.X;
                 _lightData[o + 1] = positionView.Y;
                 _lightData[o + 2] = positionView.Z;
-                _lightData[o + 3] = command.radius;
+                _lightData[o + 3] = command.radius * renderEngine.Lighting.LightReach;
                 _lightData[o + 4] = command.colour.X;
                 _lightData[o + 5] = command.colour.Y;
                 _lightData[o + 6] = command.colour.Z;
@@ -241,7 +272,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             _lightData[o + 0] = positionView.X;
             _lightData[o + 1] = positionView.Y;
             _lightData[o + 2] = positionView.Z;
-            _lightData[o + 3] = command.radius;
+            _lightData[o + 3] = command.radius * renderEngine.Lighting.LightReach;
             _lightData[o + 4] = command.colour.X;
             _lightData[o + 5] = command.colour.Y;
             _lightData[o + 6] = command.colour.Z;

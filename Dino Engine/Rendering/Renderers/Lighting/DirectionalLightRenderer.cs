@@ -91,7 +91,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             _maskShader.loadUniformInt("linearDepth", 0);
             LinkShadows(_maskShader);
             _maskShader.unBind();
-            CreateMask(Engine.Resolution);
+            CreateMask(Engine.RenderResolution);
         }
 
         private void CreateMask(Vector2i size)

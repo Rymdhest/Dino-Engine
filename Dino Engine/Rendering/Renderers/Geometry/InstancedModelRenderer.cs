@@ -19,6 +19,15 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
         private int _instanceVBO;
         private readonly List<Matrix4> _shellInstances = new();
 
+        // Every command's matrices, uploaded once a frame for all its draws, which each start at their own instance in them (DrawElementsInstancedBaseInstance): a command
+        // used to be uploaded again for every draw of it, the depth pass, the shaded pass and every shadow, which was 2.8 ms of the Haven's CPU on a Ryzen 5 4600H.
+        private int _geometryInstances, _shadowInstances;
+        private readonly List<Matrix4> _gathered = new();
+        private readonly List<int> _geometryBases = new(), _shadowBases = new();
+        private int _nextGeometry, _nextShadow;
+        private Shadow? _boundShadow;
+        private readonly Func<int, List<Matrix4>> _geometryMatrices, _shadowMatrices;     // Made once, as a lambda made each frame is garbage.
+
         public InstancedModelRenderer() : base("Model Instanced")
         {
             _instancedModelShader.bind();
@@ -48,6 +57,40 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             _instancedModelDepthShader.unBind();
 
             _instanceVBO = GL.GenBuffer();
+            _geometryMatrices = i => geometryCommands[i].matrices;
+            _shadowMatrices = i => shadowCommands[i].Item1.matrices;
+            _geometryInstances = GL.GenBuffer();
+            _shadowInstances = GL.GenBuffer();
+        }
+
+        // Puts every command's matrices into one buffer, one after another, and says where each starts.
+        private void Gather(int count, Func<int, List<Matrix4>> matricesOf, int buffer, List<int> bases)
+        {
+            _gathered.Clear();
+            bases.Clear();
+            for (int i = 0; i < count; i++)
+            {
+                bases.Add(_gathered.Count);
+                _gathered.AddRange(matricesOf(i));
+            }
+            GL.BindBuffer(BufferTarget.ArrayBuffer, buffer);
+            Span<Matrix4> all = CollectionsMarshal.AsSpan(_gathered);
+            if (all.Length > 0) GL.BufferData(BufferTarget.ArrayBuffer, all.Length * Marshal.SizeOf<Matrix4>(), ref all[0], BufferUsageHint.StreamDraw);
+            GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
+        }
+
+        // The matrices' attributes on a model's VAO, from the start of one of the gathered buffers: each draw picks its own run of them by its base instance.
+        private static void PointInstances(int buffer)
+        {
+            GL.BindBuffer(BufferTarget.ArrayBuffer, buffer);
+            for (int i = 0; i < 4; i++)
+            {
+                int attribLocation = 6 + i;
+                GL.EnableVertexAttribArray(attribLocation);
+                GL.VertexAttribPointer(attribLocation, 4, VertexAttribPointerType.Float, false, sizeof(float) * 16, i * Vector4.SizeInBytes);
+                GL.VertexAttribDivisor(attribLocation, 1);
+            }
+            GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
         }
 
         public override void CleanUp()
@@ -56,6 +99,8 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             _instancedModelDepthShader.cleanUp();
             _instancedModelShadowShader.cleanUp();
             GL.DeleteBuffer(_instanceVBO);
+            GL.DeleteBuffer(_geometryInstances);
+            GL.DeleteBuffer(_shadowInstances);
         }
 
         internal override void PrepareGeometry(RenderEngine renderEngine)
@@ -68,6 +113,7 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.ActiveTexture(TextureUnit.Texture3);
             GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaAlbedoModelTextureArray);
             BindWindTextures(renderEngine);
+            Gather(geometryCommands.Count, _geometryMatrices, _geometryInstances, _geometryBases);
 
             // Depth alone, with the same cuts.
             GL.DepthFunc(DepthFunction.Less);
@@ -75,8 +121,9 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.ColorMask(false, false, false, false);
             _instancedModelDepthShader.bind();
             _instancedModelDepthShader.loadUniformInt("numberOfMaterials", renderEngine.textureGenerator.loadedMaterialTextures);
-            foreach (ModelRenderCommand command in geometryCommands) Draw(_instancedModelDepthShader, command);
+            for (int i = 0; i < geometryCommands.Count; i++) Draw(_instancedModelDepthShader, geometryCommands[i], _geometryBases[i]);
             GL.ColorMask(true, true, true, true);
+            _nextGeometry = 0;
 
             // Then shaded where it was laid down, and nowhere else.
             GL.DepthFunc(DepthFunction.Equal);
@@ -185,6 +232,9 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.BindTexture(TextureTarget.Texture2DArray, renderEngine.textureGenerator.megaAlbedoModelTextureArray);
 
             BindWindTextures(renderEngine);
+            Gather(shadowCommands.Count, _shadowMatrices, _shadowInstances, _shadowBases);
+            _nextShadow = 0;
+            _boundShadow = null;
         }
 
         internal override void FinishShadow(RenderEngine renderEngine)
@@ -210,23 +260,17 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             Engine.PerformanceMonitor.Count("Model draws", 1);
             Engine.PerformanceMonitor.Count("Model instances", instanceCount);
             Engine.PerformanceMonitor.Count("Model triangles", (long)instanceCount * glmodel.getVertexCount() / 3);
-            Draw(_instancedModelShader, command);
+            // The same commands in the same order as the depth pass, so the next base is this one's.
+            Draw(_instancedModelShader, command, _geometryBases[_nextGeometry++]);
         }
 
-        private void Draw(ShaderProgram shader, ModelRenderCommand command)
+        private void Draw(ShaderProgram shader, ModelRenderCommand command, int baseInstance)
         {
             glModel glmodel = command.model;
             int instanceCount = command.matrices.Count;
-            int sizeInBytes = instanceCount * Marshal.SizeOf<Matrix4>();
             BindPlant(shader, glmodel);
             shader.loadUniformVector3f("modelSize", glmodel.Size);
             shader.loadUniformFloat("focusOpens", glmodel.OpensForFocus ? 1f : 0f);
-
-            GL.BindBuffer(BufferTarget.ArrayBuffer, _instanceVBO);
-            Span<Matrix4> matrixSpan = CollectionsMarshal.AsSpan(command.matrices);
-
-            // Pass the first element by reference. OpenTK will read 'sizeInBytes' starting from that memory address.
-            GL.BufferData(BufferTarget.ArrayBuffer, sizeInBytes, ref matrixSpan[0], BufferUsageHint.DynamicDraw);
 
             GL.BindVertexArray(glmodel.getVAOID());
             GL.EnableVertexAttribArray(0);
@@ -236,29 +280,15 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
             GL.EnableVertexAttribArray(4);
             GL.EnableVertexAttribArray(5);
 
-            GL.EnableVertexAttribArray(6);
-            GL.EnableVertexAttribArray(7);
-            GL.EnableVertexAttribArray(8);
-            GL.EnableVertexAttribArray(9);
+            PointInstances(_geometryInstances);
 
-            GL.BindBuffer(BufferTarget.ArrayBuffer, _instanceVBO);
-            int vec4Size = Vector4.SizeInBytes;
-            for (int i = 0; i < 4; i++)
-            {
-                int attribLocation = 6 + i;
-                GL.EnableVertexAttribArray(attribLocation);
-                GL.VertexAttribPointer(attribLocation, 4, VertexAttribPointerType.Float, false, sizeof(float) * 16, i * vec4Size);
-                GL.VertexAttribDivisor(attribLocation, 1);
-            }
-
-            GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
-
-            GL.DrawElementsInstanced(
+            GL.DrawElementsInstancedBaseInstance(
                 PrimitiveType.Triangles,
                 glmodel.getVertexCount(),
                 DrawElementsType.UnsignedInt,
                 IntPtr.Zero,
-                instanceCount);
+                instanceCount,
+                baseInstance);
         }
 
         internal override bool WantsShells(RenderEngine renderEngine)
@@ -340,59 +370,44 @@ namespace Dino_Engine.Rendering.Renderers.Geometry
 
         internal override void PerformShadowCommand(ModelRenderCommand command, Shadow shadow, RenderEngine renderEngine)
         {
-            if (shadow.isCubeMap && shadow.cubemapFaceIndex >= 0)
+            int baseInstance = _shadowBases[_nextShadow++];
+            // The map the draw before drew into is still bound, with its offset and matrix: commands for one shadow come together.
+            if (!ReferenceEquals(shadow, _boundShadow))
             {
-                shadow.shadowFrameBuffer.bindFace(TextureTarget.TextureCubeMapPositiveX + shadow.cubemapFaceIndex);
+                if (shadow.isCubeMap && shadow.cubemapFaceIndex >= 0)
+                {
+                    shadow.shadowFrameBuffer.bindFace(TextureTarget.TextureCubeMapPositiveX + shadow.cubemapFaceIndex);
+                }
+                else
+                {
+                    shadow.shadowFrameBuffer.bind();
+                }
+                GL.PolygonOffset(shadow.polygonOffsetModel, shadow.polygonOffsetModel * 10.1f);
+                _instancedModelShadowShader.loadUniformMatrix4f("viewpPojectionMatrix", shadow.lightViewMatrix * shadow.shadowProjectionMatrix);
+                _boundShadow = shadow;
             }
-            else
-            {
-                shadow.shadowFrameBuffer.bind();
-            }
-
-            GL.PolygonOffset(shadow.polygonOffsetModel, shadow.polygonOffsetModel * 10.1f);
 
             glModel glmodel = command.model;
             int instanceCount = command.matrices.Count;
-            int sizeInBytes = instanceCount * Marshal.SizeOf<Matrix4>();
-
-            _instancedModelShadowShader.loadUniformMatrix4f("viewpPojectionMatrix", shadow.lightViewMatrix * shadow.shadowProjectionMatrix);
             BindPlant(_instancedModelShadowShader, glmodel);
-
-            GL.BindBuffer(BufferTarget.ArrayBuffer, _instanceVBO);
-            Span<Matrix4> matrixSpan = CollectionsMarshal.AsSpan(command.matrices);
-            GL.BufferData(BufferTarget.ArrayBuffer, sizeInBytes, ref matrixSpan[0], BufferUsageHint.DynamicDraw);
 
             GL.BindVertexArray(glmodel.getVAOID());
             GL.EnableVertexAttribArray(0);
             GL.EnableVertexAttribArray(4);
             GL.EnableVertexAttribArray(5);
 
-            GL.EnableVertexAttribArray(6);
-            GL.EnableVertexAttribArray(7);
-            GL.EnableVertexAttribArray(8);
-            GL.EnableVertexAttribArray(9);
-
-            GL.BindBuffer(BufferTarget.ArrayBuffer, _instanceVBO);
-            int vec4Size = Vector4.SizeInBytes;
-            for (int i = 0; i < 4; i++)
-            {
-                int attribLocation = 6 + i;
-                GL.EnableVertexAttribArray(attribLocation);
-                GL.VertexAttribPointer(attribLocation, 4, VertexAttribPointerType.Float, false, sizeof(float) * 16, i * vec4Size);
-                GL.VertexAttribDivisor(attribLocation, 1);
-            }
-
-            GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
+            PointInstances(_shadowInstances);
 
             Engine.PerformanceMonitor.Count("Model shadow draws", 1);
             Engine.PerformanceMonitor.Count("Model shadow instances", instanceCount);
             Engine.PerformanceMonitor.Count("Model shadow triangles", (long)instanceCount * glmodel.getVertexCount() / 3);
-            GL.DrawElementsInstanced(
+            GL.DrawElementsInstancedBaseInstance(
                 PrimitiveType.Triangles,
                 glmodel.getVertexCount(),
                 DrawElementsType.UnsignedInt,
                 IntPtr.Zero,
-                instanceCount);
+                instanceCount,
+                baseInstance);
         }
     }
 }

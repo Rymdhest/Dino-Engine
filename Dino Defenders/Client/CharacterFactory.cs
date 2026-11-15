@@ -1,4 +1,4 @@
-using Dino_Defenders.Gameplay;
+﻿using Dino_Defenders.Gameplay;
 using Dino_Engine.Animation;
 using Dino_Engine.Modelling;
 using Dino_Engine.Modelling.Model;
@@ -48,6 +48,23 @@ namespace Dino_Defenders.Client
         private Task<(string Key, Mesh Mesh)[]>? _growing;
 
         private bool _prepared;
+        private int _grownCount, _toGrow;     // How far _growing has got, for the loading screen. Any thread.
+
+        // Open while growing may go on. Growing allocates on every thread it has, and the collections that follow stopped the Haven for 15 to 30 ms a few
+        // times a second for its first half minute, so nothing new starts while a hero is there (Hold): it goes on behind the menu and the next loading screen.
+        private readonly ManualResetEventSlim _mayGrow = new(true);
+
+        /// <summary>Lets nothing more start growing until <see cref="Begin"/> or <see cref="Grown"/> is next asked, for while there's something to play and nothing to wait for.</summary>
+        public void Hold()
+        {
+            if (!HasGrown) _mayGrow.Reset();
+        }
+
+        /// <summary>Whether <see cref="Prepare"/> would only upload, with nothing left to wait for. Main thread only.</summary>
+        public bool HasGrown => _prepared || _growing is { IsCompleted: true };
+
+        /// <summary>How many of everything <see cref="Prepare"/> uploads have grown, and of how many: nothing of nothing until the list is made. Any thread.</summary>
+        public (int Done, int Of) GrowingCount => _prepared ? (1, 1) : (Volatile.Read(ref _grownCount), Volatile.Read(ref _toGrow));
 
         // The Haven's giants are in the picture behind the main menu, so they're wanted before anything a world can send at a hero, and they take three seconds each, as close as they're
         // seen from. So they're begun the moment the game starts (GrowGiants), one to a core, and taken up the first frame they're done (TryGiants): nothing ever waits for them.
@@ -101,6 +118,7 @@ namespace Dino_Defenders.Client
         /// <summary>Starts growing everything <see cref="Prepare"/> will want, on worker threads. Asking again does nothing.</summary>
         public void Begin()
         {
+            _mayGrow.Set();
             if (_prepared || _growing != null) return;
             _growing = Task.Run(() =>
             {
@@ -108,9 +126,26 @@ namespace Dino_Defenders.Client
                 (string Key, Func<Mesh> Build)[] recipes = PreparedRecipes().ToArray();
                 var grown = new (string Key, Mesh Mesh)[recipes.Length];
                 var queue = Partitioner.Create(Enumerable.Range(0, recipes.Length), EnumerablePartitionerOptions.NoBuffering);
-                Parallel.ForEach(queue, new ParallelOptions { MaxDegreeOfParallelism = Math.Max(Environment.ProcessorCount / 2, 1) }, i => grown[i] = (recipes[i].Key, recipes[i].Build()));
+                Volatile.Write(ref _toGrow, recipes.Length);
+                Parallel.ForEach(queue, new ParallelOptions { MaxDegreeOfParallelism = Math.Max(Environment.ProcessorCount / 2, 1) }, i =>
+                {
+                    _mayGrow.Wait();
+                    grown[i] = (recipes[i].Key, recipes[i].Build());
+                    Interlocked.Increment(ref _grownCount);
+                });
                 return grown;
             });
+        }
+
+        /// <summary>
+        /// Done once everything <see cref="Prepare"/> uploads has grown, starting it if nothing has. A loading screen waits on this off the main thread,
+        /// as on a slow machine growing outlasts the menu, and waiting in <see cref="Prepare"/> stopped frames for over thirty seconds (HangWatch's limit).
+        /// The Haven sends nobody to fight and doesn't wait at all. Main thread only.
+        /// </summary>
+        public Task Grown()
+        {
+            Begin();
+            return (Task?)_growing ?? Task.CompletedTask;
         }
 
         // Every model a server can send for an enemy: each kind's look, with each of its seeds, and each of its outfits for bandits. Two keys can share a model.

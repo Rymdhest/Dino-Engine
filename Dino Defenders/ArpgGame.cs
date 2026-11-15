@@ -464,6 +464,17 @@ namespace Dino_Defenders
                     render_.AntiAliasing.Samples = int.Parse(parts[1]);
                     continue;
                 }
+                if (parts.Length == 2 && parts[0] == "scale")
+                {
+                    // The share of the window the scene is drawn at, 0.5 to 1 (RenderEngine.RenderScale), and how hard it's sharpened onto it.
+                    render_.SetRenderScale(float.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture));
+                    continue;
+                }
+                if (parts.Length == 2 && parts[0] == "sharpen")
+                {
+                    render_.UpscaleSharpness = float.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture);
+                    continue;
+                }
                 if (parts.Length != 2 || !(render_.Lighting.Set(parts[0], parts[1]) || render_.Reflections.Set(parts[0], parts[1]) || render_.GlobalIllumination.Set(parts[0], parts[1]) || render_.Shells.Settings.Set(parts[0], parts[1]) || render_.Subsurface.Set(parts[0], parts[1])
                     || render_.Occlusion.Set(parts[0], parts[1]) || render_.ContactShadows.Set(parts[0], parts[1]) || render_.SunShadows.Set(parts[0], parts[1]))) Console.WriteLine($"No render setting '{setting}'.");
             }
@@ -1040,27 +1051,62 @@ namespace Dino_Defenders
             else ShowLoading(plan.Name, terms.Count > 0 ? $"{plan.Archetype.Name}, level {plan.Level}. {terms.Count} {(terms.Count == 1 ? "omen" : "omens")}: {string.Join(", ", terms.Chosen().Select(chosen => chosen.Omen.Name))}" : $"{plan.Archetype.Name}, level {plan.Level}");
 
             LoadingScreen screen = _ui.Loading;
-            _worlds.Progress = (progress, stage) =>
+            Action<float, string> worldProgress = (progress, stage) =>
             {
-                screen.Progress = progress;
+                screen.Progress = progress * WorldShareOfBar;
                 screen.Stage = stage;
             };
+            _worlds.Progress = worldProgress;
 
-            _loading = Prepare(request);
+            // The Haven has nobody to fight, so it doesn't wait for them: they go on growing while the hero is there, and a land uploads them (Enter).
+            _loading = Prepare(request, Lands.IsHaven(request) ? null : _characters.Grown(), screen, worldProgress);
         }
 
-        private async Task<PreparedWorld> Prepare(WorldRequest request)
+        // The world's own stages are the first part of the bar, and what's grown for it after (Prepare) the rest, each by about the seconds it takes on a six-core laptop.
+        private const float WorldShareOfBar = 0.5f;
+        private const double PlantSeconds = 3.0, ChartSeconds = 4.0, SkinSeconds = 1.0, CreatureSeconds = 15.0;
+
+        private async Task<PreparedWorld> Prepare(WorldRequest request, Task? characters, LoadingScreen screen, Action<float, string> worldProgress)
         {
             var clock = Stopwatch.StartNew();
             WorldData world = await _worlds.Get(request);
-            Task growing = Task.Run(() => _assets.Grow(WorldAssetLibrary.AssetsOf(world)));
+            Interlocked.CompareExchange(ref _worlds.Progress, null, worldProgress);     // Its last word is "Ready", and what's below isn't yet.
+            double generated = clock.Elapsed.TotalSeconds;
+
+            // When each part was done, from the start, for the log, which is how to see what a load spent its time on.
+            double grown = 0, clad = 0, charted = 0, creatures = 0;
+            Task growing = Task.Run(() => { _assets.Grow(WorldAssetLibrary.AssetsOf(world)); grown = clock.Elapsed.TotalSeconds; });
             // The rock round the landing is clad before anyone sees it, and the rest comes in around the camera (RockSkinStream).
-            Task cladding = _options.Skin ? Task.Run(() => RockSkinStream.Prepare(world, world.Sites[0].Landing, SkinAtLanding)) : Task.CompletedTask;
-            Dino_Engine.World.Chart.Chart map = await Task.Run(() => Dino_Engine.World.Chart.WorldChart.Draw(world, MapPanel.Resolution));
-            await growing;
-            await cladding;
-            Console.WriteLine($"Generated {world.Plan.Name} ({world.Plan.Archetype.Name}, {world.Plan.Mood.Name}) in {clock.Elapsed.TotalSeconds:0.00} s");
-            return new PreparedWorld(world, map);
+            Task cladding = _options.Skin ? Task.Run(() => { RockSkinStream.Prepare(world, world.Sites[0].Landing, SkinAtLanding); clad = clock.Elapsed.TotalSeconds; }) : Task.CompletedTask;
+            Task<Dino_Engine.World.Chart.Chart> charting = Task.Run(() => { var drawn = Dino_Engine.World.Chart.WorldChart.Draw(world, MapPanel.Resolution); charted = clock.Elapsed.TotalSeconds; return drawn; });
+            Task creatureWait = characters?.ContinueWith(_ => creatures = clock.Elapsed.TotalSeconds, TaskContinuationOptions.ExecuteSynchronously) ?? Task.CompletedTask;
+            Task all = Task.WhenAll(growing, cladding, charting, creatureWait);
+
+            // The bar goes on from where the world left it, and says what's still being made.
+            double total = PlantSeconds + ChartSeconds + (_options.Skin ? SkinSeconds : 0) + (characters != null ? CreatureSeconds : 0);
+            while (!all.IsCompleted)
+            {
+                double done = 0;
+                var waiting = new List<string>();
+                if (growing.IsCompleted) done += PlantSeconds; else waiting.Add("Growing plants and stones");
+                if (charting.IsCompleted) done += ChartSeconds; else waiting.Add("Drawing the map");
+                if (_options.Skin) { if (cladding.IsCompleted) done += SkinSeconds; else waiting.Add("Cladding the rock"); }
+                if (characters != null)
+                {
+                    (int made, int of) = _characters.GrowingCount;
+                    done += creatureWait.IsCompleted ? CreatureSeconds : of > 0 ? CreatureSeconds * made / of : 0;
+                    if (!creatureWait.IsCompleted) waiting.Add(of > 0 ? $"Growing creatures, {made} of {of}" : "Growing creatures");
+                }
+                screen.Progress = WorldShareOfBar + (1f - WorldShareOfBar) * (float)(done / total);
+                screen.Stage = string.Join(" · ", waiting);
+                await Task.WhenAny(all, Task.Delay(100));
+            }
+            await all;     // Throws whatever went wrong in any of them.
+            screen.Progress = 1f;
+            screen.Stage = "Entering";
+
+            Console.WriteLine($"Generated {world.Plan.Name} ({world.Plan.Archetype.Name}, {world.Plan.Mood.Name}) in {clock.Elapsed.TotalSeconds:0.00} s: world {generated:0.0}, plants and stones {grown:0.0}, rock skin {clad:0.0}, chart {charted:0.0}, creatures {(characters != null ? $"{creatures:0.0}" : "not waited for")}");
+            return new PreparedWorld(world, charting.Result);
         }
 
         private void FinishLoading()
@@ -1086,7 +1132,9 @@ namespace Dino_Defenders
             WorldData world = prepared.World;
             _giants = null;
             WorldScene.Enter(Engine.world, world, _assets);
-            _characters.Prepare();
+            // The Haven didn't wait for them (WorldNeeded), and they wait for the next loading screen rather than grow while it's played (CharacterFactory.Hold).
+            if (!Lands.IsHaven(world.Plan.Request) || _characters.HasGrown) _characters.Prepare();
+            else _characters.Hold();
             Console.WriteLine($"Prepared {_assets.Count} models in {clock.Elapsed.TotalSeconds:0.00} s");
 
             _title = null;

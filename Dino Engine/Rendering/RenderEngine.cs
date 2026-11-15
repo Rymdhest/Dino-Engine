@@ -251,7 +251,7 @@ namespace Dino_Engine.Rendering
 
         private void InitGBuffer()
         {
-            FrameBufferSettings gBufferSettings = new FrameBufferSettings(Engine.Resolution);
+            FrameBufferSettings gBufferSettings = new FrameBufferSettings(Engine.RenderResolution);
             DrawBufferSettings gAlbedo = new DrawBufferSettings(FramebufferAttachment.ColorAttachment0);
             gAlbedo.formatInternal = PixelInternalFormat.Rgba8;
             gAlbedo.pixelType = PixelType.UnsignedByte;
@@ -301,6 +301,7 @@ namespace Dino_Engine.Rendering
         }
         public void Render()
         {
+            Dino_Engine.Debug.GpuFrameClock.FrameStarts();
             textureGenerator.FinishCards(wait: Engine.Instance.WorldReady);
 
             Studio.RenderPass();
@@ -329,7 +330,8 @@ namespace Dino_Engine.Rendering
 
                 //_debugRenderer.RenderNormals(_dualBufferFull);
 
-                if (!_toneMapRenderer.ToScreen)
+                if (Scaled) Upscale();
+                else if (!_toneMapRenderer.ToScreen)
                 {
                     _simpleShader.bind();
                     lastUsedBuffer.GetLastFrameBuffer().resolveToScreen();
@@ -354,6 +356,31 @@ namespace Dino_Engine.Rendering
             FinishFrame();
 
 
+        }
+
+        private readonly ShaderProgram _upscaleShader = new ShaderProgram("Simple.vert", "Upscale.frag");
+
+        /// <summary>How hard the upscale sharpens: what drawing smaller softened, given back without halos (Upscale.frag).</summary>
+        public float UpscaleSharpness = 0.6f;
+
+        // The finished picture, tone mapped and drawn at RenderScale, onto the whole window, sharpened.
+        private void Upscale()
+        {
+            Engine.PerformanceMonitor.startGPUTask("Upscale");
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+            Engine.WindowHandler.refreshViewport();
+            GL.Disable(EnableCap.DepthTest);
+            GL.Disable(EnableCap.Blend);
+            GL.Disable(EnableCap.StencilTest);
+            _upscaleShader.bind();
+            Vector2i source = lastUsedBuffer.getResolution();
+            _upscaleShader.loadUniformVector2f("sourceTexel", new Vector2(1f / source.X, 1f / source.Y));
+            _upscaleShader.loadUniformFloat("sharpness", UpscaleSharpness);
+            GL.ActiveTexture(TextureUnit.Texture0);
+            GL.BindTexture(TextureTarget.Texture2D, lastUsedBuffer.GetLastOutputTexture());
+            _screenQuadRenderer.DrawQuad();
+            _upscaleShader.unBind();
+            Engine.PerformanceMonitor.finishGPUTask("Upscale");
         }
 
         private void RenderGui()
@@ -492,7 +519,7 @@ namespace Dino_Engine.Rendering
             _sunRenderer.RenderPass(this);
             _bloomRenderer.RenderPass(this);
             // Straight onto the screen, unless something is still to come or the F3 tools might want to look at it.
-            _toneMapRenderer.ToScreen = !AntiAliasing.Fxaa && !AntiAliasing.ShowEdgePixels && !Engine.DebugOverlay.Visible;
+            _toneMapRenderer.ToScreen = !Scaled && !AntiAliasing.Fxaa && !AntiAliasing.ShowEdgePixels && !Engine.DebugOverlay.Visible;
             _toneMapRenderer.RenderPass(this);
             // FXAA works on the image as it will be seen: tone mapped, gamma encoded.
             if (AntiAliasing.Fxaa) _fXAARenderer.RenderPass(this);
@@ -517,7 +544,7 @@ namespace Dino_Engine.Rendering
             globals.invViewMatrix = context.invViewMatrix;
             globals.viewPosWorld = context.viewPos;
             globals.time = Engine.Time;
-            globals.resolution =Engine.Resolution;
+            globals.resolution = Engine.RenderResolution;
             globals.delta = Engine.Delta;
             globals.worldSeed = 1;
             globals.skyColour = context.skyColour;
@@ -538,19 +565,53 @@ namespace Dino_Engine.Rendering
         {
 
             Engine.Instance?.CaptureFrame();
+            Dino_Engine.Debug.GpuFrameClock.FrameEnds();
             Engine.PerformanceMonitor.startCPUTask("Waiting for the GPU");
             Engine.WindowHandler.SwapBuffers();
             Engine.PerformanceMonitor.finishCPUTask("Waiting for the GPU");
         }
 
 
+        /// <summary>
+        /// The share of the window's width and height the scene is drawn at (Graphics quality), sharpened as it's put on the screen (<see cref="Upscale"/>). Everything the GPU does
+        /// for each pixel goes with its square, which is what took Low to 120 frames a second on a GTX 1660 Ti at 1080p, where cutting effects alone couldn't.
+        /// </summary>
+        public float RenderScale { get; private set; } = 1f;
+
+        /// <summary>Whether the scene is drawn smaller than the window, and has to be scaled up onto it.</summary>
+        public bool Scaled => RenderScale < 0.999f;
+
+        public Vector2i ScaledSize(Vector2i window)
+        {
+            if (!Scaled) return window;
+            return new Vector2i(Math.Max(1, (int)MathF.Round(window.X * RenderScale)), Math.Max(1, (int)MathF.Round(window.Y * RenderScale)));
+        }
+
+        /// <summary>Draws the scene at <paramref name="scale"/> of the window from now on, remaking everything that's sized by it.</summary>
+        public void SetRenderScale(float scale)
+        {
+            scale = Math.Clamp(scale, 0.5f, 1f);
+            if (MathF.Abs(scale - RenderScale) < 1e-3f) return;
+            RenderScale = scale;
+            OnResize(new ResizeEventArgs(Engine.Resolution));
+        }
+
+        /// <summary>The viewport every pass of the scene draws in, for one that's drawn into something else to put back.</summary>
+        public static void SceneViewport()
+        {
+            Vector2i size = Engine.RenderResolution;
+            GL.Viewport(0, 0, size.X, size.Y);
+        }
+
+        /// <param name="eventArgs">The window's new size: the scene's buffers are made at <see cref="RenderScale"/> of it.</param>
         public void OnResize(ResizeEventArgs eventArgs)
         {
-            _dualBufferFull.OnResize(eventArgs);
-            _gBuffer.resize(eventArgs.Size);
+            var scene = new ResizeEventArgs(ScaledSize(eventArgs.Size));
+            _dualBufferFull.OnResize(scene);
+            _gBuffer.resize(scene.Size);
             foreach(BaseRenderer renderer in _renderers)
             {
-                renderer.OnResize(eventArgs);
+                renderer.OnResize(scene);
             }
         }
 

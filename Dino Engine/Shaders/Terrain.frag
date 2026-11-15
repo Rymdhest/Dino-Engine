@@ -43,8 +43,10 @@ layout (location = 1) out vec4 gNormal;
 layout (location = 2) out vec4 gMaterials;
 
 // The parallax hit always lies further along the view ray than the rasterized surface, so depth only grows.
-// Declaring that keeps early depth rejection working even though gl_FragDepth is written.
+#ifndef TERRAIN_FLAT
+// Declaring that keeps early depth rejection working even though gl_FragDepth is written. With no relief (TERRAIN_FLAT) nothing is written, and the GPU keeps all of it.
 layout (depth_greater) out float gl_FragDepth;
+#endif
 
 #include textureUtil.glsl
 #include gBufferUtil.glsl
@@ -648,10 +650,12 @@ void main() {
     float rayT = 0.0;
     float depth = 0.0;
     float sunThrough = 1.0;
+#ifndef TERRAIN_FLAT
     if (!bareRock && fade > 0.0 && deepest > 0.0) {
         winningUV = ParallaxOcclusionMapping(fragUV, V, N, surface, fade, lod, pixelsPerMetre, rayT, depth);
         sunThrough = ReliefShadow(winningUV, depth, normalize(sunDirectionWorld.xyz), N, surface, fade, lod, pixelsPerMetre);
     }
+#endif
 
     // 2. Determine the single sharp winning material at the final resolved surface coordinate
     float winningMat = surface.mats.x;
@@ -665,8 +669,10 @@ void main() {
 
     // 3. Write the depth of the parallax hit so trees/grass don't float. The hit is on this pixel's view ray, rayT
     //    behind the rasterized surface. gl_FragDepth is written on every path; leaving it unwritten is undefined.
+#ifndef TERRAIN_FLAT
     vec4 clipPos = projectionMatrix * viewMatrix * vec4(fragWorldPos - V * rayT, 1.0);
     gl_FragDepth = max(gl_FragCoord.z, (clipPos.z / clipPos.w) * 0.5 + 0.5);
+#endif
 
     // 4. The crisp winning material at the hit, at its own size, or along the road for a road's own (LookGround).
     vec3 facing = gl_FrontFacing ? N : -N;

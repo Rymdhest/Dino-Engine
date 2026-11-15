@@ -27,7 +27,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
             _sunRayShader.loadUniformInt("sunTexture", 0);
             _sunRayShader.unBind();
 
-            FrameBufferSettings settings = new FrameBufferSettings(Engine.Resolution / _downscalingFactor);
+            FrameBufferSettings settings = new FrameBufferSettings(Engine.RenderResolution / _downscalingFactor);
             DrawBufferSettings drawSettings = new DrawBufferSettings(FramebufferAttachment.ColorAttachment0);
             drawSettings.formatInternal = PixelInternalFormat.Rgba16f;
             drawSettings.pixelType = PixelType.Float;

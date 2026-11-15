@@ -45,6 +45,11 @@ namespace Dino_Engine.Rendering.Renderers.Simulation
         public const float CanopySize = 256f;
 
         private const int ContactsPerPass = 64;
+        public const int ContactCells = 16;          // Cells across the vegetation region on a side, each told which contacts reach into it (Wind_Vegetation.frag).
+        private const float EdgeReach = 1.2f;        // The most the shader's uneven edge stretches a contact's radius (edgeHere).
+        private readonly uint[] _cellBits = new uint[ContactCells * ContactCells * 2];
+        private readonly float[] _contactPaths = new float[ContactsPerPass * 4];
+        private readonly float[] _contactShapes = new float[ContactsPerPass * 4];
         private const int TerrainCaptureUnit = 4;   // Past the state and the wind map.
         // WindData in Wind.glsl: 10 vec4s, the wave trains, then 3 vec4s per emitter.
         private const int WaveSlot = 10;
@@ -315,14 +320,47 @@ namespace Dino_Engine.Rendering.Renderers.Simulation
                 for (int i = 0; i < count; i++)
                 {
                     VegetationContact contact = _contacts[start + i];
-                    _vegetationShader.loadUniformVector4f(ContactPathNames[i], new Vector4(contact.center.X, contact.center.Y, contact.previous.X, contact.previous.Y));
-                    _vegetationShader.loadUniformVector4f(ContactShapeNames[i], new Vector4(contact.radius, contact.lean, contact.press, contact.drag));
+                    _contactPaths[i * 4] = contact.center.X;
+                    _contactPaths[i * 4 + 1] = contact.center.Y;
+                    _contactPaths[i * 4 + 2] = contact.previous.X;
+                    _contactPaths[i * 4 + 3] = contact.previous.Y;
+                    _contactShapes[i * 4] = contact.radius;
+                    _contactShapes[i * 4 + 1] = contact.lean;
+                    _contactShapes[i * 4 + 2] = contact.press;
+                    _contactShapes[i * 4 + 3] = contact.drag;
                 }
+                _vegetationShader.loadUniformVector4fArray("contactPath", _contactPaths, count);
+                _vegetationShader.loadUniformVector4fArray("contactShape", _contactShapes, count);
+                MarkCells(start, count, origin);
+                _vegetationShader.loadUniformUVector2Array("contactCells", _cellBits, ContactCells * ContactCells);
 
                 renderEngine.ScreenQuadRenderer.Render(clearColor: false);
                 _vegetationIndex = 1 - _vegetationIndex;
             }
             _vegetationShader.unBind();
+        }
+
+        // Which cells of the region each of this pass's contacts can reach, everywhere along its way this step and as far as its edge stretches.
+        private void MarkCells(int start, int count, Vector2 origin)
+        {
+            Array.Clear(_cellBits);
+            float cell = VegetationSize / ContactCells;
+            for (int i = 0; i < count; i++)
+            {
+                VegetationContact contact = _contacts[start + i];
+                float reach = contact.radius * EdgeReach;
+                if (reach <= 0f) continue;
+                Vector2 least = Vector2.ComponentMin(contact.center, contact.previous) - new Vector2(reach) - origin;
+                Vector2 most = Vector2.ComponentMax(contact.center, contact.previous) + new Vector2(reach) - origin;
+                int x0 = Math.Clamp((int)MathF.Floor(least.X / cell), 0, ContactCells - 1), x1 = Math.Clamp((int)MathF.Floor(most.X / cell), 0, ContactCells - 1);
+                int z0 = Math.Clamp((int)MathF.Floor(least.Y / cell), 0, ContactCells - 1), z1 = Math.Clamp((int)MathF.Floor(most.Y / cell), 0, ContactCells - 1);
+                int word = i >> 5;
+                uint bit = 1u << (i & 31);
+                for (int z = z0; z <= z1; z++)
+                {
+                    for (int x = x0; x <= x1; x++) _cellBits[(z * ContactCells + x) * 2 + word] |= bit;
+                }
+            }
         }
 
         private static bool Inside(in VegetationContact contact, Vector2 origin)

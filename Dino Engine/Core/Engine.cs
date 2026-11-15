@@ -43,6 +43,9 @@ namespace Dino_Engine.Core
         public static Engine? Instance { get => _instance; }
         public static WindowHandler WindowHandler { get => _instance._windowHandler; }
         public static Vector2i Resolution { get => _instance._windowHandler.ClientSize; }
+        /// <summary>The size the scene is drawn at before it's put on the screen: the window's, times <see cref="Rendering.RenderEngine.RenderScale"/>. Everything in the
+        /// 3D pipeline is this size, and only the last pass (RenderEngine's upscale) and the GUI are the window's.</summary>
+        public static Vector2i RenderResolution { get => _instance._renderEngine?.ScaledSize(Resolution) ?? Resolution; }
         public static RenderEngine RenderEngine { get => _instance._renderEngine; }
         public static PerformanceMonitor PerformanceMonitor { get => _instance._performanceMonitor; }
         /// <summary>The engine's GUI. Add elements to <c>Engine.Gui.Root</c>; check <c>WantsMouse</c>/<c>WantsKeyboard</c> before reacting to input.</summary>

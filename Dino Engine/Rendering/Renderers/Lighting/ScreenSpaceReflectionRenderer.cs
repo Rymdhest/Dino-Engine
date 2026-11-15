@@ -96,7 +96,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             }
             _compositeShader.unBind();
 
-            _traceSize = TraceSize(Engine.Resolution);
+            _traceSize = TraceSize(Engine.RenderResolution);
 
             FrameBufferSettings raySettings = new FrameBufferSettings(_traceSize);
             raySettings.drawBuffers.Add(Attachment(FramebufferAttachment.ColorAttachment0, PixelInternalFormat.Rgba32f, PixelFormat.Rgba, TextureMinFilter.Nearest));
@@ -117,7 +117,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             _history[0].unbind();
 
             _sceneBlurFramebuffer = GL.GenFramebuffer();
-            CreateTextures(Engine.Resolution);
+            CreateTextures(Engine.RenderResolution);
         }
 
         private static DrawBufferSettings Attachment(FramebufferAttachment attachment, PixelInternalFormat format, PixelFormat external, TextureMinFilter filter)
@@ -185,7 +185,8 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             bool rays = settings.ScreenRays;
 
             Engine.PerformanceMonitor.startGPUTask("Reflection Inputs");
-            CopyScene(renderEngine);
+            // The blur is for the rays and for what falls (PrecipitationRenderer) alone: with neither, it's a copy of the screen nobody reads.
+            if (rays || PosGeometry.PrecipitationRenderer.Draws(renderEngine)) CopyScene(renderEngine);
             if (rays) BuildPyramid(renderEngine, Math.Clamp(settings.PyramidLevels - 1, 1, _pyramidTop));
             Engine.PerformanceMonitor.finishGPUTask("Reflection Inputs");
 
@@ -231,7 +232,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             _pyramidShader.bind();
             GL.ActiveTexture(TextureUnit.Texture0);
 
-            Vector2i size = Engine.Resolution;
+            Vector2i size = Engine.RenderResolution;
             GL.BindTexture(TextureTarget.Texture2D, renderEngine.GBuffer.getDepthAttachment());
             _pyramidShader.loadUniformInt("sourceLevel", -1);
             DispatchLevel(0, size);

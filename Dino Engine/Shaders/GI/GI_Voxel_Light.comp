@@ -120,9 +120,9 @@ void main()
         // Kept as it's stored, so that a voxel's light doesn't step by its rounding each time it's worked out again.
         for (int f = 0; f < 6; f++)
         {
-            uint packed = giPackRadiance(lit[f]);
-            giLampLight[lamp + uint(f)] = packed;
-            lit[f] = giUnpackRadiance(packed);
+            uint stored = giPackRadiance(lit[f]);
+            giLampLight[lamp + uint(f)] = stored;
+            lit[f] = giUnpackRadiance(stored);
         }
     }
 

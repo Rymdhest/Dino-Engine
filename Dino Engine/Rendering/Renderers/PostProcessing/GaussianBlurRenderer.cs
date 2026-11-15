@@ -24,7 +24,7 @@ namespace Dino_Engine.Rendering.Renderers.PostProcessing
 
             _downscalingFactor = downscalingFactor;
 
-            FrameBufferSettings settings = new FrameBufferSettings(Engine.Resolution / _downscalingFactor);
+            FrameBufferSettings settings = new FrameBufferSettings(Engine.RenderResolution / _downscalingFactor);
             DrawBufferSettings drawSettings = new DrawBufferSettings(FramebufferAttachment.ColorAttachment0);
             drawSettings.formatInternal = PixelInternalFormat.Rgba16f;
             //drawSettings.formatExternal = PixelFormat.Rgb;

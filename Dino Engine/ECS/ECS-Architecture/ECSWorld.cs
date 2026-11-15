@@ -110,6 +110,8 @@ namespace Dino_Engine.ECS.ECS_Architecture
             SingletonToEntity[typeof(T)] = entity;
         }
 
+        private readonly HashSet<uint> _destroyedThisBatch = new();
+
         public void ApplyDeferredCommands()
         {
             foreach (var cmd in deferredCommands.createEntityCommands)
@@ -121,8 +123,13 @@ namespace Dino_Engine.ECS.ECS_Architecture
             foreach (var cmd in deferredCommands.removeComponentCommands)
                 RemoveComponentFromEntityDirect(cmd.Entity, cmd.Type);
 
+            // One batch can ask for an entity twice, as clearing a world queues everything after a system has already queued some of it (the server
+            // stopped travelling out of the Haven so), and the second is a harmless repeat. A destroy of something that was never there still throws.
             foreach (var cmd in deferredCommands.removeEntityCommands)
-                DestroyEntityDirect(cmd.Entity);
+            {
+                if (_destroyedThisBatch.Add(cmd.Entity.Id)) DestroyEntityDirect(cmd.Entity);
+            }
+            _destroyedThisBatch.Clear();
 
             deferredCommands.Clear();
         }

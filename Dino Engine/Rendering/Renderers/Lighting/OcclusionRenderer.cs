@@ -54,7 +54,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting
             _denoiseShader.loadUniformInt("edges", 1);
             _denoiseShader.unBind();
 
-            CreateTextures(Engine.Resolution);
+            CreateTextures(Engine.RenderResolution);
         }
 
         private void CreateTextures(Vector2i size)
