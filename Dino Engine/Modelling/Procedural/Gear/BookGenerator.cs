@@ -8,6 +8,13 @@ namespace Dino_Engine.Modelling.Procedural.Gear
     {
         private const int PageSteps = 10;
 
+        /// <summary>The most pages a book is bound for, which is the most the game lets one hold: a book holding this many is as thick as any gets.</summary>
+        public const int MostPages = 6;
+
+        // Metres from board to board of a book holding one page and of one holding the most. A thin one still has room for its two boards and a block of pages between them.
+        private const float ThinBook = 0.11f;
+        private const float ThickBook = 0.66f;
+
         // What a book is made to, whichever way it's lying.
         private readonly record struct Cut(float Wide, float Tall, float Thick, float Board, float Inset, Section Flat, Model.VertexMaterial Cover);
 
@@ -23,7 +30,11 @@ namespace Dino_Engine.Modelling.Procedural.Gear
 
             // Bound in leather more often than not, and in cloth by those who couldn't run to it.
             Model.VertexMaterial cover = genes.Pick("cover", 3f, 2f, 1f) switch { 0 => palette.Leather, 1 => palette.Cloth, _ => palette.Trim };
-            return new Cut(size / shape, size * shape, genes.Range("thick", 0.14f, 0.5f), genes.Range("board", 0.028f, 0.05f), genes.Range("inset", 0.025f, 0.05f), flat, cover);
+            // As thick as the pages it holds, so a glance at the bar tells a book of one from a book of six, and a little either side of that, as no two are bound alike.
+            float thick = style.Spec.Pages > 0
+                ? (ThinBook + (ThickBook - ThinBook) * (Math.Clamp(style.Spec.Pages, 1, MostPages) - 1) / (MostPages - 1f)) * genes.Range("thick.binding", 0.94f, 1.06f)
+                : genes.Range("thick", 0.14f, 0.5f);
+            return new Cut(size / shape, size * shape, thick, genes.Range("board", 0.028f, 0.05f), genes.Range("inset", 0.025f, 0.05f), flat, cover);
         }
 
         public static void Build(GearMesh mesh, GearStyle style)

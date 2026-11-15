@@ -63,7 +63,7 @@ namespace Dino_GearLab
             float heavy = options.Float("heavy", 0f), leather = options.Float("leather", 0f), cloth = options.Float("cloth", 0f);
             var form = new GearForm(options.Float("size", 0.5f), options.Float("slender", 0.5f), options.Float("curve", 0.2f), options.Float("cover", 0.5f), options.Float("fancy", 0.4f), options.Float("worn", 0.2f));
             var theme = Enum.Parse<GearTheme>(options.Text("theme", "None"), ignoreCase: true);
-            return new GearSpec(seed, kind, heavy, leather, cloth, form, options.Int("grade", 2), theme, Level: options.Float("level", 0.5f));
+            return new GearSpec(seed, kind, heavy, leather, cloth, form, options.Int("grade", 2), theme, Level: options.Float("level", 0.5f), Pages: options.Int("pages", 0));
         }
 
         private static int Sheet(Options options)
@@ -99,7 +99,9 @@ namespace Dino_GearLab
             var kind = Enum.Parse<GearKind>(options.Text("kind", "Hands"), ignoreCase: true);
             int count = options.Int("count", 16);
             int seed = options.Int("seed", 1);
-            int columns = options.Int("columns", (int)MathF.Ceiling(MathF.Sqrt(count * 1.6f)));
+            // A ladder of books, as --ladder true: each row one book, bound for one page to the most along it, so that only how many it holds changes along a row.
+            bool ladder = options.Text("ladder", "false") == "true";
+            int columns = ladder ? BookGenerator.MostPages : options.Int("columns", (int)MathF.Ceiling(MathF.Sqrt(count * 1.6f)));
             int rows = (count + columns - 1) / columns;
             int tile = options.Int("tile", 160);
             const int shrink = 2;
@@ -112,7 +114,8 @@ namespace Dino_GearLab
             Vector3 background = new Vector3(0.05f, 0.045f, 0.04f);
             for (int i = 0; i < count; i++)
             {
-                GearMesh lying = GearDisplay.Lying(GearForge.Make(Spec(options, (ulong)(seed * 100000 + i + 1), kind)), kind);
+                GearSpec spec = ladder ? Spec(options, (ulong)(seed * 100000 + i / columns + 1), kind) with { Pages = i % columns + 1 } : Spec(options, (ulong)(seed * 100000 + i + 1), kind);
+                GearMesh lying = GearDisplay.Lying(GearForge.Make(spec), kind);
                 lying.Transform(turn);
                 render.Draw(lying.Build(bones: false), Matrix3.Identity);
                 render.Blit(sheet, columns * tile, i % columns * tile, i / columns * tile, shrink, background);

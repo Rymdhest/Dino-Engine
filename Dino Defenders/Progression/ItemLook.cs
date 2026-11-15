@@ -13,7 +13,8 @@ namespace Dino_Defenders.Progression
     public static class ItemLook
     {
         // What's said about a look, in one number: its base in seven bits, its grade, its theme, how much of each family it is as one place in a triangle (the three add up to one, so two
-        // of them are enough, and together they never pass it), its slot, its kind of weapon, whether it has families at all, and how far up the climb it's from.
+        // of them are enough, and together they never pass it), its slot, its kind of weapon, whether it has families at all, and how far up the climb it's from. A book has no family, so
+        // the triangle's bits say how many pages it holds instead, which is how thick it's bound.
         private const int BaseMask = 0x7F;
         private const int GradeBits = 7;
 
@@ -39,7 +40,7 @@ namespace Dino_Defenders.Progression
             return (uint)(ItemGenerator.NumberOf(ItemGenerator.BaseOf(item)) & BaseMask)
                 | (uint)(item.Rarity == Rarity.Unique ? UniqueGrade : (int)item.Rarity) << GradeBits
                 | (uint)ThemeOf(item) << ThemeBits
-                | (uint)SharesIndex(shares.Heavy, shares.Leather) << SharesBits
+                | (uint)(family ? SharesIndex(shares.Heavy, shares.Leather) : item.IsBook ? Math.Clamp(item.Places, 0, 0x7F) : 0) << SharesBits
                 | (uint)item.Slot << SlotBits
                 | (uint)item.Kind << KindBits
                 | (family ? 1u : 0u) << FamilyBit
@@ -89,14 +90,16 @@ namespace Dino_Defenders.Progression
             var kind = (WeaponKind)(traits >> KindBits & 7);
 
             float heavy = 0f, leather = 0f, cloth = 0f;
+            int pages = 0;
             if ((traits >> FamilyBit & 1) != 0)
             {
                 (heavy, leather) = SharesOf((int)(traits >> SharesBits & 0x7F));
                 cloth = MathF.Max(1f - heavy - leather, 0f);
             }
+            else if (slot == ItemSlot.Book) pages = (int)(traits >> SharesBits & 0x7F);
             bool both = slot == ItemSlot.MainHand && ItemGenerator.TakesTwoHands(baseName, kind);
             float level = (traits >> LevelBits & 15) / (float)LevelSteps;
-            return new GearSpec(seed, KindOf(slot, kind, both), heavy, leather, cloth, Forms.GetValueOrDefault(baseName, GearForm.Middling), grade, theme, Level: level);
+            return new GearSpec(seed, KindOf(slot, kind, both), heavy, leather, cloth, Forms.GetValueOrDefault(baseName, GearForm.Middling), grade, theme, Level: level, Pages: pages);
         }
 
         /// <param name="twoHanded">Whether a weapon takes both hands, which for a sword, an axe or a hammer is a shape of its own.</param>

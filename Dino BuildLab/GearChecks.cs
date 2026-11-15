@@ -477,6 +477,11 @@ namespace Dino_BuildLab
 
             // Written out, as a unique's look is grown from this number, and a save only keeps its seed: anything else gives every unique in every pack a different look.
             report.Check("A unique keeps the look it's always had", ItemLook.SpecOf(UniqueCatalog.Make(UniqueCatalog.All[0], 20, new WorldRandom(1))).Grade == 4);
+            // A book is bound as thick as the pages it holds, so its room has to come through the one number, and the engine's most has to be the game's.
+            var bound = Enumerable.Range(1, Rulebook.MostPages).Select(pages => ItemLook.SpecOf(new Item { Name = "Test", Slot = ItemSlot.Book, Held = new Item?[pages] }).Pages).ToArray();
+            var thickness = bound.Select(pages => Dino_Engine.Modelling.Procedural.Gear.GearForge.Make(new Dino_Engine.Modelling.Procedural.Gear.GearSpec(7, Dino_Engine.Modelling.Procedural.Gear.GearKind.Book, 0f, 0f, 0f, Dino_Engine.Modelling.Procedural.Gear.GearForm.Middling, 1, default, Pages: pages)).Vertices.Max(vertex => vertex.position.Y)).ToArray();
+            report.Check("A book's look knows how many pages it holds, and the more it holds the thicker it's bound", Dino_Engine.Modelling.Procedural.Gear.BookGenerator.MostPages == Rulebook.MostPages && bound.SequenceEqual(Enumerable.Range(1, Rulebook.MostPages))
+                && thickness.Zip(thickness.Skip(1)).All(pair => pair.Second > pair.First) && thickness[^1] > thickness[0] * 3f, string.Join(" ", thickness.Select(t => t.ToString("0.00"))));
             report.Check("And everything worn or held has a kind of look, which what goes in a book isn't", kinds.Count == Enum.GetValues<Dino_Engine.Modelling.Procedural.Gear.GearKind>().Count(kind => kind < Dino_Engine.Modelling.Procedural.Gear.GearKind.Book), $"{kinds.Count}");
 
             Item burning = new Item { Name = "Test", Slot = ItemSlot.MainHand, Lines = { new ItemLine("added-fire", 10f) } };

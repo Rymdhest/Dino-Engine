@@ -19,7 +19,9 @@ namespace Dino_GearLab
             var form = new GearForm(random.Float(), random.Float(), random.Float(), random.Float(), random.Float(), random.Float());
             // Every level of the climb, the top of it as often as any, as that's where a piece has the most on it.
             float level = random.Fork("level").Float();
-            return new GearSpec(seed, kind, a, b, 1f - a - b, form, random.Int(5), (GearTheme)random.Int(6), Level: level);
+            // A book bound for anything from one page to the most, as a thin one and a thick one are the hard cases.
+            int pages = kind is GearKind.Book or GearKind.OpenBook ? 1 + random.Fork("pages").Int(BookGenerator.MostPages) : 0;
+            return new GearSpec(seed, kind, a, b, 1f - a - b, form, random.Int(5), (GearTheme)random.Int(6), Level: level, Pages: pages);
         }
 
         public static int Run(Options options)

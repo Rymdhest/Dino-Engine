@@ -310,7 +310,7 @@ Choices made without asking, as none of them block anything. Say if any are wron
 
 ## Books and what's thrown
 
-A book is gear like anything else: one mesh from `BookGenerator`, by `GearKind.Book`, in the pack, on the bar and on the ground. `Item.LookSeed` says how it looks, and nothing written in it does.
+A book is gear like anything else: one mesh from `BookGenerator`, by `GearKind.Book`, in the pack, on the bar and on the ground. `Item.LookSeed` says how it looks, and nothing written in it does, but for how many pages it holds: it's bound as thick as that, from a thin book for one page to a really thick one for six (`GearSpec.Pages`, carried in `ItemLook.Traits` where a book's family would be, `BookGenerator.MostPages`, which `Dino BuildLab check` holds to `Rulebook.MostPages`). `Dino GearLab icons --kind Book --ladder true` shows each book bound for one page to six along a row.
 
 The one that's being read shows open, wherever it shows (`BookPanel.IsOpen`, `Ui.DrawItem`). That's the only other mesh anything has: `GearKind.OpenBook` draws from the genes of `Book`, by the same names, so it's the same book laid open and `check` fails if it isn't. No item is ever that kind, so nothing but `Wardrobe.Picture` asks for it, and until there's a picture of it the shut one shows.
 
