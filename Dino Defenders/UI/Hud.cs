@@ -159,6 +159,7 @@ namespace Dino_Defenders.UI
                         GuiRect bar = new GuiRect(over.X - 22f, over.Y, 44f, 4f);
                         draw.AddRect(bar, GuiColors.Rgba(0, 0, 0, 170));
                         draw.AddRect(new GuiRect(bar.X, bar.Y, bar.Width * share, bar.Height), Ui.Good);
+                        DrawBarrier(draw, bar, health);
 
                         // A Minion that pays for its book shows what it has left to pay with, under its Health.
                         if (entity.Has<ManaComponent>())
@@ -178,14 +179,14 @@ namespace Dino_Defenders.UI
                     float height = 5.4f * entity.Get<ScaleComponent>().value.Y;
                     if (enemy.Rarity == Rarity.Unique)
                     {
-                        bool engaged = enemy.State != EnemyState.Idle || share < 1f;
-                        if (engaged && (position.Xz - session.PlayerPosition).Length < BossRange) DrawBossBar(draw, enemy, share, screen);
+                        bool engaged = enemy.State != EnemyState.Idle || health.Hurt;
+                        if (engaged && (position.Xz - session.PlayerPosition).Length < BossRange) DrawBossBar(draw, enemy, health, share, screen);
                         if (sought && Project(position + Vector3.UnitY * height, screen, out Vector2 over)) DrawSought(draw, over, entity.Entity.Id);
                         continue;
                     }
 
                     bool marked = enemy.Rarity != Rarity.Normal;
-                    if (share >= 1f && !marked && !sought) continue;
+                    if (!health.Hurt && !marked && !sought) continue;
 
                     if (!Project(position + Vector3.UnitY * height, screen, out Vector2 at)) continue;
                     if (sought) DrawSought(draw, new Vector2(at.X, at.Y - (marked ? 22f : 4f)), entity.Entity.Id);
@@ -194,6 +195,7 @@ namespace Dino_Defenders.UI
                     GuiRect back = new GuiRect(at.X - width * 0.5f, at.Y, width, 5f);
                     draw.AddRect(back, GuiColors.Rgba(0, 0, 0, 170));
                     draw.AddRect(new GuiRect(back.X, back.Y, back.Width * share, back.Height), Ui.Blood);
+                    DrawBarrier(draw, back, health);
                     if (marked) Ui.Text(Context!, draw, enemy.Name, 13f, new GuiRect(back.X - 60f, back.Y - 18f, width + 120f, 16f), Ui.RarityColour(enemy.Rarity), Alignment.Center);
                 }
             }
@@ -355,13 +357,26 @@ namespace Dino_Defenders.UI
             Ui.Text(Context!, draw, text, 12.5f, new GuiRect(Bounds.Width - 200f - Margin, Bounds.Height - Margin - 16f, 200f, 16f), Ui.Faded, Alignment.End);
         }
 
-        private void DrawBossBar(GuiDrawList draw, in EnemyComponent enemy, float share, GuiRect screen)
+        private void DrawBossBar(GuiDrawList draw, in EnemyComponent enemy, in HealthComponent health, float share, GuiRect screen)
         {
             float width = MathF.Min(screen.Width * 0.46f, 620f);
             GuiRect bar = new GuiRect((screen.Width - width) * 0.5f, Margin + 26f, width, 10f);
             Ui.Text(Context!, draw, enemy.Name, 19f, new GuiRect(bar.X, Margin, bar.Width, 24f), Ui.Parchment, Alignment.Center);
             draw.AddRect(bar, GuiColors.Rgba(0, 0, 0, 180), 2f, 1f, GuiColors.Rgba(120, 96, 58));
             draw.AddRect(new GuiRect(bar.X + 1f, bar.Y + 1f, (bar.Width - 2f) * share, bar.Height - 2f), Ui.Blood, 1f);
+            DrawBarrier(draw, new GuiRect(bar.X + 1f, bar.Y + 1f, bar.Width - 2f, bar.Height - 2f), health, 1f);
+        }
+
+        /// <summary>
+        /// Barrier along the top of what a bar fills, in the hero's own Barrier's colour and place, so that what's warded reads at a glance. It covers no more than half the bar, so
+        /// the Health under it still reads on the thinnest.
+        /// </summary>
+        private static void DrawBarrier(GuiDrawList draw, GuiRect fill, in HealthComponent health, float rounding = 0f)
+        {
+            float shield = health.BarrierShare;
+            if (shield <= 0f) return;
+            float height = MathF.Min(BarrierHeight, MathF.Max(MathF.Floor(fill.Height * 0.5f), 1f));
+            draw.AddRect(new GuiRect(fill.X, fill.Y, fill.Width * shield, height), Ui.Barrier, rounding);
         }
 
         private void DrawFloatingTexts(GuiDrawList draw, GameSession session, GuiRect screen)

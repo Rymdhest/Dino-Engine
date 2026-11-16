@@ -150,9 +150,10 @@ namespace Dino_Defenders.Server
 
                     // This is how everyone else sees it, the dead included: it's what tells a friend's client that a hero has fallen.
                     HealthComponent health = healths[i];
-                    if (health.Current != actor.Vitals.Health || health.Max != actor.Sheet.MaxHealth)
+                    float barrier = MathF.Max(actor.Vitals.Barrier, 0f);
+                    if (health.Current != actor.Vitals.Health || health.Max != actor.Sheet.MaxHealth || health.Barrier != barrier || health.MaxBarrier != actor.Sheet.MaxBarrier)
                     {
-                        healths[i] = new HealthComponent { Current = actor.Vitals.Health, Max = actor.Sheet.MaxHealth };
+                        healths[i] = new HealthComponent { Current = actor.Vitals.Health, Max = actor.Sheet.MaxHealth, Barrier = barrier, MaxBarrier = actor.Sheet.MaxBarrier };
                     }
 
                     if (manas != null && (manas[i].Current != actor.Vitals.Mana || manas[i].Max != actor.Sheet.MaxMana))

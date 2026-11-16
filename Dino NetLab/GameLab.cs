@@ -501,6 +501,7 @@ namespace Dino_NetLab
             UsingThings(report, worlds);
             ClickingToUse(report, worlds);
             NewComponentNeedsNoCode(report, worlds, request);
+            BarrierIsSeen(report, worlds, request);
 
             return report.Finish();
         }
@@ -1640,6 +1641,53 @@ namespace Dino_NetLab
             lab.Server.Ecs.RemoveComponentFromEntity(victim.Value, typeof(LabChilledComponent));
             lab.Run(1.5);
             report.Check("And goes when it wears off", !player.Ecs.HasComponent<LabChilledComponent>(ghost.Entity));
+        }
+
+        // A warded foe's Barrier goes to everyone with its Health, as its bar shows it along the top, and a Barrier knocked down with its Health still whole shows the bar.
+        private static void BarrierIsSeen(Report report, WorldCache worlds, WorldRequest request)
+        {
+            using var lab = new GameLab(worlds, request);
+            LabPlayer player = lab.AddPlayer("Hero", new NetworkConditions { Latency = 60, Jitter = 10, LossChance = 0.02 }, 71);
+            player.Fights = false;
+            lab.Run(4);
+
+            GameServer server = lab.Server;
+            Vector2 at = server.Heroes[0].Sim.Position + new Vector2(10f, 0f);
+            int warded = Bestiary.Trait(Array.FindIndex(Bestiary.Traits, trait => trait.Name == "Warded"));
+            var kind = new EnemyKind { Id = "lab-warded", Name = "Warded Dead", Books = new[] { Shelf.Strike, Shelf.Shot }, Weapon = Tags.Bow, Health = 2000f, Damage = 0.01f, MoveSpeed = 6f };
+            Loadout loadout = server.Session!.Bestiary.Shared(kind, 1, Rarity.Magic, warded);
+            var actor = new Actor(Team.Enemies, loadout, at, 1.1f) { Body = "skeleton", Site = server.Session.Sites[0] };
+            report.Check("A warded foe has Barrier to show", actor.Sheet.MaxBarrier > 1f, $"{actor.Sheet.MaxBarrier:0.0}");
+            if (actor.Sheet.MaxBarrier <= 1f) return;
+
+            actor.Vitals.Barrier = actor.Sheet.MaxBarrier;
+            actor.Entity = server.Ecs.CreateEntity(Bodies.Walking(server.Main, "skeleton", new Vector3(at.X, 0f, at.Y), 1f, 1.5f,
+                new EnemyComponent { Name = "Warded Dead", Rarity = Rarity.Magic, Level = 1 },
+                new EnemyBrainComponent { SiteIndex = 0, SpawnIndex = -1, Home = at, AggroRadius = 200f, LeashRadius = 500f, Experience = 0 },
+                new HealthComponent(actor.Sheet.MaxHealth), new ActionComponent(), new AfflictedComponent(), new ActorComponent(actor)));
+            // It's only made at the end of a tick, so what it's known by can't be asked until then.
+            lab.Run(1.5);
+            uint ghostId = server.Ecs.GetComponent<NetIdentityComponent>(actor.Entity).Id;
+
+            HealthComponent? Seen() => player.Client.Ghosts.Ghosts.GetValueOrDefault(ghostId) is Ghost ghost && player.Ecs.HasComponent<HealthComponent>(ghost.Entity)
+                ? player.Ecs.GetComponent<HealthComponent>(ghost.Entity) : null;
+
+            HealthComponent? full = Seen();
+            report.Check("A client sees its whole Barrier", full is { } f && MathF.Abs(f.MaxBarrier - actor.Sheet.MaxBarrier) < 0.3f && f.BarrierShare > 0.99f && !f.Hurt,
+                full is { } a ? $"{a.Barrier:0.0} of {a.MaxBarrier:0.0}, {actor.Sheet.MaxBarrier:0.0} on the server" : "no ghost");
+
+            // Nothing recharges it for a while, as if it had just been hit.
+            actor.SinceHit = -100f;
+            actor.Vitals.Barrier = actor.Sheet.MaxBarrier * 0.5f;
+            lab.Run(1.5);
+            HealthComponent? half = Seen();
+            report.Check("And half of it once half is taken, with its Health still whole and its bar shown", half is { } h && MathF.Abs(h.BarrierShare - 0.5f) < 0.02f && h.Current >= h.Max && h.Hurt,
+                half is { } b ? $"{b.BarrierShare:0.00} of the bar, Health {b.Current:0}/{b.Max:0}" : "no ghost");
+
+            actor.Vitals.Barrier = 0f;
+            lab.Run(1.5);
+            HealthComponent? none = Seen();
+            report.Check("And none once it's broken", none is { } n && n.BarrierShare == 0f, none is { } c ? $"{c.Barrier:0.0}" : "no ghost");
         }
     }
 }

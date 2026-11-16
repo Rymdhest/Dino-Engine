@@ -22,11 +22,21 @@ namespace Dino_Defenders.Gameplay
         [NetStep(0.25f), NetSnap] public float Current;
         [NetStep(0.25f), NetSnap] public float Max;
 
+        /// <summary>Barrier, which goes before Health, so that a bar over anyone can show it along its top as the hero's own does. Nothing for whoever has none.</summary>
+        [NetStep(0.25f), NetSnap] public float Barrier;
+        [NetStep(0.25f), NetSnap] public float MaxBarrier;
+
         public HealthComponent(float max)
         {
             Current = max;
             Max = max;
         }
+
+        /// <summary>How much of a bar its Barrier covers, the whole of it if it's somehow over its most.</summary>
+        public readonly float BarrierShare => Barrier > 0f ? Math.Clamp(Barrier / MathF.Max(MaxBarrier, Barrier), 0f, 1f) : 0f;
+
+        /// <summary>Whether anything has been taken off it, Health or Barrier.</summary>
+        public readonly bool Hurt => Current < Max || Barrier < MaxBarrier;
     }
 
     /// <summary>How much Mana something has to pay for what it does, for its bar: only a Minion that's been given a book has one, as nothing else that isn't a hero pays for anything.</summary>
