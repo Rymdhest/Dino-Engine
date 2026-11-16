@@ -825,7 +825,11 @@ namespace Dino_NetLab
                 if (session.IsArena) report.Check("And as many as its gates can let in, with larger packs", told.MostThroughGates > 0 && told.MostThroughGates == LandCensus.Of(session.World, session.Terms).MostThroughGates);
                 if (session.Terms.Has(OrdersCatalog.Writ))
                 {
-                    int tyrants = scene.Members(session.Sites.First(s => s.Site.Kind == SiteKind.Keep)).Count(a => a.Tyrant);
+                    // Back at the keep, as its people are only there while someone is near them, and the packs looked at last can be anywhere.
+                    SiteState keep = session.Sites.First(s => s.Site.Kind == SiteKind.Keep);
+                    scene.Go(keep.Site.Position);
+                    scene.Lab.Run(1.5);
+                    int tyrants = scene.Members(keep).Count(a => a.Tyrant);
                     report.Check("And as many as can rise again, which is all but the tyrant", told.MostRisen == told.Enemies - tyrants && tyrants == 1, $"{told.MostRisen} of {told.Enemies}");
                 }
             }

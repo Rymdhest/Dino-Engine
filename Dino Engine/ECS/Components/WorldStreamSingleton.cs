@@ -26,8 +26,8 @@ namespace Dino_Engine.ECS.Components
         /// <summary>The live ground cover entities of each terrain chunk, keyed like <see cref="TerrainQuadTreeSingleton.Chunks"/>.</summary>
         public Dictionary<Vector2i, List<Entity>> ChunkPlants = new();
 
-        /// <summary>What each asset is, by index like <see cref="ObjectModels"/>, if it's loose clutter that breaks (<see cref="StructureDefinition.Loose"/>), or null.</summary>
-        public StructureDefinition?[] ObjectLoose;
+        /// <summary>What each asset breaks into, by index like <see cref="ObjectModels"/>, if it's clutter that breaks (<see cref="Hitboxes.BreaksAs"/>), or null.</summary>
+        public LooseKind?[] ObjectLoose;
 
         /// <summary>Loose clutter standing as an entity now, by <see cref="Key"/>.</summary>
         public Dictionary<long, LooseObject> Loose = new();
@@ -46,12 +46,12 @@ namespace Dino_Engine.ECS.Components
             Skins = new RockSkinStream(world);
             ObjectModels = new glModel[world.Objects.AssetIds.Count];
             ObjectLights = new IReadOnlyList<AssetLight>[ObjectModels.Length];
-            ObjectLoose = new StructureDefinition?[ObjectModels.Length];
+            ObjectLoose = new LooseKind?[ObjectModels.Length];
             for (int i = 0; i < ObjectModels.Length; i++)
             {
                 ObjectModels[i] = assets.Get(world.Objects.AssetIds[i]);
                 ObjectLights[i] = assets.LightsOf(world.Objects.AssetIds[i]);
-                if (StructureCatalog.TryGetPlain(world.Objects.AssetIds[i], out StructureDefinition definition) && definition.Loose) ObjectLoose[i] = definition;
+                ObjectLoose[i] = Hitboxes.BreaksAs(world.Objects.AssetIds[i]);
             }
         }
 
@@ -60,5 +60,5 @@ namespace Dino_Engine.ECS.Components
     }
 
     /// <summary>A piece of loose clutter standing in the world, as <see cref="Systems.BreakageSystem"/> needs it.</summary>
-    public readonly record struct LooseObject(Entity Entity, Vector2i Sector, Vector3 Position, Quaternion Rotation, Vector3 Scale, StructureDefinition Definition);
+    public readonly record struct LooseObject(Entity Entity, Vector2i Sector, Vector3 Position, Quaternion Rotation, Vector3 Scale, LooseKind Kind);
 }

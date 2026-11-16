@@ -25,10 +25,14 @@ namespace Dino_Engine.World
             World = world;
         }
 
-        /// <summary>Where a character at <paramref name="from"/>, asking for <paramref name="wanted"/> metres a second, ends up.</summary>
+        /// <summary>
+        /// Where a character at <paramref name="from"/>, asking for <paramref name="wanted"/> metres a second, ends up. <paramref name="radius"/> is how far its body reaches, and
+        /// what's solid meets it at its shoulders (<see cref="WorldData.WorldRadius"/>), so it goes through any gap it looks as if it would.
+        /// </summary>
         public Vector2 Move(Vector2 from, Vector2 wanted, float radius, float deltaTime)
         {
             if (wanted.LengthSquared < 1e-6f) return from;
+            radius = WorldData.WorldRadius(radius);
 
             wanted *= SpeedFactor(from, wanted, World.WaterDepthAt(from));
             Vector2 next = Slide(from + wanted * deltaTime, radius);

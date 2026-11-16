@@ -204,7 +204,7 @@ namespace Dino_Engine.ECS.Systems
                 {
                     WorldObject item = objects[i];
                     long key = WorldStreamSingleton.Key(sector, i);
-                    StructureDefinition? loose = stream.ObjectLoose[item.Asset];
+                    LooseKind? loose = stream.ObjectLoose[item.Asset];
                     if (loose != null && stream.Broken.Contains(key)) continue;
 
                     Entity entity = SpawnModel(stream.ObjectModels[item.Asset], item.Position, item.Rotation, item.Scale, world, grid);

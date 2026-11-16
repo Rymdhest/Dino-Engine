@@ -80,8 +80,8 @@ namespace Dino_Engine.World.Generation
             world.Walkable = walkable;
         }
 
-        // Where a character of ordinary width can really get to: walkable ground, around everything solid, flooded out from the
-        // landing. Enemies path over this, and a spawn that ends up off it could never be reached by anyone.
+        // Where a character of ordinary width can really get to: walkable ground, around everything solid as their shoulders meet it (WorldData.ShoulderRadius), flooded out from
+        // the landing. Enemies path over this, and a spawn that ends up off it could never be reached by anyone.
         private static void BuildPassable(WorldData world)
         {
             ByteField passable = ByteField.ForWorld(world.Size, WorldData.PassCell);
@@ -101,7 +101,7 @@ namespace Dino_Engine.World.Generation
             world.Placement.ForEach((footprint, layer, solid) =>
             {
                 if (!solid) return;
-                float reach = footprint.BoundingRadius + WorldData.CharacterRadius;
+                float reach = footprint.BoundingRadius + WorldData.ShoulderRadius;
                 int minX = Math.Max((int)((footprint.Centre.X - reach) / cell), 0);
                 int maxX = Math.Min((int)((footprint.Centre.X + reach) / cell) + 1, width - 1);
                 int minZ = Math.Max((int)((footprint.Centre.Y - reach) / cell), 0);
@@ -110,7 +110,7 @@ namespace Dino_Engine.World.Generation
                 {
                     for (int x = minX; x <= maxX; x++)
                     {
-                        if (footprint.Overlaps(Footprint.Circle(new Vector2(x, z) * cell, WorldData.CharacterRadius))) blocked[z * width + x] = true;
+                        if (footprint.Overlaps(Footprint.Circle(new Vector2(x, z) * cell, WorldData.ShoulderRadius))) blocked[z * width + x] = true;
                     }
                 }
             });

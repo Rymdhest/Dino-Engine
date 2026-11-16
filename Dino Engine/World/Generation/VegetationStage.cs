@@ -22,7 +22,7 @@ namespace Dino_Engine.World.Generation
         private const float BoulderSpacing = 7f;
         private const float OutcropSpacing = 24f;
         private const float RunoutSpacing = 5f;
-        private const float SolidFrom = 0.45f;  // Metres a stone stands out of the ground before anyone has to go round it.
+        private const float SolidFrom = Hitboxes.StepOver;  // Metres a stone stands out of the ground before anyone has to go round it: anything lower is stepped over.
         private const float LowSolidHeight = 1.6f;  // How tall a boulder or a fallen trunk is, for its width.
         private const float MinAboveWater = 0.55f;
         private const float MaxTreeSlope = 0.8f;
@@ -154,7 +154,7 @@ namespace Dino_Engine.World.Generation
                 Footprint footprint = Footprint.Circle(point, reach);
                 if (placement.Overlaps(footprint, Avoid) || TouchesSolid(placement, point, reach)) continue;
                 placement.Add(footprint, PlacementLayer.Rock);
-                placement.Add(Footprint.Circle(point, asset.SolidRadius * scale * 0.85f), PlacementLayer.None, solid: true, height: asset.SolidRadius * scale * LowSolidHeight);
+                Solid(placement, Footprint.Circle(point, asset.SolidRadius * scale * 0.85f), asset.SolidRadius * scale * LowSolidHeight);
                 Quaternion rotation = Quaternion.FromAxisAngle(Vector3.UnitY, turn * MathF.Tau) * Quaternion.FromAxisAngle(Vector3.UnitX, (pick * 4.7f % 1f - 0.5f) * 0.7f);
                 objects.Add(NatureCatalog.ModelAt(asset, world.Plan.Seed, point), new Vector3(point.X, world.Height.Sample(point) - 0.25f * scale, point.Y), rotation, new Vector3(scale));
             }
@@ -415,10 +415,16 @@ namespace Dino_Engine.World.Generation
                     float height = asset.SolidRadius * scale * LowSolidHeight;
                     Vector2 along = new Vector2(MathF.Cos(yaw), -MathF.Sin(yaw)) * (asset.SolidLength * scale * 0.5f);
                     Footprint solid = asset.SolidLength > 0f ? Footprint.Segment(point - along, point + along, asset.SolidRadius * scale) : Footprint.Circle(point, asset.SolidRadius * scale);
-                    placement.Add(solid, PlacementLayer.None, solid: true, height: height);
+                    Solid(placement, solid, height);
                 }
                 AddPlant(world, objects, asset, point, scale, yaw, sink: 0.1f);
             }
+        }
+
+        // A stone or a fallen trunk is solid where it lies if it stands taller than a knee, and stepped over if it doesn't (Hitboxes.StepOver).
+        private static void Solid(PlacementIndex placement, in Footprint footprint, float height)
+        {
+            if (height >= Hitboxes.StepOver) placement.Add(footprint, PlacementLayer.None, solid: true, height: height);
         }
 
         private static void PlaceBoulders(WorldData world, WorldObjects objects, WorldRandom random, WorldNoise patches)
@@ -448,7 +454,7 @@ namespace Dino_Engine.World.Generation
                 if (TouchesSolid(placement, point, asset.Footprint * scale)) continue;
 
                 placement.Add(footprint, PlacementLayer.Rock);
-                placement.Add(Footprint.Circle(point, asset.SolidRadius * scale * 0.85f), PlacementLayer.None, solid: true, height: asset.SolidRadius * scale * LowSolidHeight);
+                Solid(placement, Footprint.Circle(point, asset.SolidRadius * scale * 0.85f), asset.SolidRadius * scale * LowSolidHeight);
 
                 float height = world.Height.Sample(point) - 0.25f * scale;
                 Quaternion rotation = Quaternion.FromAxisAngle(Vector3.UnitY, random.Float() * MathF.Tau);

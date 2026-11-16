@@ -160,10 +160,10 @@ namespace Dino_Engine.World.Content
         // What stands about a farm and a yard, by the style a place builds in (SettlementStage.YardClutter), and the street lights of the styles that don't hang a lantern on a post.
         public static readonly StructureDefinition Hives = Prop("hives", 2.3f, 0.9f, 2.1f);
         public static readonly StructureDefinition Trough = Prop("trough", 2.2f, 0.75f, 1.1f);
-        public static readonly StructureDefinition Barrow = Prop("barrow", 0.75f, 1.75f, 1.3f);
-        public static readonly StructureDefinition Sacks = Prop("sacks", 1.25f, 1.25f, 1.3f);
+        public static readonly StructureDefinition Barrow = Prop("barrow", 0.75f, 1.75f, 1.3f, loose: true);
+        public static readonly StructureDefinition Sacks = Prop("sacks", 1.25f, 1.25f, 1.3f, loose: true);
         public static readonly StructureDefinition Oven = Round("oven", 1.9f, 2.3f);
-        public static readonly StructureDefinition Jars = Prop("jars", 1.35f, 1.05f, 2f);
+        public static readonly StructureDefinition Jars = Prop("jars", 1.35f, 1.05f, 2f, loose: true);
         public static readonly StructureDefinition Laundry = Prop("laundry", 3.5f, 0.35f, Thin, solid: false);
         public static readonly StructureDefinition Coop = Prop("coop", 1.7f, 1.6f, 2.6f);
         public static readonly StructureDefinition PillarLamp = Round("lamp.pillar", 0.4f, Thin);

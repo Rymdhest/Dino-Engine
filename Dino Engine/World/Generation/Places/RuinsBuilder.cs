@@ -66,13 +66,14 @@ namespace Dino_Engine.World.Generation.Places
                     // A doorway is walked through: its wall is solid either side of it only. Each stretch's solid stops short of its ends, so that it never touches the next one's,
                     // or the one round a corner, with a gap between them nobody can get through.
                     const float Short = 0.8f;
+                    bool solid = height >= Hitboxes.StepOver;   // What's down to its footings is stepped over.
                     if (gap == 1)
                     {
                         Vector2 wa = W(mid - along * (each * 0.5f - Short)), wb = W(mid - along * 0.85f), wc = W(mid + along * 0.85f), wd = W(mid + along * (each * 0.5f - Short));
-                        World.Placement.Add(Footprint.Segment(wa, wb, 0.45f), PlacementLayer.Structure, solid: true, height: height);
-                        World.Placement.Add(Footprint.Segment(wc, wd, 0.45f), PlacementLayer.Structure, solid: true, height: height);
+                        World.Placement.Add(Footprint.Segment(wa, wb, 0.45f), PlacementLayer.Structure, solid, height);
+                        World.Placement.Add(Footprint.Segment(wc, wd, 0.45f), PlacementLayer.Structure, solid, height);
                     }
-                    else World.Placement.Add(Footprint.Segment(W(mid - along * (each * 0.5f - Short)), W(mid + along * (each * 0.5f - Short)), 0.45f), PlacementLayer.Structure, solid: true, height: height);
+                    else World.Placement.Add(Footprint.Segment(W(mid - along * (each * 0.5f - Short)), W(mid + along * (each * 0.5f - Short)), 0.45f), PlacementLayer.Structure, solid, height);
                     World.Pending.Add(new PendingObject(new PlaceSpec(PlacePiece.RuinWall, NextSeed(), Stone(PlaceSpec.Cm(each + 0.02f), PlaceSpec.Cm(height), gap)).Id, W(mid), yaw, Vector3.One, null));
                 }
             }

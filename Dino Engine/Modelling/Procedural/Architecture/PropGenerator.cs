@@ -116,6 +116,25 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
                         Piece(b => b.Box(Vector3.Zero, new Vector3(0.7f, 0.06f, 0.07f), DarkWood)),
                     };
                 }
+                case "sacks":
+                {
+                    VertexMaterial cloth = Cloth(164, 140, 104);
+                    return new[]
+                    {
+                        Piece(b => b.Box(Vector3.Zero, new Vector3(0.42f, 0.02f, 0.3f), cloth)),
+                        Piece(b => b.Box(Vector3.Zero, new Vector3(0.28f, 0.02f, 0.22f), Cloth(150, 126, 92))),
+                        Piece(b => b.Box(Vector3.Zero, new Vector3(0.1f, 0.06f, 0.08f), Cloth(196, 172, 118))),
+                    };
+                }
+                case "jars":
+                {
+                    return new[]
+                    {
+                        Piece(b => b.Box(Vector3.Zero, new Vector3(0.32f, 0.04f, 0.22f), Clay(191, 112, 77))),
+                        Piece(b => b.Box(Vector3.Zero, new Vector3(0.2f, 0.04f, 0.16f), Clay(179, 102, 69))),
+                        Piece(b => b.Box(Vector3.Zero, new Vector3(0.13f, 0.035f, 0.1f), Clay(204, 133, 89))),
+                    };
+                }
                 default: throw new ArgumentException($"'{definition.Id}' doesn't break.");
             }
         }

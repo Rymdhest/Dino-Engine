@@ -242,10 +242,13 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Places
         }
 
         /// <summary>A vat of the growing broth: staves banded in brass on a stone base, a glass window in its side glowing amber, a ladder up to its lid and its hatch, and pipes off its top.</summary>
+        /// <summary>How wide a vat is, as <see cref="Vat"/> draws it first from its stream, for what's solid about it (Hitboxes): keep the two in step.</summary>
+        public static float VatRadius(in PlaceSpec spec) => Math.Clamp(spec.Metres(0), 3f, 9f) * new WorldRandom(spec.Seed).Fork(spec.Kind.ToString()).Range(0.28f, 0.36f);
+
         public static void Vat(MeshBuilder b, in PlaceSpec spec, WorldRandom random, List<AssetLight> lights)
         {
             float h = Math.Clamp(spec.Metres(0), 3f, 9f);
-            float r = h * random.Range(0.28f, 0.36f);
+            float r = h * random.Range(0.28f, 0.36f);   // VatRadius draws the same: keep them in step.
             VertexMaterial staves = Timber(random, 0.55f), brass = Brass(random), iron = Iron(random);
             Kit.Lathe(b, new Vector3(0f, -0.4f, 0f), Vector3.UnitY, 1.2f, Kit.Profile((0f, r + 0.6f), (1f, r + 0.5f)), 10, 1, Dressed(new Vector3(0.28f, 0.28f, 0.29f), random));
             Kit.Lathe(b, new Vector3(0f, 0.8f, 0f), Vector3.UnitY, h, Kit.Profile((0f, r), (0.5f, r * 1.04f), (1f, r * 0.97f)), 14, 4, staves);

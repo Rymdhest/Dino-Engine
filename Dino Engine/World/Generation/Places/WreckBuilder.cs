@@ -156,7 +156,8 @@ namespace Dino_Engine.World.Generation.Places
                 float yawMast = SiteBuilder.YawFacing(way);
                 Footprint f = Footprint.Box(mid, new Vector2(0.45f, length * 0.5f), yawMast);
                 if (!Ground(f, 0.45f, 1.2f) || !Clear(f, PlacementLayer.Built | PlacementLayer.Road, 0.3f)) continue;
-                World.Placement.Add(f, PlacementLayer.Prop, solid: true, height: 0.9f);
+                // It lies lower than a knee, and is stepped over (Hitboxes): its ground is kept for it.
+                World.Placement.Add(f, PlacementLayer.Prop, solid: false, height: 0.9f);
                 World.Pending.Add(new PendingObject(new PlaceSpec(PlacePiece.Mast, NextSeed(), PlaceSpec.Cm(length), _reich ? 1 : 0).Id, foot, yawMast, Vector3.One, null));
                 return;
             }
@@ -239,8 +240,9 @@ namespace Dino_Engine.World.Generation.Places
                 float yaw = SiteBuilder.YawFacing(toSea.LengthSquared > 0.01f ? toSea : Plan.Az);
                 // Its legs are posts: walked round, and in nobody's way in the air.
                 if (!Ground(Footprint.Circle(at, 2.5f), 0.45f, 1f) || !Clear(Footprint.Circle(at, 2.5f), PlacementLayer.Built | PlacementLayer.Road, 0.3f)) continue;
-                World.Placement.Add(Footprint.Circle(at, 2.5f), PlacementLayer.Prop, solid: true, height: 0f);
-                World.Pending.Add(new PendingObject(new PlaceSpec(PlacePiece.Salvage, NextSeed(), PlaceSpec.Cm(r.Range(7f, 9f))).Id, at, yaw, Vector3.One, null));
+                var salvage = new PlaceSpec(PlacePiece.Salvage, NextSeed(), PlaceSpec.Cm(r.Range(7f, 9f)));
+                LayOut(salvage, at, yaw, Footprint.Circle(at, 2.5f), PlacementLayer.Prop, 0f);
+                World.Pending.Add(new PendingObject(salvage.Id, at, yaw, Vector3.One, null));
                 break;
             }
             // The camp, up the beach.

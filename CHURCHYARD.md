@@ -95,7 +95,7 @@ Measured on 2026-11-14 at 3440 x 1369 with another copy of the game open: about 
 **Nobody has walked through a churchyard, fought in one or seen one move.** It was judged from stills by day and by night in two lands. Open:
 
 - **The church from the ground.** Only the game's camera and a few lower looks; a close look may show seams where a roof meets a wall, a cope meets a roof or an apse's facets meet.
-- **Fights among the graves.** Stones are walked round but stop no blow (`Sight.Above`), as a post doesn't; chest tombs, mausoleums, the cross and the church do. Whether lanes between rows are wide enough to fight in has only been reasoned about.
+- **Fights among the graves.** A grave is walked over, and so is any stone a person could step over or brush through, a tablet, a slab, a book or what's left of one, as a person found they couldn't get about a churchyard for its low stones (`Hitboxes.Of`); a cross is a post, an obelisk, a chest tomb and an opened grave's pit are walked round. None of them stops a blow but the obelisk (`Sight.Above`, a person's hip); mausoleums and the church do. Whether lanes between rows are wide enough to fight in has only been reasoned about.
 - **The church hides whoever's behind it**, as any building does, and nothing opens for the focus cutout (`FocusCutout`'s whitelist).
 - **Inscriptions** aren't there: a line of lettering is under a pixel from the camera.
 - **The undead camps in the wild** use the same stones, tombs and opened graves now, and nothing else about them changed.

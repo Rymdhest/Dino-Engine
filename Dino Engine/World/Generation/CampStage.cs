@@ -144,12 +144,14 @@ namespace Dino_Engine.World.Generation
             for (int i = 0; i < 3; i++) b.Scatter(StructureCatalog.Candles, b.Centre, radius * 0.7f, padding: 0f);
         }
 
-        // A churchyard's piece put down where it fits, solid to whoever walks into it up to `height`.
+        // A churchyard's piece put down where it fits: its ground kept for it, and solid where it stands in the way, so the graves are walked over and only a tall stone, a tomb
+        // or an open pit is gone round (Hitboxes).
         private static bool PlaceYard(SiteBuilder b, in YardSpec spec, Vector2 at, float yaw, Vector2 half, float height)
         {
             Footprint footprint = Footprint.Box(at, half, yaw);
             if (!b.Fits(footprint, 0.4f, 0.3f)) return false;
-            b.World.Placement.Add(footprint, PlacementLayer.Prop, solid: true, height: height);
+            var parts = new List<HitPart>();
+            Hitboxes.Put(b.World.Placement, Hitboxes.Of(spec, parts), parts, footprint, PlacementLayer.Prop, height, at, yaw);
             b.World.Pending.Add(new PendingObject(spec.Id, at, yaw, Vector3.One, null));
             return true;
         }

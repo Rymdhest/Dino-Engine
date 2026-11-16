@@ -200,7 +200,8 @@ namespace Dino_Engine.World.Generation.Arenas
                 Vector2 at = Toward(bearing) * (_radius - 1.9f);
                 if (!Clear(at, 2.6f)) continue;
                 Piece(new ArenaSpec(ArenaShape.Trough, NextSeed(), (int)Stone, Cm(4.2f)), at, YawFacing(Toward(bearing)) + MathF.PI * 0.5f, 0f);
-                Solid(Footprint.Box(C + at, new Vector2(2.2f, 0.65f), YawFacing(Toward(bearing)) + MathF.PI * 0.5f), 1.1f);
+                // Knee high, and stepped over (Hitboxes.StepOver): its ground is kept for it.
+                World.Placement.Add(Footprint.Box(C + at, new Vector2(2.2f, 0.65f), YawFacing(Toward(bearing)) + MathF.PI * 0.5f), PlacementLayer.Prop, solid: false, height: 1.1f);
                 clear.Add((C + at, 2.4f));
                 placed++;
             }
