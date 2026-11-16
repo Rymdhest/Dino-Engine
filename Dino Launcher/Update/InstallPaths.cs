@@ -14,6 +14,7 @@ namespace Dino_Launcher.Update
         public readonly string Staging;
         public readonly string Retired;
         public readonly string StagingReady;
+        public readonly string Swapping;
         public readonly string Downloads;
         public readonly string Logs;
         public readonly string LauncherExe;
@@ -32,6 +33,7 @@ namespace Dino_Launcher.Update
             Staging = Path.Combine(Root, "game.new");
             Retired = Path.Combine(Root, "game.old");
             StagingReady = Path.Combine(Root, "game.new.ready");
+            Swapping = Path.Combine(Root, "game.swapping");
             Downloads = Path.Combine(Root, "downloads");
             Logs = Path.Combine(Root, "logs");
             LauncherExe = Path.Combine(Root, Feed.LauncherName);

@@ -88,9 +88,12 @@ namespace Dino_LaunchLab
             report.Section("Power cuts");
             PowerCuts(report);
             FirstInstallPowerCut(report);
+            HeldFolderPowerCuts(report);
 
             report.Section("Things in the way");
             GameRunning(report);
+            FolderHeldOpen(report);
+            FolderHeldOpenWithGameRunning(report);
             FullDisk(report);
             LeftoversFromEarlier(report);
 
@@ -706,6 +709,102 @@ namespace Dino_LaunchLab
             result = bench.Run();
             report.Check("It goes through once they're let go", result.Build?.Version == "1.0.1" && bench.IsWhole(next), result.Problem ?? "");
             report.Check("Using what it already downloaded", bench.Server.CountOf("game.zip") == 0, $"{bench.Server.CountOf("game.zip")} fetches");
+        }
+
+        // What an Explorer window or a terminal open in one of the game's folders does: that folder and every one round it can't be renamed, though
+        // no file in them is in use. A process's own working folder is held the same way.
+        private sealed class HeldFolder : IDisposable
+        {
+            private readonly string _was = Environment.CurrentDirectory;
+            public HeldFolder(string folder) => Environment.CurrentDirectory = folder;
+            public void Dispose() => Environment.CurrentDirectory = _was;
+        }
+
+        private static void FolderHeldOpen(Report report)
+        {
+            using var bench = new Bench();
+            bench.Feed.Release("1.0.0", TestFeed.Build(1));
+            bench.Run();
+            Dictionary<string, byte[]> files = TestFeed.Build(2);
+            files["Shaders/New.frag"] = new byte[] { 1, 2, 3 };
+            files.Remove("Shaders/Grass/Grass.vert");
+            Manifest next = bench.Feed.Release("1.0.1", files);
+            File.WriteAllText(bench.Paths.GameFile("stray.txt"), "nobody asked for this");
+
+            UpdateResult result;
+            var steps = new List<string>();
+            using (new HeldFolder(bench.Paths.GameFile("Shaders")))
+            {
+                Updater updater = bench.Updater();
+                updater.Install.SwapWait = 5;
+                updater.Install.Checkpoint = steps.Add;
+                result = bench.Run(updater);
+            }
+            report.Check("With a folder of the game's open in a window, the update still goes through", result.Build?.Version == "1.0.1" && bench.IsWhole(next), result.Problem ?? "");
+            report.Check("Its files were swapped where they stand, as the folder couldn't move", steps.Contains("listed") && !steps.Contains("retired") && !File.Exists(bench.Paths.Swapping), string.Join(", ", steps));
+            report.Check("A file added by the release arrives, and one it dropped goes", File.Exists(bench.Paths.GameFile("Shaders/New.frag")) && !File.Exists(bench.Paths.GameFile("Shaders/Grass/Grass.vert")));
+            report.Check("Leftovers go", !File.Exists(bench.Paths.GameFile("stray.txt")));
+            report.Check("Nothing is left lying around", !Directory.Exists(bench.Paths.Staging) && !Directory.Exists(bench.Paths.Retired) && !File.Exists(bench.Paths.StagingReady));
+            report.Check("The installed manifest says what's there", new GameInstall(bench.Paths).ReadInstalled(bench.Feed.PublicKey)?.Version == "1.0.1");
+        }
+
+        private static void FolderHeldOpenWithGameRunning(Report report)
+        {
+            using var bench = new Bench();
+            Manifest first = bench.Feed.Release("1.0.0", TestFeed.Build(1));
+            bench.Run();
+            bench.Feed.Release("1.0.1", TestFeed.Build(2));
+
+            UpdateResult result;
+            using (new HeldFolder(bench.Paths.GameFile("Shaders")))
+            using (new FileStream(bench.Paths.GameFile("Dino Engine.dll"), FileMode.Open, FileAccess.Read, FileShare.Read))
+            {
+                Updater updater = bench.Updater();
+                updater.Install.SwapWait = 5;
+                result = bench.Run(updater);
+            }
+            report.Check("With a window open and the game running, the update stops and says why", result.Problem != null && result.Problem.Contains("using"), result.Problem ?? "");
+            report.Check("Without touching a file of the installed game", result.Build?.Version == "1.0.0" && bench.IsWhole(first), result.Build?.Version ?? "none");
+        }
+
+        private static void HeldFolderPowerCuts(Report report)
+        {
+            foreach (string step in new[] { "listed", "halfway", "moved", "marked" })
+            {
+                using var bench = new Bench();
+                bench.Feed.Release("1.0.0", TestFeed.Build(1));
+                bench.Run();
+                Dictionary<string, byte[]> files = TestFeed.Build(2);
+                files.Remove("Shaders/Grass/Grass.vert");
+                Manifest next = bench.Feed.Release("1.0.1", files);
+
+                bool cut = false;
+                using (new HeldFolder(bench.Paths.GameFile("Shaders")))
+                {
+                    Updater updater = bench.Updater();
+                    updater.Install.SwapWait = 5;
+                    updater.Install.Checkpoint = at =>
+                    {
+                        if (at == step) throw new PowerCut();
+                    };
+                    try
+                    {
+                        bench.Run(updater);
+                    }
+                    catch (PowerCut)
+                    {
+                        cut = true;
+                    }
+                }
+
+                var install = new GameInstall(bench.Paths);
+                report.Check($"Swapping file by file, cut at '{step}': the power really was cut there", cut);
+                report.Check($"Swapping file by file, cut at '{step}': nothing is offered to play before recovery", step == "marked" || install.ReadInstalled(bench.Feed.PublicKey) == null);
+                install.Recover();
+                report.Check($"Swapping file by file, cut at '{step}': recovery alone leaves the new game, whole", bench.IsWhole(next) && !File.Exists(bench.Paths.GameFile("Shaders/Grass/Grass.vert")));
+                report.Check($"Swapping file by file, cut at '{step}': the manifest matches the files", install.ReadInstalled(bench.Feed.PublicKey) is Manifest installed && bench.IsWhole(installed));
+                report.Check($"Swapping file by file, cut at '{step}': nothing is left over", !Directory.Exists(bench.Paths.Staging) && !Directory.Exists(bench.Paths.Retired) && !File.Exists(bench.Paths.Swapping));
+            }
         }
 
         private static void FullDisk(Report report)

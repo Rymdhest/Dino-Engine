@@ -17,7 +17,8 @@ namespace Dino_Launcher.Update
     /// Makes the game's folder match a manifest. Installing, updating and repairing are one operation: find the files that aren't right,
     /// get the packs holding them, build the whole new folder beside the old one, check it, and swap the two by renaming. Two renames
     /// is the only moment anything changes, so a crash or a power cut leaves the old game, the new game, or something
-    /// <see cref="Recover"/> turns into one of them. Never half of each.
+    /// <see cref="Recover"/> turns into one of them. Never half of each. A folder held open by a window but with every file free is swapped
+    /// file by file instead, behind a list that Recover finishes from.
     /// </summary>
     public sealed class GameInstall
     {
@@ -44,6 +45,13 @@ namespace Dino_Launcher.Update
         /// <summary>Finishes or undoes a swap that something interrupted, and clears away what was left lying around.</summary>
         public void Recover()
         {
+            // A swap file by file is only ever finished, never undone: everything it still has to move in is in the staged folder, checked.
+            if (File.Exists(_paths.Swapping))
+            {
+                if (Directory.Exists(_paths.Game) && Directory.Exists(_paths.Staging)) MoveFilesIn(ReadSwapList());
+                EndFileSwap();
+            }
+
             if (!Directory.Exists(_paths.Game))
             {
                 if (File.Exists(_paths.StagingReady) && Directory.Exists(_paths.Staging)) Directory.Move(_paths.Staging, _paths.Game);
@@ -60,6 +68,8 @@ namespace Dino_Launcher.Update
         {
             try
             {
+                // Halfway through a swap file by file, the folder is some of each build: nothing to play until Recover has finished it.
+                if (File.Exists(_paths.Swapping)) return null;
                 if (!File.Exists(_paths.InstalledManifest)) return null;
                 Manifest manifest = Manifest.Parse(SignedFile.Open(File.ReadAllBytes(_paths.InstalledManifest), publicKey));
                 manifest.ValidateLauncher();
@@ -183,13 +193,17 @@ namespace Dino_Launcher.Update
             Checkpoint("staged");
 
             bool replacing = Directory.Exists(_paths.Game);
-            if (replacing && !TryMove(_paths.Game, _paths.Retired))
+            if (replacing && !TryMove(_paths.Game, _paths.Retired, out bool filesFree))
             {
-                throw new InstallException("Something is still using the game's files. Close the game and try again.");
+                // A folder can't be renamed while anything has it or a folder in it open, an Explorer window or a terminal among them, though every
+                // file in it is free: a person found an update refused for a window open on its shaders. Then the files are swapped one at a time.
+                if (!filesFree) throw new InstallException("Something is still using the game's files. Close the game and try again.");
+                SwapFiles();
+                return;
             }
             Checkpoint("retired");
 
-            if (!TryMove(_paths.Staging, _paths.Game))
+            if (!TryMove(_paths.Staging, _paths.Game, out _))
             {
                 if (replacing) Directory.Move(_paths.Retired, _paths.Game);
                 throw new InstallException("The new files couldn't be moved into place. Is an antivirus scanning them? Try again in a moment.");
@@ -201,26 +215,164 @@ namespace Dino_Launcher.Update
             FileSystem.TryDeleteFolder(_paths.Retired);
         }
 
-        // A virus scanner can hold a file for a moment after it's written, which fails a rename that would work a second later.
-        private bool TryMove(string from, string to)
+        // A virus scanner can hold a file for a moment after it's written, which fails a rename that would work a second later. A folder whose
+        // files are all free is only held open as a folder, which waiting won't change, so that's said at once (filesFree).
+        private bool TryMove(string from, string to, out bool filesFree)
         {
             for (int attempt = 1; ; attempt++)
             {
                 try
                 {
                     Directory.Move(from, to);
+                    filesFree = true;
                     return true;
                 }
                 catch (Exception e) when (e is IOException || e is UnauthorizedAccessException)
                 {
-                    if (attempt >= SwapTries)
+                    filesFree = FilesFree(from);
+                    if (filesFree || attempt >= SwapTries)
                     {
-                        Log.Write($"Couldn't move {from}: {e.Message}");
+                        Log.Write($"Couldn't move {from}: {e.Message}{(filesFree ? " Its files are free, so they're swapped one at a time." : "")}");
                         return false;
                     }
                     Thread.Sleep(SwapWait);
                 }
             }
+        }
+
+        // Whether every file in a folder could be moved now: none is open, as a running game holds its own.
+        private static bool FilesFree(string folder)
+        {
+            foreach (string file in Directory.GetFiles(folder, "*", SearchOption.AllDirectories))
+            {
+                try
+                {
+                    using var stream = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.None);
+                }
+                catch (Exception e) when (e is IOException || e is UnauthorizedAccessException)
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        // The game's folder stays where it is, and its files change. The list of the new build's files is written down first (Swapping), so that
+        // a crash anywhere in this is finished by Recover: anything not on it goes, and everything on it still in the staged folder comes in.
+        // Until then ReadInstalled says there's nothing to play. The manifest is moved in last, so it's the last thing to say which build it is.
+        private void SwapFiles()
+        {
+            List<string> list = Directory.GetFiles(_paths.Staging, "*", SearchOption.AllDirectories)
+                .Select(path => path.Substring(_paths.Staging.Length + 1))
+                .OrderBy(path => string.Equals(path, Feed.ManifestName, StringComparison.OrdinalIgnoreCase) ? 1 : 0)
+                .ThenBy(path => path, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            FileSystem.WriteAtomically(_paths.Swapping, System.Text.Encoding.UTF8.GetBytes(string.Join("\n", list)));
+            Checkpoint("listed");
+
+            try
+            {
+                MoveFilesIn(list);
+            }
+            catch (Exception e) when (e is IOException || e is UnauthorizedAccessException)
+            {
+                Log.Write($"Swapping files one at a time stopped: {e.Message}");
+                if (!TryMoveFilesBack(list)) throw new InstallException("The update stopped halfway. Open the launcher again to finish it.");
+                throw new InstallException("Something is still using the game's files. Close the game and try again.");
+            }
+            EndFileSwap();
+        }
+
+        private List<string> ReadSwapList() =>
+            File.ReadAllText(_paths.Swapping).Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries).ToList();
+
+        // Anything in the game's folder that isn't on the list goes to the retired folder, then each listed file still staged takes the place of
+        // the old one. Each step can be done again from wherever it stopped.
+        private void MoveFilesIn(List<string> list)
+        {
+            var listed = new HashSet<string>(list, StringComparer.OrdinalIgnoreCase);
+            foreach (string path in Directory.GetFiles(_paths.Game, "*", SearchOption.AllDirectories))
+            {
+                string relative = path.Substring(_paths.Game.Length + 1);
+                if (!listed.Contains(relative)) Retire(relative);
+            }
+
+            for (int i = 0; i < list.Count; i++)
+            {
+                string staged = Path.Combine(_paths.Staging, list[i]);
+                if (!File.Exists(staged)) continue;
+                Retire(list[i]);
+                string target = Path.Combine(_paths.Game, list[i]);
+                Directory.CreateDirectory(Path.GetDirectoryName(target));
+                FileSystem.Move(staged, target);
+                if (i == list.Count / 2) Checkpoint("halfway");
+            }
+        }
+
+        private void Retire(string relative)
+        {
+            string path = Path.Combine(_paths.Game, relative);
+            if (!File.Exists(path)) return;
+            string retired = Path.Combine(_paths.Retired, relative);
+            Directory.CreateDirectory(Path.GetDirectoryName(retired));
+            FileSystem.Delete(retired);
+            FileSystem.Move(path, retired);
+        }
+
+        // What was moved in goes back to the staged folder, and the old files back where they were, so the old build is whole again.
+        private bool TryMoveFilesBack(List<string> list)
+        {
+            try
+            {
+                foreach (string relative in list)
+                {
+                    string staged = Path.Combine(_paths.Staging, relative);
+                    string path = Path.Combine(_paths.Game, relative);
+                    if (File.Exists(staged) || !File.Exists(path)) continue;
+                    Directory.CreateDirectory(Path.GetDirectoryName(staged));
+                    FileSystem.Move(path, staged);
+                }
+                if (Directory.Exists(_paths.Retired))
+                {
+                    foreach (string retired in Directory.GetFiles(_paths.Retired, "*", SearchOption.AllDirectories))
+                    {
+                        string path = Path.Combine(_paths.Game, retired.Substring(_paths.Retired.Length + 1));
+                        Directory.CreateDirectory(Path.GetDirectoryName(path));
+                        FileSystem.Move(retired, path);
+                    }
+                }
+                FileSystem.Delete(_paths.Swapping);
+                return true;
+            }
+            catch (Exception e) when (e is IOException || e is UnauthorizedAccessException)
+            {
+                Log.Write($"Couldn't put the old build back, so the next start finishes the new one: {e.Message}");
+                return false;
+            }
+        }
+
+        // Folders the new build left empty go, where they can (one held open stays, empty, and harms nothing), then the list, last.
+        private void EndFileSwap()
+        {
+            Checkpoint("moved");
+            if (Directory.Exists(_paths.Game))
+            {
+                foreach (string folder in Directory.GetDirectories(_paths.Game, "*", SearchOption.AllDirectories).OrderByDescending(f => f.Length))
+                {
+                    try
+                    {
+                        if (!Directory.EnumerateFileSystemEntries(folder).Any()) Directory.Delete(folder);
+                    }
+                    catch (Exception e) when (e is IOException || e is UnauthorizedAccessException)
+                    {
+                    }
+                }
+            }
+            FileSystem.TryDelete(_paths.StagingReady);
+            FileSystem.Delete(_paths.Swapping);
+            Checkpoint("marked");
+            FileSystem.TryDeleteFolder(_paths.Staging);
+            FileSystem.TryDeleteFolder(_paths.Retired);
         }
     }
 }
