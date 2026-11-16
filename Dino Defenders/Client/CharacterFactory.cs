@@ -129,7 +129,7 @@ namespace Dino_Defenders.Client
         }
 
         // The Haven's giants are in the picture behind the main menu, so they're wanted before anything a world can send at a hero, and they take three seconds each, as close as they're
-        // seen from. So they're begun the moment the game starts (GrowGiants), one to a core, and taken up the first frame they're done (TryGiants): nothing ever waits for them.
+        // seen from. So they're begun the moment the game starts (GrowGiants), one to a core, and taken up the first frame they're done (TryGiants): nothing waits for them but the menu, whose picture they're part of (GiantsGrowing).
         // They do wait for the materials to have their numbers (MaterialNumbers), which comes before there's a window: a giant begun before then wrote whatever its hide was numbered
         // into each vertex as it went, so its tail, made first, was drawn in another material from the rest of it, edged in lace where the two met.
         private static Task<Mesh[]>? _giantsGrowing;
@@ -145,6 +145,16 @@ namespace Dino_Defenders.Client
                 Parallel.For(0, meshes.Length, i => meshes[i] = SaurianForge.Make(SaurianSpec.Parse(Dino_Engine.Wildlife.Herds.Haven[i].Model)!.Value));
                 return meshes;
             });
+        }
+
+        /// <summary>Whether the giants are still growing, which the menu's land waits for (ArpgGame.FinishTitleLoading). Begins them if nothing has yet.</summary>
+        public static bool GiantsGrowing
+        {
+            get
+            {
+                GrowGiants();
+                return !_giantsGrowing!.IsCompleted;
+            }
         }
 
         /// <summary>The giants' models, in the order of <see cref="Dino_Engine.Wildlife.Herds.Haven"/>, once they've grown. Nothing yet, until then.</summary>

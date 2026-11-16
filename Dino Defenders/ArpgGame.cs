@@ -307,6 +307,9 @@ namespace Dino_Defenders
         private void FinishTitleLoading()
         {
             if (_titleLoading == null || !_titleLoading.IsCompleted) return;
+            // The giants are part of the picture, so it isn't shown without them: a land that was ready first had them thin in a few seconds after the menu came, and a person asked
+            // that they be there all the time. The loading screen stays until they've grown.
+            if (!Nature.Off && CharacterFactory.GiantsGrowing) return;
 
             Task<WorldData> finished = _titleLoading;
             _titleLoading = null;
