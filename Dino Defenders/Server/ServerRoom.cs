@@ -310,6 +310,19 @@ namespace Dino_Defenders.Server
             _front.SendParty();
             session.Ground.Introduce(player);
             foreach (ServerPlayer hero in _heroes) SendWorn(hero);
+            if (player.Beside && session.IsHaven) TellWhereFriendsAre(player);
+        }
+
+        // Someone who joins comes into the Haven, to step through when they're ready, and every Haven looks the same: with friends out in a land and nobody saying so, they'd
+        // think they had landed in a world of their own.
+        private void TellWhereFriendsAre(ServerPlayer player)
+        {
+            List<ServerPlayer> away = _front.Players.Where(other => other != player && other.Greeted && other.Room is { IsLand: true }).OrderBy(other => other.Id).ToList();
+            if (away.Count == 0) return;
+
+            string land = away[0].Room!.Name;
+            string who = away.Count == 1 ? away[0].Name : $"{string.Join(", ", away.Take(away.Count - 1).Select(other => other.Name))} and {away[^1].Name}";
+            Announce(player, $"{who} {(away.Count == 1 ? "is" : "are")} in {land}", "Step through the waygate to join them.", 8f);
         }
 
         private Vector2 StartPosition(WorldData world, bool first, bool joining)

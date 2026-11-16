@@ -658,7 +658,11 @@ namespace Dino_Defenders.Client
                 string where = reader.ReadString(Protocol.LongestName);
                 Party.Add(new PartyMember(id, name, where, reader.ReadBool()));
             }
+            PartyHeard++;
         }
+
+        /// <summary>How many times who's in the game has been heard, so that whoever shows it knows when to look again.</summary>
+        public int PartyHeard { get; private set; }
 
         private void OnGroundItem(BitReader reader)
         {

@@ -172,6 +172,7 @@ namespace Dino_Defenders.Server
                 from?.Remove(player);
                 to.Admit(player, Message.WorldChange, beside: false);
                 _partyChanged = true;
+                GameLog.Network($"Server: {player.Name} went from {from?.Name ?? "no world"} to {to.Name}.");
             }
         }
 
@@ -299,7 +300,7 @@ namespace Dino_Defenders.Server
         void INetListener.OnDisconnected(INetConnection connection, string reason)
         {
             if (!_players.Remove(connection, out ServerPlayer? player)) return;
-            Console.WriteLine($"{player.Name} left: {reason}");
+            GameLog.Network($"Server: {(player.Greeted ? player.Name : "someone who never got in")} at {connection.Address} left: {reason}");
             _moving.RemoveAll(move => move.Player == player);
 
             if (player.Room is ServerRoom room)
@@ -324,7 +325,7 @@ namespace Dino_Defenders.Server
             catch (NetReadException e)
             {
                 // Whoever this is, they're not a client of ours. Everyone else plays on.
-                Console.WriteLine($"Dropping {connection.Address}: {e.Message}");
+                GameLog.Network($"Server: dropping {connection.Address}, as a message from it made no sense: {e.Message}");
                 Refuse(player, "A message from you made no sense.");
             }
         }
@@ -346,6 +347,7 @@ namespace Dino_Defenders.Server
             uint build = reader.ReadUInt();
             if (protocol != Protocol.Version || schema != NetSchema.Hash || build != Protocol.Build)
             {
+                GameLog.Network($"Server: turned {player.Connection.Address} away for running another version: theirs is protocol {protocol}, build {build:x8}, schema {schema:x8}; this is {NetVersions.Text}.");
                 Refuse(player, "You and the host are running different versions of the game. Close it and open the launcher to update, both of you.");
                 return;
             }
@@ -356,6 +358,7 @@ namespace Dino_Defenders.Server
 
             if (_players.Values.Count(p => p.Greeted) >= Protocol.MaxPlayers)
             {
+                GameLog.Network($"Server: turned {name} at {player.Connection.Address} away, as the game is full.");
                 Refuse(player, $"This game is full: {Protocol.MaxPlayers} heroes at most.");
                 return;
             }
@@ -370,7 +373,9 @@ namespace Dino_Defenders.Server
             ServerRoom room = _rooms.FirstOrDefault(r => r.IsHaven) ?? Main;
             room.Admit(player, Message.Welcome, beside: true);
             _partyChanged = true;
-            Console.WriteLine($"{player.Name} joined from {player.Connection.Address}.");
+            // Where everyone else is, as a friend let in to an empty Haven while the rest are in a land thinks they've been put in a world of their own.
+            string elsewhere = string.Join("; ", _players.Values.Where(p => p.Greeted && p != player && p.Room != room).Select(p => $"{p.Name} is in {p.Room?.Name ?? "no world yet"}"));
+            GameLog.Network($"Server: {player.Name} joined from {player.Connection.Address}, into {room.Name}{(elsewhere.Length > 0 ? $", while {elsewhere}" : "")}.");
         }
 
         // A hero is known by their name, so two of the same are told apart, as who's fallen in a land is remembered by it.

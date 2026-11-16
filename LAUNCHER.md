@@ -55,7 +55,7 @@ They run it once. It installs itself, with no administrator rights, adds a deskt
 
 If a tester has **Smart App Control** on, there's no Run anyway button. It blocks unsigned programs outright, so they would have to turn it off under Windows Security, App & browser control. Only a code signing certificate fixes this for them. If an antivirus deletes something, the launcher puts it back; if that keeps happening, report the file as a false positive to its maker.
 
-**When something goes wrong** they press **Open logs** and send `game.log`, which has the build, the GPU and driver, and the crash if there was one. `game.previous.log` is the run before. Saves are in `%APPDATA%\DinoDefenders`, and the launcher copies the save to `backups` there before any update, keeping the last five, because a build can misread a save written by an older one. Uninstalling is under Installed Apps, and leaves saves alone.
+**When something goes wrong** they press **Open logs** and send `game.log`, which has the build, the GPU and driver, and the crash if there was one. `game.previous.log` is the run before. A friend who couldn't join a game sends `network.log` from the same folder, and the host sends theirs: see When a friend can't get in in `NETWORKING.md`. Saves are in `%APPDATA%\DinoDefenders`, and the launcher copies the save to `backups` there before any update, keeping the last five, because a build can misread a save written by an older one. Uninstalling is under Installed Apps, and leaves saves alone.
 
 ## How it works
 

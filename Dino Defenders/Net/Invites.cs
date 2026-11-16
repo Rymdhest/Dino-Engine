@@ -76,6 +76,27 @@ namespace Dino_Defenders.Net
             return true;
         }
 
+        /// <summary>What the code holds, for the log, as what was really sent is the first thing to know when someone can't get in. Never the secret.</summary>
+        public string Describe() => $"internet address {Public?.ToString() ?? "none"}, home address {Local?.ToString() ?? "none"}, port {Port}";
+
+        /// <summary>Which of the host's addresses this is, for the log.</summary>
+        public string Label(IPEndPoint address) =>
+            address.Address.Equals(Public) ? "the host's internet address" : address.Address.Equals(Local) ? "the host's home address" : "an address";
+
+        /// <summary>
+        /// Why a key at the door isn't this game's, in words for whoever's turned away, or null if it is. A key carries the protocol, so a friend on another version is
+        /// told so here, before they ever say hello.
+        /// </summary>
+        public static string? WhyNot(string? theirs, string ours)
+        {
+            if (theirs == ours) return null;
+            string[] their = (theirs ?? "").Split('-');
+            string[] our = ours.Split('-');
+            if (their.Length != 3 || their[0] != "dino") return "That isn't Dino Defenders knocking.";
+            if (their[1] != our[1]) return $"You and the host are running different versions of the game (protocol {their[1]} and {our[1]}). Close it and open the launcher to update, both of you.";
+            return "That invite is from another game, or from before the host opened theirs again. Ask for a new one.";
+        }
+
         /// <summary>The addresses worth trying from this machine, best first.</summary>
         public List<IPEndPoint> Addresses()
         {
@@ -161,6 +182,12 @@ namespace Dino_Defenders.Net
         }
     }
 
+    /// <summary>What two games have to agree on to play together. Both ends log it, so two machines' logs side by side say at once whether they could.</summary>
+    public static class NetVersions
+    {
+        public static string Text => $"{BuildInfo.Title}, protocol {Protocol.Version}, build {Protocol.Build:x8}, schema {NetSchema.Hash:x8}";
+    }
+
     /// <summary>
     /// Asks Windows to let friends in. Without this a friend's packets stop at the host's own firewall, in silence if its notifications
     /// are off. A rule takes an administrator, so this is the one Yes a host has to give, once for each place the game is installed.
@@ -180,19 +207,28 @@ namespace Dino_Defenders.Net
             string rule = $"Dino Defenders {NetSchema.Fnv(program.ToLowerInvariant()):X8}";
             try
             {
-                if (Netsh($"advfirewall firewall show rule name=\"{rule}\"", elevated: false) == 0) return null;
+                if (Netsh($"advfirewall firewall show rule name=\"{rule}\"", elevated: false) == 0)
+                {
+                    GameLog.Network($"Hosting: Windows firewall already lets this copy of the game in ({rule}).");
+                    return null;
+                }
 
                 int result = Netsh($"advfirewall firewall add rule name=\"{rule}\" dir=in action=allow program=\"{program}\" protocol=udp profile=any enable=yes", elevated: true);
-                if (result == 0) return null;
-                Console.WriteLine($"Adding the firewall rule failed: {result}");
+                if (result == 0)
+                {
+                    GameLog.Network($"Hosting: Windows firewall rule added for this copy of the game ({rule}).");
+                    return null;
+                }
+                GameLog.Network($"Hosting: adding the Windows firewall rule failed, netsh exit code {result}. This PC may drop friends' packets.");
             }
             catch (Win32Exception exception) when (exception.NativeErrorCode == Declined)
             {
+                GameLog.Network("Hosting: the player said no to the Windows firewall rule, so this PC will drop friends' packets.");
                 return "Windows was told no, so it will keep friends out. Leave and open this world again to be asked again.";
             }
             catch (Exception exception) when (exception is Win32Exception or InvalidOperationException)
             {
-                Console.WriteLine($"Adding the firewall rule failed: {exception.Message}");
+                GameLog.Network($"Hosting: adding the Windows firewall rule failed: {exception.Message}. This PC may drop friends' packets.");
             }
             return "Windows wouldn't let friends in, so they may not be able to reach you. Having a friend host is the easy way around it.";
         }
@@ -220,26 +256,41 @@ namespace Dino_Defenders.Net
     public sealed class PortMapper : IDisposable
     {
         private const int LeaseSeconds = 3600;
+        private const int AnswerWithinMilliseconds = 10000;     // A router that does this answers within a second or two.
 
         private readonly int _port;
         private INatDevice? _device;
         private Mapping? _mapping;
         private volatile bool _closed;
+        private volatile bool _settled;
 
         public volatile string Status = "Looking for your router...";
+
+        /// <summary>The address friends outside may reach this game at, as the router tells it. Never one nobody outside could, as a friend would only wait on it before giving up.</summary>
         public volatile IPAddress? External;
 
         public PortMapper(int port)
         {
             _port = port;
+            GameLog.Network($"Hosting: asking the router to pass on UDP port {port}, by UPnP or NAT-PMP.");
             NatUtility.DeviceFound += OnDeviceFound;
             NatUtility.StartDiscovery();
+
+            // A router with UPnP and NAT-PMP turned off never answers at all, so silence is taken as no after a while, or the panel says it's looking for ever.
+            // Discovery goes on, so a router that answers late still opens the way.
+            Task.Delay(AnswerWithinMilliseconds).ContinueWith(_ =>
+            {
+                if (_settled || _closed) return;
+                GameLog.Network($"Hosting: no router had opened the port {AnswerWithinMilliseconds / 1000} s on{(_device == null ? ": none answered by UPnP or NAT-PMP" : $", though one answered at {_device.DeviceEndpoint}")}. Invites hold only this machine's home address.");
+                Status = "Your router hasn't answered, so only friends on your own network can join. Turning on UPnP in its settings lets the rest in, or one of them can host instead.";
+            });
         }
 
         private async void OnDeviceFound(object? sender, DeviceEventArgs e)
         {
             if (_device != null || _closed) return;
             _device = e.Device;
+            GameLog.Network($"Hosting: the router answered by {e.Device.NatProtocol} at {e.Device.DeviceEndpoint}.");
 
             try
             {
@@ -252,23 +303,38 @@ namespace Dino_Defenders.Net
                     return;
                 }
 
-                External = external;
-                Status = IsPrivate(external)
-                    ? "Your provider shares one address among many customers, so friends outside can't reach you directly."
+                string reach = SharedByProvider(external) ? "shared by the provider (carrier-grade NAT), so friends with other providers can't reach this game"
+                    : IsPrivate(external) ? "another router's, so friends outside this home can't reach this game"
+                    : "public, so friends anywhere should reach this game";
+                GameLog.Network($"Hosting: the router opened UDP port {_port}. Its internet address is {external}: {reach}.");
+                // A provider's shared address can still reach its other customers, as some providers route between them, so it goes in the code. Another router's private one reaches nobody outside.
+                External = IsPrivate(external) && !SharedByProvider(external) ? null : external;
+                Status = SharedByProvider(external)
+                    ? "Your provider shares one internet address among many customers, so friends with other providers may not be able to reach you. One of them can host instead, or your provider may give you an address of your own if you ask."
+                    : IsPrivate(external)
+                    ? "There's another router between yours and the internet, so friends outside your home can't reach you. One of them can host instead."
                     : "Your router has opened the way. Friends can join from anywhere.";
             }
             catch (Exception exception)
             {
-                Console.WriteLine($"Port mapping failed: {exception.Message}");
-                Status = "Your router wouldn't open a port. Friends on your network can join; others need it forwarded by hand.";
+                GameLog.Network($"Hosting: the router wouldn't open UDP port {_port}: {exception.GetType().Name}: {exception.Message}");
+                Status = "Your router wouldn't open a port, so only friends on your own network can join. One of the others can host instead.";
             }
+            _settled = true;
         }
 
         // The ranges no public address falls in, including the one set aside for providers doing this (100.64/10).
         private static bool IsPrivate(IPAddress address)
         {
             byte[] b = address.GetAddressBytes();
-            return b[0] == 10 || (b[0] == 172 && b[1] >= 16 && b[1] < 32) || (b[0] == 192 && b[1] == 168) || (b[0] == 100 && b[1] >= 64 && b[1] < 128);
+            return b[0] == 10 || (b[0] == 172 && b[1] >= 16 && b[1] < 32) || (b[0] == 192 && b[1] == 168) || SharedByProvider(address);
+        }
+
+        // Carrier-grade NAT: the provider puts many customers behind one address of its own.
+        private static bool SharedByProvider(IPAddress address)
+        {
+            byte[] b = address.GetAddressBytes();
+            return b[0] == 100 && b[1] >= 64 && b[1] < 128;
         }
 
         public void Dispose()
@@ -281,11 +347,12 @@ namespace Dino_Defenders.Net
             try
             {
                 _device.DeletePortMapAsync(_mapping).Wait(1000);
+                GameLog.Network($"Hosting: closed to friends, and the router's port {_port} with it.");
             }
             catch (Exception exception) when (exception is AggregateException or MappingException)
             {
                 // The lease runs out by itself within the hour.
-                Console.WriteLine($"Couldn't close the port mapping: {exception.Message}");
+                GameLog.Network($"Hosting: closed to friends, but the router wouldn't close port {_port}: {exception.Message}");
             }
         }
     }

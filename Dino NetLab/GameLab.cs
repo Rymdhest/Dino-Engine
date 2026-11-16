@@ -458,6 +458,7 @@ namespace Dino_NetLab
 
             report.Section("Invites");
             InvitesSurviveBeingPasted(report);
+            TheDoorSaysWhy(report);
 
             report.Section("Worlds");
             WorldsAgree(report, request, world);
@@ -555,6 +556,59 @@ namespace Dino_NetLab
             report.Check("Half a code is refused", !InviteCode.TryParse(text.Substring(0, text.Length / 2), out _));
             report.Check("Something else entirely is refused", !InviteCode.TryParse("hello there", out _));
             report.Check("Secrets differ from one game to the next", InviteCode.NewSecret() != InviteCode.NewSecret());
+        }
+
+        // Over real UDP on this machine, as every other test here goes over a loopback, which has no door. Whoever's turned away hears why in words, and the host's log
+        // has a line for every knock, as whether anything reached the host at all is what a failed join comes down to first.
+        private static void TheDoorSaysWhy(Report report)
+        {
+            const uint Secret = 0x1234ABCD;
+            using UdpTransport host = UdpTransport.Host(0, InviteCode.KeyFor(Secret));
+            var hostEnd = new DoorListener();
+
+            (string? reason, string log) Knock(string key)
+            {
+                TextWriter console = Console.Out;
+                var log = new StringWriter();
+                Console.SetOut(log);
+                var friendEnd = new DoorListener();
+                try
+                {
+                    using UdpTransport friend = UdpTransport.Join(new System.Net.IPEndPoint(System.Net.IPAddress.Loopback, host.Port), key);
+                    for (int i = 0; i < 500 && !friendEnd.Connected && friendEnd.Reason == null; i++)
+                    {
+                        host.Poll(hostEnd);
+                        friend.Poll(friendEnd);
+                        Thread.Sleep(5);
+                    }
+                }
+                finally
+                {
+                    Console.SetOut(console);
+                }
+                return (friendEnd.Connected ? null : friendEnd.Reason ?? "nothing heard", log.ToString());
+            }
+
+            (string? otherVersion, string otherVersionLog) = Knock($"dino-{Protocol.Version + 1}-{Secret:x8}");
+            report.Check("A friend on another version is told so at the door, not just turned away", otherVersion?.Contains("different versions") == true, otherVersion ?? "let in");
+            report.Check("And the host's log says who knocked and why they were turned away", otherVersionLog.Contains("knocked and was turned away: You and the host are running different versions"), otherVersionLog.Trim());
+
+            (string? oldInvite, _) = Knock(InviteCode.KeyFor(Secret ^ 1));
+            report.Check("A friend with an old invite is told to ask for a new one", oldInvite?.Contains("Ask for a new one") == true, oldInvite ?? "let in");
+
+            (string? right, string rightLog) = Knock(InviteCode.KeyFor(Secret));
+            report.Check("The right invite gets in", right == null, right ?? "");
+            report.Check("And the host's log says so", rightLog.Contains("knocked with the right invite"), rightLog.Trim());
+        }
+
+        private sealed class DoorListener : INetListener
+        {
+            public bool Connected;
+            public string? Reason;
+
+            public void OnConnected(INetConnection connection) => Connected = true;
+            public void OnMessage(INetConnection connection, byte[] data, Delivery delivery) { }
+            public void OnDisconnected(INetConnection connection, string reason) => Reason = reason;
         }
 
         private static void WorldsAgree(Report report, WorldRequest request, WorldData world)
@@ -881,6 +935,20 @@ namespace Dino_NetLab
             report.Check("Where they all play on together", lab.Players.All(p => p.Client.State == ClientState.Playing && p.Client.Session!.World.Plan.Seed == offer.Request.Seed));
             report.Check("Nothing from the old world came along", lab.Players.All(p => p.Client.Ghosts.Mismatches == 0));
             report.Check("What they carried came with them", lab.Players[0].Client.Hero.Gold >= goldBefore);
+
+            // Someone joining now comes into the Haven, which looks like anyone's, so they're told where everyone is.
+            LabPlayer latecomer = lab.AddPlayer("Latecomer", line, 13);
+            latecomer.Fights = false;
+            for (int i = 0; i < 900 && latecomer.Arrivals < 1; i++)
+            {
+                lab.Run(0.1);
+                Thread.Sleep(2);
+            }
+            lab.Run(2);
+            string land = lab.Players[0].Client.Session!.World.Plan.Name;
+            List<string> told = latecomer.Client.Session?.Banners.Select(b => $"{b.Title}: {b.Subtitle}").ToList() ?? new();
+            report.Check("A friend who joins while the rest are in a land comes into the Haven", latecomer.Client.Session?.IsHaven == true);
+            report.Check("And is told who's where, and the way to them", told.Contains($"Hero 1, Hero 2 and Hero 3 are in {land}: Step through the waygate to join them."), string.Join(" | ", told));
         }
 
         private static void TooManyHeroes(Report report, WorldCache worlds, WorldRequest request)

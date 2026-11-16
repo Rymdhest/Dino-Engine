@@ -106,7 +106,7 @@ An arrow is drawn moving from the past into the player's own moment over its fir
 
 Before the port opens, `WindowsFirewall.LetFriendsIn` adds a firewall rule for the game, which is one Yes on a Windows box, once per install. Without it a friend's packets stop at the host's own PC, with no sign of it if firewall notifications are off. Two windows on one PC can't show this, as local traffic skips the firewall. Joining needs no rule. Scripted runs skip it, as they skip the router.
 
-This works for friends on the same network, and across the internet when the router allows UPnP, as that is also how the game learns its public address. It can't work behind carrier-grade NAT, which some providers use, and the panel says so when it can tell. Without UPnP the code only holds the local address: a port forwarded by hand isn't enough yet, as nothing puts the public address into the code. Steam makes all of this go away.
+This works for friends on the same network, and across the internet when the router allows UPnP, as that is also how the game learns its public address. It can't work behind carrier-grade NAT, which some providers use, or behind a second router, and the panel says so when it can tell. A second router's address is left out of the code, as nobody outside could reach it; a provider's shared one stays in, as some providers route between their own customers. A router with UPnP and NAT-PMP turned off never answers, so after ten seconds of silence the panel says only friends on the same network can join. Without UPnP the code only holds the local address: a port forwarded by hand isn't enough yet, as nothing puts the public address into the code. Steam makes all of this go away.
 
 **On Steam: use Steam's relay.** This is the real answer, and the reason the transport is an interface. It needs no port forwarding, works behind any NAT and hides players' IP addresses, and it runs on Valve's machines, not yours. Inviting becomes the friends list: nobody sees a code.
 
@@ -122,6 +122,23 @@ This works for friends on the same network, and across the internet when the rou
 Nothing else changes. That hasn't been built or tested, as it needs a Steam app ID.
 
 Cheating isn't prevented. A host controls their own server, and a player's hero comes from their own save. Clients can't cheat against the rest of the game beyond that, as the server decides what happens, but it isn't a goal.
+
+## When a friend can't get in
+
+Ask both of them for `network.log`, in `%LOCALAPPDATA%\DinoDefenders\logs` beside `game.log`. It keeps every hosting and joining line from one start to the next, trimmed to its last half once it passes a megabyte, where `game.log` only keeps the last two runs, and a friend who couldn't get in has usually started the game again since. Every line starts with a UTC time, so the two machines' lines go side by side: read the joiner's first, then the host's at the same moment. Both start with the build, protocol, build hash and schema hash, which have to match. The labs print these lines too, but only the game writes the file (`GameLog.Network`).
+
+**The joiner's**, in order: what the invite held and what will be tried (`Joining: ... The invite holds internet address ..., home address ..., port ...`), each address tried (`trying`, then `let this in after` or `failed after ...: why`), and `gave up`, with what that comes to. Once in, `arrived in` a world and `the party is`, which says who's in which world whenever that changes. A code that isn't one, or was cut short, has a line of its own.
+
+**The host's**: `opening to friends` with this machine's addresses, the firewall rule, the router (`answered by`, then `opened UDP port ... Its internet address is ...: public`, `shared by the provider` or `another router's`, or `wouldn't open`, or nothing had opened it after ten seconds), `invite copied` with exactly what the code held and what the panel said, a line for every knock at the port (`let in`, or `turned away` and why, which is also what the friend is told), and the server's `joined from ... into ...`, `went from ... to ...` as heroes step between worlds, `turned away for running another version` and `left`.
+
+| The joiner's log | The host's, at the same time | What's wrong |
+|---|---|---|
+| `failed ... Nobody answered at that address.` at every address | No knock | Nothing reached the host. Its router line says why: shared by the provider, another router's, or no port opened. If the router opened a public port, look at the firewall line |
+| `Nobody answered` | A knock, let in | The host heard, but its answers didn't get back to the friend |
+| `different versions` | `turned away: ... different versions`, or the server's `another version` | One of them needs to update, through the launcher |
+| `Ask for a new one.` | `turned away: That invite is from another game` | The host opened the game again after copying the code: copy a new one |
+| The invite holds `internet address none` | The router never opened the port, or the code was copied before it had | Only friends in the host's home can join |
+| `let this in`, `arrived in The Haven`, and the party has the rest in a land | `joined from ... into The Haven, while ...` | It worked. They're in the Haven, and the waygate goes to the rest |
 
 ## Testing
 

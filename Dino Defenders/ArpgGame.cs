@@ -56,6 +56,10 @@ namespace Dino_Defenders
         private readonly Dino_Engine.GUI.Widgets.GuiWindow? _developer;     // The F3 overlay's Developer window (DeveloperWindow).
         private readonly Stopwatch _simulatedLine = Stopwatch.StartNew();
         private readonly Queue<IPEndPoint> _joinAddresses = new();
+        private readonly List<string> _joinTried = new();      // Each address of this join that failed, and why, for the line that gives up.
+        private InviteCode? _joinInvite;
+        private IPEndPoint? _joinTrying;                        // The address being tried, until the host lets this in or it fails.
+        private long _joinTryingSince;
 
         private HeroState _hero = null!;
         private SaveGame? _save;
@@ -91,13 +95,24 @@ namespace Dino_Defenders
         /// The code to give friends, once this game is open to them. It's worked out as it's asked for, as the address on the internet is
         /// only known once the router has answered, and that's the one that matters to anyone who isn't in the same house.
         /// </summary>
-        public string? InviteText => _invite == null ? null : new InviteCode
+        public string? InviteText => CurrentInvite?.Text;
+
+        private InviteCode? CurrentInvite => _invite == null ? null : new InviteCode
         {
             Public = _portMapper?.External,
             Local = _invite.Local,
             Port = _invite.Port,
             Secret = _invite.Secret,
-        }.Text;
+        };
+
+        /// <summary>The code as the player copies it to give friends, logged with what it holds and what the panel said, as what was really sent can't be known afterwards any other way.</summary>
+        public string CopyInvite()
+        {
+            InviteCode? invite = CurrentInvite;
+            if (invite == null) return "";
+            GameLog.Network($"Hosting: invite copied, holding {invite.Describe()}. The panel said: {(InviteStatus.Length > 0 ? InviteStatus : "nothing")}");
+            return invite.Text;
+        }
 
         /// <summary>What's known about friends being able to reach this game.</summary>
         public string InviteStatus => _firewallProblem ?? _portMapper?.Status ?? "";
@@ -551,7 +566,9 @@ namespace Dino_Defenders
 
             // A scripted run has no business rearranging the firewall or the router of whoever happens to be running it.
             bool scripted = _options.Bot || _options.Shot != null || _options.Film != null;
-            if (!scripted) _firewallProblem = WindowsFirewall.LetFriendsIn();
+            GameLog.Network($"Hosting: opening to friends on UDP port {_options.Port}. {NetVersions.Text}. This machine's addresses: {string.Join(", ", InviteCode.LocalAddresses())}.");
+            if (scripted) GameLog.Network("Hosting: a scripted run, so the firewall and the router are left alone.");
+            else _firewallProblem = WindowsFirewall.LetFriendsIn();
 
             try
             {
@@ -560,6 +577,7 @@ namespace Dino_Defenders
             }
             catch (IOException e)
             {
+                GameLog.Network($"Hosting: couldn't open UDP port {_options.Port}: {e.Message}");
                 GameSession.Current?.Announce("The way is shut", e.Message);
                 return;
             }
@@ -567,22 +585,33 @@ namespace Dino_Defenders
             _invite = new InviteCode { Local = InviteCode.LocalAddresses().FirstOrDefault(), Port = _options.Port, Secret = secret };
 
             if (!scripted) _portMapper = new PortMapper(_options.Port);
-            Console.WriteLine($"Open to friends on port {_options.Port}. Invite: {_invite.Text}");
         }
 
         /// <summary>Leaves this game for a friend's. Takes an invite code, or an address and port.</summary>
         public bool Join(string where, string? secret = null)
         {
             _joinAddresses.Clear();
+            _joinTried.Clear();
+            _joinInvite = null;
+            string locals = string.Join(", ", InviteCode.LocalAddresses());
             if (InviteCode.TryParse(where, out InviteCode? code))
             {
+                _joinInvite = code;
                 foreach (IPEndPoint address in code!.Addresses()) _joinAddresses.Enqueue(address);
                 _joinKey = code.Key;
+                GameLog.Network($"Joining: {NetVersions.Text}. The invite holds {code.Describe()}. This machine's addresses: {locals}. " +
+                    (_joinAddresses.Count > 0 ? $"Trying {string.Join(", then ", _joinAddresses.Select(a => $"{a} ({code.Label(a)})"))}." : "That's nothing to try."));
             }
             else if (IPEndPoint.TryParse(where, out IPEndPoint? address))
             {
                 _joinAddresses.Enqueue(address);
                 _joinKey = InviteCode.KeyFor(secret != null ? NetSchema.Fnv(secret) : 0);
+                GameLog.Network($"Joining: {NetVersions.Text}. Given {address} directly, {(secret != null ? "with a secret" : "with no secret, which a game opened from the menu turns away")}. This machine's addresses: {locals}.");
+            }
+            else
+            {
+                string shown = where.Trim();
+                GameLog.Network($"Joining: \"{(shown.Length > 60 ? shown[..60] + "..." : shown)}\" is neither an invite nor an address, or is one cut short or mistyped.");
             }
 
             if (_joinAddresses.Count == 0) return false;
@@ -597,8 +626,38 @@ namespace Dino_Defenders
         private void TryNextAddress()
         {
             IPEndPoint address = _joinAddresses.Dequeue();
-            Console.WriteLine($"Trying {address}...");
+            _joinTrying = address;
+            _joinTryingSince = Stopwatch.GetTimestamp();
+            GameLog.Network($"Joining: trying {address} ({JoinLabel(address)})...");
             Connect(UdpTransport.Join(address, _joinKey));
+        }
+
+        private string JoinLabel(IPEndPoint address) => _joinInvite?.Label(address) ?? "given directly";
+
+        private static string SecondsSince(long since) => FormattableString.Invariant($"{Stopwatch.GetElapsedTime(since).TotalSeconds:0.0} s");
+
+        // Who's in which world, in a friend's game, whenever it changes: heroes in different worlds of one game is easily taken for a join gone wrong. The host's log has
+        // the server's own lines for this, and a game alone has nothing to say.
+        private void NoticeParty()
+        {
+            if (!InFriendsGame || _client == null || _client.PartyHeard == _partyHeard) return;
+            _partyHeard = _client.PartyHeard;
+            string party = string.Join(", ", _client.Party.Select(member => $"{member.Name}{(member.Id == _client.HostId ? " (host)" : "")} in {(member.Where.Length > 0 ? member.Where : "no world yet")}"));
+            if (party == _partyLogged) return;
+            _partyLogged = party;
+            GameLog.Network($"Joining: the party is {party}.");
+        }
+
+        private int _partyHeard = -1;
+        private string _partyLogged = "";
+
+        // The host has let this in and is sending the world, which only happens once a hello has been answered.
+        private void NoticeJoined()
+        {
+            if (_joinTrying == null || _client is not { State: ClientState.Loading or ClientState.Waiting or ClientState.Playing }) return;
+            GameLog.Network($"Joining: {_joinTrying} ({JoinLabel(_joinTrying)}) let this in after {SecondsSince(_joinTryingSince)}.");
+            _joinTrying = null;
+            _joinTried.Clear();
         }
 
         private void LeaveCurrentGame()
@@ -613,6 +672,9 @@ namespace Dino_Defenders
             _firewallProblem = null;
             _invite = null;
             _loading = null;
+            _joinTrying = null;
+            _partyHeard = -1;
+            _partyLogged = "";
         }
 
         // Plants thick along the way the hero's walking, as there's no telling where a world has put them. The plants are this end's own business, so nothing else need know.
@@ -674,6 +736,8 @@ namespace Dino_Defenders
         public override void update()
         {
             _client?.Update(Dino_Engine.Core.Engine.Delta);
+            NoticeJoined();
+            NoticeParty();
             HandleLostConnection();
             FinishLoading();
             FinishTitleLoading();
@@ -816,6 +880,14 @@ namespace Dino_Defenders
             string reason = _lostConnection;
             _lostConnection = null;
 
+            if (_joinTrying != null)
+            {
+                string attempt = $"{_joinTrying} ({JoinLabel(_joinTrying)}) failed after {SecondsSince(_joinTryingSince)}: {reason}";
+                GameLog.Network($"Joining: {attempt}");
+                _joinTried.Add(attempt);
+                _joinTrying = null;
+            }
+
             // An invite can hold more than one address. The first one failing says nothing about the next.
             if (_client?.State == ClientState.Disconnected && _client.Session == null && _joinAddresses.Count > 0)
             {
@@ -824,7 +896,15 @@ namespace Dino_Defenders
                 return;
             }
 
-            Console.WriteLine($"Disconnected: {reason}");
+            if (_joinTried.Count > 0)
+            {
+                // Nobody answering anywhere means nothing reached the host, or its answers never got back; the host's network.log says which, by whether it heard a knock.
+                bool silence = _joinTried.All(attempt => attempt.EndsWith(UdpTransport.NobodyAnswered));
+                GameLog.Network($"Joining: gave up after {_joinTried.Count} address{(_joinTried.Count == 1 ? "" : "es")}, back to this player's own game. " +
+                    (silence ? "Nothing answered at any of them: look in the host's network.log for a knock at this time." : $"The last word was: {reason}"));
+                _joinTried.Clear();
+            }
+            else GameLog.Network($"Disconnected: {reason}");
             if (_options.Join != null && _options.Bot)
             {
                 // A scripted run came for one game; if that's gone, so is the run.
@@ -1209,6 +1289,7 @@ namespace Dino_Defenders
         {
             GameSession session = _client!.Session!;
             _ui.Loading.Visible = false;
+            if (InFriendsGame) GameLog.Network($"Joining: arrived in {session.World.Plan.Name}, in the host's game.");
 
             if (_homecoming != null)
             {

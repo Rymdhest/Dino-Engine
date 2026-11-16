@@ -370,7 +370,7 @@ namespace Dino_Defenders.UI
             hosting.Add(Kit.Group("Host"));
             var open = hosting.Add(new MenuWord("Open to friends", Kit.RowSize + 1f, Ui.Parchment, () => _game.OpenToFriends(), 34f));
             var invite = hosting.Add(Ui.Line("", Kit.RowSize, Ui.Gold).Bind(() => _game.InviteText ?? ""));
-            var copy = hosting.Add(new MenuWord("Copy invite", Kit.RowSize, Ui.Parchment, () => Context!.Clipboard = _game.InviteText ?? "", 32f));
+            var copy = hosting.Add(new MenuWord("Copy invite", Kit.RowSize, Ui.Parchment, () => Context!.Clipboard = _game.CopyInvite(), 32f));
             var status = hosting.Add(Ui.Paragraph("", Kit.SmallSize, Kit.Quiet).Bind(() => _game.InviteStatus));
 
             // The host's to choose; everyone else is only told.

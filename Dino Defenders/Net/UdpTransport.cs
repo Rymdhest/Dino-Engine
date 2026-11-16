@@ -15,6 +15,9 @@ namespace Dino_Defenders.Net
     {
         public const int DefaultPort = 27815;
 
+        /// <summary>What a join that heard nothing back is told: nothing got to the host, or its answers didn't get back.</summary>
+        public const string NobodyAnswered = "Nobody answered at that address.";
+
         private const int TimeoutMilliseconds = 10000;
         private const int MostPeers = Protocol.MaxPlayers * 2;  // Some room over the limit, so that the game itself can say it's full.
 
@@ -64,13 +67,34 @@ namespace Dino_Defenders.Net
 
         public void Dispose() => _manager.Stop();
 
+        // Every knock is logged, as whether anything reached the host at all is what tells a provider or router keeping friends out from anything else. Whoever's
+        // turned away is told why, in words: a bare refusal reads the same on their end whatever the reason was.
         void INetEventListener.OnConnectionRequest(ConnectionRequest request)
         {
-            if (!_accepting || _manager.ConnectedPeersCount >= MostPeers)
+            if (!_accepting)
             {
                 request.Reject();
                 return;
             }
+
+            string? theirs = null;
+            try
+            {
+                theirs = request.Data.PeekString();
+            }
+            catch (Exception exception) when (exception is ArgumentException or IndexOutOfRangeException or OverflowException)
+            {
+                // Not a key at all: WhyNot says so.
+            }
+
+            string? why = _manager.ConnectedPeersCount >= MostPeers ? "This game is full." : InviteCode.WhyNot(theirs, _key);
+            if (why != null)
+            {
+                GameLog.Network($"Hosting: {request.RemoteEndPoint} knocked and was turned away: {why}");
+                request.Reject(Encoding.UTF8.GetBytes(why));
+                return;
+            }
+            GameLog.Network($"Hosting: {request.RemoteEndPoint} knocked with the right invite, and was let in.");
             request.AcceptIfKey(_key);
         }
 
@@ -104,7 +128,7 @@ namespace Dino_Defenders.Net
 
         void INetEventListener.OnNetworkError(IPEndPoint endPoint, SocketError socketError)
         {
-            Console.WriteLine($"Network error with {endPoint}: {socketError}");
+            GameLog.Network($"{(_accepting ? "Hosting" : "Joining")}: network error with {endPoint}: {socketError}");
         }
 
         void INetEventListener.OnMessageDelivered(NetPeer peer, object userData) { }
@@ -122,7 +146,7 @@ namespace Dino_Defenders.Net
 
             return info.Reason switch
             {
-                DisconnectReason.ConnectionFailed => "Nobody answered at that address.",
+                DisconnectReason.ConnectionFailed => NobodyAnswered,
                 DisconnectReason.ConnectionRejected => "The host turned you away. Is that invite still good?",
                 DisconnectReason.Timeout => "The connection timed out.",
                 DisconnectReason.HostUnreachable or DisconnectReason.NetworkUnreachable => "That address can't be reached from here.",
