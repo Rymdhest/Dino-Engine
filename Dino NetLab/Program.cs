@@ -7,6 +7,7 @@ namespace Dino_NetLab
     /// Tests networking with no window and no real network: a server and clients in one process, joined by a simulated line, stepped
     /// by hand so that minutes pass in seconds and every run goes the same way.
     ///   core  [--seed N] [--fuzz N]                 The replication layer on its own.
+    ///   meet                                        Two games meeting through ntfy.sh and Google's STUN server, on this machine. Needs the internet.
     ///   game  [--seed N] [--seconds N] [--fuzz N]   The whole game: real server, real clients, every kind of line.
     ///   build [--seed N]                            Every skill, ailment, reaction and keystone, done for real on a running server.
     ///   pace  [--seed N] [--level N] [--hero N] [--minutes N] [--archetype id] [--rolled true] [--omens a,b]   How playing goes: time in fights, kills, falls, and what's dropped.
@@ -37,6 +38,8 @@ namespace Dino_NetLab
             {
                 case "core":
                     return CoreTests.Run(options);
+                case "meet":        // Meeting through the real mailbox and STUN servers, which needs the internet (NETWORKING.md).
+                    return MeetingTests.Live(options);
                 case "game":
                     return GameTests.Run(options);
                 case "build":

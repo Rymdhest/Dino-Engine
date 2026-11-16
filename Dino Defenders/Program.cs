@@ -56,7 +56,9 @@ namespace Dino_Defenders
             uint secret = options.Secret != null ? NetSchema.Fnv(options.Secret) : InviteCode.NewSecret();
             var request = options.Haven ? Lands.Haven : new WorldRequest(options.Seed ?? Environment.TickCount, options.Archetype, options.Level);
             var server = new GameServer(new ServerSettings { Request = request, Terms = options.Terms(options.Level), StartSite = options.Site }, new WorldCache());
-            server.AddTransport(UdpTransport.Host(options.Port, InviteCode.KeyFor(secret)));
+            UdpTransport transport = UdpTransport.Host(options.Port, InviteCode.KeyFor(secret));
+            transport.Meet(secret);
+            server.AddTransport(transport);
             using var host = new ServerHost(server);
 
             Console.WriteLine($"Serving seed {request.Seed} on port {options.Port}.");

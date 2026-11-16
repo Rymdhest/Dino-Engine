@@ -459,6 +459,8 @@ namespace Dino_NetLab
             report.Section("Invites");
             InvitesSurviveBeingPasted(report);
             TheDoorSaysWhy(report);
+            report.Section("Meeting");
+            MeetingTests.Run(report);
 
             report.Section("Worlds");
             WorldsAgree(report, request, world);

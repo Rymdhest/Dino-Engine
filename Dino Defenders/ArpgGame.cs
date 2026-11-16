@@ -58,7 +58,8 @@ namespace Dino_Defenders
         private readonly Queue<IPEndPoint> _joinAddresses = new();
         private readonly List<string> _joinTried = new();      // Each address of this join that failed, and why, for the line that gives up.
         private InviteCode? _joinInvite;
-        private IPEndPoint? _joinTrying;                        // The address being tried, until the host lets this in or it fails.
+        private UdpTransport? _hosting;                         // The port friends come in at, while this game is open to them.
+        private string? _joinTrying;                            // What's being tried, the invite or an address, until the host lets this in or it fails.
         private long _joinTryingSince;
 
         private HeroState _hero = null!;
@@ -115,7 +116,7 @@ namespace Dino_Defenders
         }
 
         /// <summary>What's known about friends being able to reach this game.</summary>
-        public string InviteStatus => _firewallProblem ?? _portMapper?.Status ?? "";
+        public string InviteStatus => _firewallProblem ?? _hosting?.MeetingStatus ?? _portMapper?.Status ?? "";
 
         /// <summary>What this player goes by in company. Left empty, the server calls them Hero and a number: their account's name is theirs to share.</summary>
         public string HeroName { get; set; } = "";
@@ -573,6 +574,8 @@ namespace Dino_Defenders
             try
             {
                 UdpTransport transport = UdpTransport.Host(_options.Port, key);
+                if (!scripted) transport.Meet(secret);
+                _hosting = transport;
                 _server.Post(server => server.AddTransport(transport));
             }
             catch (IOException e)
@@ -597,10 +600,9 @@ namespace Dino_Defenders
             if (InviteCode.TryParse(where, out InviteCode? code))
             {
                 _joinInvite = code;
-                foreach (IPEndPoint address in code!.Addresses()) _joinAddresses.Enqueue(address);
-                _joinKey = code.Key;
+                _joinKey = code!.Key;
                 GameLog.Network($"Joining: {NetVersions.Text}. The invite holds {code.Describe()}. This machine's addresses: {locals}. " +
-                    (_joinAddresses.Count > 0 ? $"Trying {string.Join(", then ", _joinAddresses.Select(a => $"{a} ({code.Label(a)})"))}." : "That's nothing to try."));
+                    "Meeting the host through the mailbox, then trying every way to it at once.");
             }
             else if (IPEndPoint.TryParse(where, out IPEndPoint? address))
             {
@@ -614,25 +616,31 @@ namespace Dino_Defenders
                 GameLog.Network($"Joining: \"{(shown.Length > 60 ? shown[..60] + "..." : shown)}\" is neither an invite nor an address, or is one cut short or mistyped.");
             }
 
-            if (_joinAddresses.Count == 0) return false;
+            if (_joinInvite == null && _joinAddresses.Count == 0) return false;
 
             Save();
             LeaveCurrentGame();
             ShowLoading("Finding your friends", "Reaching across the land");
-            TryNextAddress();
+            if (_joinInvite != null)
+            {
+                // One try, which finds every way there is and knocks at them all: an address that fails and the next tried after it would be too late for the host's
+                // router, which opens to this game only while the host is sending to it.
+                _joinTrying = "the invite";
+                _joinTryingSince = Stopwatch.GetTimestamp();
+                Connect(UdpTransport.Join(_joinInvite));
+            }
+            else TryNextAddress();
             return true;
         }
 
         private void TryNextAddress()
         {
             IPEndPoint address = _joinAddresses.Dequeue();
-            _joinTrying = address;
+            _joinTrying = $"{address} (given directly)";
             _joinTryingSince = Stopwatch.GetTimestamp();
-            GameLog.Network($"Joining: trying {address} ({JoinLabel(address)})...");
+            GameLog.Network($"Joining: trying {_joinTrying}...");
             Connect(UdpTransport.Join(address, _joinKey));
         }
-
-        private string JoinLabel(IPEndPoint address) => _joinInvite?.Label(address) ?? "given directly";
 
         private static string SecondsSince(long since) => FormattableString.Invariant($"{Stopwatch.GetElapsedTime(since).TotalSeconds:0.0} s");
 
@@ -655,7 +663,7 @@ namespace Dino_Defenders
         private void NoticeJoined()
         {
             if (_joinTrying == null || _client is not { State: ClientState.Loading or ClientState.Waiting or ClientState.Playing }) return;
-            GameLog.Network($"Joining: {_joinTrying} ({JoinLabel(_joinTrying)}) let this in after {SecondsSince(_joinTryingSince)}.");
+            GameLog.Network($"Joining: the host let this in after {SecondsSince(_joinTryingSince)}, by {_joinTrying}.");
             _joinTrying = null;
             _joinTried.Clear();
         }
@@ -671,6 +679,7 @@ namespace Dino_Defenders
             _portMapper = null;
             _firewallProblem = null;
             _invite = null;
+            _hosting = null;
             _loading = null;
             _joinTrying = null;
             _partyHeard = -1;
@@ -882,7 +891,7 @@ namespace Dino_Defenders
 
             if (_joinTrying != null)
             {
-                string attempt = $"{_joinTrying} ({JoinLabel(_joinTrying)}) failed after {SecondsSince(_joinTryingSince)}: {reason}";
+                string attempt = $"{_joinTrying} failed after {SecondsSince(_joinTryingSince)}: {reason}";
                 GameLog.Network($"Joining: {attempt}");
                 _joinTried.Add(attempt);
                 _joinTrying = null;

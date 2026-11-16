@@ -107,7 +107,15 @@ namespace Dino_Defenders.Net
             return addresses;
         }
 
-        private static bool OnSameNetwork(IPAddress address)
+        /// <summary>Whether an address is one inside someone's home or provider, which reaches nothing from anywhere else: home networks, a provider's shared range, VPNs.</summary>
+        internal static bool IsPrivate(IPAddress address)
+        {
+            byte[] b = address.GetAddressBytes();
+            if (b.Length != 4) return address.IsIPv6LinkLocal || address.IsIPv6SiteLocal || address.IsIPv6UniqueLocal;
+            return b[0] == 10 || (b[0] == 172 && b[1] >= 16 && b[1] < 32) || (b[0] == 192 && b[1] == 168) || (b[0] == 169 && b[1] == 254) || (b[0] == 100 && b[1] >= 64 && b[1] < 128);
+        }
+
+        internal static bool OnSameNetwork(IPAddress address)
         {
             byte[] theirs = address.GetAddressBytes();
             foreach (IPAddress ours in LocalAddresses())
