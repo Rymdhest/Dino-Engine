@@ -13,6 +13,7 @@ namespace Dino_Engine.Modelling.Procedural.Flora
         private const float ShortestLink = 0.05f;   // Metres. Less than this is nothing to bend.
         private const float StiffRadius = 0.09f;    // Metres: thinner than this bends as far as a joint can, and thicker less in proportion.
         private const float MostStretch = 0.4f;     // How much longer the outside of a bend can get at the very limit of it.
+        private const float StubbyLengths = 6f;     // A limb with less than this many of its own radii clear of what it grew from is carried stiffly, and with twice that bends as one.
 
         /// <returns>For each node of the graph, the joint nearest it: what a card on that node hangs from.</returns>
         /// <param name="walkable">It's low enough to be walked through, so every part of it answers to touch. Nothing does up in a tree.</param>
@@ -28,18 +29,28 @@ namespace Dino_Engine.Modelling.Procedural.Flora
 
                 int parentLink = axis.Parent != null ? CarrierAt(axis.Parent, ShareAt(axis.Parent, axis.ParentPoint)) : -1;
                 int links = axis.Order < LinksByOrder.Length ? LinksByOrder[axis.Order] : 0;
-                if (axis.Root || axis.Bare || axis.Length < ShortestLink * links) links = 0;
+                // Only what's clear of what it grew from can bend, and there has to be enough of that to bend.
+                float leaves = axis.Parent != null ? Leaves(axis) : 0f;
+                float free = axis.Length * (1f - leaves);
+                if (axis.Root || axis.Bare || free < ShortestLink * links) links = 0;
+                // And what's stubby doesn't bend at all: a stick a few times as long as it's thick is stiff, and a joint that short folds whatever's on it.
+                if (axis.Parent != null && free < axis.Radii[0] * StubbyLengths) links = 0;
+                else if (axis.Parent != null && free < axis.Radii[0] * StubbyLengths * 2f) links = Math.Min(links, 1);
 
                 if (links == 0 && parentLink >= 0)
                 {
                     axis.Riding = parentLink;
                     axis.LinkCount = 0;
-                    axis.FirstLink = axis.Length < ShortestLink ? parentLink : mesh.AddJoint(PlantJoint.Rigid.Between(axis.Points[0], axis.Points[^1], parentLink));
+                    // What rides on something that itself only rides goes with it, as one piece: by a joint of its own it would be carried by where its own foot is along
+                    // whatever carries them both, which for a twig at the end of a long limb is somewhere else, and the two would part at the twig's foot.
+                    PlantAxis from = axis.Parent!;
+                    if (from.LinkCount == 0 && from.FirstLink >= 0 && from.FirstLink != from.Riding) axis.FirstLink = from.FirstLink;
+                    else axis.FirstLink = axis.Length < ShortestLink ? parentLink : mesh.AddJoint(PlantJoint.Rigid.Between(axis.Points[0], axis.Points[^1], parentLink));
                 }
                 else
                 {
                     links = Math.Max(links, 1);
-                    AddChain(mesh, axis, links, parentLink, walkable);
+                    AddChain(mesh, axis, links, parentLink, walkable, leaves);
                 }
 
                 for (int i = 0; i < axis.Nodes.Count; i++)
@@ -51,13 +62,54 @@ namespace Dino_Engine.Modelling.Procedural.Flora
             return nodeJoint;
         }
 
-        private static void AddChain(FloraMesh mesh, PlantAxis axis, int links, int parent, bool walkable)
+        // How far along an axis is clear of the wood it grew from and of the collar it leaves it through, as a share of its length (as near as can be said before there's a skin:
+        // BarkSkin.Collar.Plan is what settles it). That's where it starts to bend. A limb bends beyond its collar, not from the trunk's heart: hinged at the heart of a thick
+        // trunk it swings its foot across the bark as it sways, away from the collar that holds it there, and hinged where it comes out it folds the collar itself.
+        private static float Leaves(PlantAxis axis)
+        {
+            PlantAxis parent = axis.Parent!;
+            int at = Math.Clamp(axis.ParentPoint, 0, parent.Points.Count - 1);
+            float radius = parent.Radii[at];
+            float length = axis.Length;
+            Vector3 line = parent.Points[Math.Min(at + 1, parent.Points.Count - 1)] - parent.Points[Math.Max(at - 1, 0)];
+            if (line.LengthSquared < 1e-8f || length < 1e-4f) return 0f;
+            line.Normalize();
+
+            float Off(Vector3 point)
+            {
+                Vector3 from = point - parent.Points[at];
+                return (from - line * Vector3.Dot(from, line)).Length;
+            }
+
+            float travelled = 0f;
+            for (int i = 1; i < axis.Points.Count && travelled < length * 0.5f; i++)
+            {
+                float step = (axis.Points[i] - axis.Points[i - 1]).Length;
+                float there = Off(axis.Points[i]);
+                if (there >= radius)
+                {
+                    float here = Off(axis.Points[i - 1]);
+                    float t = there > here ? Math.Clamp((radius - here) / (there - here), 0f, 1f) : 0f;
+                    // Its upper side comes out later than its heart, by how steeply it leaves, and its collar reaches a way beyond that.
+                    Vector3 heading = step > 1e-6f ? (axis.Points[i] - axis.Points[i - 1]) / step : line;
+                    float sine = Math.Clamp((heading - line * Vector3.Dot(heading, line)).Length, 0.15f, 1f);
+                    float cotangent = MathF.Min(MathF.Sqrt(1f - sine * sine) / sine, 4f);
+                    float clear = travelled + step * t + axis.Radii[0] * (1.15f * cotangent + 1.8f);
+                    return Math.Clamp(clear / length, 0f, 0.6f);
+                }
+                travelled += step;
+            }
+            // It's inside its parent for half its length: something stubby on something thick. It bends from as far out as it can.
+            return Math.Clamp(radius / length, 0f, 0.6f);
+        }
+
+        private static void AddChain(FloraMesh mesh, PlantAxis axis, int links, int parent, bool walkable, float from)
         {
             var points = new Vector3[links + 1];
             axis.LinkEnds = new float[links];
             for (int i = 0; i <= links; i++)
             {
-                float share = (float)i / links;
+                float share = from + (1f - from) * i / links;
                 points[i] = PointAt(axis, share);
                 if (i > 0) axis.LinkEnds[i - 1] = share;
             }
@@ -76,7 +128,7 @@ namespace Dino_Engine.Modelling.Procedural.Flora
             for (int i = 0; i < chain.Length; i++)
             {
                 chain[i].Parent = parent;
-                chain[i].MostBend = MathF.Min(chain[i].MostBend, BendThatHolds(axis, chain[i], i / (float)links, (i + 1f) / links));
+                chain[i].MostBend = MathF.Min(chain[i].MostBend, BendThatHolds(axis, chain[i], from + (1f - from) * i / links, from + (1f - from) * (i + 1f) / links));
                 parent = mesh.AddJoint(chain[i]);
             }
         }

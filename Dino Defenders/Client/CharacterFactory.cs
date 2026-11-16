@@ -42,29 +42,91 @@ namespace Dino_Defenders.Client
 
         private readonly Dictionary<string, glModel> _models = new();
 
-        // Everything a world can send at a hero takes seconds of every core to grow, dinosaurs most of all at a few hundred milliseconds each, and nothing at the main menu needs any of it.
-        // So it's begun once the land behind the menu has its plants, or at once when there's no menu (Begin), and it takes half the cores, as a world being loaded beside it takes longer
-        // with fewer. A world only waits for what isn't done when it's entered, and only the upload is left for this thread.
-        private Task<(string Key, Mesh Mesh)[]>? _growing;
-
-        private bool _prepared;
-        private int _grownCount, _toGrow;     // How far _growing has got, for the loading screen. Any thread.
-
-        // Open while growing may go on. Growing allocates on every thread it has, and the collections that follow stopped the Haven for 15 to 30 ms a few
-        // times a second for its first half minute, so nothing new starts while a hero is there (Hold): it goes on behind the menu and the next loading screen.
-        private readonly ManualResetEventSlim _mayGrow = new(true);
-
-        /// <summary>Lets nothing more start growing until <see cref="Begin"/> or <see cref="Grown"/> is next asked, for while there's something to play and nothing to wait for.</summary>
-        public void Hold()
+        /// <summary>What its models take of video memory now, and how many there are (Dino_Engine.Rendering.VideoMemory). Main thread only.</summary>
+        public (long Bytes, int Models) Held()
         {
-            if (!HasGrown) _mayGrow.Reset();
+            long bytes = 0;
+            foreach (glModel model in _models.Values) bytes += model.Bytes;
+            return (bytes, _models.Count);
         }
 
-        /// <summary>Whether <see cref="Prepare"/> would only upload, with nothing left to wait for. Main thread only.</summary>
-        public bool HasGrown => _prepared || _growing is { IsCompleted: true };
+        // Everything a land can send at a hero takes seconds of every core to grow, dinosaurs most of all at a few hundred milliseconds each. So a land grows only what it can send
+        // (EncounterSystem.Foresee) while it loads (Grow), and what's grown is kept: whatever one land had is there for the next, and a land of things already met loads at once.
+        // Nothing is let go, as every creature there is comes to 171 MB of video memory, about a twentieth of what a land holds, measured on the 7900 XTX (F3's Performance window),
+        // while growing one again costs a loading screen seconds. Nothing grows in the background either: growing allocates on every thread it has, and the collections that
+        // followed stopped the Haven for 15 to 30 ms a few times a second.
 
-        /// <summary>How many of everything <see cref="Prepare"/> uploads have grown, and of how many: nothing of nothing until the list is made. Any thread.</summary>
-        public (int Done, int Of) GrowingCount => _prepared ? (1, 1) : (Volatile.Read(ref _grownCount), Volatile.Read(ref _toGrow));
+        /// <summary>The names of every model it has, for <see cref="Grow"/> to leave out. Main thread only.</summary>
+        public HashSet<string> Known() => new(_models.Keys);
+
+        /// <summary>How far <see cref="Grow"/> has got, for the loading screen: how many it has grown, of how many. Any thread.</summary>
+        public sealed class Growing
+        {
+            internal int _done, _of;
+
+            public int Done => Volatile.Read(ref _done);
+            public int Of => Volatile.Read(ref _of);
+        }
+
+        /// <summary>
+        /// Starts growing every model these keys name that isn't already <paramref name="known"/> (<see cref="Known"/>), on worker threads, the slowest first and one at a time, as some take
+        /// ten times as long as others and runs handed out in advance leave cores idle at the end. What it grows is for <see cref="Upload"/>. It touches nothing of a factory's, so it's
+        /// safe from any thread, and <paramref name="progress"/> knows how many there are to grow as soon as it returns.
+        /// </summary>
+        public static Task<(string Key, Mesh Mesh)[]> Grow(IEnumerable<string> keys, IReadOnlySet<string> known, Growing progress)
+        {
+            var seen = new HashSet<string>();
+            var recipes = new List<(string Key, Func<Mesh> Build)>();
+            foreach (string key in keys)
+            {
+                if (Recipe(key) is (string name, Func<Mesh> build) && !known.Contains(name) && seen.Add(name)) recipes.Add((name, build));
+            }
+            (string Key, Func<Mesh> Build)[] ordered = recipes.OrderByDescending(recipe => Slowness(recipe.Key)).ToArray();
+            Volatile.Write(ref progress._of, ordered.Length);
+            if (ordered.Length == 0) return Task.FromResult(Array.Empty<(string Key, Mesh Mesh)>());
+            return Task.Run(() =>
+            {
+                var grown = new (string Key, Mesh Mesh)[ordered.Length];
+                var queue = Partitioner.Create(Enumerable.Range(0, ordered.Length), EnumerablePartitionerOptions.NoBuffering);
+                Parallel.ForEach(queue, new ParallelOptions { MaxDegreeOfParallelism = Math.Max(Environment.ProcessorCount - 1, 1) }, i =>
+                {
+                    grown[i] = (ordered[i].Key, ordered[i].Build());
+                    Interlocked.Increment(ref progress._done);
+                });
+                return grown;
+            });
+        }
+
+        // How long a model takes to grow, roughly: a tyrant longest, then any other dinosaur, then anyone in clothes or bones.
+        private static int Slowness(string name) => name.StartsWith("dino:tyrant") ? 2 : name.StartsWith("dino:") ? 1 : 0;
+
+        /// <summary>
+        /// Takes up what <see cref="Grow"/> grew, for the land about to be entered: left until it's first seen, a model is built in the middle of a frame, and that frame is usually the one
+        /// with a pack coming round the corner. Then every key the land can send is looked up, so a look nobody knows says so now and stands in as a stranger, as it would when sent.
+        /// Main thread only.
+        /// </summary>
+        public void Upload((string Key, Mesh Mesh)[] grown, IEnumerable<string> keys)
+        {
+            foreach ((string key, Mesh mesh) in grown)
+            {
+                if (!_models.ContainsKey(key)) _models[key] = glLoader.loadToVAO(mesh);
+            }
+            foreach (string key in keys) Resolve(key);
+        }
+
+        /// <summary>Every model a server can send for an enemy or what a place holds caged: each kind's look, with each of its seeds, for what stands all of them, as the asset lexicon does.</summary>
+        public static IEnumerable<string> Everything()
+        {
+            // What a prison holds, which isn't anyone's to fight and so isn't in the bestiary, but is sent like anything else (PLACES.md).
+            foreach ((string look, int variants, _, _) in Dino_Engine.World.Content.PlaceStory.Captives)
+            {
+                for (int variant = 0; variant < variants; variant++) yield return $"{look}{variant}";
+            }
+            foreach (Server.EnemyKind kind in Server.Bestiary.Everyone)
+            {
+                foreach (string model in Server.Bestiary.ModelsOf(kind)) yield return model;
+            }
+        }
 
         // The Haven's giants are in the picture behind the main menu, so they're wanted before anything a world can send at a hero, and they take three seconds each, as close as they're
         // seen from. So they're begun the moment the game starts (GrowGiants), one to a core, and taken up the first frame they're done (TryGiants): nothing ever waits for them.
@@ -115,74 +177,6 @@ namespace Dino_Defenders.Client
             return true;
         }
 
-        /// <summary>Starts growing everything <see cref="Prepare"/> will want, on worker threads. Asking again does nothing.</summary>
-        public void Begin()
-        {
-            _mayGrow.Set();
-            if (_prepared || _growing != null) return;
-            _growing = Task.Run(() =>
-            {
-                // One at a time, as some take three times as long as others, and runs handed out in advance leave cores idle at the end.
-                (string Key, Func<Mesh> Build)[] recipes = PreparedRecipes().ToArray();
-                var grown = new (string Key, Mesh Mesh)[recipes.Length];
-                var queue = Partitioner.Create(Enumerable.Range(0, recipes.Length), EnumerablePartitionerOptions.NoBuffering);
-                Volatile.Write(ref _toGrow, recipes.Length);
-                Parallel.ForEach(queue, new ParallelOptions { MaxDegreeOfParallelism = Math.Max(Environment.ProcessorCount / 2, 1) }, i =>
-                {
-                    _mayGrow.Wait();
-                    grown[i] = (recipes[i].Key, recipes[i].Build());
-                    Interlocked.Increment(ref _grownCount);
-                });
-                return grown;
-            });
-        }
-
-        /// <summary>
-        /// Done once everything <see cref="Prepare"/> uploads has grown, starting it if nothing has. A loading screen waits on this off the main thread,
-        /// as on a slow machine growing outlasts the menu, and waiting in <see cref="Prepare"/> stopped frames for over thirty seconds (HangWatch's limit).
-        /// The Haven sends nobody to fight and doesn't wait at all. Main thread only.
-        /// </summary>
-        public Task Grown()
-        {
-            Begin();
-            return (Task?)_growing ?? Task.CompletedTask;
-        }
-
-        // Every model a server can send for an enemy: each kind's look, with each of its seeds, and each of its outfits for bandits. Two keys can share a model.
-        private static IEnumerable<(string Key, Func<Mesh> Build)> PreparedRecipes()
-        {
-            var seen = new HashSet<string>();
-            foreach (string key in PreparedKeys())
-            {
-                if (Recipe(key) is (string name, Func<Mesh> build) && seen.Add(name)) yield return (name, build);
-            }
-        }
-
-        private static IEnumerable<string> PreparedKeys()
-        {
-            // What a prison holds, which isn't anyone's to fight and so isn't in the bestiary, but is sent like anything else (PLACES.md).
-            foreach ((string look, int variants, _, _) in Dino_Engine.World.Content.PlaceStory.Captives)
-            {
-                for (int variant = 0; variant < variants; variant++) yield return $"{look}{variant}";
-            }
-            foreach (Server.EnemyKind kind in Server.Bestiary.Everyone)
-            {
-                if (kind.Look == "bandit")
-                {
-                    for (int look = 0; look < BanditLooks; look++)
-                    {
-                        yield return BanditKey(look, archer: false);
-                        yield return BanditKey(look, archer: true);
-                    }
-                }
-                else if (kind.Variants > 0)
-                {
-                    for (int variant = 0; variant < kind.Variants; variant++) yield return $"{kind.Look}{variant}";
-                }
-                else yield return kind.Look;
-            }
-        }
-
         private glModel Model(string key, Func<Mesh> build)
         {
             if (!_models.TryGetValue(key, out glModel? model))
@@ -191,25 +185,6 @@ namespace Dino_Defenders.Client
                 _models.Add(key, model);
             }
             return model;
-        }
-
-        /// <summary>
-        /// Builds everything a world can send at a hero, for the loading screen to wait for. Left until it's first seen, a model is built in the middle of
-        /// a frame, and that frame is usually the one with a pack coming round the corner.
-        /// </summary>
-        public void Prepare()
-        {
-            if (_prepared) return;
-            Begin();
-            foreach ((string key, Mesh mesh) in _growing!.Result)
-            {
-                if (!_models.ContainsKey(key)) _models[key] = glLoader.loadToVAO(mesh);
-            }
-            _growing = null;
-            _prepared = true;
-
-            // Everything is already here, but for a look nobody knows, which says so and stands in as a stranger, as it would when sent.
-            foreach (string key in PreparedKeys()) Resolve(key);
         }
 
         /// <summary>The model a server means by <paramref name="key"/>.</summary>
@@ -305,9 +280,6 @@ namespace Dino_Defenders.Client
             }
             return null;
         }
-
-        // What a server calls a bandit, as Resolve reads it.
-        private static string BanditKey(int look, bool archer) => $"bandit{look}:{archer}";
 
         // What's thrown by someone with nothing about them to say what it looks like. A hero's own is the real thing, and takes this one's place: see ThrownComponent.
         private static Mesh ThrownThing(string kind)

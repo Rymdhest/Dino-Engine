@@ -56,7 +56,6 @@ namespace Dino_Defenders.UI
         private readonly ScrollPanel _effects;
         private readonly StackPanel _openRow;
         private readonly Label _openText;
-        private readonly Button _close;
 
         private readonly List<int> _slotted = new();
         private readonly Dictionary<string, Preview> _previews = new();
@@ -106,7 +105,6 @@ namespace Dino_Defenders.UI
             _openText.Width = UIValue.Fill;
             Button close = _openRow.Add(Ui.Action("Close the way", CloseWay));
             close.Width = 140f;
-            _close = close;
 
             var table = body.Add(new StackPanel(Orientation.Horizontal, Gap) { Width = UIValue.Fill, Height = UIValue.Fill });
 
@@ -160,11 +158,9 @@ namespace Dino_Defenders.UI
 
             // Anyone can open the way, but only while nobody's in a land: until they're all back it stays as it is.
             var portal = Session.Client.Portal;
-            bool away = Session.Client.AnyoneInLand;
-            _openRow.Visible = portal != null || away;
-            _close.Visible = !away;
-            if (away) _openText.Text = $"Friends are in {Session.Client.Party.First(member => member.InLand).Where}. The way can be opened again once they're back";
-            else if (portal is var (name, request, _)) _openText.Text = $"The way is open to {name}, level {request.Level}";
+            // While a friend is in a land, nothing up here: the Open buttons say why they can't, when they're pointed at.
+            _openRow.Visible = portal != null && !Session.Client.AnyoneInLand;
+            if (portal is var (name, request, _)) _openText.Text = $"The way is open to {name}, level {request.Level}";
             _reroll.Enabled = Hero.Gold >= Lands.RerollCost(_level);
             TendPreviews();
         }
@@ -173,7 +169,7 @@ namespace Dino_Defenders.UI
         private string Signature()
         {
             var orders = string.Join(",", OrdersCells().Select(cell => $"{cell}:{Hero.Inventory[cell]!.LookSeed()}"));
-            return $"{Hero.Offers}/{Hero.LandLevel}/{_level}/{Hero.RerollsAt(_level)}/{string.Join(",", _slotted)}/{orders}";
+            return $"{Hero.Offers}/{Hero.LandLevel}/{_level}/{Hero.RerollsAt(_level)}/{string.Join(",", _slotted)}/{orders}/{Session.Client.Party.Count}";
         }
 
         private IEnumerable<int> OrdersCells()
@@ -254,11 +250,29 @@ namespace Dino_Defenders.UI
                 list.Add(new EffectRow(this, null, 0f, unique.Costs, Danger));
                 any = true;
             }
+            int party = Session.Client.Party.Count;
+            if (party > 1)
+            {
+                list.Add(new EffectRow(this, null, 0f, Lands.PartyText(party), Danger));
+                any = true;
+            }
             if (!any) list.Add(Ui.Line("Nothing but the land", 13.5f, Ui.Faded));
+        }
+
+        // What an Open button says while a friend is in another land.
+        private static Card FriendsAway
+        {
+            get
+            {
+                var card = new Card { Title = "Can't open the way" };
+                card.Text("A friend is still in another land.");
+                return card;
+            }
         }
 
         private void OpenWay(int index)
         {
+            if (Session.Client.AnyoneInLand) return;
             Audio.Play(Interface.Trade);
             Session.Client.OpenWay(_level, index, _slotted.ToList());
             _slotted.Clear();
@@ -456,7 +470,13 @@ namespace Dino_Defenders.UI
 
                 Button open = Add(Ui.Action("Open", () => panel.OpenWay(index)));
                 open.Width = inner;
-                open.Updated += _ => open.Enabled = GameSession.Current?.Client.AnyoneInLand != true;
+                open.Updated += _ =>
+                {
+                    bool away = GameSession.Current?.Client.AnyoneInLand == true;
+                    open.Enabled = !away;
+                    open.Label.Color = away ? Ui.Faded : Ui.Parchment;
+                    if (away && open.Context is GuiContext context && open.Bounds.Contains(context.MousePosition)) GameUi.Current.Tips.Show(() => FriendsAway, open.Bounds);
+                };
                 int level = offer.Request.Level;
                 open.Label.Bind(() => GameSession.Current?.Client.Portal is var (name, request, _) && name == plan.Name && request.Level == level ? "The way is open"
                     : panel.SlottedCells.Count == 1 ? "Open with 1 order" : panel.SlottedCells.Count > 1 ? $"Open with {panel.SlottedCells.Count} orders" : "Open");

@@ -130,6 +130,9 @@ namespace Dino_Engine.Modelling.Procedural.Flora
         public int Riding = -1;     // With no links of its own, the link of something else that carries it.
         public float[] LinkEnds = Array.Empty<float>();  // How far along each link stops, 0 to 1.
 
+        // Filled in by the skin: where its surface is, for what grows from it to leave through (BarkSkin.Sleeve).
+        internal BarkSkin.Sleeve? Sleeve;
+
         public float Length
         {
             get
@@ -140,9 +143,12 @@ namespace Dino_Engine.Modelling.Procedural.Flora
             }
         }
 
+        /// <summary>How much more a child that goes straight on is worth as the way an axis carries on than one that turns square off it, as a share of its thickness.</summary>
+        private const float StraightOn = 0.35f;
+
         /// <summary>
-        /// Splits a graph into axes, parents first. At every fork the thickest child goes on as the same axis, and the rest start new ones, so a limb's order is how many times you
-        /// have to turn off the main line to reach it. Wood thinner than <paramref name="cut"/> isn't skinned at all: that's what's on the cards.
+        /// Splits a graph into axes, parents first. At every fork the thickest child goes on as the same axis, or of two much alike the straighter, and the rest start new ones, so
+        /// a limb's order is how many times you have to turn off the main line to reach it. Wood thinner than <paramref name="cut"/> isn't skinned at all: that's what's on the cards.
         /// </summary>
         public static List<PlantAxis> From(PlantGraph graph, float cut)
         {
@@ -177,13 +183,21 @@ namespace Dino_Engine.Modelling.Procedural.Flora
                     axis.Nodes.Add(at);
                     axis.Lights.Add(node.Light);
 
+                    // Which child goes on as this axis: the thickest, but of two much alike, the one that goes straighter on. By thickness alone a fork of two equal shoots was a
+                    // coin's toss, and a limb turned off into a side spur and ended there while its own straight length started again as a branch of it.
                     int best = -1;
-                    float thickest = cut;
+                    float most = 0f;
+                    Vector3 heading = axis.Points.Count >= 2 ? axis.Points[^1] - axis.Points[^2] : Vector3.Zero;
+                    heading = heading.LengthSquared > 1e-10f ? heading.Normalized() : Vector3.Zero;
                     for (int c = start[at]; c < start[at + 1]; c++)
                     {
-                        float radius = graph.Nodes[list[c]].Radius;
-                        if (radius < thickest) continue;
-                        thickest = radius;
+                        PlantGraph.Node child = graph.Nodes[list[c]];
+                        if (child.Radius < cut) continue;
+                        Vector3 onward = child.Position - node.Position;
+                        float straight = onward.LengthSquared > 1e-10f ? Vector3.Dot(onward.Normalized(), heading) : 0f;
+                        float worth = child.Radius * (1f + StraightOn * straight);
+                        if (best >= 0 && worth < most) continue;
+                        most = worth;
                         best = list[c];
                     }
                     for (int c = start[at]; c < start[at + 1]; c++)

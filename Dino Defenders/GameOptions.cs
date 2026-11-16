@@ -8,6 +8,7 @@ namespace Dino_Defenders
     /// What the game was started with. Playing needs none of it; these jump straight to a world for development, and let a
     /// scripted run look at one spot, take a screenshot and quit.
     ///   --seed N  --archetype id  --site Kind  --at x,z  --look distance  --angle degrees  --shot file.png  --frames N
+    ///   --pan x,z       Looks at a point so many metres beside the hero (+x is left on screen) and beyond them, for a picture of what stands by them and not of their back.
     ///                   --site FacingWaygate stands the hero in front of the land's waygate the camera sees most squarely, for looking at its way (WAYGATES.md).
     ///   --snap file    Whenever this file appears, takes a picture to the path written in it and deletes it, for looking at a run from outside as it goes.
     ///   --tour folder   Visits one of every kind of site, and a wood, a road and a shore, photographing each.
@@ -85,6 +86,7 @@ namespace Dino_Defenders
         public float? Look;         // Metres above the player for a high look at a place.
         public bool Calm;           // Nothing hostile stirs.
         public float? Angle;        // Degrees above the horizon the camera looks down from, for a low look at a place.
+        public Vector2 Pan;         // Metres beside the hero (+x is left on screen) and beyond them that the camera looks at, for a picture of what stands by them.
         public string? Shot;
         public string? Snap;
         public string? Tour;
@@ -172,6 +174,9 @@ namespace Dino_Defenders
         public int? MeshSeed;
         public int? MaxFps;
         public string? Perf;
+
+        /// <summary>Frames after entering each world to write everything on the card to the console (VideoMemory.Census), or 0 for never.</summary>
+        public int VideoMemoryList;
         public string? Biome;
         public string? Garden;
         public string? Fx;              // Effects by name (Particles/Content), or "all", stood in a row in front of the hero.
@@ -221,6 +226,10 @@ namespace Dino_Defenders
                         break;
                     case "look": options.Look = float.Parse(value, System.Globalization.CultureInfo.InvariantCulture); break;
                     case "angle": options.Angle = float.Parse(value, System.Globalization.CultureInfo.InvariantCulture); break;
+                    case "pan":
+                        string[] pan = value.Split(',');
+                        options.Pan = new Vector2(float.Parse(pan[0], System.Globalization.CultureInfo.InvariantCulture), float.Parse(pan[1], System.Globalization.CultureInfo.InvariantCulture));
+                        break;
                     case "shot": options.Shot = value; break;
                     case "snap": options.Snap = value; break;
                     case "tour": options.Tour = value; break;
@@ -296,6 +305,7 @@ namespace Dino_Defenders
                     case "meshseed": options.MeshSeed = int.Parse(value); break;
                     case "maxfps": options.MaxFps = int.Parse(value); break;
                     case "perf": options.Perf = value; break;
+                    case "vramlist": options.VideoMemoryList = int.Parse(value); break;
                     case "garden": options.Garden = value; break;
                     case "fx": options.Fx = value; break;
                     case "particlesheet": options.ParticleSheet = value; break;

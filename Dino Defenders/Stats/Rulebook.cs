@@ -237,6 +237,7 @@ namespace Dino_Defenders.Stats
         public const float BesideFriend = 2.5f;         // Metres from a friend that someone travelling to them steps out.
 
         // Friends.
+        public const float PartyHealth = 100f;          // Percent more Health every enemy in a land has for each hero in the game past the first.
         public const float RaiseTime = 4f;              // Seconds standing still and unhurt beside a fallen friend to raise them, which breaks as calling the roads does.
         public const float RaiseReach = 3.5f;           // Metres from a fallen friend that someone can begin raising them.
         public const float RaisedShare = 0.5f;          // Of their Health and Mana that someone who's been raised gets up with.

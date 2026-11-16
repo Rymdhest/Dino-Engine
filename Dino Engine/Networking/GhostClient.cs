@@ -51,6 +51,7 @@ namespace Dino_Engine.Networking
         internal readonly record struct Sample(uint Sequence, uint Tick, ulong Mask, int[] Row);
 
         internal readonly List<Sample> Samples = new(8);
+        internal ulong EverSent;    // Every component the server has ever sent of it: what it takes away can be taken away here, and what the client added itself stays.
         internal uint LeavesAt;
         internal bool Leaving;
         internal bool Settled;
@@ -274,6 +275,7 @@ namespace Dino_Engine.Networking
                 }
 
                 AddSample(ghost, new Ghost.Sample(sequence, tick, update.Mask, update.Row));
+                ghost.EverSent |= update.Mask;
                 ghost.Leaving = false;
                 ghost.Settled = false;
             }
@@ -410,7 +412,8 @@ namespace Dino_Engine.Networking
                     else if (inB) codec.Blend(view, a.Row, aAt, b.Row, bAt, t, _strings);
                     else codec.Apply(view, a.Row, aAt, _strings);
                 }
-                else if (!inA && (ghost.Predicted & bit) == 0 && codec.Has(view) && WasSent(samples, bit))
+                // Gone from what the server says, and the server is where it came from. Looking for it among the samples still held missed it once those had moved on, and left it on for good.
+                else if (!inA && (ghost.Predicted & bit) == 0 && (ghost.EverSent & bit) != 0 && codec.Has(view))
                 {
                     _ecs.RemoveComponentFromEntity(ghost.Entity, codec.Type);
                 }
@@ -421,15 +424,6 @@ namespace Dino_Engine.Networking
 
             // Nothing new can change it once the newest state has been reached, until another comes.
             ghost.Settled = from == samples.Count - 1 && a.Tick <= renderTick;
-        }
-
-        private static bool WasSent(List<Ghost.Sample> samples, ulong bit)
-        {
-            foreach (Ghost.Sample sample in samples)
-            {
-                if ((sample.Mask & bit) != 0) return true;
-            }
-            return false;
         }
 
         /// <summary>The newest word on one component of a ghost, without waiting for it to come round: a hero's own health, say.</summary>

@@ -135,7 +135,7 @@ namespace Dino_Defenders.Server
                         combat.Linger(actor, deltaTime);
                         combat.Presence(actor, deltaTime);
 
-                        if (actor.LoadoutChanged) session.Rebuild(actor);
+                        if (actor.LoadoutChanged || (actor.Team == Team.Enemies && actor.PartyHealth != session.PartyHealth)) session.Rebuild(actor);
                         if (actor.IsHero) actor.Counters = Counted(session, actor);
                         else if (actor.Owner != null) actor.Counters = actor.Owner.Counters;
 

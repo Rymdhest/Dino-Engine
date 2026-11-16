@@ -32,6 +32,30 @@ namespace Dino_Engine.Modelling.Procedural.Gear
 
         public int Count => _entries.Count;
 
+        public GearWorkshop()
+        {
+            Rendering.VideoMemory.Tally("Gear", Held);
+        }
+
+        /// <summary>What its models take of video memory now, those waiting to be let go among them, and how many there are. Render thread.</summary>
+        public (long Bytes, int Models) Held()
+        {
+            long bytes = 0;
+            int models = 0;
+            foreach (Entry entry in _entries.Values)
+            {
+                if (entry.Model == null) continue;
+                bytes += entry.Model.Bytes;
+                models++;
+            }
+            foreach ((glModel model, long _) in _dying)
+            {
+                bytes += model.Bytes;
+                models++;
+            }
+            return (bytes, models);
+        }
+
         /// <summary>How many have been asked for, ever.</summary>
         public int Made { get; private set; }
 

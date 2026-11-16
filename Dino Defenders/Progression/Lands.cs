@@ -291,6 +291,12 @@ namespace Dino_Defenders.Progression
         /// <summary>The deepest level a hero can open: the one after the deepest they've freed.</summary>
         public static int DeepestOpen(HeroState hero) => Math.Max(hero.BestLand, 0) + 1;
 
+        /// <summary>How much more Health, in percent, every enemy in a land has for a party this large: nothing alone, and as much again for each hero past the first.</summary>
+        public static float PartyHealth(int party) => Rulebook.PartyHealth * Math.Max(party - 1, 0);
+
+        /// <summary>What that says, where a land's omens are listed.</summary>
+        public static string PartyText(int party) => $"Enemies have {PartyHealth(party):0}% more Health, for a party of {party}";
+
         /// <summary>How many orders a hero can give for one land: one, and one more for each boss they've brought down, which is every tenth level they've freed, as none can be passed by.</summary>
         public static int OrderSlots(HeroState hero) => Math.Min(1 + Math.Max(hero.BestLand, 0) / BossEvery, MostOrderSlots);
 

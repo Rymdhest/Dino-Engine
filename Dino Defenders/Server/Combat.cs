@@ -2164,7 +2164,7 @@ namespace Dino_Defenders.Server
             // A world holds a thousand of these. What's worth having comes from those that took some beating, and how much beating is in the health it really had.
             // What a land's omens add comes out of that, or they'd turn its fodder into champions and pay for them twice.
             LootBoon boon = _session.Boon;
-            float health = Bestiary.HealthAt(enemy.Level) * _session.Terms.EnemyHealth * (actor.Tyrant ? _session.TyrantHealth : 1f);
+            float health = Bestiary.HealthAt(enemy.Level) * _session.Terms.EnemyHealth * (actor.Tyrant ? _session.TyrantHealth : 1f) * (1f + actor.PartyHealth / 100f);
             LootTier tier = LootTables.TierOf(enemy.Rarity, actor.Sheet.MaxHealth / health);
 
             // A trophied land's tyrant drops more, and a ledger's rares are worth twice what they'd be.

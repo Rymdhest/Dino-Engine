@@ -7,7 +7,8 @@
 // 0 = right in the opening, 1 = untouched.
 float focusVisibility(vec3 worldPos)
 {
-    if (focusPoint.w <= 0.0) return 1.0;
+    // The debug free camera sees everything whole, however close it is and whatever stands between it and the hero, for looking at anything as it really is.
+    if (focusPoint.w <= 0.0 || solidView > 0.5) return 1.0;
 
     // Only what rises above the focus: the ground and everything at the character's own level stay as they are.
     if (worldPos.y < focusPoint.y) return 1.0;

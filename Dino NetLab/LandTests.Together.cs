@@ -48,6 +48,23 @@ namespace Dino_NetLab
             scene.UsePortal(friend);
             report.Check("A friend who follows is in the same land", other.Room == land && friend.Client.Session is { IsHaven: false });
 
+            // Every enemy has as much Health again for each hero in the game past the first, and goes with the party as it changes.
+            scene.Lab.Run(2);
+            List<Actor> foes = Foes(land.Ecs);
+            float Share(Actor a) => a.Sheet.MaxHealth / a.Innate.SheetFor(Condition.None).MaxHealth;
+            report.Check("With three in the game, every enemy has 200% more Health", foes.Count > 0 && foes.All(f => MathF.Abs(Share(f) - 3f) < 0.05f), foes.Count > 0 ? $"{Share(foes[0]):0.00} times" : "none");
+            report.Check("Which the map table and the land both say", Lands.PartyText(friend.Client.Party.Count).Contains("200%"));
+            Actor wounded = foes.First();
+            wounded.Vitals.Health = wounded.Sheet.MaxHealth * 0.5f;
+            LabPlayer fourth = scene.Join("Fourth", Sturdy(1), seed: 6);
+            scene.Lab.Run(1);
+            report.Check("Someone joining mid-land takes every enemy to 300% more at once", foes.All(f => f.Dead || MathF.Abs(Share(f) - 4f) < 0.05f) && land.Session.PartyHealth == 300f, $"{Share(foes[0]):0.00} times");
+            report.Check("Keeping a wounded enemy at the share of it it had", MathF.Abs(wounded.Vitals.Health / wounded.Sheet.MaxHealth - 0.5f) < 0.02f, $"{wounded.Vitals.Health / wounded.Sheet.MaxHealth:0.00}");
+            fourth.Client.Dispose();
+            scene.Lab.Players.Remove(fourth);
+            scene.Lab.Run(2);
+            report.Check("And someone leaving takes it back down", foes.All(f => f.Dead || MathF.Abs(Share(f) - 3f) < 0.05f), $"{Share(foes[0]):0.00} times");
+
             // From a waygate to a friend, and only from one.
             SiteState far = land.Session!.Sites.Where(s => !s.Wild && !WorldProgress.HasWaygate(s)).OrderByDescending(s => s.Site.Remoteness).First();
             scene.Go(far.Site.Position);
@@ -112,6 +129,8 @@ namespace Dino_NetLab
             report.Check("With half of what they had", share > Rulebook.RaisedShare - 0.05f && share < Rulebook.RaisedShare + 0.2f, $"{share:0.00} of their Health");
             report.Check("On both ends, and the account of how they fell is put away", !scene.Player.Client.Out && scene.Player.Client.Recap == null && scene.Player.Client.Session!.Health > 0f);
             report.Check("And their mark goes", !RaiseMarkOn(friend.Ecs, host.Id) && !RaiseMarkOn(land.Ecs, host.Id));
+            scene.Lab.Run(5);
+            report.Check("For good, and from their own screen too", !RaiseMarkOn(friend.Ecs, host.Id) && !RaiseMarkOn(land.Ecs, host.Id) && !RaiseMarkOn(scene.Player.Ecs, host.Id), $"server {RaiseMarkOn(land.Ecs, host.Id)}, friend {RaiseMarkOn(friend.Ecs, host.Id)}, own {RaiseMarkOn(scene.Player.Ecs, host.Id)}");
 
             // Loot, as the host says.
             friend.Client.ChooseLoot(LootRule.Allocated);
@@ -122,9 +141,10 @@ namespace Dino_NetLab
             report.Check("Which everyone's told", scene.Lab.Server.Loot == LootRule.Allocated && friend.Client.Loot == LootRule.Allocated && scene.Player.Client.Loot == LootRule.Allocated);
 
             scene.Go(host.Sim.Position + new Vector2(2f, 0f), friend);
+            var lying = Finds(land.Ecs).Select(f => f.Find).ToHashSet();
             Spill(land, host.Sim.Position, 4, 0);
             scene.Lab.Run(3);
-            List<(int Find, int Owner, Vector2 At)> finds = Finds(land.Ecs);
+            List<(int Find, int Owner, Vector2 At)> finds = Finds(land.Ecs).Where(f => !lying.Contains(f.Find)).ToList();
             report.Check("Allocated, each find is someone's, in turn", finds.Count == 4 && finds.Count(f => f.Owner == host.Id) == 2 && finds.Count(f => f.Owner == other.Id) == 2, string.Join(", ", finds.Select(f => f.Owner)));
             report.Check("And everyone sees whose", finds.All(f => Finds(friend.Ecs).Any(seen => seen.Find == f.Find && seen.Owner == f.Owner)));
 
@@ -182,6 +202,21 @@ namespace Dino_NetLab
             scene.Player.PressUse = true;
             scene.Lab.Run(3);
             report.Check("But can't step back into the land they fell in", host.Room!.IsHaven && scene.Player.Client.Session!.IsHaven);
+        }
+
+        // Everything hostile standing in a world.
+        private static List<Actor> Foes(ECSWorld world)
+        {
+            var foes = new List<Actor>();
+            foreach (Archetype archetype in world.QueryArchetypes(new BitMask(typeof(EnemyComponent), typeof(ActorComponent)), BitMask.Empty))
+            {
+                foreach (EntityView entity in new ComponentAccessor(archetype))
+                {
+                    Actor actor = entity.Get<ActorComponent>().Actor;
+                    if (actor.Team == Team.Enemies && !actor.Dead && !entity.Get<EnemyComponent>().Friendly) foes.Add(actor);
+                }
+            }
+            return foes;
         }
 
         // Whether a hero lies with a mark on them, which a friend can raise them by.

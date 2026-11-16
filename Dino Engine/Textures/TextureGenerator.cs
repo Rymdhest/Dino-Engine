@@ -44,8 +44,9 @@ namespace Dino_Engine.Textures
         // Mips of every material made but not kept: they're three quarters of the arrays, 2.6 GB of them, and nothing is ever near enough to read them. A tile
         // spans 0.6 to 11 m at 2048 texels, and the closest the camera comes shows some 50 pixels a metre at 1080p, where even the widest tile is near two
         // levels down. Kept, they put a 6 GB card over what it holds, and the driver moved everything to and fro across the bus each frame. The shaders that pick
-        // a level themselves count from what's kept (MATERIAL_SIZE in Model.frag and Terrain.frag, Rock.glsl's streaks).
-        public const int MaterialLevelsDropped = 1;
+        // a level themselves count from what's kept (MATERIAL_SIZE in Model.frag and Terrain.frag, Rock.glsl's streaks). A second level went on 2026-11-16, at every quality: the
+        // 1024 arrays were 1.07 GB, the largest thing on the card, and 512 is a quarter of that.
+        public const int MaterialLevelsDropped = 2;
         public static readonly Vector2i IMPOSTER_RESOLUTION = new Vector2i(256);
         public readonly int anglesPerImposter = 8;
 
@@ -262,18 +263,20 @@ namespace Dino_Engine.Textures
             megaNormalModelTextureArray = NewCardArray(cards.Layers);
             megaMaterialModelTextureArray = NewCardArray(cards.Layers);
 
-            byte[] albedo = new byte[CardLibrary.LayerSize * CardLibrary.LayerSize * 4];
+            // Painted as they always were, with the first levels left on this side (CardLibrary.LevelsDropped), so every level kept is the same as it was.
+            int keptSize = CardLibrary.LevelSize(CardLibrary.LevelsDropped);
+            byte[] albedo = new byte[keptSize * keptSize * 4];
             byte[] normal = new byte[albedo.Length];
             byte[] material = new byte[albedo.Length];
             for (int layer = 0; layer < cards.Layers; layer++)
             {
-                for (int level = 0; level < CardLibrary.Levels; level++)
+                for (int level = CardLibrary.LevelsDropped; level < CardLibrary.Levels; level++)
                 {
                     int size = CardLibrary.LevelSize(level);
                     cards.Level(layer, level, albedo, normal, material);
-                    UploadCard(megaAlbedoModelTextureArray, layer, level, size, albedo);
-                    UploadCard(megaNormalModelTextureArray, layer, level, size, normal);
-                    UploadCard(megaMaterialModelTextureArray, layer, level, size, material);
+                    UploadCard(megaAlbedoModelTextureArray, layer, level - CardLibrary.LevelsDropped, size, albedo);
+                    UploadCard(megaNormalModelTextureArray, layer, level - CardLibrary.LevelsDropped, size, normal);
+                    UploadCard(megaMaterialModelTextureArray, layer, level - CardLibrary.LevelsDropped, size, material);
                 }
             }
             GL.BindTexture(TextureTarget.Texture2DArray, 0);
@@ -284,7 +287,8 @@ namespace Dino_Engine.Textures
         {
             int array = GL.GenTexture();
             GL.BindTexture(TextureTarget.Texture2DArray, array);
-            GL.TexStorage3D(TextureTarget3d.Texture2DArray, CardLibrary.Levels, SizedInternalFormat.Rgba8, CardLibrary.LayerSize, CardLibrary.LayerSize, layers);
+            int keptSize = CardLibrary.LevelSize(CardLibrary.LevelsDropped);
+            GL.TexStorage3D(TextureTarget3d.Texture2DArray, CardLibrary.Levels - CardLibrary.LevelsDropped, SizedInternalFormat.Rgba8, keptSize, keptSize, layers);
             GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.LinearMipmapLinear);
             GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
             GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);

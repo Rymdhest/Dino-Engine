@@ -122,7 +122,8 @@ namespace Dino_Defenders.UI
                 laid.Pieces.Add(new Piece(DetailsLink, "", Pad, y, inner, 13f, ink.Term, default, card.Details));
                 y += 18f;
             }
-            else if (!held)
+            // Only where holding it would show something: a word to open, details or a comparison. A card with none of those says so by saying nothing.
+            else if (!held && (comparable || card.Details != null || laid.Pieces.Any(piece => piece.Opens != null) || laid.Chips.Count > 0))
             {
                 y += 4f;
                 laid.Pieces.Add(new Piece(comparable ? ItemHint : HoldHint, "", Pad, y, inner, 11.5f, ink.Quiet.MultiplyAlpha(0.7f), default));

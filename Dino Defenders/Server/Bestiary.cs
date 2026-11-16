@@ -641,11 +641,27 @@ namespace Dino_Defenders.Server
         // As much Spell Damage as it has Attack Damage, as its Spell Pages are as much of what it does as its Attack Pages. Whatever it's made of turns that into its own kind of damage, as it does a blow.
         private static Mod SpellFor(EnemyKind kind, int level, float rarityDamage) => Added(DamageType.Physical, DamageAt(level) * rarityDamage * kind.Damage, Tags.Spell);
 
+        private const int BanditOutfits = 8;     // What a bandit can be numbered, which a client folds into the few it draws.
+
         /// <summary>What a body of this kind is drawn as. Some come in several, so that a pack isn't one person many times over.</summary>
         public static string ModelOf(EnemyKind kind, WorldRandom random)
         {
-            if (kind.Look == "bandit") return $"bandit{random.Int(8)}:{kind == Archer}";
+            if (kind.Look == "bandit") return $"bandit{random.Int(BanditOutfits)}:{kind == Archer}";
             return kind.Variants > 0 ? $"{kind.Look}{random.Int(kind.Variants)}" : kind.Look;
+        }
+
+        /// <summary>Everything <see cref="ModelOf"/> can draw a body of this kind as, for a client to grow before it's sent any.</summary>
+        public static IEnumerable<string> ModelsOf(EnemyKind kind)
+        {
+            if (kind.Look == "bandit")
+            {
+                for (int outfit = 0; outfit < BanditOutfits; outfit++) yield return $"bandit{outfit}:{kind == Archer}";
+            }
+            else if (kind.Variants > 0)
+            {
+                for (int variant = 0; variant < kind.Variants; variant++) yield return $"{kind.Look}{variant}";
+            }
+            else yield return kind.Look;
         }
 
         /// <summary>The numbers for this kind of enemy at this level, shared by every one of them there is.</summary>

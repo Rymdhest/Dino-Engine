@@ -65,7 +65,7 @@ layout (depth_greater) out float gl_FragDepth;
 #include Water/ShoreWet.glsl
 #include Water/ShoreGround.glsl
 
-const float MATERIAL_SIZE = 1024.0;             // Texels across a material as the arrays keep it (TextureGenerator.MaterialLevelsDropped), for the mip a march reads.
+const float MATERIAL_SIZE = 512.0;              // Texels across a material as the arrays keep it (TextureGenerator.MaterialLevelsDropped), for the mip a march reads.
 const float SETTLE_METRES = 0.3;                // The finest relief water and snow settle by (Weather/Wetness.glsl, Water/ShoreWet.glsl).
 const float TERRAIN_MOST_SLANT = 6.0;           // The farthest a ray may run sideways, in depths of the relief (Surface/Relief.glsl).
 const float TERRAIN_STEPS_PER_PIXEL = 0.5;

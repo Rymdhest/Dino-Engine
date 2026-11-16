@@ -135,6 +135,42 @@ namespace Dino_Engine.Textures.Synthesis
             }, ImageFormat.Vector, ImageFormat.Vector));
         }
 
+        /// <summary>
+        /// A Voronoi diagram for what cracks into long pieces, as bark does up a trunk and dried wood along its grain. Its sites lie one to each of
+        /// <paramref name="frequency"/> cells, far more across than up, and the diagram is drawn in cells, so its pieces are as long as their cells, leaning into each
+        /// other and crossing each other's ends; but <see cref="Synthesis.Cells.Border"/> is how far off the border really is, in the cell's shorter side, so a crack
+        /// is as wide whichever way it runs. Measured in cells, as <see cref="Cells(Vector2, Vector2)"/> measures, a crack across a piece is as many times wider than
+        /// one along it as the piece is long, which is the wrong way round for anything that splits along its length.
+        /// <paramref name="pull"/> pulls the whole diagram about before it's drawn, by about that many cells across and up, in <paramref name="pullFrequency"/> lumps
+        /// to the tile, so that no crack runs straight: what makes a diagram look grown and not ruled. It has a shader of its own (Synth_LongCells.frag), so that
+        /// nothing made of ordinary cells moved by a texel when this came.
+        /// </summary>
+        public Cells LongCells(Vector2 frequency, Vector2 jitter, Vector2 pull = default, Vector2 pullFrequency = default)
+        {
+            Vector2i whole = Whole(frequency);
+            int seed = NextSeed();
+            Vector2 stray = new Vector2(Math.Clamp(jitter.X, 0f, 1f), Math.Clamp(jitter.Y, 0f, 1f));
+            // A cell's sides as they lie in the tile, the shorter as 1.
+            Vector2 metric = Vector2.One;
+            if (whole.X != whole.Y)
+            {
+                float longer = MathF.Max(whole.X, whole.Y) / (float)Math.Min(whole.X, whole.Y);
+                metric = whole.X > whole.Y ? new Vector2(1f, longer) : new Vector2(longer, 1f);
+            }
+            Vector2i lumps = Whole(pullFrequency == default ? new Vector2(MathF.Max(whole.X / 3f, 1f), MathF.Max(whole.Y * 1.5f, 1f)) : pullFrequency);
+            float deviation = OctaveStatistics[(int)NoiseKind.Perlin].Deviation;
+            return new Cells(new PassNode(this, gpu => gpu.LongCells, Array.Empty<Operand>(), shader =>
+            {
+                shader.loadUniformVector2i("frequency", whole);
+                shader.loadUniformVector2f("jitter", stray);
+                shader.loadUniformVector2f("metric", metric);
+                shader.loadUniformVector2f("pull", pull);
+                shader.loadUniformVector2i("pullFrequency", lumps);
+                shader.loadUniformFloat("pullDeviation", deviation);
+                shader.loadUniformInt("seed", seed);
+            }, ImageFormat.Vector, ImageFormat.Vector));
+        }
+
         public Cells Cells(float frequency, float jitter = 1f) => Cells(new Vector2(frequency), jitter);
 
         /// <summary>
@@ -388,6 +424,11 @@ namespace Dino_Engine.Textures.Synthesis
                 ("erode", cells.Border.Erode(0.004f)),
                 ("occlusion", noise.Occlusion(0.05f)),
                 ("u", (canvas.U * 3f).Sine()),
+                // Long cells only a little longer than wide. The ends of very long ones lie near whole numbers of cells along the tile, its edge among them, and
+                // that's where their border's distance changes fastest, so the step across the edge is two or three times the average with no seam there at all.
+                ("long cell border", canvas.LongCells(new Vector2(8f, 6f), new Vector2(1f, 1f)).Border),
+                ("pulled cell border", canvas.LongCells(new Vector2(6f, 8f), new Vector2(1f, 1f), new Vector2(0.3f, 0.3f), new Vector2(5f, 7f)).Border),
+                ("pulled cell centre", canvas.LongCells(new Vector2(9f, 5f), new Vector2(1f, 1f), new Vector2(0.3f, 0.2f), new Vector2(4f, 6f)).Centre),
             };
             var lines = new System.Text.StringBuilder();
             foreach ((string name, Field field) in checks)

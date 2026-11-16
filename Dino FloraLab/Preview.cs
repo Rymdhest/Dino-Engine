@@ -27,6 +27,9 @@ namespace Dino_FloraLab
         /// <summary>How much of a surface's colour the stand-in for its texture keeps at least, and how much it varies above that.</summary>
         public float GrainFloor = 0.3f;
         public float GrainDepth = 0.75f;
+
+        /// <summary>Leaves a plant's cards out, to look at its wood with nothing in the way.</summary>
+        public bool WoodOnly;
         private readonly BakedCards _cards;
         private readonly float[] _depth;
         private readonly Vector3[] _colour;
@@ -58,6 +61,11 @@ namespace Dino_FloraLab
             Vector3 right = Vector3.Cross(forward, Vector3.UnitY).Normalized();
             Vector3 up = Vector3.Cross(right, forward).Normalized();
             float scale = Math.Min(Width, Height) / reach;
+            _target = target;
+            _right = right;
+            _up = up;
+            _forward = forward;
+            _scale = scale;
 
             Vector3 Screen(Vector3 world)
             {
@@ -81,7 +89,25 @@ namespace Dino_FloraLab
             for (int i = 0; i + 2 < mesh.Indices.Count; i += 3)
             {
                 FloraVertex a = mesh.Vertices[mesh.Indices[i]], b = mesh.Vertices[mesh.Indices[i + 1]], c = mesh.Vertices[mesh.Indices[i + 2]];
+                if (WoodOnly && a.Material >= FirstCard) continue;
                 Raster(Screen(a.Position), Screen(b.Position), Screen(c.Position), a, b, c, forward);
+            }
+        }
+
+        private Vector3 _target, _right, _up, _forward;
+        private float _scale;
+
+        /// <summary>A dot on the last picture drawn at a place in the plant, whatever's in front of it: for pointing at something.</summary>
+        public void Mark(Vector3 world, Vector3 colour, int size = 3)
+        {
+            Vector3 from = world - _target;
+            int x = (int)(Width * 0.5f + Vector3.Dot(from, _right) * _scale), y = (int)(Height * 0.5f - Vector3.Dot(from, _up) * _scale);
+            for (int j = -size; j <= size; j++)
+            {
+                for (int i = -size; i <= size; i++)
+                {
+                    if (x + i >= 0 && x + i < Width && y + j >= 0 && y + j < Height) _colour[(y + j) * Width + x + i] = colour;
+                }
             }
         }
 
@@ -109,6 +135,7 @@ namespace Dino_FloraLab
             for (int i = 0; i + 2 < mesh.Indices.Count; i += 3)
             {
                 FloraVertex a = mesh.Vertices[mesh.Indices[i]], b = mesh.Vertices[mesh.Indices[i + 1]], c = mesh.Vertices[mesh.Indices[i + 2]];
+                if (WoodOnly && a.Material >= FirstCard) continue;
                 ShadowTriangle(a, b, c);
             }
         }

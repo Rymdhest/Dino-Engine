@@ -15,8 +15,9 @@ namespace Dino_FloraLab
     ///   list                                                                                                          Every plant, with what it costs.
     ///   check   [--plants a,b] [--count N]                                                                            Is every plant at every seed sound, and within budget? Exit code 1 if not.
     ///   variety [--plants a,b] [--count N]                                                                            Are two plants of a species really different? Exit code 1 if not.
+    ///   joins   [--plants a,b] [--count N] [--out file.png] [--show N] [--why true]                                   Does every limb meet what it grew from? Exit code 1 if one stands clear: see JoinCheck.
     ///   find                                                                                                          A seed and an archetype for every biome, to look at it with --biome.
-    ///   bend    [--plants a,b] [--count N]                                                                            Bends every plant as hard as it can go. Exit code 1 if one comes apart.
+    ///   bend    [--plants a,b] [--count N] [--why true]                                                               Bends every plant as hard as it can go. Exit code 1 if one comes apart: --why says what holds each end of the edge that did.
     ///   fingerprint [--plants a,b] [--count N] [--out file.txt]                                                       A hash of every plant at N seeds, to tell which species a change moved.
     ///   rocks, rockcheck                                                                                              The same for stones: see RockCheck.
     ///   fences, fencecheck                                                                                            The same for fences and walls: see FenceLab.
@@ -48,6 +49,8 @@ namespace Dino_FloraLab
                     return FloraCheck.Run(options);
                 case "variety":
                     return FloraVariety.Run(options);
+                case "joins":
+                    return JoinCheck.Run(options);
                 case "rocks":
                     return RockCheck.Sheet(options);
                 case "rockcheck":

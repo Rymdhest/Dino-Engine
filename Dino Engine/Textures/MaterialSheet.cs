@@ -5,12 +5,12 @@ namespace Dino_Engine.Textures
 {
     /// <summary>
     /// Every material's maps as pictures (--materialsheet folder), for judging a recipe with no world: colour, normal, height, ambient occlusion and roughness side by
-    /// side, and the height tiled two by two, where a seam would show as a line. Read from the arrays the renderers read, at a quarter of their size, and drawn with
-    /// v upwards, as on a wall.
+    /// side, and the height tiled two by two, where a seam would show as a line. Read from the arrays the renderers read, at the size they keep, as a bark or a
+    /// wall judged from a picture a quarter of that across is judged by its largest shapes alone, and drawn with v upwards, as on a wall.
     /// </summary>
     public static class MaterialSheet
     {
-        private const int Level = 2;
+        private const int Level = 0;
         private const int Panels = 6;
 
         public static void Write(string folder, int albedoArray, int normalArray, int materialArray, int size, int layers)

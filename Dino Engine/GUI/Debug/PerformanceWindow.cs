@@ -1,15 +1,20 @@
 using Dino_Engine.Core;
 using Dino_Engine.Debug;
 using Dino_Engine.GUI.Widgets;
+using Dino_Engine.Rendering;
 using Dino_Engine.Util;
 
 namespace Dino_Engine.GUI.Debug
 {
-    /// <summary>Lists the engine's GPU passes and CPU tasks (from <see cref="PerformanceMonitor"/>) sorted by cost.</summary>
+    /// <summary>Lists the engine's GPU passes and CPU tasks (from <see cref="PerformanceMonitor"/>) sorted by cost, and what video memory the game holds (<see cref="VideoMemory"/>).</summary>
     internal sealed class PerformanceWindowController
     {
         private const float RefreshInterval = 0.5f;
 
+        private const double Megabyte = 1024.0 * 1024.0;
+
+        private readonly Foldout _memorySection;
+        private readonly Label _memory;
         private readonly Foldout _gpuSection;
         private readonly Foldout _cpuSection;
         private readonly Label _gpuTotal;
@@ -29,6 +34,15 @@ namespace Dino_Engine.GUI.Debug
 
             var scroll = Window.Content.Add(new ScrollPanel { Width = UIValue.Fill, Height = UIValue.Fill });
 
+            _memorySection = scroll.Content.Add(new Foldout("Video memory"));
+            _memory = _memorySection.Content.Add(new Label("")
+            {
+                Font = theme.MonoFont,
+                FontSize = theme.SmallFontSize,
+                Tooltip = "In use: everything the game holds on the card, as the driver counts it, of what it may hold before the system moves some out to RAM.\n"
+                    + "In RAM: what the driver keeps for it in system memory instead.\nMeshes: every model's buffers, and how many models, with who holds them.\n"
+                    + "Other: the rest of In use, which is textures, render targets and the driver's own.",
+            });
             _gpuSection = scroll.Content.Add(new Foldout("GPU passes"));
             _gpuTotal = _gpuSection.Content.Add(new Label("") { Font = theme.MonoFont, FontSize = theme.SmallFontSize, Color = theme.Accent });
             _cpuSection = scroll.Content.Add(new Foldout("CPU tasks"));
@@ -45,9 +59,32 @@ namespace Dino_Engine.GUI.Debug
             if (_timer < RefreshInterval) return;
             _timer = 0f;
 
+            if (_memorySection.Expanded) _memory.Text = MemoryText();
             PerformanceMonitor monitor = Engine.PerformanceMonitor;
             Fill(_gpuSection, _gpuTotal, monitor.GPUTaskTrackers, "GPU");
             Fill(_cpuSection, _cpuTotal, monitor.CPUTaskTrackers, "CPU");
+        }
+
+        // The driver's figure for the whole process, then what meshes take of it and who holds them, and what's left, which is textures, render targets and the driver's own.
+        private static string MemoryText()
+        {
+            var text = new System.Text.StringBuilder();
+            VideoMemory.Usage? usage = VideoMemory.Read();
+            (long meshBytes, int models) = VideoMemory.Meshes;
+            if (usage is VideoMemory.Usage used)
+            {
+                text.AppendLine(used.Adapter);
+                text.AppendLine(DebugUi.Inv($"In use      {used.Used / Megabyte,5:0} MB of {used.Budget / Megabyte:0}"));
+                text.AppendLine(DebugUi.Inv($"In RAM      {used.SharedUsed / Megabyte,5:0} MB"));
+            }
+            else text.AppendLine("The driver doesn't say.");
+            text.AppendLine(DebugUi.Inv($"Meshes      {meshBytes / Megabyte,5:0} MB {models,5} models"));
+            foreach (VideoMemory.Holder holder in VideoMemory.ByHolder())
+            {
+                text.AppendLine(DebugUi.Inv($"  {holder.Name,-10}{holder.Bytes / Megabyte,5:0} MB {holder.Models,5}"));
+            }
+            if (usage is VideoMemory.Usage rest) text.Append(DebugUi.Inv($"Other       {(rest.Used - meshBytes) / Megabyte,5:0} MB"));
+            return text.ToString().TrimEnd();
         }
 
         private void Fill(Foldout section, Label totalLabel, IReadOnlyCollection<TaskTracker> trackers, string kind)

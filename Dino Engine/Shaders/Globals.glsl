@@ -9,7 +9,7 @@ layout(std140, binding = 0) uniform GlobalData{
     float delta;
     int worldSeed;
     vec3 skyColour;
-    float EMPTY;
+    float solidView;            // 1 while the debug free camera (F2) looks: nothing thins away for anyone (FocusCutout.glsl).
     vec4 focusPoint;
     vec4 sunDirectionWorld;     // xyz towards the sun (or the moon, from the same place), unit, in the world: what a relief's own shadows fall from.
     // The halls near the camera, the buildings that can be walked into (Halls.glsl, HALLS.md), as HallShaderData lays them out.

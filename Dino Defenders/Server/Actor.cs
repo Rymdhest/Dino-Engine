@@ -206,6 +206,7 @@ namespace Dino_Defenders.Server
         public int Alarm;               // Someone close has raised a cry: how much further it has to travel, counting this one.
         public bool Dead;
         public bool LoadoutChanged;
+        public float PartyHealth;       // The more Health a party gave it when it was last built: when the party changes, so does it (ServerSession.PartyHealth).
 
         /// <summary>What blows have done to where it's going, dying away. Metres a second.</summary>
         public Vector2 Push;

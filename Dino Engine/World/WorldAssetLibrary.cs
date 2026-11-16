@@ -37,6 +37,19 @@ namespace Dino_Engine.World
 
         public int Count => _models.Count;
 
+        /// <summary>What its models take of video memory now, and how many there are (Rendering.VideoMemory). Render thread.</summary>
+        public (long Bytes, int Models) Held()
+        {
+            long bytes = 0;
+            int models = 0;
+            foreach (glModel model in _models.Values)
+            {
+                bytes += model.Bytes;
+                models++;
+            }
+            return (bytes, models);
+        }
+
         /// <summary>Where smoke leaves a building, in model space. Known once its model has been built.</summary>
         public IReadOnlyList<Vector3> ChimneysOf(string id)
         {

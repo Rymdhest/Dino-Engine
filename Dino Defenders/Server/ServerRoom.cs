@@ -144,6 +144,7 @@ namespace Dino_Defenders.Server
             // A world with nobody standing in it holds still: whatever's there waits for whoever comes, and nothing in it is anyone's to see.
             if (Session != null && _heroes.Count > 0)
             {
+                Session.PartyHealth = Session.IsHaven || Session.IsLexicon ? 0f : Lands.PartyHealth(_front.PartySize);
                 StepHeroes();
                 foreach (SystemBase system in _systems) system.Step(Ecs, NetTime.TickSeconds);
                 foreach (ServerPlayer hero in _heroes)

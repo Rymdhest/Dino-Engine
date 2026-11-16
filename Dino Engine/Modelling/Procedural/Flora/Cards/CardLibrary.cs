@@ -14,6 +14,12 @@ namespace Dino_Engine.Modelling.Procedural.Flora
         public const int CellsPerLayer = 4;
         public const int Levels = 11;   // log2(LayerSize) + 1.
 
+        /// <summary>
+        /// How many of a layer's first levels are painted but never sent to the card, as nothing is near enough to need them: a layer is kept at 512, the 51 of them a quarter of the 816 MB
+        /// they were at 1024. Everything about a card, its UVs, its plant's mesh and what's painted, still goes by <see cref="LayerSize"/>.
+        /// </summary>
+        public const int LevelsDropped = 1;
+
         private const float Inset = 3f / LayerSize;     // Keeps a card off the next one, down through the mips.
 
         public static IReadOnlyList<CardForm> All => FloraCatalog.Cards;

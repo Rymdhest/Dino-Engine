@@ -170,6 +170,7 @@ Choices made without asking. Say if any are wrong.
 - **Leaving a friend's game halfway costs nothing.**
 - **Each hero steps through and goes home for themselves**, and the way only opens while nobody's in a land, as the server holds the Haven and one land at a time.
 - **Raising a fallen friend** takes four seconds standing still beside them, and they get up with half their Health and Mana. What falling cost them in gold stays lost.
+- **Enemies have 100% more Health for each hero in the game past the first** (`Lands.PartyHealth`, `Rulebook.PartyHealth`), listed with the land's omens on the map table and in the land's corner, and changing at once as friends join or leave: every enemy is rebuilt at the same share of its Health (`ServerSession.PartyHealth`, `Rebuild`), and what it's worth divides it back out (`Combat.DropLoot`).
 - **Gold is shared evenly among everyone in the game**, and the host chooses whether finds are free for all or allocated in turn (`BUILDS.md`).
 - **The stash**: four tabs of 48, shared by every hero on one machine, and not shared with friends.
 - **Twelve things on a table, two of them orders in the Haven**, and one in twenty drops orders.

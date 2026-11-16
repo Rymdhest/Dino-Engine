@@ -48,7 +48,7 @@ namespace Dino_Engine.Rendering
         public float delta;
         public int worldSeed;
         public Vector3 skyColour;
-        public float EMPTY;
+        public float solidView;         // 1 while the debug free camera (F2) looks: nothing thins away for anyone (Shaders/FocusCutout.glsl), so anything can be looked at close up as it is.
         public Vector4 focusPoint;
         public Vector4 sunDirection;    // xyz towards the sun in the world, for what the geometry pass shades by it: a relief's own shadows (Surface/Relief.glsl).
         public HallShaderData halls;
@@ -549,6 +549,7 @@ namespace Dino_Engine.Rendering
             globals.worldSeed = 1;
             globals.skyColour = context.skyColour;
             globals.focusPoint = context.focusPoint;
+            globals.solidView = Engine.Instance?.world?.IsFreeCameraActive == true ? 1f : 0f;
             globals.sunDirection = new Vector4(context.sunDirection.LengthSquared > 0f ? context.sunDirection.Normalized() : Vector3.UnitY, 0f);
             globals.halls = context.halls;     // Left as it starts, it holds no halls: there are none until HallCutawaySystem says so.
 

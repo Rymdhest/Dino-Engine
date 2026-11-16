@@ -13,6 +13,7 @@ namespace Dino_Engine.Textures.Synthesis
     {
         public readonly ShaderProgram Noise = Make("Synth_Noise.frag");
         public readonly ShaderProgram Cells = Make("Synth_Cells.frag");
+        public readonly ShaderProgram LongCells = Make("Synth_LongCells.frag");
         public readonly ShaderProgram Bricks = Make("Synth_Bricks.frag");
         public readonly ShaderProgram Scatter = Make("Synth_Scatter.frag");
         public readonly ShaderProgram Weave = Make("Synth_Weave.frag");
@@ -225,7 +226,7 @@ namespace Dino_Engine.Textures.Synthesis
 
         public void Dispose()
         {
-            foreach (ShaderProgram shader in new[] { Noise, Cells, Bricks, Scatter, Weave, Mail, Facets, Grain, Op, Ramp, Warp, Blur, SlopeBlur, Morph, Curve, Coordinates, Normal, Occlusion, Downsample, Pack, Reduce })
+            foreach (ShaderProgram shader in new[] { Noise, Cells, LongCells, Bricks, Scatter, Weave, Mail, Facets, Grain, Op, Ramp, Warp, Blur, SlopeBlur, Morph, Curve, Coordinates, Normal, Occlusion, Downsample, Pack, Reduce })
             {
                 shader.cleanUp();
             }

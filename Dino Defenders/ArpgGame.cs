@@ -33,7 +33,8 @@ namespace Dino_Defenders
         private const float ViewSpreadAtTop = 0.967f;   // Half-width of the view at the top of the screen, per metre of camera height and of aspect ratio.
         private const float FurthestZoomAllowed = 1.25f;
 
-        private readonly record struct PreparedWorld(WorldData World, Dino_Engine.World.Chart.Chart Map);
+        /// <summary>A world ready to enter: the world, its chart, the creatures grown for it and every model it can send, which <see cref="CharacterFactory.Upload"/> takes up.</summary>
+        private readonly record struct PreparedWorld(WorldData World, Dino_Engine.World.Chart.Chart Map, (string Key, Dino_Engine.Modelling.Model.Mesh Mesh)[] Creatures, IReadOnlyCollection<string> Sent);
 
         // Metres round the landing the rock's skin is grown in while a land loads: what the camera sees from there.
         private const float SkinAtLanding = 44f;
@@ -65,7 +66,6 @@ namespace Dino_Defenders
         private TitleScene? _title;
         private GiantShow? _giants;
         private Task<WorldData>? _titleLoading;
-        private bool _charactersNext;
         private ServerHost? _server;
         private GameClient? _client;
         private ClientEffects? _effects;
@@ -79,6 +79,7 @@ namespace Dino_Defenders
         private bool _firstWorldOfThisSession = true;
         private float _nextAutosave;
         private int _frames;
+        private int _listVideoMemoryAt;     // The frame to list everything on the card at (--vramlist), or 0.
         private readonly PerfRecorder? _perf;
         private StreamWriter? _trace;
         private readonly List<(string name, Vector2 position)> _tourStops = new();
@@ -159,6 +160,8 @@ namespace Dino_Defenders
             Dino_Engine.Core.Engine.SkipClock(options.Clock);
             HeroName = options.Name ?? "";
             _presenter = new GhostPresenter(_characters);
+            Dino_Engine.Rendering.VideoMemory.Tally("World", _assets.Held);
+            Dino_Engine.Rendering.VideoMemory.Tally("Characters", _characters.Held);
             engine.WorldReady = false;
             NetSchema.Build();
             RegisterSystems();
@@ -175,7 +178,6 @@ namespace Dino_Defenders
                 return;
             }
 
-            _characters.Begin();
             _ui.Playing(true);
             SaveGame.PathOverride = options.SaveFile;
             _save = options.Saves ? SaveGame.Load() : null;
@@ -320,9 +322,6 @@ namespace Dino_Defenders
             _giants = null;
             WorldScene.Enter(Engine.world, world, _assets, TitleScene.ChunkRadius);
 
-            // Nothing behind the menu is an enemy, so what a world can send at a hero is grown while the menu's open, and waited for when a world is entered. It's begun
-            // the frame after this one, as the first frame of a world makes its whole view at once, on every core it can have.
-            _charactersNext = true;
             _title = new TitleScene(Engine.world, world, Wardrobe, _characters);
             _title.Show(_chosen?.Hero);
             if (!Nature.Off && TitleScene.FindHerd(world, _title.Spot) is (Vector2 home, float reach, Func<Vector2, bool> allowed))
@@ -671,11 +670,6 @@ namespace Dino_Defenders
         {
             _client?.Update(Dino_Engine.Core.Engine.Delta);
             HandleLostConnection();
-            if (_charactersNext)
-            {
-                _charactersNext = false;
-                _characters.Begin();
-            }
             FinishLoading();
             FinishTitleLoading();
             // The menu's picture is settled (MENU.md): nothing grows on it that didn't when it was.
@@ -690,6 +684,11 @@ namespace Dino_Defenders
 
             // Counted from when there's a world to be in. How long it took to grow is no business of a script.
             if (_client.State == ClientState.Playing) _frames++;
+            if (_listVideoMemoryAt > 0 && _frames == _listVideoMemoryAt)
+            {
+                _listVideoMemoryAt = 0;
+                Console.WriteLine(Dino_Engine.Rendering.VideoMemory.CensusText());
+            }
 
             // Only the pause menu and the pages over everything stop the world, as they cover it: with any other window open the hero still walks and fights, and what's used is let go of on walking away.
             session.Paused = _ui.OnPage || _ui.Loading.Visible || _options.Tour != null;
@@ -1061,20 +1060,40 @@ namespace Dino_Defenders
             };
             _worlds.Progress = worldProgress;
 
-            // The Haven has nobody to fight, so it doesn't wait for them: they go on growing while the hero is there, and a land uploads them (Enter).
-            _loading = Prepare(request, Lands.IsHaven(request) ? null : _characters.Grown(), screen, worldProgress);
+            // A land grows the creatures it can send, but those already grown for a land before it (CharacterFactory.Grow), once its world is known.
+            _loading = Prepare(request, terms, _characters.Known(), screen, worldProgress);
         }
 
-        // The world's own stages are the first part of the bar, and what's grown for it after (Prepare) the rest, each by about the seconds it takes on a six-core laptop.
+        // The world's own stages are the first part of the bar, and what's grown for it after (Prepare) the rest, each by about the seconds it takes on a six-core laptop: every
+        // creature there is used to take 15 s.
         private const float WorldShareOfBar = 0.5f;
-        private const double PlantSeconds = 3.0, ChartSeconds = 4.0, SkinSeconds = 1.0, CreatureSeconds = 15.0;
+        private const double PlantSeconds = 3.0, ChartSeconds = 4.0, SkinSeconds = 1.0, SecondsACreature = 15.0 / 178;
 
-        private async Task<PreparedWorld> Prepare(WorldRequest request, Task? characters, LoadingScreen screen, Action<float, string> worldProgress)
+        // Every model a world can send at a hero, to grow while it loads: what a land can send (EncounterSystem.Foresee), nothing for the Haven, which has nobody to fight and grows
+        // its people when they're first seen, and everything for the asset lexicon, which stands everything. A scripted parade or brawl stands its creatures wherever the hero is.
+        private IReadOnlyCollection<string> CreaturesFor(WorldData world, WorldRequest request, LandTerms terms)
+        {
+            var keys = new HashSet<string>();
+            if (Dino_Engine.World.Lexicon.LexiconWorld.Is(request)) keys.UnionWith(CharacterFactory.Everything());     // Lexicon (developer tool, LEXICON.md).
+            else if (!Lands.IsHaven(request)) keys.UnionWith(EncounterSystem.Foresee(world, terms));
+            foreach (string? which in new[] { _options.Parade, _options.Brawl })
+            {
+                if (which == null) continue;
+                foreach ((EnemyKind kind, _) in EncounterSystem.ParadeOf(which)) keys.UnionWith(Bestiary.ModelsOf(kind));
+            }
+            return keys;
+        }
+
+        private async Task<PreparedWorld> Prepare(WorldRequest request, LandTerms terms, HashSet<string> known, LoadingScreen screen, Action<float, string> worldProgress)
         {
             var clock = Stopwatch.StartNew();
             WorldData world = await _worlds.Get(request);
             Interlocked.CompareExchange(ref _worlds.Progress, null, worldProgress);     // Its last word is "Ready", and what's below isn't yet.
             double generated = clock.Elapsed.TotalSeconds;
+            IReadOnlyCollection<string> sent = CreaturesFor(world, request, terms);
+            var creatureCount = new CharacterFactory.Growing();
+            Task<(string Key, Dino_Engine.Modelling.Model.Mesh Mesh)[]> creatureGrowing = CharacterFactory.Grow(sent, known, creatureCount);
+            int toGrow = creatureCount.Of;
 
             // When each part was done, from the start, for the log, which is how to see what a load spent its time on.
             double grown = 0, clad = 0, charted = 0, creatures = 0;
@@ -1082,11 +1101,12 @@ namespace Dino_Defenders
             // The rock round the landing is clad before anyone sees it, and the rest comes in around the camera (RockSkinStream).
             Task cladding = _options.Skin ? Task.Run(() => { RockSkinStream.Prepare(world, world.Sites[0].Landing, SkinAtLanding); clad = clock.Elapsed.TotalSeconds; }) : Task.CompletedTask;
             Task<Dino_Engine.World.Chart.Chart> charting = Task.Run(() => { var drawn = Dino_Engine.World.Chart.WorldChart.Draw(world, MapPanel.Resolution); charted = clock.Elapsed.TotalSeconds; return drawn; });
-            Task creatureWait = characters?.ContinueWith(_ => creatures = clock.Elapsed.TotalSeconds, TaskContinuationOptions.ExecuteSynchronously) ?? Task.CompletedTask;
-            Task all = Task.WhenAll(growing, cladding, charting, creatureWait);
+            Task creatureWait = creatureGrowing.ContinueWith(_ => creatures = clock.Elapsed.TotalSeconds, TaskContinuationOptions.ExecuteSynchronously);
+            Task all = Task.WhenAll(growing, cladding, charting, creatureGrowing, creatureWait);
 
             // The bar goes on from where the world left it, and says what's still being made.
-            double total = PlantSeconds + ChartSeconds + (_options.Skin ? SkinSeconds : 0) + (characters != null ? CreatureSeconds : 0);
+            double creatureSeconds = SecondsACreature * toGrow;
+            double total = PlantSeconds + ChartSeconds + (_options.Skin ? SkinSeconds : 0) + creatureSeconds;
             while (!all.IsCompleted)
             {
                 double done = 0;
@@ -1094,11 +1114,11 @@ namespace Dino_Defenders
                 if (growing.IsCompleted) done += PlantSeconds; else waiting.Add("Growing plants and stones");
                 if (charting.IsCompleted) done += ChartSeconds; else waiting.Add("Drawing the map");
                 if (_options.Skin) { if (cladding.IsCompleted) done += SkinSeconds; else waiting.Add("Cladding the rock"); }
-                if (characters != null)
+                if (toGrow > 0)
                 {
-                    (int made, int of) = _characters.GrowingCount;
-                    done += creatureWait.IsCompleted ? CreatureSeconds : of > 0 ? CreatureSeconds * made / of : 0;
-                    if (!creatureWait.IsCompleted) waiting.Add(of > 0 ? $"Growing creatures, {made} of {of}" : "Growing creatures");
+                    int made = creatureCount.Done;
+                    done += creatureWait.IsCompleted ? creatureSeconds : creatureSeconds * made / toGrow;
+                    if (!creatureWait.IsCompleted) waiting.Add($"Growing creatures, {made} of {toGrow}");
                 }
                 screen.Progress = WorldShareOfBar + (1f - WorldShareOfBar) * (float)(done / total);
                 screen.Stage = string.Join(" · ", waiting);
@@ -1108,8 +1128,8 @@ namespace Dino_Defenders
             screen.Progress = 1f;
             screen.Stage = "Entering";
 
-            Console.WriteLine($"Generated {world.Plan.Name} ({world.Plan.Archetype.Name}, {world.Plan.Mood.Name}) in {clock.Elapsed.TotalSeconds:0.00} s: world {generated:0.0}, plants and stones {grown:0.0}, rock skin {clad:0.0}, chart {charted:0.0}, creatures {(characters != null ? $"{creatures:0.0}" : "not waited for")}");
-            return new PreparedWorld(world, charting.Result);
+            Console.WriteLine($"Generated {world.Plan.Name} ({world.Plan.Archetype.Name}, {world.Plan.Mood.Name}) in {clock.Elapsed.TotalSeconds:0.00} s: world {generated:0.0}, plants and stones {grown:0.0}, rock skin {clad:0.0}, chart {charted:0.0}, creatures {(toGrow > 0 ? $"{creatures:0.0}" : "none to grow")} ({toGrow} grown of {sent.Count} it can send)");
+            return new PreparedWorld(world, charting.Result, creatureGrowing.Result, sent);
         }
 
         private void FinishLoading()
@@ -1135,10 +1155,10 @@ namespace Dino_Defenders
             WorldData world = prepared.World;
             _giants = null;
             WorldScene.Enter(Engine.world, world, _assets);
-            // The Haven didn't wait for them (WorldNeeded), and they wait for the next loading screen rather than grow while it's played (CharacterFactory.Hold).
-            if (!Lands.IsHaven(world.Plan.Request) || _characters.HasGrown) _characters.Prepare();
-            else _characters.Hold();
+            _characters.Upload(prepared.Creatures, prepared.Sent);
             Console.WriteLine($"Prepared {_assets.Count} models in {clock.Elapsed.TotalSeconds:0.00} s");
+            LogVideoMemory();
+            if (_options.VideoMemoryList > 0) _listVideoMemoryAt = _frames + _options.VideoMemoryList;
 
             _title = null;
             _client!.EnterWorld(world);
@@ -1166,6 +1186,18 @@ namespace Dino_Defenders
                 var bot = new HeroBot(Engine.world, _options.Sweep, _options.Walk, FinishSweep);
                 session.Autopilot = () => bot.Think(session);
             }
+        }
+
+        // What video memory holds as a world is entered, for comparing loads in the log: the driver's figure for the process, and what the world's and the creatures' models take of it.
+        private void LogVideoMemory()
+        {
+            const double megabyte = 1024.0 * 1024.0;
+            Dino_Engine.Rendering.VideoMemory.Usage? usage = Dino_Engine.Rendering.VideoMemory.Read();
+            (long meshes, int models) = Dino_Engine.Rendering.VideoMemory.Meshes;
+            (long world, int worldModels) = _assets.Held();
+            (long creatures, int creatureModels) = _characters.Held();
+            string driver = usage is Dino_Engine.Rendering.VideoMemory.Usage used ? FormattableString.Invariant($"{used.Used / megabyte:0} MB in use, ") : "";
+            Console.WriteLine(FormattableString.Invariant($"Video memory: {driver}meshes {meshes / megabyte:0} MB in {models} models, the world's {world / megabyte:0} MB in {worldModels}, creatures and people {creatures / megabyte:0} MB in {creatureModels}"));
         }
 
         void IClientHost.Arrived(Vector2 position)
@@ -1320,7 +1352,7 @@ namespace Dino_Defenders
 
             float look = _options.Look ?? 30f;
             float pitch = _options.Angle is float angle ? MathHelper.DegreesToRadians(angle) : MathF.PI / 2.7f;
-            Vector3 offset = new Vector3(0f, look, -look / MathF.Tan(pitch));
+            Vector3 offset = new Vector3(_options.Pan.X, look, _options.Pan.Y - look / MathF.Tan(pitch));
             ecs.GameCamera = ecs.CreateEntity("Camera",
                 new PositionComponent(new Vector3(start.X, height, start.Y) + offset),
                 new RotationComponent(pitch, MathF.PI, 0f),
@@ -1337,7 +1369,8 @@ namespace Dino_Defenders
                 new LocalToWorldMatrixComponent(),
                 new PositionRotationInputControlComponent(),
                 new ViewMatrixComponent(),
-                new PerspectiveProjectionComponent(MathHelper.DegreesToRadians(60f), Dino_Engine.Core.Engine.Resolution, 0.1f, 1000f));
+                // A near plane of 3 cm, for looking at anything from a hand's breadth away without the camera cutting into it.
+                new PerspectiveProjectionComponent(MathHelper.DegreesToRadians(60f), Dino_Engine.Core.Engine.Resolution, 0.03f, 1000f));
 
             ecs.Camera = ecs.GameCamera;
         }

@@ -136,7 +136,7 @@ The same seed is the same animal whatever's been done to it, so a raptor's bones
 
 ## In the game
 
-- A kind's `Look` names its species and what's been done to it, as `dino:raptor.reich.`, and `Variants` how many seeds there are. `CharacterFactory.Prepare` grows every one a world could send at the loading screen, on every core at once, and only the upload is left for the main thread.
+- A kind's `Look` names its species and what's been done to it, as `dino:raptor.reich.`, and `Variants` how many seeds there are. A land grows every model it can send at its loading screen (`EncounterSystem.Foresee`, `CharacterFactory.Grow`), on every core at once, and only the upload is left for the main thread; what one land grew is kept for the next.
 - A dinosaur is far thicker than a person, so its body is solid that far out: `EnemyKind.Bulk` is its radius at a scale of one (`RadiusAt`), for the server's body, the motor and the parade alike.
 - `CharacterFactory.BearingOf` gives it its own rig and `SaurianForge.StyleOf`, and `SkillMotions.Of` picks its gestures from a page by what it's built like: a theropod bites, stomps, pounces, spits, sweeps its tail and roars, and a horned one gores, tramples and bellows.
 - Its voice is in `Sound/Content/Saurians.cs`, picked by `GameSounds.DinosaurVoice` from its species and condition, and anything with legs over 1.6 times a person's shakes the ground as it walks (`Saurians.Tread`).

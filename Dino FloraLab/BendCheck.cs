@@ -16,10 +16,12 @@ namespace Dino_FloraLab
         private const float ShortestEdge = 0.02f;   // Metres: slivers can do anything in proportion, and no one would see it.
 
         private static int _failures;
+        private static bool _why;   // Says where the two ends of a failing edge are and what holds each, joint by joint.
 
         public static int Run(Options options)
         {
             _failures = 0;
+            _why = options.Has("why");
             int seeds = options.Int("count", 2);
             Console.WriteLine($"{"",-24}{"joints",8}{"depth",7}{"verts",9}{"reach m",9}{"walked through",16}{"at its limit",14}");
 
@@ -92,6 +94,17 @@ namespace Dino_FloraLab
             {
                 MeshVertex a = mesh.meshVertices[_worstEdge.a], b = mesh.meshVertices[_worstEdge.b];
                 Fail(id, $"stretches {limit:0%} at its limit: a {_worstEdge.length:0.00} m edge at {a.position.Y:0.0} m up, between joints {a.joint} ({joints[a.joint].Length:0.0} m, bends {joints[a.joint].MostBend:0.00}) and {b.joint} ({joints[b.joint].Length:0.0} m), material {a.materialTextureIndex}");
+                if (_why)
+                {
+                    string Say(MeshVertex v)
+                    {
+                        PlantJoint j = joints[v.joint];
+                        string up = j.Parent >= 0 ? $" on {j.Parent} at {PlantRig.Along(joints[j.Parent], j.Base):0.00} ({joints[j.Parent].Base.X:0.00},{joints[j.Parent].Base.Y:0.00},{joints[j.Parent].Base.Z:0.00} to {joints[j.Parent].Tip.X:0.00},{joints[j.Parent].Tip.Y:0.00},{joints[j.Parent].Tip.Z:0.00}; bends {joints[j.Parent].MostBend:0.00})" : "";
+                        return $"{v.position.X:0.00},{v.position.Y:0.00},{v.position.Z:0.00} joint {v.joint} from {j.Base.X:0.00},{j.Base.Y:0.00},{j.Base.Z:0.00} to {j.Tip.X:0.00},{j.Tip.Y:0.00},{j.Tip.Z:0.00} bends {j.MostBend:0.00} along {PlantRig.Along(j, v.position):0.00}{up}";
+                    }
+                    Console.WriteLine($"    a: {Say(a)}");
+                    Console.WriteLine($"    b: {Say(b)}");
+                }
             }
             if (moved > reach) Fail(id, $"moves {moved:0.00} m, past the {reach:0.00} m culling allows it");
         }

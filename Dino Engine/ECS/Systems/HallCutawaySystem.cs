@@ -54,7 +54,9 @@ namespace Dino_Engine.ECS.Systems
             Vector4 focusPoint = render.context.focusPoint;
             bool focused = focusPoint.W > 0f;
             Vector2 focus = focused ? focusPoint.Xz : render.context.viewPos.Xz;
-            WorldHall? standing = focused ? Standing(focus) : null;
+            // The debug free camera sees every hall whole, roof and all, and can fly in through a door to see its room, which is drawn for it.
+            bool free = world.IsFreeCameraActive;
+            WorldHall? standing = focused && !free ? Standing(focus) : null;
 
             // One hall open at a time: the one being left shuts before the next opens.
             float step = deltaTime / OpenSeconds;
@@ -88,7 +90,7 @@ namespace Dino_Engine.ECS.Systems
             foreach ((WorldHall hall, glModel? inside) in _halls)
             {
                 if (inside == null) continue;
-                bool seen = (hall == _open && _opened > 0f) || (focused && Distance(hall, focus) < Near);
+                bool seen = free || (hall == _open && _opened > 0f) || (focused && Distance(hall, focus) < Near);
                 inside.Hidden = !seen;
             }
         }

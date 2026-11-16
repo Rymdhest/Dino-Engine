@@ -96,22 +96,26 @@ public class glLoader
     // Where each vertex is from the edges of its face, for the relief to keep clear of corners. Enabled in the vertex array for good, as a plant's joints are.
     private static void LoadEdges(glModel model, float[] edges)
     {
+        long start = _uploaded;
         GL.BindVertexArray(model.getVAOID());
         int buffer = storeDataInAttributeList(glModel.EdgeAttribute, 4, edges);
         GL.EnableVertexAttribArray(glModel.EdgeAttribute);
         unbindVAO();
         model.Own(buffer);
+        model.Count(_uploaded - start);
     }
 
     // Which way each vertex's growth is pushed out and how much of it there is (glModel.ShellAttribute), for the shells to read (SHELLS.md). Enabled in the vertex
     // array for good, as the edges are.
     private static void LoadShells(glModel model, float[] shells, int indexCount)
     {
+        long start = _uploaded;
         GL.BindVertexArray(model.getVAOID());
         int buffer = storeDataInAttributeList(glModel.ShellAttribute, 4, shells);
         GL.EnableVertexAttribArray(glModel.ShellAttribute);
         unbindVAO();
         model.SetShellData(buffer, indexCount);
+        model.Count(_uploaded - start);
     }
 
     // Puts every triangle anything can grow on first, in the order they came, and says how many indices those are: the shells draw that much of the index buffer
@@ -227,6 +231,7 @@ public class glLoader
 
     private static void LoadPlant(glModel model, float[] vertexJoints, List<PlantJoint> plantJoints, float reach)
     {
+        long start = _uploaded;
         GL.BindVertexArray(model.getVAOID());
         int vertexBuffer = storeDataInAttributeList(glModel.JointAttribute, 1, vertexJoints);
         GL.EnableVertexAttribArray(glModel.JointAttribute);
@@ -236,6 +241,7 @@ public class glLoader
         int buffer = GL.GenBuffer();
         GL.BindBuffer(BufferTarget.TextureBuffer, buffer);
         GL.BufferData(BufferTarget.TextureBuffer, joints.Length * sizeof(float), joints, BufferUsageHint.StaticDraw);
+        _uploaded += (long)joints.Length * sizeof(float);
         int texture = GL.GenTexture();
         GL.BindTexture(TextureTarget.TextureBuffer, texture);
         GL.TexBuffer(TextureBufferTarget.TextureBuffer, SizedInternalFormat.Rgba32f, buffer);
@@ -243,10 +249,12 @@ public class glLoader
         GL.BindBuffer(BufferTarget.TextureBuffer, 0);
 
         model.SetPlant(vertexBuffer, buffer, texture, reach);
+        model.Count(_uploaded - start);
     }
 
     public static glModel loadToVAO(float[] positions, float[] colors, float[] normals, int[] indices)
     {
+        long start = _uploaded;
         int vaoID = createVAO();
         int[] VBOS = new int[4];
         VBOS[3] = bindIndicesBuffer(indices);
@@ -255,10 +263,13 @@ public class glLoader
         VBOS[1] = storeDataInAttributeList(1, 3, colors);
         VBOS[2] = storeDataInAttributeList(2, 3, normals);
         unbindVAO();
-        return new glModel(vaoID, VBOS, indices.Length, new AABB(new Vector3(float.MaxValue), new Vector3(float.MinValue)));
+        var model = new glModel(vaoID, VBOS, indices.Length, new AABB(new Vector3(float.MaxValue), new Vector3(float.MinValue)));
+        model.Count(_uploaded - start);
+        return model;
     }
     public static glModel loadToVAO(float[] positions, float[] colors, float[] normals, float[] tangents, float[] uvs, float[] materialIndices, int[] indices)
     {
+        long start = _uploaded;
         int vaoID = createVAO();
         int[] VBOS = new int[7];
         VBOS[6] = bindIndicesBuffer(indices);
@@ -270,13 +281,16 @@ public class glLoader
         VBOS[4] = storeDataInAttributeList(4, 2, uvs);
         VBOS[5] = storeDataInAttributeList(5, 1, materialIndices);
         unbindVAO();
-        return new glModel(vaoID, VBOS, indices.Length, new AABB(new Vector3(float.MaxValue), new Vector3(float.MinValue)));
+        var model = new glModel(vaoID, VBOS, indices.Length, new AABB(new Vector3(float.MaxValue), new Vector3(float.MinValue)));
+        model.Count(_uploaded - start);
+        return model;
     }
 
     public static glModel loadToVAO(float[] positions, float[] colors, float[] normals, float[] tangents, float[] uvs, float[] materialIndices, float[] boneIndices, float[] boneWeights, int[] indices)
     {
 
 
+        long start = _uploaded;
         int vaoID = createVAO();
         int[] VBOS = new int[9];
         VBOS[8] = bindIndicesBuffer(indices);
@@ -291,10 +305,13 @@ public class glLoader
         VBOS[6] = storeDataInAttributeList(6, 2, boneIndices);
         VBOS[7] = storeDataInAttributeList(7, 2, boneWeights);
         unbindVAO();
-        return new glModel(vaoID, VBOS, indices.Length, new AABB(new Vector3(float.MaxValue), new Vector3(float.MinValue)));
+        var model = new glModel(vaoID, VBOS, indices.Length, new AABB(new Vector3(float.MaxValue), new Vector3(float.MinValue)));
+        model.Count(_uploaded - start);
+        return model;
     }
     public static glModel loadToVAO(float[] positions, float[] normals, int[] indices)
     {
+        long start = _uploaded;
         int vaoID = createVAO();
         int[] VBOS = new int[3];
         VBOS[2] = bindIndicesBuffer(indices);
@@ -302,17 +319,25 @@ public class glLoader
         VBOS[0] = storeDataInAttributeList(0, 3, positions);
         VBOS[1] = storeDataInAttributeList(2, 3, normals);
         unbindVAO();
-        return new glModel(vaoID, VBOS, indices.Length, new AABB(new Vector3(float.MaxValue), new Vector3(float.MinValue)));
+        var model = new glModel(vaoID, VBOS, indices.Length, new AABB(new Vector3(float.MaxValue), new Vector3(float.MinValue)));
+        model.Count(_uploaded - start);
+        return model;
     }
     public static glModel loadToVAO(float[] positions, int[] indices, int dimensions)
     {
+        long start = _uploaded;
         int vaoID = createVAO();
         int[] VBOS = new int[2];
         VBOS[1] = bindIndicesBuffer(indices);
         VBOS[0] = storeDataInAttributeList(0, dimensions, positions);
         unbindVAO();
-        return new glModel(vaoID, VBOS, indices.Length, new AABB(new Vector3(float.MaxValue), new Vector3(float.MinValue)));
+        var model = new glModel(vaoID, VBOS, indices.Length, new AABB(new Vector3(float.MaxValue), new Vector3(float.MinValue)));
+        model.Count(_uploaded - start);
+        return model;
     }
+
+    // Bytes given to buffers so far, which each model takes the difference of across its own loading as what it holds (Rendering.VideoMemory). Only ever the render thread's.
+    private static long _uploaded;
 
     private static int createVAO()
     {
@@ -325,6 +350,7 @@ public class glLoader
         int vboID = GL.GenBuffer();
         GL.BindBuffer(BufferTarget.ElementArrayBuffer, vboID);
         GL.BufferData(BufferTarget.ElementArrayBuffer, indices.Length * sizeof(uint), indices, BufferUsageHint.StaticCopy);
+        _uploaded += (long)indices.Length * sizeof(uint);
         return vboID;
     }
     private static int storeDataInAttributeList(int attributeNumber, int coordinateSize, float[] data)
@@ -332,6 +358,7 @@ public class glLoader
         int vboID = GL.GenBuffer();
         GL.BindBuffer(BufferTarget.ArrayBuffer,vboID);
         GL.BufferData(BufferTarget.ArrayBuffer, data.Length * sizeof(float), data, BufferUsageHint.StaticDraw);
+        _uploaded += (long)data.Length * sizeof(float);
         GL.VertexAttribPointer(attributeNumber, coordinateSize, VertexAttribPointerType.Float, false, 0, 0);
         GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
 

@@ -257,12 +257,15 @@ namespace Dino_Defenders.Server
             $"{string.Join(", ", blessing.Mods.Select(mod => ModText.Describe(mod)))} for {Say.Seconds(blessing.Duration)}. Your flasks are full.";
 
         // Everyone of a folk at one place answers to the same orders.
-        private static PackOrders Orders(ServerSession session, SiteState state, in SiteSpawn spawn, WorldRandom random, Dictionary<SpawnRole, PackOrders> musters)
+        private static PackOrders Orders(ServerSession session, SiteState state, in SiteSpawn spawn, WorldRandom random, Dictionary<SpawnRole, PackOrders> musters) =>
+            Orders(session.World, session.Terms, LevelAt(session, state), state.Site, state.Wild, spawn, random, musters);
+
+        private static PackOrders Orders(WorldData world, LandTerms terms, int level, WorldSite site, bool wild, in SiteSpawn spawn, WorldRandom random, Dictionary<SpawnRole, PackOrders> musters)
         {
             SpawnRole folk = spawn.Role is SpawnRole.Guard or SpawnRole.Boss ? SpawnRole.Raider : spawn.Role;
             if (!musters.TryGetValue(folk, out PackOrders? orders))
             {
-                orders = new PackOrders(session.World, state.Site, folk, LevelAt(session, state), state.Wild, random.Fork("pack"), session.Terms);
+                orders = new PackOrders(world, site, folk, level, wild, random.Fork("pack"), terms);
                 musters.Add(folk, orders);
             }
             return orders;
@@ -271,37 +274,107 @@ namespace Dino_Defenders.Server
         /// <summary>How strong what's found at a place is, which is the land's level everywhere in it: a land's level is the whole of what makes one harder than another. In the Haven, the land the strongest climber there would go to next.</summary>
         public static int LevelAt(ServerSession session, SiteState state) => session.IsHaven ? Math.Max(1, session.Heroes.Count > 0 ? session.Heroes.Max(hero => hero.Hero.LandLevel) : 1) : session.World.Plan.Level;
 
-        private void SpawnEnemy(ECSWorld world, ServerSession session, SiteState state, int siteIndex, int spawnIndex, SiteSpawn spawn, PackOrders orders, WorldRandom random)
+        /// <summary>Who stands at a place's spawn: what it is, how rare, its traits, its size and what it's drawn as, and whether it's a tyrant or the twin the orders asked for.</summary>
+        private readonly record struct Fielded(EnemyKind Kind, Rarity Rarity, int Traits, float Scale, string Model, bool Boss, bool Twin);
+
+        /// <summary>
+        /// Who stands at a place's spawn, from the land alone: the server spawns by it and a client grows what's coming by it (<see cref="Foresee"/>), so the two can't disagree. It draws
+        /// from <paramref name="random"/>, which the server goes on drawing from after, so nothing in it may move, or every enemy after it changes.
+        /// </summary>
+        private static Fielded Field(WorldData world, LandTerms terms, Chronicle chronicle, WorldSite site, bool wild, int spawnIndex, in SiteSpawn spawn, PackOrders orders, WorldRandom random)
         {
-            int level = LevelAt(session, state);
-            bool twin = LandCensus.IsTwin(session.World, session.Terms, state.Site, spawnIndex);
-            bool boss = LandCensus.IsTyrant(session.World, session.Terms, state.Site, spawnIndex);
+            bool twin = LandCensus.IsTwin(world, terms, site, spawnIndex);
+            bool boss = LandCensus.IsTyrant(world, terms, site, spawnIndex);
             WorldRandom kinds = random.Fork("kind");
 
             EnemyKind kind;
             Rarity rarity;
             int traits;
             // What holds a land is the tyrant its story names, and what stands watch over what the Reich has taken is its soldiers.
-            if (twin) (kind, rarity, traits) = (Bestiary.Find(session.Chronicle.SecondKind) ?? Bestiary.Tyrant, Rarity.Unique, Bestiary.NoTraits);
-            else if (boss) (kind, rarity, traits) = (Bestiary.Find(session.Chronicle.BossKind) ?? Bestiary.Tyrant, Rarity.Unique, Bestiary.NoTraits);
+            if (twin) (kind, rarity, traits) = (Bestiary.Find(chronicle.SecondKind) ?? Bestiary.Tyrant, Rarity.Unique, Bestiary.NoTraits);
+            else if (boss) (kind, rarity, traits) = (Bestiary.Find(chronicle.BossKind) ?? Bestiary.Tyrant, Rarity.Unique, Bestiary.NoTraits);
             else if (spawn.Role == SpawnRole.Guard) (kind, rarity, traits) = (kinds.Chance(GuardArcherChance) ? Bestiary.Marksman : Bestiary.Legionary, Rarity.Normal, Bestiary.NoTraits);
             else (kind, rarity, traits) = orders.Draw(spawnIndex, kinds);
 
             // The people of a place are what it's worth stopping for: one of them leads, and is more than the rest, and they have their hard cases.
-            if (!boss && !state.Wild)
+            if (!boss && !wild)
             {
-                float bred = 1f + session.Terms.ValueOf(Omens.Bloodlines) / 100f;
-                if (spawnIndex == FirstHostile(state.Site)) rarity = session.World.Plan.Level <= FirstSteps ? Rarity.Magic : Rarity.Rare;
-                else if (kinds.Chance((session.Terms.Has(Omens.Warhost) ? Rulebook.WarhostRareChance : Rulebook.RareChance) * bred)) rarity = Rarity.Rare;
+                float bred = 1f + terms.ValueOf(Omens.Bloodlines) / 100f;
+                if (spawnIndex == FirstHostile(site)) rarity = world.Plan.Level <= FirstSteps ? Rarity.Magic : Rarity.Rare;
+                else if (kinds.Chance((terms.Has(Omens.Warhost) ? Rulebook.WarhostRareChance : Rulebook.RareChance) * bred)) rarity = Rarity.Rare;
                 else if (rarity == Rarity.Normal && kinds.Chance(Rulebook.MagicChance * bred)) rarity = Rarity.Magic;
-                if (rarity == Rarity.Normal && session.Terms.Has(OrdersCatalog.Bred)) rarity = Rarity.Magic;
+                if (rarity == Rarity.Normal && terms.Has(OrdersCatalog.Bred)) rarity = Rarity.Magic;
             }
             traits = Bestiary.Fill(traits, rarity, random.Fork("traits"));
-            if (rarity == Rarity.Rare && session.Terms.Has(OrdersCatalog.Ledger)) traits = Bestiary.OneMore(traits, random.Fork("ledger"));
+            if (rarity == Rarity.Rare && terms.Has(OrdersCatalog.Ledger)) traits = Bestiary.OneMore(traits, random.Fork("ledger"));
 
-            EnemyPower power = Bestiary.PowerOf(rarity);
-            float scale = kind.Scale * (rarity == Rarity.Normal ? random.Range(0.94f, 1.06f) : power.Scale);
+            float scale = kind.Scale * (rarity == Rarity.Normal ? random.Range(0.94f, 1.06f) : Bestiary.PowerOf(rarity).Scale);
             string model = Bestiary.ModelOf(kind, random);
+            return new Fielded(kind, rarity, traits, scale, model, boss, twin);
+        }
+
+        /// <summary>Whether a spawn is someone to fight, which <see cref="Wake"/> spawns by <see cref="SpawnEnemy"/>: keep the two lists the same.</summary>
+        private static bool Fights(SpawnRole role) => role is SpawnRole.Raider or SpawnRole.Guard or SpawnRole.Undead or SpawnRole.Boss or SpawnRole.Beast or SpawnRole.Cultist or SpawnRole.Rival;
+
+        /// <summary>
+        /// Every model a land can send of anyone hostile or held there, on these terms, for a client to grow while it loads rather than every one there is: whoever stands at each of its
+        /// places and packs, exactly as <see cref="Wake"/> will spawn them, what's caged at its places, and, as all it might be, what comes only as things go: an arena's brood, the bones a
+        /// Writ raises, and what heroes raise and whistle for. It knows nothing of who's already dead, so it's never less than what comes. Not for the Haven, which has nobody to fight
+        /// and whose people are grown when they're first seen, nor for the asset lexicon, which stands everything (LEXICON.md).
+        /// </summary>
+        public static HashSet<string> Foresee(WorldData world, LandTerms terms)
+        {
+            var models = new HashSet<string>();
+            Chronicle chronicle = Chronicle.Write(world, terms, haven: false);
+            int level = world.Plan.Level;     // As LevelAt, anywhere but the Haven.
+
+            // In the order WorldProgress lists them, as a place's people are drawn by where it is in that list.
+            var places = new List<(WorldSite Site, bool Wild)>();
+            foreach (WorldSite site in world.Sites) places.Add((site, false));
+            foreach (WorldSite haunt in world.Haunts) places.Add((haunt, true));
+            for (int siteIndex = 0; siteIndex < places.Count; siteIndex++)
+            {
+                (WorldSite site, bool wild) = places[siteIndex];
+                var random = new WorldRandom(world.Plan.Seed).Fork("people").Fork(siteIndex);    // As Wake.
+                var musters = new Dictionary<SpawnRole, PackOrders>();
+                for (int i = 0; i < site.Spawns.Count; i++)
+                {
+                    SiteSpawn spawn = site.Spawns[i];
+                    if (!Fights(spawn.Role) || !LandCensus.Stands(spawn.Role, terms)) continue;
+                    PackOrders orders = Orders(world, terms, level, site, wild, spawn, random, musters);
+                    models.Add(Field(world, terms, chronicle, site, wild, i, spawn, orders, random.Fork(i)).Model);
+                }
+                if (site.Place is PlacePlan plan)
+                {
+                    foreach (PlaceCage cage in plan.Cages) models.Add(cage.Look);
+                }
+            }
+
+            if (LandCensus.ArenaOf(world) != null)
+            {
+                Recipe brood = Warbands.ArenaRecipe(chronicle.BossKind);     // As ArenaSystem.LetThrough.
+                foreach (EnemyKind kind in brood.Leaders.Concat(brood.Core).Concat(brood.Support)) models.UnionWith(Bestiary.ModelsOf(kind));
+            }
+            if (terms.Has(OrdersCatalog.Writ))
+            {
+                models.UnionWith(Bestiary.ModelsOf(Bestiary.BoneRaptor));     // As ServerSession.Rise.
+                models.UnionWith(Bestiary.ModelsOf(Bestiary.Restless));
+            }
+            models.UnionWith(Bestiary.ModelsOf(Bestiary.Bones));
+            models.UnionWith(Bestiary.ModelsOf(Bestiary.Hound));
+            return models;
+        }
+
+        /// <summary>Who a parade stands in its rows (<see cref="Parade"/>): every kind, those named by id, or an outlaw of each rarity.</summary>
+        public static (EnemyKind Kind, Rarity Rarity)[] ParadeOf(string which) => which == "rarities"
+            ? Enum.GetValues<Rarity>().Select(rarity => (Bestiary.Outlaw, rarity)).ToArray()
+            : (which == "all" ? Bestiary.Everyone : Bestiary.Everyone.Where(kind => which.Split(',').Contains(kind.Id))).Select(kind => (kind, Rarity.Normal)).ToArray();
+
+        private void SpawnEnemy(ECSWorld world, ServerSession session, SiteState state, int siteIndex, int spawnIndex, SiteSpawn spawn, PackOrders orders, WorldRandom random)
+        {
+            int level = LevelAt(session, state);
+            (EnemyKind kind, Rarity rarity, int traits, float scale, string model, bool boss, bool twin) = Field(session.World, session.Terms, session.Chronicle, state.Site, state.Wild, spawnIndex, spawn, orders, random);
+            EnemyPower power = Bestiary.PowerOf(rarity);
 
             Dino_Defenders.Progression.Item[]? gear = null;
             string? title = null;
@@ -371,9 +444,7 @@ namespace Dino_Defenders.Server
             const int perRow = 7;
             const float slot = 5.5f, rowDepth = 7f;
             var random = new WorldRandom(1);
-            (EnemyKind kind, Rarity rarity)[] line = which == "rarities"
-                ? Enum.GetValues<Rarity>().Select(rarity => (Bestiary.Outlaw, rarity)).ToArray()
-                : (which == "all" ? Bestiary.Everyone : Bestiary.Everyone.Where(kind => which.Split(',').Contains(kind.Id))).Select(kind => (kind, Rarity.Normal)).ToArray();
+            (EnemyKind kind, Rarity rarity)[] line = ParadeOf(which);
             float ScaleOf(int index) => line[index].kind.Scale * (line[index].rarity == Rarity.Normal ? 1f : Bestiary.PowerOf(line[index].rarity).Scale);
             // Whatever fits a slot stands where it always has, on a grid centred on the hero, as a test swings at the first of a parade without looking. Anything bigger takes a space as wide
             // as it is and puts more room between its row and the next, as a tyrant is longer than a row of outlaws is apart. The first row stays where it is, as the screen ends not far behind it.

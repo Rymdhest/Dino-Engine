@@ -218,6 +218,7 @@ namespace Dino_NetLab
             TheHalls(report, worlds);
             OpeningTheWay(report, worlds);
             TheCount(report, worlds);
+            WhatAClientGrows(report, worlds);
             SteppingThrough(report, worlds);
             OneLife(report, worlds);
             OneLifeEach(report, worlds);

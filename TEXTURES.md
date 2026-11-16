@@ -31,14 +31,20 @@ never disagree.
 ## Making one: `Textures/Synthesis/`
 
 - A `Canvas` is one tile, wrapping, at the arrays' size (2048). Its generators: `Noise` (Perlin, value, ridged, billow, optionally warped), `Offsets` (two noises
-  for a warp), `Cells` (Voronoi with the true distance to the border, Quilez), `Bricks` (courses of bricks, blocks, boards or tiles, running or random bond,
+  for a warp), `Cells` (Voronoi with the true distance to the border, Quilez), `LongCells` (the same for what cracks into long pieces, as bark does: drawn
+  in cells far longer one way than the other, with the border's distance as it really lies, and pulled about by slow noise so nothing runs straight; read
+  Bark, below; it's a shader of its own, `Synth_LongCells.frag`, as folded into `Cells` the same sums came out of the compiler a last bit different and a
+  few texels of every cobble and stone wall moved by a shade), `Bricks` (courses of bricks, blocks, boards or tiles, running or random bond,
   random lengths, upright for boards), `Scatter` (up to four elliptical domed stones a cell, the higher of two overlapping showing), `Weave`, `Mail`, `Facets`
   (broken rock), `Grain` (the growth rings of each board of a `Bricks`), `U` and `V`, and `Ramp` (a gradient map, the main way a material gets its colour).
 - Everything tiles: every lattice is a whole number of cells across the tile, and a frequency is rounded to one. `U` and `V` jump at the edge, so they only
   tile through something that repeats a whole number of times across. Every neighbourhood operation wraps. Any whole number of cells tiles, not only
   powers of two, as long as a cell is wrapped by `wrapInt`, which never floors a quotient that lands on a whole number: a GPU's division is only nearly
   exact, and once every frequency that wasn't a power of two left a seam at the tile's edge, with other stones beyond it. `--texturecheck` measures every
-  generator and neighbourhood operation across the tile's edges (`Canvas.CheckSeams`) and FAILS on a step there bigger than one anywhere else.
+  generator and neighbourhood operation across the tile's edges (`Canvas.CheckSeams`) and FAILS on a step there bigger than one anywhere else. It can't
+  be asked of very long cells: their ends lie near whole numbers of cells along the tile, its edge among them, and that's where their border's distance
+  changes fastest, so the step across the edge is two or three times the average with no seam there. Long cells are checked a little longer than wide,
+  and looked at tiled two by two on the sheet.
 - Noise is standardised: mean 0.5 and a deviation of 1/6 whatever its kind and octaves, from one octave's measured statistics (`Canvas.OctaveStatistics`,
   measured by `--texturecheck true`, which prints them: change the noise and measure again). Octaves finer than a few texels fade out instead of aliasing.
   `--texturecheck` also measures what recipes rely on (`Canvas.CheckFields`): standardised noise of every kind, `Equalize` spreading a field evenly, and a
@@ -75,10 +81,53 @@ never disagree.
 - A cell's border distance creases along the cell's middle: a profile wider than the cell is goes to a ridge. Blur the distance a little, or keep the profile
   narrow and add a crown from `Centre`.
 - Cells read as crazy paving unless the thing really is pieces: stones, plates, crust. Give those joints a width of their own (inset the border) and edges that
-  wander (warp it). What braids or runs, as an oak's fissures do, is where a noise stretched along it crosses its middle (`(noise - 0.5).Abs()`), with few
-  octaves so it runs smooth; what crowds in cushions, as moss does, is `Scatter`'s domes.
+  wander (warp it). What braids or runs smooth, as water does, is where a noise stretched along it crosses its middle (`(noise - 0.5).Abs()`), with few
+  octaves; what crowds in cushions, as moss does, is `Scatter`'s domes; and what cracked along its length, as bark did, is `LongCells` (Bark, below).
 - A mask of patches covering a share of the tile is `MaterialRecipes.Patches`: equalized noise through a threshold, so its cover is exact. A patch tuned while
   it was empty, as every one was until `Equalize` was fixed, is worth looking at again.
+
+## Bark
+
+A person called the first barks cartoons, and they were: each was lines drawn on something smooth, an oak's fissures where a stretched noise crossed its
+middle, a pine's plates the cells of a diagram with an outline round each. However such lines wander, that's marbling. Bark is what's left of a skin that
+couldn't stretch as its tree thickened, and every recipe in `MaterialRecipes.Bark.cs` is now built that way: something whole, broken into pieces, with what
+the pieces are made of showing where they broke.
+
+- **The pieces are `Canvas.LongCells`**: a Voronoi diagram drawn in cells that are many times longer up the trunk than across it, so its pieces lean into
+  each other, part and cross each other's ends as ridges do, but with `Border` as far off as the border really is, so a crack is as wide whichever way it
+  runs. Stretching the sites of an ordinary diagram doesn't do it (sites strewn one to a cell are strewn evenly, however long the cells), and measuring a
+  stretched diagram in cells makes a crack across a ridge as many times wider than one along it as the ridge is long. Its `pull` drags the whole diagram
+  about by slow noise first, so nothing in it runs straight.
+- **Every break opens by its own amount** (`Seam`: a random of the two ids either side of a border, the same from both). Some fissures are a hand deep and
+  wide, and some never opened and two pieces are still one. All alike, they're a diagram.
+- **Pieces are flat-backed and steep-sided** (`Rise.Round` over a narrow width), as what split apart is. Round-backed, they're something poured.
+- **Edges are torn** (`Torn`): the border's distance less noise at the size of a thumb and again, ridged, at the size of a nail. Smooth edges are what
+  made the first set marbling, and one size of raggedness alone reads as a wobble.
+- **What a piece is made of shows in its side and on its back**: an oak's ridge comes down in the steps of the layers it was laid in (`Quantize` on its
+  rise) and is split again by finer checks and combed by its fibres; a pine's plate is a stack of thin scales, each a little smaller than the one under it
+  (`PinePlates`: the border's distance and a noise together, quantized, so the terraces follow the plate's own outline); a redwood's strips are stringy
+  along their length.
+- **Depth is darker and warmer, never ink.** Colour is a `Ramp` over the finished height, from earth at the bottom of a fissure to weathered grey on a
+  ridge's back, with a little of each piece's own shade (`Jitter` by id), slow weather down the trunk, and lichen only where a back has lain still.
+- **What lies on bark is `Scatter`, not cells.** A spruce's scales as a diagram alone met along lines, and the trunk was paved (and from further off, a
+  soldier's jacket); loose scales strewn over the diagram, each lifting at its edge with a hairline of shadow under it, are what make it scaly. A pine's
+  flakes are two sizes of them, torn by one warp.
+- **Nothing is all alike or all there.** A birch with every lenticel the same length was the bars of a price tag: half of them, from dots to dashes. A
+  drying check in bare wood opens and closes along its length (its opening times a slow noise), so it's a slit tapering at both ends; open all the way
+  round a piece, it's an outline someone drew. A char's craze, open everywhere, was wire netting, and open in a few places, scratches.
+
+Each bark in a line: `BarkFurrowed` (oak, elm, ash: long ridges, stepped flanks, checked backs), `BarkFissured` and `PineBark` (a pine's plates of
+terraced scales, pale for a tree and red-brown for a log), `BarkPlated` (spruce, larch: scales lapping, loose ones over them, here and there one gone),
+`BarkPapery` (birch: sheets whose edges run across and curl, lenticels, black torn scars), `BarkSmooth` (beech, cherry, canes: a stretched skin, faint
+blotches with soft edges), `BarkFibrous` (redwood, cedar: long stringy strips), `BarkRinged` (palms: leaf scars as lips, split by fibres),
+`BarkBare` (silvered wood, combed and checked), `BarkCharred` (blocks of char, crazed) and `BarkFlaking` (a pine's upper trunk: papery flakes).
+
+A bark's mean colour is what every tree's vertex colours were chosen against, and `PineBark`'s is the colour of every log wall, so hold it: `--materialsheet`
+before and after, and compare the means of the colour panels. They came out within a tenth of what they were, but for char, which is a quarter darker.
+
+Judge one in `--materials bark-furrowed,bark-pine --look 2.2 --angle 22 --pan -6,3.5` (`--pan -15,3.5` for the second), where it's on a column, a wall and
+a log in the game's own light, then on its trees (`--garden oak,pine.scots,birch --gardengap 5 --look 1.5 --angle 13`), and then from the game's camera.
+On the sheet alone the pale colour panel hides most of what's wrong with one.
 
 ## Baking
 
@@ -88,7 +137,7 @@ never disagree.
   through a von Mises-Fisher fit (Neubelt and Pettineo): a bumpy material far off is a rough one, not a glittering one. Colour is averaged in linear light.
 - Arrays: albedo (sRGB: colour, alpha), normal (normal x, y, subsurface, occlusion), material (roughness, emission, metallic, height). Anisotropic filtering
   is the quality's (`QualityPreset.Anisotropy`) on colour, at most 2 on normals and none on the rest.
-- `--materialsheet folder` writes every material's maps as pictures, the height tiled two by two where a seam would show as a line.
+- `--materialsheet folder` writes every material's maps as pictures at the arrays' own size, the height tiled two by two where a seam would show as a line.
 
 ## Reading one: `Shaders/Surface/`
 

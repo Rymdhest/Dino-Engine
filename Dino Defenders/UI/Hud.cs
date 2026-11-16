@@ -472,7 +472,8 @@ namespace Dino_Defenders.UI
 
             List<List<(OmenDefinition omen, float value, float width)>> omenRows = OmenRows(session, wrap);
             List<UniqueOrders> uniques = session.Terms.Uniques().ToList();
-            height += 10f + 20f + omenRows.Count * 18f + uniques.Count * 18f;
+            int party = session.Client.Party.Count;
+            height += 10f + 20f + omenRows.Count * 18f + uniques.Count * 18f + (party > 1 ? 18f : 0f);
             Shade(draw, new GuiRect(x, y, width, height));
 
             Ui.Text(Context!, draw, session.World.Plan.Name, 17f, new GuiRect(x, y, width, 22f), Ui.Gold, Alignment.End);
@@ -530,6 +531,28 @@ namespace Dino_Defenders.UI
                 Ui.Text(Context!, draw, unique.Name, 13.5f, new GuiRect(x, y, width, 18f), Ui.RarityColour(Rarity.Unique), Alignment.End);
                 y += 18f;
             }
+
+            // The party is one more thing the land holds, as an omen is, and changes as friends come and go.
+            if (party > 1)
+            {
+                string name = $"Party of {party}";
+                float nameWidth = GuiText.MeasureWidth(Context!, name, Ui.Face, 13.5f);
+                GuiRect place = new GuiRect(x + width - nameWidth, y, nameWidth, 18f);
+                bool resting = Resting(place);
+                Ui.Text(Context!, draw, name, 13.5f, place, resting ? Ui.Bright : GuiColors.Rgba(222, 200, 160));
+                if (resting)
+                {
+                    draw.AddLine(new Vector2(place.X, place.Bottom - 1f), new Vector2(place.Right, place.Bottom - 1f), Ui.Gold.MultiplyAlpha(0.7f), 1f);
+                    GameUi.Current.Tips.Show(() => PartyCard(GameSession.Current?.Client.Party.Count ?? party), place);
+                }
+            }
+        }
+
+        private static Card PartyCard(int party)
+        {
+            var card = new Card { Title = $"Party of {party}" };
+            card.Text(Lands.PartyText(party));
+            return card;
         }
 
         // What a land gives reads as the colour of good news, what it does to enemies warm, and what it does to a hero red, so that the worst of a land stands out among the rest of it.

@@ -79,7 +79,20 @@ What was learned by trying, which the papers don't say:
 
 Generalized cylinders on parallel transport frames, with rings spaced by how thick a stem is and closer at the foot, where all the shape is, and as many sides as that's worth. Rings have to stay close enough on a tall trunk, or it's a cone between its foot and the first thing that changes it (`LongestRing`).
 
-**Bark materials are pale.** What colour a bark is goes in the vertices, so one is every bark of its kind. Each costs 64 MB, so a new `BarkKind` should be a new surface and never a new colour. A kind is a line in `MaterialCatalog`, a recipe in `MaterialRecipes.Bark.cs` (read `TEXTURES.md`) and a line in `TextureGenerator.BindFloraMaterials`. Cells read as crazy paving: an oak's fissures are where a noise stretched up the trunk crosses its middle, so they braid and never close, and so are a pine's, many across and wide, cut into tall plates by short shallow breaks across the ridges, with faces terraced where scales came away and furrows with a bottom of their own. A spruce's plates (`Plated`) are still cells, and read so close up.
+**A limb grows out of what it grew from.** A person said branches were sticks glued to the stem, with gaps showing where they didn't quite meet it, and that's what they were: every tube started as an open ring at the heart of its parent, and showed wherever the parent thinned, dented, or was no thicker than the limb. Now an axis's skin leaves a `Sleeve` behind it (its rings, each ring's own outline, and which of the mesh's triangles lie between each two), and whatever grows from it starts at its surface, through a collar (`BarkSkin.Collar`, `Land`, `AddCollar`):
+
+- The limb's first ring stands where the limb is clear of its parent (`Collar.Plan`), and from each vertex of that ring a line is followed back down the limb to where it goes under the parent's surface.
+- That's a corner, and wood doesn't meet in corners. The line turns there to lie along the parent, rounding the corner by a radius of the limb's own size (`FilletRadius`, by the bark's `BarkForm.Collar`), by how far the surface really turns from the limb's to the parent's: not at all where a limb's side runs flush out of its parent's, as the front of a fork does, a limb's radius under one standing straight out, and little again in a tight crotch, which is a crease in a real tree and reads as putty when it's filled in. Swelling the limb all round where it came out, which was tried first, stood a lip round every fork.
+- Each line ends **on a face of the parent's own mesh**, found by casting a ray at it (Möller and Trumbore), and takes the parent's normal, colour and moss there, so light and bark run from one onto the other with no line between them. The parent's smooth shape isn't good enough to end on: its faces run straight between rings a trunk's width apart and between the few vertices a ring has, and a foot set by the shape stood as much as half a metre clear of them. Where a cast finds nothing the line ends on the nearest face there is, as a foot somewhere on its parent is a collar a little out of shape, and one off it is a gap.
+- What a collar costs goes by how thick the limb is (`TwigRadius`, `BranchRadius`, `LimbRadius`): a twig only starts just under its parent's bark, a branch's foot is turned to lie on its parent, and a limb has one or two rings between its foot and its own girth, round a foot of four, six or eight sides. Most of a tree's joins are twigs, and a tree's triangles are paid for thousands of times over.
+
+`Dino FloraLab joins` holds it, on the meshes as they're drawn: it grows every species, measures how far every vertex of every foot is from the faces of what the limb left, and fails one standing more than 15 mm clear. Over 24,500 joins of 177 species the proudest is 9 mm. `--why true` says how each line of a failing foot ended, and `--out file.png` draws the worst of them, wood only.
+
+**Elbows are mitred.** A ring in a turn lies across the turn's bisector and is stretched by one over its cosine, so a tube keeps its girth round a bend, where rings square to the way they were going pinched it flat, and thick wood gets more rings through a turn. An axis also goes straight on where it can: at a fork the run carries on into the child that's thickest and straightest together (`PlantAxis.StraightOn`), as taking the thickest alone made a hairpin of any trunk whose leader was a little thinner than the limb beside it.
+
+**Bark is about as tall as it's wide.** Round a stem a pattern is always a whole number of tiles, so on thin wood it's squeezed, and run up the stem by the metre as well, a trunk's fissures were pinstripes on a branch, eight times as tall as wide. It's run up a stem by its girth instead (`TallestGrain`), so the pattern shrinks whole as the wood thins, and its relief with it.
+
+**Bark materials are pale.** What colour a bark is goes in the vertices, so one is every bark of its kind. Each costs 16 MB of video memory, as every material does at 512 texels with its mips and three arrays, so a new `BarkKind` should be a new surface and never a new colour. A kind is a line in `MaterialCatalog`, a recipe in `MaterialRecipes.Bark.cs` (read `TEXTURES.md`) and a line in `TextureGenerator.BindFloraMaterials`. How a bark is made to read as bark, and not as a drawing of one, is Bark in `TEXTURES.md`: read it before changing one, as the first set were called cartoons.
 
 Ridges at the foot face the way roots do, or they look stuck on. Moss likes the damp foot, the upper side of a lean, and one side more than the other. Wood inside a crown is darkened by the light it stands in, or limbs shine through; `BarkForm.Shaded` says how much, as a pine's open crown shows its trunk's orange all the way up where a broadleaf's is dark inside.
 
@@ -130,6 +143,7 @@ Plants bend as `PlantRig` and `Plant.glsl` say, and that has its own rules (AGEN
 - **Thick wood bends less**, by `StiffRadius`. A limb as thick as a trunk doesn't whip like a twig.
 - **`BendThatHolds` limits a link by how far its wood strays from its line.** A joint is a straight line, and the outside of a bend stretches by how far it stands off that line for how long the line is, so what's stubby can hardly bend, and nor can a limb that curls back on itself.
 - **Fine wood rides on a `PlantJoint.Rigid`**, which never bends. Bound to its parent's link, each of its vertices would work out for itself where it sits on that link, and an arc shears anything that reaches out from it. Anything growing from fine wood hangs from what carries it, or it would go deeper than a vertex can walk.
+- **A limb's foot moves with the bark it stands on.** Its collar, and its rings up to the one it's free from, are held by the joint that holds the bark its foot landed on (`BarkSkin.Hold`: of the joints its lines ended on, the one furthest out), each vertex by where it is along that joint, which is how the bark itself is held, so the two can't part; and the limb's first link that bends hangs from that same joint and starts at that ring. The rig is made before there's a skin, and hangs every limb from its parent's joint by where its heart starts, at the heart of the parent: held that way, a limb that left at a shallow angle, or by its parent's own foot, swung a hand's width clear of its collar as the tree bent, and `bend` found edges stretched fifteen times over. A limb too short to bend clear of its collar (`Rig.StubbyLengths`) rides rigid, and rigid wood on rigid wood shares its joint.
 - `TreeForm.Walkable` is for what a body goes through. Its stems answer to touch, and nothing up in a tree does.
 
 ## In the world
@@ -188,6 +202,7 @@ A crown near the camera is seen at about 100 pixels a metre, as trees reach to w
 - `check`: every plant at many seeds is sound, the same plant twice, within budget, and growing somewhere.
 - `variety`: two plants of a species really are different, by how little their silhouettes overlap. Fails on a clone.
 - `bend`: every plant bent as hard as it goes. The numbers mean something: trees come to 28% at the very limit.
+- `joins`: every limb of every species meets the faces of what it grew from, measured on the mesh (Skin, above). `--count N` seeds, `--plants a,b`, `--why true` for how each line of a failing foot ended, and `--out file.png` to see the worst.
 - `find`: a seed and an archetype for each biome.
 - `list`: what each costs.
 - `fingerprint --out file`: a hash of every species at a few seeds, and of every card. Two runs either side of a change, compared, are what it moved, and the rest is proven untouched. A plant names its cards by id, as a new card moves every layer after it.
@@ -195,7 +210,7 @@ A crown near the camera is seen at about 100 pixels a metre, as trees reach to w
 
 **The lab's picture is for shape.** Its light is roughly `lightingCalc.glsl` and much brighter: judge colour and how anything sits in the world from the game. `--biome id` starts in the thickest wood of a biome, and `--gardengap 17` with `--garden` makes an arboretum, for looking at trees from the game's own camera.
 
-After any change here run `Dino FloraLab check`, `variety` and `bend`, then `Dino WorldLab check` and `Dino WorldLab wind`, and `Dino WorldLab cover` for anything that lies on the ground.
+After any change here run `Dino FloraLab check`, `variety`, `bend` and `joins`, then `Dino WorldLab check` and `Dino WorldLab wind`, and `Dino WorldLab cover` for anything that lies on the ground.
 
 ## Where it stands
 
@@ -231,3 +246,19 @@ On 2026-11-15 the pines were remade after photographs of a Scots pine wood: tall
 
 On 2026-11-15 the cards that lie on the ground were found buried: litter, moss and the cushions had been laid on the height map, 17 cm under the ground as it's drawn, so 97% of their area was under it and the rest was pieces standing out of slopes. They're laid by `GroundCards` now (In the world). Over 25 lands of every kind that has cards, `Dino WorldLab cover` finds 51 to 78% of their area over the drawn ground, no card with less than 15% over it, and no underside more than 10 cm off it; about one card in ten isn't laid, on ground too rough for it. Fed the old placement, the same measure finds 1.7% over the drawn ground, 96 cards standing off it and 4,089 of 4,362 buried, and fails. Measured on the 7900 XTX at 3440 by 1369, alternating the build before and this one: in seed 1's Gold Wood (three runs each) a frame went from 12.27 to 11.88 ms on average and model geometry from 0.83 to 0.81 ms, and in seed 5's thickest litter (two each) from 10.19 to 10.02 ms and 0.70 to 0.67 ms, with grass shading a little less as the cards hide the blades' feet. `Dino WorldLab check` (30 worlds) and `sea` pass. Judged in stills from the game's camera and a low look; nobody has walked through it.
 
+On 2026-11-16 the skin was rebuilt round how a limb meets what it grew from, after a person said branches were sticks glued to the stem with gaps showing (Skin, above): collars laid on the parent's own faces, feet that move with the bark they stand on, mitred elbows, axes that go straight on, and bark run up a stem by its girth. Every bark was made again the same day (Bark in `TEXTURES.md`), as the first set were called cartoons. `check`, `variety`, `bend` and the new `joins` pass on all 177 species, `fingerprint` moved the 92 with wood and none of the other 86 or any card, and `Dino WorldLab check` passes 100 worlds of 100.
+
+What it costs, measured as above (7900 XTX, 3440 by 1369, two rounds of alternating builds, the build before then this one):
+
+| | Pinewood | Old broadleaf wood | Village |
+|---|---|---|---|
+| Frame rate | 104.6 to 103.7 | 87.0 to 86.6 | 101.0 to 100.8 |
+| Model geometry | 0.83 to 0.84 ms | 0.74 to 0.74 ms | 0.54 to 0.54 ms |
+| Model shadows | 0.34 to 0.35 ms | 0.18 to 0.19 ms | 0.10 to 0.10 ms |
+| Bark and rock moss shells | 0.51 to 0.55 ms | 0.26 to 0.27 ms | 0.03 to 0.03 ms |
+| Triangles drawn | 690,000 to 747,000 | 418,000 to 449,000 | 111,000 to 111,000 |
+| Shadow triangles | 980,000 to 1,068,000 | 633,000 to 687,000 | 363,000 to 361,000 |
+
+A plant is 2,337 triangles on average where it was 1,952 (an oak 4,959 to 6,300, a Scots pine 7,774 to 8,310, a silver snag 9,241 to 12,258), a world's meshes take 5 to 6 MB more video memory, and a tree takes 5 to 23 ms longer to grow on its thread, which a world's loading doesn't show: its plants and stones take the 3.0 s and 4.3 s they did. The materials bake in the second they did.
+
+**Nobody has seen any of it but in stills,** and those were judged by a program. In particular: how a collar looks as its limb swings in a wind, which `bend` only says doesn't tear; whether a fork's crease reads as wood from 33 m up or is too fine to matter; and every bark in a low sun, as they were tuned at noon in one land. Plated (spruce, larch) and flaking (a pine's upper trunk) are the two that still read most as pattern close to, and the birch's scars are the plainest thing on it.

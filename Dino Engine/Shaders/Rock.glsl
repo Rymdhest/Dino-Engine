@@ -292,7 +292,7 @@ RockLook rockLook(vec3 position, vec3 normal, vec3 dx, vec3 dy)
 
     // Water has run down anything steep and left its marks there, most of all off the lip of a bed; a desert lacquers its streaks almost black.
     vec2 across = abs(normal.x) > abs(normal.z) ? position.zy : position.xy;
-    float streak = textureLod(materialMapTextureArray, vec3(across * vec2(0.31, 0.021), material), 0.0).a;    // The arrays' first level, a material's second (TextureGenerator.MaterialLevelsDropped).
+    float streak = textureLod(materialMapTextureArray, vec3(across * vec2(0.31, 0.021), material), 0.0).a;    // The arrays' first level, a material's third (TextureGenerator.MaterialLevelsDropped).
     float drip = mix(0.65, 1.0, 1.0 - smoothstep(0.0, 5.0, blocks.head));
     float stains = 1.0 - (ROCK_STREAKS + 0.3 * geologyGrain.z) * steep * drip * smoothstep(0.42, 0.72, streak);
     colour *= stains;

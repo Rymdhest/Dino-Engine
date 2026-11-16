@@ -99,6 +99,20 @@ public class glModel
         this.VBOS = VBOS;
         this.vertexCount = vertexCount;
         this.box = box;
+        Rendering.VideoMemory.Counted(0, 1);
+    }
+
+    /// <summary>How many bytes of video memory its buffers take, as glLoader made them (Rendering.VideoMemory).</summary>
+    public long Bytes { get; private set; }
+
+    private bool _cleanedUp;
+
+    /// <summary>Adds buffers its loader has just made for it to what it's known to take.</summary>
+    internal void Count(long bytes)
+    {
+        if (_cleanedUp) return;
+        Bytes += bytes;
+        Rendering.VideoMemory.Counted(bytes, 0);
     }
 
     /// <summary>The buffer texture of a plant's joints (Plant.glsl), or 0 for whatever doesn't bend.</summary>
@@ -187,6 +201,11 @@ public class glModel
 
     public void cleanUp()
     {
+        if (!_cleanedUp)
+        {
+            _cleanedUp = true;
+            Rendering.VideoMemory.Counted(-Bytes, -1);
+        }
         GL.DeleteVertexArray(vaoID);
         for (int i = 0; i < VBOS.Length; i++)
         {

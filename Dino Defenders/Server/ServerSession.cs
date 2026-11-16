@@ -42,6 +42,9 @@ namespace Dino_Defenders.Server
         /// <summary>Set while the game is held still, as it can be for someone playing alone.</summary>
         public bool Paused => Server.Paused;
 
+        /// <summary>How much more Health every enemy here has for the size of the party, which changes as friends come and go, and every enemy with it (<see cref="Rebuild"/>).</summary>
+        public float PartyHealth;
+
         /// <summary>What the land's omens pay on top of what anything here gives anyway.</summary>
         public LootBoon Boon => _boon;
 
@@ -516,6 +519,15 @@ namespace Dino_Defenders.Server
                 return;
             }
 
+            // An enemy has more Health for a party, kept at the same share of it as the party changes.
+            float party = actor.Team == Team.Enemies ? PartyHealth : 0f;
+            actor.PartyHealth = party;
+            if (actor.Buffs.Count == 0 && party <= 0f)
+            {
+                actor.Adopt(actor.Innate);
+                return;
+            }
+
             // Anyone else has to stop sharing what they've been sharing, for as long as it lasts.
             // All of what it is, not just its numbers: a loadout keeps rules and triggers apart, and a buff taking those away would turn off whatever makes it what it is.
             var mods = new List<Mod>(actor.Innate.Mods);
@@ -526,7 +538,8 @@ namespace Dino_Defenders.Server
             {
                 for (int stack = 0; stack < buff.Stacks; stack++) mods.AddRange(buff.Buff.Mods);
             }
-            actor.Adopt(actor.Buffs.Count == 0 ? actor.Innate : new Loadout(actor.Innate.Level, actor.Innate.Weapon, mods, actor.Innate.Books));
+            if (party > 0f) mods.Add(M.More(Stat.Health, party));
+            actor.Adopt(new Loadout(actor.Innate.Level, actor.Innate.Weapon, mods, actor.Innate.Books));
         }
 
         /// <summary>A hostile at a site has fallen; if it was the last, the site is free.</summary>

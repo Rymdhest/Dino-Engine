@@ -63,7 +63,7 @@ layout (location = 2) out vec4 gMaterials;
 #include Water/ShoreGrowth.glsl
 
 const float HIT_SHINE = 7.0;
-const float MATERIAL_SIZE = 1024.0;     // Texels across a material as the arrays keep it (TextureGenerator.MaterialLevelsDropped), for the mip a relief reads.
+const float MATERIAL_SIZE = 512.0;      // Texels across a material as the arrays keep it (TextureGenerator.MaterialLevelsDropped), for the mip a relief reads.
 const float SETTLE_METRES = 0.3;        // The finest relief water and snow settle by, as on the ground (Terrain.frag).
 
 // Which layer a pixel reads. A material that gives way to the next one up (MaterialCatalog.GivesWay) is drawn with its vertices' layers between the two, by how far each has

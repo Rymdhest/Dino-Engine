@@ -62,6 +62,17 @@ namespace Dino_Defenders.Server
         public IEnumerable<ServerPlayer> Players => _players.Values;
         public int PlayerCount => _players.Count;
 
+        /// <summary>How many heroes are in the game, wherever they are: what every enemy's Health goes by (<see cref="Lands.PartyHealth"/>).</summary>
+        public int PartySize
+        {
+            get
+            {
+                int greeted = 0;
+                foreach (ServerPlayer player in _players.Values) greeted += player.Greeted ? 1 : 0;
+                return Math.Max(greeted, 1);
+            }
+        }
+
         /// <summary>Largest snapshot sent, and how many bytes have gone out in all.</summary>
         public int LargestSnapshot { get; private set; }
         public long BytesSent { get; private set; }

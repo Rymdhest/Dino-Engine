@@ -13,6 +13,7 @@ namespace Dino_NetLab
     ///   loot  [--seed N]                            What's on the ground: who sees it, who gets it, and that nobody gets it without asking.
     ///   pack  [--seed N]                            What a pack does across a line: shown at once, the server has the last word, and nothing is lost or doubled however bad the line.
     ///   lands                                       The loop: the Haven, the way, one life to a land, leaving, freeing, the climb, the stash, and what omens and orders do.
+    ///   creatures                                   Of lands, only that every body a land sends is one the client grew for it while it loaded (EncounterSystem.Foresee).
     ///   foes  [--seed N]                            What an enemy's rarity comes to: who turns up as what, that a trait's ability gets used, and what a client is told
     ///   uniques [--seed N]                          Every unique's rule, done for real on a running server.
     ///   crafting [--seed N]                         The Forge's crafting bench: a fuse is made at once and exactly the same on both ends, for the same gold, only in the Haven, and survives a bad line.
@@ -52,6 +53,8 @@ namespace Dino_NetLab
                     return LandTests.Run(options);
                 case "arenas":
                     return LandTests.RunArenas(options);
+                case "creatures":
+                    return LandTests.RunCreatures(options);
                 case "combat":
                     return CombatTests.Run(options);
                 case "books":
