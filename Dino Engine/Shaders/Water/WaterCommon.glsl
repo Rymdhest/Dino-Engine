@@ -70,6 +70,7 @@ const int REFLECTION_TAPS = 15;         // Places up and down the screen a drawn
 const float REFLECTION_REACH = 2.2;     // out to this many deviations either side.
 const float REFLECTION_BESIDE = 1.2;    // Pixels to either side its taps step.
 const float REFLECTION_WOBBLE = 0.05;   // How much of a ripple's own slope the calm ray keeps: enough that the image breathes with the water, and no more than moves it a few pixels.
+const float REFLECTION_DEPTH = 0.017;   // Of the screen's height: how far up it a ray can have gone behind something and still have met it (waterMarchAlong).
 // Ripples from things moving through the water: xy world corner, zw size of the simulated area (z = 0: none).
 uniform vec4 rippleSimRegion;
 uniform float rippleSimStrength;
@@ -395,8 +396,16 @@ bool waterMarchAlong(vec3 startView, vec3 directionView, float waterHeight, out 
         {
             vec3 scene = ReconstructViewSpacePosition(pixel, depth, invProjectionMatrix, resolution);
             float behind = scene.z - rayZ;
-            // What's much nearer the eye than the ray is in front of it, not in its way: the hero, standing before the water.
-            if (behind > 0.0 && behind < 3.0 - rayZ * 0.3)
+            // Only what the ray went behind in its last few pixels is in its way, as how deep the depth buffer's things are can't be known. Metres of thickness meet a
+            // tree on the far shore and pass a bird near the eye: a ray off water nearer the eye than a bird's own reflection reaches the bird's place on the screen
+            // still in front of it, one off water further away reaches it behind it, and how far behind grows quickly the further off the water was. Held to a depth
+            // in metres, a bird's reflection was drawn up as a line a fifth of the screen long; held to a share of the screen, it's as long as the bird, and the far
+            // trees, whose depth goes by in a few pixels, are met as before. Whatever is much nearer the eye, the hero standing before the water, is left out by it too.
+            float rayBefore = mix(startZ, endZ, before) / mix(startK, endK, before);
+            float stepPixels = max((share - before) * whole, 1.0);
+            float perPixel = abs(rayBefore - rayZ) / stepPixels;
+            float thickness = perPixel * max(REFLECTION_DEPTH * resolution.y, stepPixels * 1.5);
+            if (behind > 0.0 && behind < thickness)
             {
                 // Between the last step, in front of the scene, and this one, behind it.
                 float front = before;

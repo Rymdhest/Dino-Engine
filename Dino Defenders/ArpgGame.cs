@@ -378,6 +378,8 @@ namespace Dino_Defenders
             _frames++;
             TakeSnap();
             if (_options.Shot != null && _frames == _options.ShotAfterFrames) Engine.RequestScreenshot(_options.Shot, Quit);
+            // Its lake is judged moving (The lake, in MENU.md), so it can be filmed as a land can.
+            if (_options.Film != null) UpdateFilm();
             // The picture behind the menu is a view no land has, with air and shadows of its own, so it's measured as a land is (--menu true --perf file).
             if (_perf != null)
             {
