@@ -31,6 +31,32 @@ namespace Dino_Defenders.UI
             levelUp.Tooltip = "Gives the rest of this level's experience, so the hero goes up one, as killing would";
             levelUp.Updated += _ => levelUp.Enabled = BetaVendor.Standing && GameSession.Current is GameSession session && session.Hero.Level < HeroState.MaxLevel;
 
+            // The climb, for testing progression over and over: the land freed as play would free it.
+            window.Content.Add(DebugUi.Heading("Climb"));
+            var climb = window.Content.Add(DebugUi.KeyValueGrid());
+            DebugUi.AddRow(climb, "Deepest freed", () => GameSession.Current is GameSession session ? Math.Max(session.Hero.BestLand, 0).ToString() : "-");
+            DebugUi.AddRow(climb, "Next on the table", () => GameSession.Current is GameSession session ? session.Hero.LandLevel.ToString() : "-");
+            Button freeLand = window.Content.Add(Action("Free the land", () => GameSession.Current?.Client.Cheat(DeveloperCheat.FreeLand)));
+            Label freeWhy = window.Content.Add(DebugUi.Muted("", wrap: true));
+            freeLand.Updated += _ =>
+            {
+                GameSession? session = GameSession.Current;
+                bool wayOpen = session?.Client.Portal != null;
+                freeLand.Text = session?.IsHaven == true ? $"Free level {session.Hero.LandLevel}" : "Free this land";
+                freeLand.Tooltip = session?.IsHaven == true
+                    ? "Counts the next level on the map table as freed, as freeing a land of it with no orders would"
+                    : "Does everything this land asks, with its rewards, so it's free as if by play";
+                freeLand.Enabled = BetaVendor.Standing && session != null && !session.IsLexicon
+                    && (session.IsHaven ? !wayOpen : !session.Liberated && !session.Client.Out);
+                freeWhy.Text = session == null ? "No hero in a world."
+                    : session.IsLexicon ? "Nothing in the asset test level counts."
+                    : session.IsHaven && wayOpen ? "A way to a land is open: close it at the map table first."
+                    : !session.IsHaven && session.Liberated ? "This land is already free."
+                    : !session.IsHaven && session.Client.Out ? "Fallen: only someone standing can free it."
+                    : "";
+                freeWhy.Visible = freeWhy.Text.Length > 0;
+            };
+
             // Lexicon (developer tool, LEXICON.md): the way into the asset lexicon, a room with one of everything the game has on show, labelled, and home from it.
             if (LexiconServer.Open)
             {

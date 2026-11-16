@@ -21,6 +21,11 @@ never disagree.
   `BuildingStyle.Nordic`): pale, as its paint, the red of the walls and the white of the trim, is in the vertices, and a trim board is textured across one
   board between its battens (`NORDIC.md`). They're on the end of the catalogue, so adding them moved no other material's layer. The ground's palette has
   at most `TerrainSurface.MaxMaterials`, and a material a world can't fit falls back to its cousin (`TerrainSurface`).
+- `Marble` is the Archive's (`HALLS.md`): stone sawn and honed, clouded, with veins where a noise stretched along the slab and pulled about crosses its middle, each
+  coming and going along its length, as a vein all of one strength is a line on a chart. It's flat, so it has no relief to march, and pale, as which marble it is, white,
+  teal, rose or gold, is in the vertices. Its roughness is 0.27: at 0.1 it had the sheen `surfaceF0` keeps for water, and every light over a floor of it showed as a
+  white blot. A floor of it is laid slab by slab, each with its own place and turn in the tile (`Basilica.Lay`), so that it reads as cut stone and the tile never repeats.
+  On the end of the catalogue, as the others are.
 - A material can give way to the one in the next layer, and only to that one (`MaterialSpec.GivesWay`, the table's `w` in `MaterialTable.glsl`). A mesh then runs
   from the first to the second through its vertices, each with a layer between the two by how far it has given way (`FloraVertex.MaterialShare`, added to its
   material on the way to the GPU), and `Model.frag`'s `givenWayLayer` reads one layer a pixel: the second wherever the first's height is lower than how far it

@@ -4,468 +4,860 @@ using Dino_Engine.Util;
 using Dino_Engine.World;
 using Dino_Engine.World.Content;
 using OpenTK.Mathematics;
+using static Dino_Engine.Modelling.Procedural.Architecture.Halls.Basilica;
 
 namespace Dino_Engine.Modelling.Procedural.Architecture.Halls
 {
     /// <summary>
-    /// The Archive's displays, one for each record a player's heroes keep, each something that says what it keeps at a glance from the camera: a tyrant's skull for the tyrants felled, a
-    /// boulder split by a blade for the hardest blow, an hourglass for the swiftest land. Each faces +z, the carpet up the middle of the hall, with a small stone placard at its foot. What
-    /// the record is comes from the game when someone walks up to it.
+    /// The Archive's displays, one for each record a player's heroes keep, each one thing that says what it keeps at a glance from the camera, on a pedestal of the hall's own
+    /// marble with a plate at its foot: a tyrant's skull for the tyrants felled, a boulder split by a blade for the hardest blow, an hourglass for the swiftest land. Each is
+    /// built facing +z, towards whoever reads it. Those against the end wall are seen from in front, so they stand up against a back; those against the side walls are seen
+    /// from beside and above, so they're round, or lie open to the sky. What the record is comes from the game when someone walks up (UI/ArchivePlaques.cs).
+    /// Each has one soft light, set well out in front of it and over it: a light within a metre and a half of marble washes it white.
     /// </summary>
     internal static class Exhibits
     {
-        private static VertexMaterial Bone => Hall.Bone(214, 200, 172);
-        private static VertexMaterial OldBone => Hall.Bone(176, 160, 132);
-        private static VertexMaterial Plinth => Hall.Stone(200, 190, 172);
-        private static VertexMaterial PlinthDark => Hall.Stone(150, 142, 128);
+        private static VertexMaterial Bone => Hall.Bone(210, 194, 160);
+        private static VertexMaterial OldBone => Hall.Bone(172, 154, 122);
+        private static VertexMaterial Hollow => Hall.Flat(30, 26, 24);
+        private static VertexMaterial Velvet => Hall.Cloth(22, 56, 78);
+        private static VertexMaterial Steel => Hall.Metal(198, 200, 208);
+        private static VertexMaterial Gold => Hall.Metal(222, 176, 76);
+        private static VertexMaterial Parchment => Hall.Flat(206, 190, 150);
 
         public static void Build(MeshBuilder b, ExhibitKind kind, Vector2 half, float h, HallKit kit, List<AssetLight> lights, WorldRandom random)
         {
             switch (kind)
             {
                 case ExhibitKind.TyrantsFelled: TyrantSkull(b, half, h, lights); break;
-                case ExhibitKind.FoesSlain: Tally(b, half, h, random); break;
-                case ExhibitKind.HardestBlow: SplitStone(b, half, h); break;
-                case ExhibitKind.UniquesFound: Cabinet(b, half, h, lights, random); break;
+                case ExhibitKind.FoesSlain: Trophies(b, half, h, lights, random); break;
+                case ExhibitKind.HardestBlow: SplitStone(b, half, h, lights, random); break;
+                case ExhibitKind.UniquesFound: Treasury(b, half, h, lights); break;
                 case ExhibitKind.SwiftestLand: Hourglass(b, half, h, lights); break;
                 case ExhibitKind.Falls: Memorial(b, half, h, lights, random); break;
-                case ExhibitKind.LandsFreed: MapTable(b, half, h, random); break;
+                case ExhibitKind.LandsFreed: MapTable(b, half, h, lights, random); break;
                 case ExhibitKind.GoldGathered: Hoard(b, half, h, lights, random); break;
                 default: Climb(b, half, h, lights); break;
             }
-            Placard(b, new Vector3(0f, 0f, half.Y - 0.25f));
         }
 
-        // A small slanted stone at an exhibit's foot, where its record would be cut.
-        private static void Placard(MeshBuilder b, Vector3 at)
+        // ---- What they share.
+
+        /// <summary>A pedestal of the hall's marble: a foot of teal, a line of gold, a die of white and a cap. Its top is at <paramref name="height"/>.</summary>
+        private static void Pedestal(MeshBuilder b, Vector2 half, float height, Vector3 at = default)
         {
-            b.Box(at + Vector3.UnitY * 0.35f, new Vector3(0.12f, 0.35f, 0.1f), PlinthDark);
-            Hall.At(b, at + Vector3.UnitY * 0.72f, 0f, () =>
+            float foot = MathF.Min(0.3f, height * 0.3f), cap = MathF.Min(0.16f, height * 0.2f);
+            b.Box(at + new Vector3(0f, foot * 0.5f, 0f), new Vector3(half.X, foot * 0.5f, half.Y), Teal);
+            b.Box(at + new Vector3(0f, foot + 0.03f, 0f), new Vector3(half.X - 0.06f, 0.03f, half.Y - 0.06f), Gilt);
+            float dieFrom = foot + 0.06f, dieTo = height - cap;
+            b.Box(at + new Vector3(0f, (dieFrom + dieTo) * 0.5f, 0f), new Vector3(half.X - 0.14f, (dieTo - dieFrom) * 0.5f, half.Y - 0.14f), White);
+            b.Box(at + new Vector3(0f, height - cap * 0.5f, 0f), new Vector3(half.X - 0.03f, cap * 0.5f, half.Y - 0.03f), White);
+        }
+
+        /// <summary>The same, round.</summary>
+        private static void RoundPedestal(MeshBuilder b, float radius, float height)
+        {
+            float foot = MathF.Min(0.3f, height * 0.3f), cap = MathF.Min(0.16f, height * 0.2f);
+            b.Tube(Vector3.Zero, Vector3.UnitY * foot, radius, radius, 24, Teal);
+            b.Tube(Vector3.UnitY * foot, Vector3.UnitY * (foot + 0.06f), radius - 0.06f, radius - 0.06f, 24, Gilt);
+            b.Tube(Vector3.UnitY * (foot + 0.06f), Vector3.UnitY * (height - cap), radius - 0.14f, radius - 0.14f, 24, White, capped: false);
+            b.Tube(Vector3.UnitY * (height - cap), Vector3.UnitY * height, radius - 0.03f, radius - 0.03f, 24, White);
+        }
+
+        /// <summary>The plate at a display's foot, where its record would be cut: a slanted tablet of teal in a frame of gold, three lines on it. <paramref name="foot"/> is the middle of its lower edge.</summary>
+        private static void Plate(MeshBuilder b, Vector3 foot, float halfWide = 0.62f)
+        {
+            Vector3 rise = new Vector3(0f, 0.42f, -0.3f);
+            Vector3 normal = Vector3.Cross(Vector3.UnitX, rise).Normalized();
+            if (normal.Y < 0f) normal = -normal;
+            Hall.Board(b, foot - normal * 0.03f, foot + rise - normal * 0.03f, Vector3.UnitX, halfWide + 0.06f, 0.03f, Gilt);
+            Hall.Board(b, foot + rise * 0.1f + normal * 0.012f, foot + rise * 0.9f + normal * 0.012f, Vector3.UnitX, halfWide, 0.014f, DeepTeal);
+            for (int line = 0; line < 3; line++)
             {
-                b.PlaneQuad(new Vector3(-0.42f, -0.06f, 0.2f), new Vector3(0.42f, -0.06f, 0.2f), new Vector3(0.42f, 0.16f, -0.14f), new Vector3(-0.42f, 0.16f, -0.14f), Plinth,
-                    Vector3.Zero, Vector3.UnitX, Vector3.UnitY, new Vector4(-1e3f, 1e3f, -1e3f, 1e3f));
-                b.Box(new Vector3(0f, 0.04f, 0.02f), new Vector3(0.42f, 0.1f, 0.15f), PlinthDark);
-                for (int line = 0; line < 3; line++)
-                {
-                    float y = 0.11f - line * 0.07f, z = -0.08f + line * 0.1f;
-                    b.Box(new Vector3(0f, y + 0.01f, z), new Vector3(0.3f - line * 0.05f, 0.006f, 0.012f), Hall.Flat(60, 54, 46));
-                }
-            });
+                Vector3 at = foot + rise * (0.74f - line * 0.24f) + normal * 0.03f;
+                Hall.Board(b, at - Vector3.UnitX * (halfWide * (0.72f - line * 0.14f)), at + Vector3.UnitX * (halfWide * (0.72f - line * 0.14f)), rise, 0.026f, 0.005f, PaleGilt);
+            }
         }
 
-        // A moulded stone plinth of two tiers: a base, a body, and a cap.
-        private static float Tiers(MeshBuilder b, Vector2 half, float height)
+        // Its one light.
+        private static void Lit(List<AssetLight> lights, Vector3 at, float intensity = 20f, float radius = 10f)
         {
-            b.Box(new Vector3(0f, height * 0.12f, 0f), new Vector3(half.X, height * 0.12f, half.Y), PlinthDark);
-            b.Box(new Vector3(0f, height * 0.52f, 0f), new Vector3(half.X - 0.18f, height * 0.3f, half.Y - 0.18f), Plinth);
-            b.Box(new Vector3(0f, height * 0.91f, 0f), new Vector3(half.X - 0.06f, height * 0.09f, half.Y - 0.06f), PlinthDark);
-            return height;
+            lights.Add(AssetLight.Glow(at, new Vector3(1f, 0.84f, 0.62f), intensity, radius));
         }
+
+        /// <summary>A block any way up: its eight corners put through <paramref name="m"/>, each face wound to face out. For what's built tilted, which a box can't be.</summary>
+        private static void Solid(MeshBuilder b, Func<Vector3, Vector3> m, Vector3 centre, Vector3 half, VertexMaterial material)
+        {
+            Vector3 C(float x, float y, float z) => m(centre + new Vector3(x * half.X, y * half.Y, z * half.Z));
+            Vector3 middle = m(centre);
+            void Side(Vector3 p0, Vector3 p1, Vector3 p2, Vector3 p3) => Hall.Face(b, p0, p1, p2, p3, (p0 + p2) * 0.5f - middle, material);
+            Side(C(-1, -1, 1), C(1, -1, 1), C(1, 1, 1), C(-1, 1, 1));
+            Side(C(1, -1, -1), C(-1, -1, -1), C(-1, 1, -1), C(1, 1, -1));
+            Side(C(1, -1, 1), C(1, -1, -1), C(1, 1, -1), C(1, 1, 1));
+            Side(C(-1, -1, -1), C(-1, -1, 1), C(-1, 1, 1), C(-1, 1, -1));
+            Side(C(-1, 1, 1), C(1, 1, 1), C(1, 1, -1), C(-1, 1, -1));
+            Side(C(-1, -1, -1), C(1, -1, -1), C(1, -1, 1), C(-1, -1, 1));
+        }
+
+        // ---- Tyrants felled.
 
         /// <summary>
-        /// The skull of a tyrant, as long as a person is tall, on a stone plinth, its jaws a little open: the cranium high at the back with its eyes and the holes in front of them, the long
-        /// snout, the lower jaw, and a row of teeth along each.
+        /// The end of the nave: a dais of three steps against the wall, a pedestal on it, and on that a great tray of dark velvet in a frame of walnut and gold, tilted up
+        /// towards whoever stands before it, with the skull of a tyrant lying on it on its side, half as long again as a person is tall, its jaws open. On its side, as the
+        /// camera looks down from behind whoever reads it: so it sees the skull as everyone knows one, from beside, the eye, the holes before and behind it, and every tooth.
         /// </summary>
         private static void TyrantSkull(MeshBuilder b, Vector2 half, float h, List<AssetLight> lights)
         {
-            float top = Tiers(b, new Vector2(half.X, half.Y - 0.4f), 1.4f);
-            // A cradle of dark wood under it.
-            foreach (float z in new[] { -0.8f, 0.7f })
+            const float Step = 0.22f, Tread = 0.5f;
+            for (int i = 0; i < 3; i++)
             {
-                b.Box(new Vector3(0f, top + 0.25f, z), new Vector3(0.9f, 0.25f, 0.12f), Hall.Wood(76, 50, 32));
+                float inset = Tread * i, top = Step * (i + 1);
+                float front = half.Y - inset, back = -half.Y;
+                // Its rise in teal and its tread in white, so that the steps are seen from above.
+                b.Box(new Vector3(0f, top - Step * 0.5f - 0.02f, (front + back) * 0.5f), new Vector3(half.X - inset, Step * 0.5f - 0.02f, (front - back) * 0.5f), Teal);
+                b.Box(new Vector3(0f, top - 0.02f, (front + back) * 0.5f), new Vector3(half.X - inset + 0.02f, 0.02f, (front - back) * 0.5f + 0.01f), White);
+                // A line of gold along the nose of each step, front and sides.
+                float lineY = top + 0.004f;
+                b.Box(new Vector3(0f, lineY, front - 0.07f), new Vector3(half.X - inset, 0.004f, 0.03f), Gilt);
+                foreach (float s in new[] { -1f, 1f }) b.Box(new Vector3(s * (half.X - inset - 0.07f), lineY, (front + back) * 0.5f), new Vector3(0.03f, 0.004f, (front - back) * 0.5f), Gilt);
             }
-            Hall.At(b, new Vector3(0f, top + 1.6f, 0.1f), 0f, () => Skull(b));
-            // A low light on it, so that it reads from the far end of the hall.
-            lights.Add(AssetLight.Glow(new Vector3(0f, top + 3.5f, half.Y + 0.6f), new Vector3(1f, 0.78f, 0.5f), 18f, 9f));
-        }
+            float floor = Step * 3f;
+            // A panel of teal let into the top of the dais, before the pedestal.
+            b.Box(new Vector3(0f, floor + 0.004f, 1.3f), new Vector3(2.2f, 0.004f, 0.45f), Teal);
+            b.Box(new Vector3(0f, floor + 0.008f, 1.3f), new Vector3(2.08f, 0.004f, 0.33f), DeepTeal);
 
-        private static void Skull(MeshBuilder b)
-        {
-            VertexMaterial bone = Bone, old = OldBone;
-            VertexMaterial hollow = Hall.Flat(26, 22, 20);
-            // Upper skull: a tapering run of sections from the back of the head to the tip of the snout, each a box a little narrower and lower than the last.
-            (float z, float w, float top, float bottom)[] sections =
-            {
-                (-1.7f, 0.62f, 0.95f, -0.25f), (-1.25f, 0.72f, 1.05f, -0.35f), (-0.75f, 0.66f, 0.85f, -0.4f), (-0.2f, 0.52f, 0.6f, -0.4f),
-                (0.4f, 0.42f, 0.42f, -0.38f), (1.0f, 0.34f, 0.3f, -0.36f), (1.6f, 0.27f, 0.2f, -0.32f), (2.05f, 0.2f, 0.12f, -0.28f),
-            };
-            for (int i = 0; i + 1 < sections.Length; i++)
-            {
-                var a = sections[i];
-                var c = sections[i + 1];
-                Loft(b, a.z, a.w, a.top, a.bottom, c.z, c.w, c.top, c.bottom, i % 2 == 0 ? bone : old);
-            }
-            // Its back, closed.
-            var back = sections[0];
-            b.Quad(new Vector3(back.w, back.bottom, back.z), new Vector3(-back.w, back.bottom, back.z), new Vector3(-back.w, back.top, back.z), new Vector3(back.w, back.top, back.z), old);
-            // The ridges over the eyes, and the eyes and the great holes before them, dark.
+            Vector3 stand = new Vector3(0f, floor, -0.75f);
+            const float PedestalTop = 1.7f;
+            Pedestal(b, new Vector2(3.2f, 1.3f), PedestalTop, stand);
+            Plate(b, stand + new Vector3(0f, 0.5f, 1.34f), 0.9f);
+
+            // The tray: its foot on the front of the pedestal and its head held up behind on two posts of gold.
+            const float Tilt = 0.84f, Scale = 1.5f;
+            float cos = MathF.Cos(Tilt), sin = MathF.Sin(Tilt);
+            Vector3 up = new Vector3(0f, cos, -sin);            // Up the tray, towards its head.
+            Vector3 face = new Vector3(0f, sin, cos);           // Out of it, towards the camera.
+            Vector3 foot = new Vector3(0f, floor + PedestalTop + 0.14f, 0.5f);
+            const float Long = 4.4f, Wide = 3.35f;
+            Vector3 head = foot + up * Long;
+            Hall.Board(b, foot - face * 0.08f, head - face * 0.08f, Vector3.UnitX, Wide, 0.08f, Walnut);
+            Hall.Board(b, foot + up * 0.16f + face * 0.01f, head - up * 0.16f + face * 0.01f, Vector3.UnitX, Wide - 0.16f, 0.012f, Velvet);
+            foreach (float s in new[] { -1f, 1f }) Hall.Board(b, foot + Vector3.UnitX * (s * (Wide - 0.07f)) + face * 0.035f, head + Vector3.UnitX * (s * (Wide - 0.07f)) + face * 0.035f, Vector3.UnitX, 0.07f, 0.035f, Gilt);
+            Hall.Board(b, foot - Vector3.UnitX * Wide + up * 0.07f + face * 0.035f, foot + Vector3.UnitX * Wide + up * 0.07f + face * 0.035f, up, 0.07f, 0.035f, Gilt);
+            Hall.Board(b, head - Vector3.UnitX * Wide - up * 0.07f + face * 0.035f, head + Vector3.UnitX * Wide - up * 0.07f + face * 0.035f, up, 0.07f, 0.035f, Gilt);
             foreach (float s in new[] { -1f, 1f })
             {
-                b.Box(new Vector3(s * 0.62f, 0.68f, -1.0f), new Vector3(0.08f, 0.2f, 0.18f), hollow);
-                b.Box(new Vector3(s * 0.6f, 0.92f, -0.98f), new Vector3(0.14f, 0.07f, 0.26f), bone);
-                b.Box(new Vector3(s * 0.48f, 0.25f, -0.15f), new Vector3(0.06f, 0.24f, 0.4f), hollow);
-                b.Box(new Vector3(s * 0.33f, 0.05f, 1.05f), new Vector3(0.03f, 0.1f, 0.22f), hollow);
-                // The holes at the back of the head, behind the eyes.
-                b.Box(new Vector3(s * 0.55f, 0.35f, -1.5f), new Vector3(0.1f, 0.25f, 0.18f), hollow);
+                Vector3 under = foot + up * (Long * 0.72f) - face * 0.16f + Vector3.UnitX * (s * 2.3f);
+                Vector3 on = new Vector3(under.X, floor + PedestalTop, stand.Z - 0.55f);
+                b.Tube(on, on + Vector3.UnitY * 0.12f, 0.26f, 0.2f, 10, Gilt);
+                b.Tube(on + Vector3.UnitY * 0.12f, under, 0.09f, 0.07f, 8, Gilt, capped: false);
             }
-            // The lower jaw, dropped a little open, from under the back of the head to the chin.
-            Hall.At(b, new Vector3(0f, -0.36f, -1.2f), 0f, () =>
+
+            // The skull, lying on it: its snout along the tray to the right, the roof of it towards the tray's head and its teeth towards its foot.
+            Vector3 hold = foot + up * 2.5f + face * (0.82f * Scale) - Vector3.UnitX * 0.3f;
+            Vector3 M(Vector3 p)
             {
-                float drop = 0.18f;
-                (float z, float w, float top, float bottom)[] jaw =
+                p *= Scale;
+                // Snout, +z, to the right; then laid back, so that its near side faces out of the tray.
+                Vector3 turned = new Vector3(p.Z, p.Y, -p.X);
+                return hold + new Vector3(turned.X, turned.Y * cos + turned.Z * sin, -turned.Y * sin + turned.Z * cos);
+            }
+            Skull(b, M, Scale);
+            Lit(lights, new Vector3(0f, 7.6f, half.Y + 1.6f), 46f, 14f);
+        }
+
+        // An eight-sided section of the skull: its sides, roof and floor, with the corners between taken off.
+        private static Vector3[] Section(float z, float w, float top, float bottom)
+        {
+            float c = MathF.Min(w, top - bottom) * 0.3f;
+            return new[]
+            {
+                new Vector3(-w, bottom + c, z), new Vector3(-w, top - c, z), new Vector3(-w + c, top, z), new Vector3(w - c, top, z),
+                new Vector3(w, top - c, z), new Vector3(w, bottom + c, z), new Vector3(w - c, bottom, z), new Vector3(-w + c, bottom, z),
+            };
+        }
+
+        // A tyrant's skull, its snout along +z and its roof up, a little under four metres long before it's scaled: tall and wide behind the eyes, a deep snout, blunt
+        // at its end, the holes in its sides dark, a jaw hung open under it, and its teeth.
+        private static void Skull(MeshBuilder b, Func<Vector3, Vector3> m, float scale)
+        {
+            VertexMaterial bone = Bone, old = OldBone, hollow = Hollow;
+            (float z, float w, float top, float bottom)[] sections =
+            {
+                (-1.78f, 0.5f, 0.74f, -0.1f), (-1.5f, 0.78f, 1.02f, -0.3f), (-1.05f, 0.84f, 1.08f, -0.4f), (-0.6f, 0.7f, 1f, -0.42f), (-0.15f, 0.56f, 0.84f, -0.42f),
+                (0.45f, 0.5f, 0.7f, -0.4f), (1.05f, 0.44f, 0.6f, -0.38f), (1.55f, 0.37f, 0.5f, -0.36f), (1.95f, 0.29f, 0.38f, -0.33f), (2.18f, 0.18f, 0.2f, -0.28f),
+            };
+            // How wide it is at a point along it, for what's set into its sides.
+            float WidthAt(float z)
+            {
+                for (int i = 0; i + 1 < sections.Length; i++)
                 {
-                    (-0.3f, 0.6f, 0.05f, -0.75f), (0.4f, 0.55f, -0.05f - drop * 0.3f, -0.62f - drop * 0.3f), (1.3f, 0.44f, -0.12f - drop * 0.6f, -0.5f - drop * 0.6f),
-                    (2.2f, 0.34f, -0.15f - drop, -0.42f - drop), (3.1f, 0.22f, -0.16f - drop * 1.3f, -0.36f - drop * 1.3f),
-                };
+                    if (z <= sections[i + 1].z) return MathHelper.Lerp(sections[i].w, sections[i + 1].w, Math.Clamp((z - sections[i].z) / (sections[i + 1].z - sections[i].z), 0f, 1f));
+                }
+                return sections[^1].w;
+            }
+            Vector3[] last = Section(sections[0].z, sections[0].w, sections[0].top, sections[0].bottom);
+            Vector3 lastMiddle = new Vector3(0f, (sections[0].top + sections[0].bottom) * 0.5f, sections[0].z);
+            // Its back, closed.
+            for (int k = 0; k < 8; k++) Hall.Tri(b, m(lastMiddle), m(last[k]), m(last[(k + 1) % 8]), m(lastMiddle - Vector3.UnitZ) - m(lastMiddle), old);
+            for (int i = 1; i < sections.Length; i++)
+            {
+                var s = sections[i];
+                Vector3[] next = Section(s.z, s.w, s.top, s.bottom);
+                Vector3 middle = new Vector3(0f, (s.top + s.bottom) * 0.5f, s.z);
+                Vector3 axis = m((lastMiddle + middle) * 0.5f);
+                for (int k = 0; k < 8; k++)
+                {
+                    Vector3 p0 = m(last[k]), p1 = m(last[(k + 1) % 8]), p2 = m(next[(k + 1) % 8]), p3 = m(next[k]);
+                    // The roof and the cheeks a little paler than what's between them and under.
+                    Hall.Face(b, p0, p1, p2, p3, (p0 + p2) * 0.5f - axis, k == 2 || k == 0 || k == 4 ? bone : old);
+                }
+                last = next;
+                lastMiddle = middle;
+            }
+            for (int k = 0; k < 8; k++) Hall.Tri(b, m(lastMiddle), m(last[k]), m(last[(k + 1) % 8]), m(lastMiddle + Vector3.UnitZ) - m(lastMiddle), bone);
+
+            foreach (float s in new[] { -1f, 1f })
+            {
+                // In each side: the eye, a tall hole narrow at its foot; the hole behind it; the long one before it; and the nostril.
+                // Each an oval on the skull's side, standing just clear of it where it's widest.
+                void Hole(float z, float y, float halfLong, float halfTall)
+                {
+                    float x = s * (MathF.Max(WidthAt(z - halfLong), MathF.Max(WidthAt(z), WidthAt(z + halfLong))) + 0.012f);
+                    Vector3 centre = new Vector3(x, y, z);
+                    Vector3 outward = m(centre + Vector3.UnitX * s) - m(centre);
+                    const int Round = 12;
+                    for (int k = 0; k < Round; k++)
+                    {
+                        float a0 = MathF.Tau * k / Round, a1 = MathF.Tau * (k + 1) / Round;
+                        Hall.Tri(b, m(centre), m(centre + new Vector3(0f, MathF.Sin(a0) * halfTall, MathF.Cos(a0) * halfLong)), m(centre + new Vector3(0f, MathF.Sin(a1) * halfTall, MathF.Cos(a1) * halfLong)), outward, hollow);
+                    }
+                }
+                Hole(-0.72f, 0.62f, 0.2f, 0.24f);
+                Hole(-0.72f, 0.24f, 0.11f, 0.16f);
+                Hole(-1.3f, 0.34f, 0.17f, 0.34f);
+                Hole(0.16f, 0.26f, 0.38f, 0.26f);
+                Hole(0.72f, 0.16f, 0.16f, 0.14f);
+                Hole(1.82f, 0.12f, 0.13f, 0.08f);
+                // The two great holes in its roof, behind the eyes.
+                Solid(b, m, new Vector3(s * 0.38f, 1.07f, -1.2f), new Vector3(0.2f, 0.02f, 0.24f), hollow);
+                // The brow over each eye, standing out.
+                Solid(b, m, new Vector3(s * 0.74f, 1f, -0.7f), new Vector3(0.14f, 0.1f, 0.28f), bone);
+            }
+            // The rough ridge down the snout.
+            for (int i = 0; i < 5; i++)
+            {
+                float t0 = i / 5f, t1 = (i + 0.8f) / 5f;
+                Vector3 from = new Vector3(0f, MathHelper.Lerp(0.9f, 0.42f, t0), MathHelper.Lerp(-0.25f, 1.8f, t0)), to = new Vector3(0f, MathHelper.Lerp(0.9f, 0.42f, t1), MathHelper.Lerp(-0.25f, 1.8f, t1));
+                Hall.Board(b, m(from), m(to), m(from + Vector3.UnitX) - m(from), 0.11f * scale, 0.035f * scale, old);
+            }
+
+            // Upper teeth, long and curved back, along the edge of the upper jaw, the longest of them under the eye's front.
+            VertexMaterial tooth = Hall.Bone(238, 230, 208);
+            for (int i = 0; i < 12; i++)
+            {
+                float t = i / 11f;
+                float z = MathHelper.Lerp(-0.3f, 2.06f, t);
+                float w = WidthAt(z) - 0.05f;
+                float y = MathHelper.Lerp(-0.42f, -0.31f, t);
+                float length = 0.36f + 0.2f * MathF.Sin(t * MathF.PI) + 0.07f * MathF.Sin(i * 2.3f + 0.4f);
+                foreach (float s in new[] { -1f, 1f })
+                {
+                    Vector3 root = new Vector3(s * w, y, z);
+                    b.Tube(m(root), m(root + new Vector3(0f, -length, -0.09f)), 0.07f * scale, 0.006f * scale, 6, tooth);
+                }
+            }
+
+            // The lower jaw, hung from under the back of the head and dropped open: two deep bars meeting at the chin, with their own teeth.
+            float open = MathHelper.DegreesToRadians(19f);
+            float jc = MathF.Cos(open), js = MathF.Sin(open);
+            Vector3 hinge = new Vector3(0f, -0.3f, -1.3f);
+            Vector3 J(Vector3 p) => m(hinge + new Vector3(p.X, p.Y * jc - p.Z * js, p.Y * js + p.Z * jc));
+            (float z, float w, float deep)[] jaw = { (-0.1f, 0.76f, 0.36f), (0.9f, 0.62f, 0.32f), (1.8f, 0.48f, 0.25f), (2.7f, 0.32f, 0.2f), (3.25f, 0.14f, 0.16f) };
+            foreach (float s in new[] { -1f, 1f })
+            {
                 for (int i = 0; i + 1 < jaw.Length; i++)
                 {
                     var a = jaw[i];
                     var c = jaw[i + 1];
-                    Loft(b, a.z, a.w, a.top, a.bottom, c.z, c.w, c.top, c.bottom, old);
+                    Vector3 from = new Vector3(s * a.w, -0.2f, a.z), to = new Vector3(s * c.w, -0.22f, c.z);
+                    Hall.Board(b, J(from), J(to), J(from + Vector3.UnitY) - J(from), (a.deep + c.deep) * 0.5f * scale, 0.08f * scale, i % 2 == 0 ? old : bone);
                 }
-                // Lower teeth.
-                for (int i = 0; i < 11; i++)
+                for (int i = 0; i < 9; i++)
                 {
-                    float t = i / 10f;
-                    float z = MathHelper.Lerp(0.5f, 3.0f, t);
-                    float w = MathHelper.Lerp(0.5f, 0.24f, t) - 0.06f;
-                    float y = MathHelper.Lerp(-0.08f, -0.16f, t) - drop * MathHelper.Lerp(0.4f, 1.25f, t);
-                    foreach (float s in new[] { -1f, 1f }) Tooth(b, new Vector3(s * w, y, z), 0.24f + 0.08f * MathF.Sin(i * 1.7f), true);
-                }
-            });
-            // Upper teeth, long and curved back, along the edge of the upper jaw.
-            for (int i = 0; i < 13; i++)
-            {
-                float t = i / 12f;
-                float z = MathHelper.Lerp(-0.5f, 1.95f, t);
-                float w = MathHelper.Lerp(0.56f, 0.2f, t) - 0.05f;
-                float y = MathHelper.Lerp(-0.4f, -0.3f, t);
-                foreach (float s in new[] { -1f, 1f }) Tooth(b, new Vector3(s * w, y, z), 0.32f + 0.1f * MathF.Sin(i * 2.3f + 0.4f), false);
-            }
-        }
-
-        // One section of a skull to the next: four sides from one rectangle to another, each wound to face out.
-        private static void Loft(MeshBuilder b, float z0, float w0, float t0, float b0, float z1, float w1, float t1, float b1, VertexMaterial material)
-        {
-            Vector3 a0 = new(-w0, b0, z0), a1 = new(w0, b0, z0), a2 = new(w0, t0, z0), a3 = new(-w0, t0, z0);
-            Vector3 c0 = new(-w1, b1, z1), c1 = new(w1, b1, z1), c2 = new(w1, t1, z1), c3 = new(-w1, t1, z1);
-            b.Quad(a2, a3, c3, c2, material);   // top
-            b.Quad(a0, a1, c1, c0, material);   // bottom
-            b.Quad(a1, a2, c2, c1, material);   // +x side
-            b.Quad(a3, a0, c0, c3, material);   // -x side
-            if (w1 < 0.25f) b.Quad(c0, c1, c2, c3, material);   // the tip
-        }
-
-        private static void Tooth(MeshBuilder b, Vector3 root, float length, bool upward)
-        {
-            Vector3 tip = root + new Vector3(0f, upward ? length : -length, upward ? -0.04f : -0.06f);
-            b.Tube(root, tip, 0.055f, 0.006f, 5, Hall.Bone(232, 222, 198));
-        }
-
-        /// <summary>A tall frame of dark wood hung with what was taken off the fallen, claws and teeth on cords, round a board cut with tally marks in fives.</summary>
-        private static void Tally(MeshBuilder b, Vector2 half, float h, WorldRandom random)
-        {
-            VertexMaterial wood = Hall.Wood(66, 44, 30);
-            b.Box(new Vector3(0f, 0.3f, 0f), new Vector3(half.X - 0.2f, 0.3f, half.Y - 0.6f), PlinthDark);
-            float top = h - 0.3f;
-            foreach (float x in new[] { -half.X + 0.4f, half.X - 0.4f })
-            {
-                Hall.Turned(b, new Vector3(x, 0.6f, -0.2f), wood, 8, (0f, 0.16f), (0.2f, 0.12f), (top - 0.8f, 0.11f), (top - 0.6f, 0.17f), (top - 0.5f, 0.12f));
-            }
-            for (int rail = 0; rail < 3; rail++)
-            {
-                float y = top - 0.35f - rail * 1.55f;
-                b.Box(new Vector3(0f, y, -0.2f), new Vector3(half.X - 0.3f, 0.08f, 0.08f), wood);
-                // Trophies on cords from this rail.
-                for (float x = -half.X + 0.75f; x < half.X - 0.6f; x += random.Range(0.22f, 0.34f))
-                {
-                    float cord = random.Range(0.3f, 0.7f);
-                    Vector3 hang = new Vector3(x, y - 0.08f, -0.2f + random.Range(-0.05f, 0.05f));
-                    b.Beam(hang, hang - Vector3.UnitY * cord, 0.008f, Hall.Flat(70, 56, 40));
-                    Vector3 end = hang - Vector3.UnitY * cord;
-                    if (random.Chance(0.6f))
-                    {
-                        // A claw, curved, hanging point down.
-                        b.Tube(end, end + new Vector3(0.05f, -0.22f, 0.06f), 0.06f, 0.035f, 5, Bone);
-                        b.Tube(end + new Vector3(0.05f, -0.22f, 0.06f), end + new Vector3(0.0f, -0.38f, 0.14f), 0.035f, 0.004f, 5, Bone);
-                    }
-                    else b.Tube(end, end - Vector3.UnitY * random.Range(0.18f, 0.3f), 0.05f, 0.005f, 5, OldBone);
+                    float t = i / 8f;
+                    float z = MathHelper.Lerp(0.8f, 3.1f, t);
+                    float w = MathHelper.Lerp(0.62f, 0.17f, t);
+                    Vector3 root = new Vector3(s * w, 0.04f, z);
+                    b.Tube(J(root), J(root + new Vector3(0f, 0.3f + 0.08f * MathF.Sin(i * 1.7f), -0.05f)), 0.06f * scale, 0.006f * scale, 6, tooth);
                 }
             }
-            // The board in the middle, cut with tallies.
-            float boardY = h * 0.42f;
-            b.Box(new Vector3(0f, boardY, -0.1f), new Vector3(half.X * 0.6f, 0.75f, 0.06f), Hall.Wood(150, 116, 80));
-            VertexMaterial cut = Hall.Flat(44, 32, 22);
-            for (int row = 0; row < 4; row++)
-            {
-                float y = boardY + 0.5f - row * 0.32f;
-                for (int group = 0; group < 4; group++)
-                {
-                    float x0 = -half.X * 0.5f + group * half.X * 0.27f;
-                    for (int mark = 0; mark < 4; mark++) b.Box(new Vector3(x0 + mark * 0.07f, y, -0.03f), new Vector3(0.012f, 0.11f, 0.01f), cut);
-                    b.Beam(new Vector3(x0 - 0.05f, y - 0.1f, -0.025f), new Vector3(x0 + 0.26f, y + 0.1f, -0.025f), 0.012f, cut);
-                }
-            }
+            Solid(b, J, new Vector3(0f, -0.22f, 3.25f), new Vector3(0.16f, 0.16f, 0.1f), old);
         }
+        // ---- Foes slain.
 
-        /// <summary>A boulder split clean through by one blow, its halves fallen apart on a low plinth, and the greatsword that did it broken off in the cut, its point lying in front.</summary>
-        private static void SplitStone(MeshBuilder b, Vector2 half, float h)
+        /// <summary>
+        /// What was taken off the fallen, kept as a collector keeps things: a tall board of dark velvet in a frame of walnut and gold, and on it, each on its own pin, claws
+        /// and teeth in rows, the smallest at the foot and the greatest at the head, with a tyrant's two great claws crossed over them all.
+        /// </summary>
+        private static void Trophies(MeshBuilder b, Vector2 half, float h, List<AssetLight> lights, WorldRandom random)
         {
-            b.Box(new Vector3(0f, 0.3f, 0f), new Vector3(half.X, 0.3f, half.Y - 0.35f), PlinthDark);
-            b.Box(new Vector3(0f, 0.64f, 0f), new Vector3(half.X - 0.12f, 0.04f, half.Y - 0.47f), Plinth);
-            VertexMaterial rock = Hall.Rough(150);
-            float top = 0.68f;
+            const float Foot = 1.1f;
+            Pedestal(b, half, Foot);
+            Plate(b, new Vector3(0f, Foot, half.Y - 0.55f));
+            float back = -half.Y + 0.32f;
+            float top = h - 0.5f;
+            float boardHalf = half.X - 0.3f;
+            b.Box(new Vector3(0f, (Foot + top) * 0.5f, back), new Vector3(boardHalf, (top - Foot) * 0.5f, 0.14f), Walnut);
+            b.Box(new Vector3(0f, (Foot + top) * 0.5f, back + 0.15f), new Vector3(boardHalf - 0.18f, (top - Foot) * 0.5f - 0.18f, 0.012f), Velvet);
+            // A line of gold round the velvet, and a cornice over it all.
+            float face = back + 0.17f;
             foreach (float s in new[] { -1f, 1f })
             {
-                // Each half a heap of tapering blocks, its cut face flat and pale towards the other.
-                Hall.At(b, new Vector3(s * 0.62f, top, -0.1f), s * 0.18f, () =>
-                {
-                    b.Box(new Vector3(s * 0.45f, 0.75f, 0f), new Vector3(0.55f, 0.75f, 0.9f), rock);
-                    b.Box(new Vector3(s * 0.35f, 1.75f, -0.05f), new Vector3(0.42f, 0.3f, 0.72f), rock);
-                    b.Box(new Vector3(s * 0.28f, 2.2f, 0f), new Vector3(0.3f, 0.18f, 0.5f), rock);
-                    b.Box(new Vector3(-s * 0.08f, 1.15f, 0f), new Vector3(0.02f, 1.1f, 0.85f), Hall.Rough(196));
-                });
+                b.Box(new Vector3(s * (boardHalf - 0.2f), (Foot + top) * 0.5f, face), new Vector3(0.03f, (top - Foot) * 0.5f - 0.17f, 0.012f), Gilt);
+                b.Box(new Vector3(0f, (Foot + top) * 0.5f + s * ((top - Foot) * 0.5f - 0.2f), face), new Vector3(boardHalf - 0.2f, 0.03f, 0.012f), Gilt);
             }
-            // The sword, its hilt standing out of the cut and its blade gone in.
-            VertexMaterial steel = Hall.Metal(186, 188, 196);
-            b.Box(new Vector3(0f, top + 2.2f, -0.1f), new Vector3(0.05f, 0.95f, 0.13f), steel);
-            b.Box(new Vector3(0f, top + 3.2f, -0.1f), new Vector3(0.09f, 0.06f, 0.55f), Hall.Iron(90));
-            b.Tube(new Vector3(0f, top + 3.25f, -0.1f), new Vector3(0f, top + 3.95f, -0.1f), 0.06f, 0.05f, 6, Hall.Leather(64, 38, 24));
-            b.Tube(new Vector3(0f, top + 3.95f, -0.1f), new Vector3(0f, top + 4.12f, -0.1f), 0.12f, 0.1f, 8, Hall.Iron(96));
-            // Its point, snapped off, on the plinth in front.
-            Hall.At(b, new Vector3(0.3f, top + 0.04f, half.Y - 0.85f), 0.4f, () =>
-            {
-                b.Box(new Vector3(0f, 0f, 0f), new Vector3(0.62f, 0.02f, 0.11f), steel);
-                b.Tube(new Vector3(0.62f, 0f, 0f), new Vector3(0.95f, 0f, 0f), 0.11f, 0.005f, 4, steel);
-            });
-        }
+            b.Box(new Vector3(0f, top + 0.1f, back + 0.04f), new Vector3(boardHalf + 0.12f, 0.1f, 0.22f), Walnut);
+            b.Box(new Vector3(0f, top + 0.24f, back + 0.04f), new Vector3(boardHalf + 0.18f, 0.04f, 0.27f), Gilt);
+            Hall.Tri(b, new Vector3(-boardHalf * 0.7f, top + 0.28f, back + 0.2f), new Vector3(boardHalf * 0.7f, top + 0.28f, back + 0.2f), new Vector3(0f, top + 0.62f, back + 0.2f), Vector3.UnitZ, Walnut);
+            b.Tube(new Vector3(0f, top + 0.38f, back + 0.2f), new Vector3(0f, top + 0.38f, back + 0.26f), 0.1f, 0.08f, 8, Gilt);
 
-        /// <summary>A cabinet of curiosities: a carved base, and above it shelves behind slender glazing bars with the uniques found set out on them, each glowing, and a lamp inside.</summary>
-        private static void Cabinet(MeshBuilder b, Vector2 half, float h, List<AssetLight> lights, WorldRandom random)
-        {
-            VertexMaterial wood = Hall.Wood(74, 48, 32);
-            VertexMaterial trim = Hall.Wood(110, 76, 50);
-            float baseTop = 1.5f;
-            b.Box(new Vector3(0f, baseTop * 0.5f, 0f), new Vector3(half.X, baseTop * 0.5f, half.Y), wood);
-            foreach (float x in new[] { -half.X * 0.5f, half.X * 0.5f }) b.Box(new Vector3(x, baseTop * 0.5f, half.Y + 0.01f), new Vector3(half.X * 0.42f, baseTop * 0.32f, 0.03f), trim);
-            // The case: back, sides, top, and glazing bars across the front.
-            float caseTop = h - 0.3f;
-            b.Box(new Vector3(0f, (baseTop + caseTop) * 0.5f, -half.Y + 0.06f), new Vector3(half.X - 0.05f, (caseTop - baseTop) * 0.5f, 0.06f), Hall.Cloth(32, 44, 70));
-            foreach (float x in new[] { -half.X + 0.06f, half.X - 0.06f }) b.Box(new Vector3(x, (baseTop + caseTop) * 0.5f, 0f), new Vector3(0.06f, (caseTop - baseTop) * 0.5f, half.Y - 0.05f), wood);
-            b.Box(new Vector3(0f, caseTop + 0.15f, 0.04f), new Vector3(half.X + 0.12f, 0.15f, half.Y + 0.08f), wood);
-            for (int i = 0; i <= 4; i++) b.Box(new Vector3(-half.X + i * half.X * 0.5f, (baseTop + caseTop) * 0.5f, half.Y - 0.04f), new Vector3(0.035f, (caseTop - baseTop) * 0.5f, 0.035f), trim);
-            b.Box(new Vector3(0f, (baseTop + caseTop) * 0.5f, half.Y - 0.04f), new Vector3(half.X, 0.03f, 0.03f), trim);
-            // Shelves with what's been found, each a little glowing thing.
-            Vector3[] colours = { new(1f, 0.55f, 0.15f), new(1f, 0.7f, 0.25f), new(0.95f, 0.45f, 0.12f) };
-            for (int shelf = 0; shelf < 3; shelf++)
+            // The rows.
+            const int Rows = 5;
+            float fieldFrom = Foot + 0.5f, fieldTo = top - 1.5f;
+            for (int row = 0; row < Rows; row++)
             {
-                float y = baseTop + 0.1f + shelf * (caseTop - baseTop - 0.2f) / 3f;
-                b.Box(new Vector3(0f, y, 0f), new Vector3(half.X - 0.12f, 0.03f, half.Y - 0.12f), trim);
-                for (float x = -half.X + 0.4f; x < half.X - 0.3f; x += random.Range(0.5f, 0.75f))
+                float y = MathHelper.Lerp(fieldFrom, fieldTo, row / (float)(Rows - 1)) + 0.25f;
+                int count = 8 - row;
+                float size = 0.2f + row * 0.075f;
+                for (int i = 0; i < count; i++)
                 {
-                    Vector3 c = random.Pick(colours);
-                    VertexMaterial glow = Hall.Gem(c.X, c.Y, c.Z, 1.6f);
-                    Vector3 at = new Vector3(x, y + 0.03f, random.Range(-0.15f, 0.15f));
-                    switch (random.Int(4))
+                    float x = (i - (count - 1) * 0.5f) * (boardHalf * 1.62f / count);
+                    Vector3 pin = new Vector3(x, y, face + 0.02f);
+                    b.Box(pin, new Vector3(0.035f, 0.035f, 0.02f), Gilt);
+                    float lean = random.Range(-0.12f, 0.12f);
+                    if ((i + row) % 3 == 0)
                     {
-                        case 0:     // A ring on a little stand.
-                            b.Tube(at, at + Vector3.UnitY * 0.1f, 0.06f, 0.05f, 6, trim);
-                            for (int k = 0; k < 8; k++)
-                            {
-                                float a0 = MathF.Tau * k / 8f, a1 = MathF.Tau * (k + 1) / 8f;
-                                b.Beam(at + new Vector3(MathF.Cos(a0) * 0.1f, 0.2f + MathF.Sin(a0) * 0.1f, 0f), at + new Vector3(MathF.Cos(a1) * 0.1f, 0.2f + MathF.Sin(a1) * 0.1f, 0f), 0.02f, Hall.Metal(220, 180, 90));
-                            }
-                            b.Box(at + new Vector3(0f, 0.31f, 0f), new Vector3(0.04f), glow);
-                            break;
-                        case 1:     // An amulet on a cushion.
-                            b.Box(at + Vector3.UnitY * 0.04f, new Vector3(0.18f, 0.04f, 0.14f), Hall.Cloth(110, 40, 60));
-                            b.Box(at + Vector3.UnitY * 0.1f, new Vector3(0.08f, 0.03f, 0.08f), glow);
-                            break;
-                        case 2:     // A dagger laid flat.
-                            b.Box(at + new Vector3(0.05f, 0.03f, 0f), new Vector3(0.22f, 0.012f, 0.04f), Hall.Metal(200, 202, 210));
-                            b.Box(at + new Vector3(-0.22f, 0.04f, 0f), new Vector3(0.08f, 0.02f, 0.03f), glow);
-                            break;
-                        default:    // A stone set upright in a claw.
-                            b.Tube(at, at + Vector3.UnitY * 0.06f, 0.08f, 0.07f, 6, Hall.Metal(150, 120, 80));
-                            b.Box(at + Vector3.UnitY * 0.16f, new Vector3(0.06f, 0.1f, 0.06f), glow);
-                            break;
+                        // A tooth: straight, to a point.
+                        b.Tube(pin + Vector3.UnitZ * 0.03f, pin + new Vector3(lean * size, -size * 1.25f, 0.05f), size * 0.2f, 0.006f, 5, OldBone);
+                    }
+                    else
+                    {
+                        // A claw: curved, hanging point down.
+                        Vector3 knee = pin + new Vector3(lean * size + size * 0.16f, -size * 0.75f, 0.06f);
+                        b.Tube(pin + Vector3.UnitZ * 0.03f, knee, size * 0.24f, size * 0.16f, 6, Bone, capped: false);
+                        b.Tube(knee, pin + new Vector3(lean * size - size * 0.12f, -size * 1.35f, 0.05f), size * 0.16f, 0.006f, 6, Bone);
                     }
                 }
             }
-            lights.Add(AssetLight.Glow(new Vector3(0f, (baseTop + caseTop) * 0.5f, half.Y + 0.3f), new Vector3(1f, 0.62f, 0.25f), 16f, 7f));
+            // A tyrant's two claws, crossed, at its head.
+            float crownY = top - 0.75f;
+            foreach (float s in new[] { -1f, 1f })
+            {
+                Vector3 root = new Vector3(s * 0.62f, crownY - 0.36f, face + 0.08f), knee = new Vector3(-s * 0.05f, crownY + 0.08f, face + 0.12f), tip = new Vector3(-s * 0.58f, crownY + 0.3f, face + 0.1f);
+                b.Tube(root, knee, 0.15f, 0.11f, 7, Bone, capped: false);
+                b.Tube(knee, tip, 0.11f, 0.008f, 7, Bone);
+                b.Tube(root - new Vector3(s * 0.06f, 0.05f, 0f), root, 0.17f, 0.16f, 7, Gilt);
+            }
+            Lit(lights, new Vector3(0f, h * 0.62f, half.Y + 1.7f));
         }
 
-        /// <summary>A great hourglass on a round plinth: two bulbs of glass between turned posts, the sand nearly all run through.</summary>
+        // ---- The hardest blow.
+
+        /// <summary>
+        /// A boulder split clean through by one blow, its halves fallen a little apart with their cut faces pale, and the greatsword that did it standing in the cleft. Turned
+        /// a little on its pedestal, so that the cleft and the flat of the blade are both seen.
+        /// </summary>
+        private static void SplitStone(MeshBuilder b, Vector2 half, float h, List<AssetLight> lights, WorldRandom random)
+        {
+            const float Foot = 0.9f;
+            Pedestal(b, half, Foot);
+            Plate(b, new Vector3(0f, Foot, half.Y - 0.55f));
+            VertexMaterial rock = Hall.Rough(142), cut = Hall.Rough(204);
+            Hall.At(b, new Vector3(0f, Foot, -0.15f), MathHelper.DegreesToRadians(32f), () =>
+            {
+                const float Rx = 1.05f, Ry = 1.25f, Rz = 0.98f, Gap = 0.13f, Lean = 0.2f;
+                foreach (float s in new[] { -1f, 1f })
+                {
+                    // Half a lump, its outside round and uneven, flat where it sits, and leaning away from the other.
+                    Vector3 Lump(float a, float e)
+                    {
+                        float bumps = 1f + 0.09f * MathF.Sin(a * 3f + s * 1.3f) * MathF.Cos(e * 2f) + 0.07f * MathF.Sin(e * 5f + a * 2f + s);
+                        Vector3 p = new Vector3(MathF.Cos(a) * MathF.Cos(e) * Rx, MathF.Sin(e) * Ry, -MathF.Sin(a) * MathF.Cos(e) * Rz) * bumps;
+                        float y = MathF.Max(p.Y + Ry * 0.82f, 0f);
+                        return new Vector3(p.X + s * (Gap + Lean * y / (Ry * 2f)), y, p.Z);
+                    }
+                    float from = s > 0f ? -MathF.PI * 0.5f : MathF.PI * 0.5f;
+                    b.Surface(10, 10, (u, v) => Lump(from + u * MathF.PI, (v - 0.5f) * MathF.PI), rock);
+                    // Its cut face: from its middle out to its rim, which is where the round outside meets the cut.
+                    Vector3 middle = new Vector3(s * (Gap + Lean * 0.4f), Ry * 0.8f, 0f);
+                    const int Rim = 20;
+                    Vector3 RimAt(int k)
+                    {
+                        float t = MathF.Tau * k / Rim;
+                        // Round the cut: up the front of it and down the back.
+                        float e = MathF.Asin(Math.Clamp(MathF.Sin(t), -1f, 1f));
+                        return Lump(MathF.Cos(t) >= 0f ? -MathF.PI * 0.5f : MathF.PI * 0.5f, e) with { X = s * (Gap + Lean * MathF.Max(MathF.Sin(e) * Ry + Ry * 0.82f, 0f) / (Ry * 2f)) };
+                    }
+                    for (int k = 0; k < Rim; k++) Hall.Tri(b, middle, RimAt(k), RimAt(k + 1), new Vector3(-s, 0f, 0f), cut);
+                }
+                // Chips of it, where they fell.
+                for (int i = 0; i < 9; i++)
+                {
+                    float size = random.Range(0.06f, 0.14f);
+                    Vector3 at = new Vector3(random.Range(-0.35f, 0.35f), size * 0.5f, random.Range(-1.15f, 1.15f));
+                    Hall.At(b, at, random.Range(0f, 3f), () => b.Box(Vector3.Zero, new Vector3(size, size * 0.5f, size * 0.8f), i % 2 == 0 ? rock : cut));
+                }
+
+                // The sword, edge down in the cleft, the flat of it along the cut: a blade of bright steel, a guard and pommel of gold, a grip bound in teal.
+                float blade = 0.55f, guard = 3.05f;
+                Hall.Board(b, new Vector3(0f, blade, 0f), new Vector3(0f, guard, 0f), Vector3.UnitZ, 0.19f, 0.035f, Steel);
+                Hall.Board(b, new Vector3(0f, blade + 0.2f, 0f), new Vector3(0f, guard - 0.1f, 0f), Vector3.UnitZ, 0.04f, 0.045f, Hall.Metal(150, 152, 160));
+                Hall.Board(b, new Vector3(0f, guard, -0.62f), new Vector3(0f, guard, 0.62f), Vector3.UnitY, 0.08f, 0.07f, Gold);
+                foreach (float s in new[] { -1f, 1f }) b.Box(new Vector3(0f, guard - 0.05f, s * 0.62f), new Vector3(0.09f, 0.12f, 0.07f), Gold);
+                b.Tube(new Vector3(0f, guard + 0.08f, 0f), new Vector3(0f, guard + 0.95f, 0f), 0.075f, 0.062f, 8, Hall.Leather(26, 74, 80));
+                b.Tube(new Vector3(0f, guard + 0.95f, 0f), new Vector3(0f, guard + 1.02f, 0f), 0.11f, 0.15f, 8, Gold, capped: false);
+                b.Tube(new Vector3(0f, guard + 1.02f, 0f), new Vector3(0f, guard + 1.22f, 0f), 0.15f, 0.07f, 8, Gold);
+            });
+            Lit(lights, new Vector3(0f, h * 0.7f, half.Y + 1.7f));
+        }
+
+        // ---- Uniques found.
+
+        /// <summary>
+        /// A treasury laid open: three steps of dark velvet rising to a back of walnut under an arch of gold, and on each step what's been found, every piece on its own
+        /// stand with its stone alight, in the amber a unique is known by. Nothing is behind glass or under a lid, as the camera looks down into it.
+        /// </summary>
+        private static void Treasury(MeshBuilder b, Vector2 half, float h, List<AssetLight> lights)
+        {
+            const float Foot = 1.1f;
+            Pedestal(b, half, Foot);
+            Plate(b, new Vector3(0f, Foot, half.Y - 0.5f));
+            float back = -half.Y + 0.3f;
+            float wide = half.X - 0.3f;
+            float top = h - 1.2f;
+            // The back, and its arch.
+            b.Box(new Vector3(0f, (Foot + top) * 0.5f, back), new Vector3(wide, (top - Foot) * 0.5f, 0.14f), Walnut);
+            b.Box(new Vector3(0f, (Foot + top) * 0.5f, back + 0.15f), new Vector3(wide - 0.16f, (top - Foot) * 0.5f - 0.1f, 0.012f), Velvet);
+            const int Arc = 12;
+            Vector3 spring = new Vector3(0f, top, back);
+            for (int i = 0; i < Arc; i++)
+            {
+                float a0 = MathF.PI * i / Arc, a1 = MathF.PI * (i + 1) / Arc;
+                Vector3 p0 = spring + new Vector3(MathF.Cos(a0) * wide, MathF.Sin(a0) * wide * 0.62f, 0f), p1 = spring + new Vector3(MathF.Cos(a1) * wide, MathF.Sin(a1) * wide * 0.62f, 0f);
+                Hall.Tri(b, spring + Vector3.UnitZ * 0.14f, p0 + Vector3.UnitZ * 0.14f, p1 + Vector3.UnitZ * 0.14f, Vector3.UnitZ, Walnut);
+                Hall.Tri(b, spring - Vector3.UnitZ * 0.14f, p0 - Vector3.UnitZ * 0.14f, p1 - Vector3.UnitZ * 0.14f, -Vector3.UnitZ, Walnut);
+                Hall.Face(b, p0 - Vector3.UnitZ * 0.14f, p1 - Vector3.UnitZ * 0.14f, p1 + Vector3.UnitZ * 0.14f, p0 + Vector3.UnitZ * 0.14f, (p0 + p1) * 0.5f - spring, Walnut);
+                Hall.Board(b, p0 + Vector3.UnitZ * 0.17f, p1 + Vector3.UnitZ * 0.17f, (p0 + p1) * 0.5f - spring, 0.07f, 0.03f, Gilt);
+            }
+            // The star a unique falls under, in the arch.
+            Vector3 star = spring + new Vector3(0f, wide * 0.27f, 0.16f);
+            for (int i = 0; i < 8; i++)
+            {
+                float a = MathF.Tau * i / 8f;
+                Vector3 ray = new Vector3(MathF.Cos(a), MathF.Sin(a), 0f);
+                Hall.Tri(b, star + new Vector3(-ray.Y, ray.X, 0f) * 0.07f, star - new Vector3(-ray.Y, ray.X, 0f) * 0.07f, star + ray * (i % 2 == 0 ? 0.52f : 0.3f), Vector3.UnitZ, Gilt);
+            }
+            b.Tube(star, star + Vector3.UnitZ * 0.06f, 0.12f, 0.08f, 8, Hall.Gem(1f, 0.5f, 0.12f, 1.3f));
+
+            // The steps, and what's on them.
+            const int Steps = 3;
+            float depth = (half.Y * 2f - 0.75f) / Steps;
+            for (int step = 0; step < Steps; step++)
+            {
+                float stepTop = Foot + 0.42f + step * 0.5f;
+                float z = half.Y - 0.3f - depth * (step + 0.5f);
+                b.Box(new Vector3(0f, (Foot + stepTop) * 0.5f, z), new Vector3(wide - 0.05f, (stepTop - Foot) * 0.5f, depth * 0.5f), Walnut);
+                b.Box(new Vector3(0f, stepTop + 0.012f, z), new Vector3(wide - 0.09f, 0.012f, depth * 0.5f - 0.04f), Velvet);
+                b.Box(new Vector3(0f, stepTop - 0.03f, z + depth * 0.5f + 0.006f), new Vector3(wide - 0.05f, 0.022f, 0.008f), Gilt);
+                for (int i = 0; i < 4; i++)
+                {
+                    Vector3 at = new Vector3((i - 1.5f) * (wide * 0.5f), stepTop + 0.024f, z);
+                    Treasure(b, at, step * 4 + i);
+                }
+            }
+            Lit(lights, new Vector3(0f, h * 0.7f, half.Y + 1.7f), 24f, 10f);
+        }
+
+        // One thing found, on its stand: twelve of them, no two alike.
+        private static void Treasure(MeshBuilder b, Vector3 at, int which)
+        {
+            Vector3[] ambers = { new(1f, 0.52f, 0.12f), new(1f, 0.66f, 0.2f), new(0.98f, 0.42f, 0.1f) };
+            Vector3 c = ambers[which % ambers.Length];
+            VertexMaterial stone = Hall.Gem(c.X, c.Y, c.Z, 1.25f);
+            switch (which % 6)
+            {
+                case 0:     // A ring, on a little post.
+                    b.Tube(at, at + Vector3.UnitY * 0.16f, 0.07f, 0.05f, 6, Gilt);
+                    for (int k = 0; k < 8; k++)
+                    {
+                        float a0 = MathF.Tau * k / 8f, a1 = MathF.Tau * (k + 1) / 8f;
+                        b.Beam(at + new Vector3(MathF.Cos(a0) * 0.13f, 0.29f + MathF.Sin(a0) * 0.13f, 0f), at + new Vector3(MathF.Cos(a1) * 0.13f, 0.29f + MathF.Sin(a1) * 0.13f, 0f), 0.025f, Gold);
+                    }
+                    b.Box(at + new Vector3(0f, 0.45f, 0f), new Vector3(0.055f), stone);
+                    break;
+                case 1:     // An amulet, on a cushion.
+                    b.Box(at + Vector3.UnitY * 0.05f, new Vector3(0.22f, 0.05f, 0.17f), Hall.Cloth(30, 90, 94));
+                    b.Tube(at + Vector3.UnitY * 0.1f, at + Vector3.UnitY * 0.14f, 0.12f, 0.1f, 8, Gold);
+                    b.Tube(at + Vector3.UnitY * 0.14f, at + Vector3.UnitY * 0.17f, 0.075f, 0.05f, 8, stone);
+                    break;
+                case 2:     // A dagger, on two rests.
+                    foreach (float s in new[] { -1f, 1f }) b.Box(at + new Vector3(s * 0.16f, 0.06f, 0f), new Vector3(0.02f, 0.06f, 0.05f), Gilt);
+                    b.Box(at + new Vector3(0.07f, 0.135f, 0f), new Vector3(0.24f, 0.012f, 0.045f), Steel);
+                    b.Box(at + new Vector3(-0.2f, 0.135f, 0f), new Vector3(0.02f, 0.02f, 0.09f), Gold);
+                    b.Box(at + new Vector3(-0.29f, 0.135f, 0f), new Vector3(0.07f, 0.022f, 0.03f), Walnut);
+                    b.Box(at + new Vector3(-0.38f, 0.135f, 0f), new Vector3(0.035f), stone);
+                    break;
+                case 3:     // A stone, held up in a claw of gold.
+                    b.Tube(at, at + Vector3.UnitY * 0.07f, 0.1f, 0.08f, 6, Gilt);
+                    for (int k = 0; k < 3; k++)
+                    {
+                        float a = MathF.Tau * k / 3f;
+                        b.Beam(at + Vector3.UnitY * 0.07f, at + new Vector3(MathF.Cos(a) * 0.09f, 0.3f, MathF.Sin(a) * 0.09f), 0.018f, Gold);
+                    }
+                    HallFurniture.Sphere(b, at + Vector3.UnitY * 0.32f, 0.1f, 8, 6, stone);
+                    break;
+                case 4:     // A cup.
+                    b.Tube(at, at + Vector3.UnitY * 0.04f, 0.1f, 0.09f, 8, Gold);
+                    b.Tube(at + Vector3.UnitY * 0.04f, at + Vector3.UnitY * 0.2f, 0.03f, 0.03f, 6, Gold, capped: false);
+                    b.Tube(at + Vector3.UnitY * 0.2f, at + Vector3.UnitY * 0.4f, 0.05f, 0.13f, 10, Gold, capped: false);
+                    b.Tube(at + Vector3.UnitY * 0.36f, at + Vector3.UnitY * 0.38f, 0.115f, 0.115f, 10, stone);
+                    break;
+                default:    // A circlet.
+                    b.Box(at + Vector3.UnitY * 0.04f, new Vector3(0.2f, 0.04f, 0.2f), Hall.Cloth(30, 90, 94));
+                    b.Tube(at + Vector3.UnitY * 0.08f, at + Vector3.UnitY * 0.2f, 0.16f, 0.17f, 10, Gold, capped: false);
+                    for (int k = 0; k < 5; k++)
+                    {
+                        float a = MathF.Tau * k / 5f + 0.3f;
+                        b.Tube(at + new Vector3(MathF.Cos(a) * 0.165f, 0.2f, MathF.Sin(a) * 0.165f), at + new Vector3(MathF.Cos(a) * 0.17f, 0.31f, MathF.Sin(a) * 0.17f), 0.03f, 0.004f, 4, Gold);
+                    }
+                    b.Box(at + new Vector3(0f, 0.15f, 0.17f), new Vector3(0.035f), stone);
+                    break;
+            }
+        }
+
+        // ---- The swiftest land.
+
+        /// <summary>
+        /// A great hourglass, hung in a cradle by its waist so that it can be turned over, and caught part way through being turned: tipped far out into the room, across
+        /// the camera's view from where it stands against a side wall, so that the whole length of it is seen. Upright, or tipped towards the camera, it's seen end on, as
+        /// a plate of wood. Two plates of walnut rimmed in gold on three posts, and between them the two bulbs of glass, pale, with the sand showing gold through them:
+        /// most of it in one, and the last of it in the neck of the other.
+        /// </summary>
         private static void Hourglass(MeshBuilder b, Vector2 half, float h, List<AssetLight> lights)
         {
             float r = MathF.Min(half.X, half.Y);
-            b.Tube(Vector3.Zero, new Vector3(0f, 0.25f, 0f), r, r * 0.95f, 16, PlinthDark);
-            b.Tube(new Vector3(0f, 0.25f, 0f), new Vector3(0f, 0.85f, 0f), r * 0.78f, r * 0.7f, 16, Plinth);
-            b.Tube(new Vector3(0f, 0.85f, 0f), new Vector3(0f, 0.98f, 0f), r * 0.82f, r * 0.82f, 16, PlinthDark);
-            VertexMaterial wood = Hall.Wood(88, 58, 38);
-            float bottom = 0.98f, top = h - 0.15f;
-            b.Tube(new Vector3(0f, bottom, 0f), new Vector3(0f, bottom + 0.22f, 0f), r * 0.68f, r * 0.68f, 14, wood);
-            b.Tube(new Vector3(0f, top - 0.22f, 0f), new Vector3(0f, top, 0f), r * 0.68f, r * 0.68f, 14, wood);
+            const float Foot = 0.7f;
+            RoundPedestal(b, r, Foot);
+            Plate(b, new Vector3(0f, Foot, r - 0.5f), 0.5f);
+
+            // Built upright about its waist and then tipped, its head towards +z.
+            const float Tip = 1.18f;
+            const float Tall = 3.3f;
+            float plate = r * 0.5f;
+            float cos = MathF.Cos(Tip), sin = MathF.Sin(Tip);
+            Vector3 pivot = new Vector3(0f, Foot + Tall * 0.5f * cos + plate * sin + 0.2f, 0.12f);
+            Vector3 T(float x, float y, float z) => pivot + new Vector3(x, y * cos - z * sin, y * sin + z * cos);
+            float glass = Tall * 0.5f - 0.14f;
+            foreach (float s in new[] { -1f, 1f })
+            {
+                float y0 = s * Tall * 0.5f, y1 = s * glass;
+                b.Tube(T(0f, MathF.Min(y0, y1), 0f), T(0f, MathF.Max(y0, y1), 0f), plate, plate, 20, Walnut);
+                b.Tube(T(0f, MathF.Min(y0, y1) + 0.04f, 0f), T(0f, MathF.Max(y0, y1) - 0.04f, 0f), plate + 0.035f, plate + 0.035f, 20, Gilt, capped: false);
+            }
             for (int i = 0; i < 3; i++)
             {
                 float a = MathF.Tau * i / 3f + 0.5f;
-                Vector3 at = new Vector3(MathF.Cos(a), 0f, MathF.Sin(a)) * r * 0.56f;
-                Hall.Turned(b, at + Vector3.UnitY * (bottom + 0.22f), wood, 6, (0f, 0.08f), (0.15f, 0.12f), (0.3f, 0.06f), ((top - bottom) * 0.5f - 0.22f, 0.07f), ((top - bottom) * 0.5f - 0.1f, 0.11f), ((top - bottom) * 0.5f, 0.07f), (top - bottom - 0.44f, 0.08f));
+                float x = MathF.Cos(a) * (plate - 0.1f), z = MathF.Sin(a) * (plate - 0.1f);
+                b.Tube(T(x, -glass, z), T(x, glass, z), 0.055f, 0.055f, 8, Gilt, capped: false);
+                foreach (float y in new[] { -glass + 0.1f, 0f, glass - 0.1f }) b.Tube(T(x, y - 0.06f, z), T(x, y + 0.06f, z), 0.1f, 0.1f, 8, Gilt);
             }
-            // The glass, two cones meeting at a narrow waist, and the sand in the lower one.
-            float waist = (bottom + top) * 0.5f;
-            VertexMaterial glass = Hall.Mirror(150, 170, 176);
-            b.Tube(new Vector3(0f, bottom + 0.22f, 0f), new Vector3(0f, waist - 0.12f, 0f), r * 0.46f, 0.12f, 14, glass, capped: false);
-            b.Tube(new Vector3(0f, waist - 0.12f, 0f), new Vector3(0f, waist + 0.12f, 0f), 0.12f, 0.12f, 10, glass, capped: false);
-            b.Tube(new Vector3(0f, waist + 0.12f, 0f), new Vector3(0f, top - 0.22f, 0f), 0.12f, r * 0.46f, 14, glass, capped: false);
-            VertexMaterial sand = Hall.Flat(206, 168, 104);
-            b.Tube(new Vector3(0f, bottom + 0.22f, 0f), new Vector3(0f, bottom + 0.75f, 0f), r * 0.44f, r * 0.33f, 14, sand);
-            b.Tube(new Vector3(0f, bottom + 0.75f, 0f), new Vector3(0f, bottom + 1.1f, 0f), r * 0.33f, 0.04f, 12, sand);
-            b.Tube(new Vector3(0f, top - 0.6f, 0f), new Vector3(0f, top - 0.24f, 0f), 0.15f, r * 0.4f, 10, sand);
-            b.Tube(new Vector3(0f, waist, 0f), new Vector3(0f, bottom + 1.1f, 0f), 0.02f, 0.02f, 4, sand);
-            lights.Add(AssetLight.Glow(new Vector3(0f, waist, r + 0.6f), new Vector3(1f, 0.8f, 0.55f), 10f, 7f));
-        }
 
-        /// <summary>A stone for those who fell, rounded at its head and cut with their marks, a wreath against it and candles burning at its foot.</summary>
-        private static void Memorial(MeshBuilder b, Vector2 half, float h, List<AssetLight> lights, WorldRandom random)
-        {
-            b.Box(new Vector3(0f, 0.2f, 0f), new Vector3(half.X, 0.2f, half.Y - 0.3f), PlinthDark);
-            b.Box(new Vector3(0f, 0.55f, -0.2f), new Vector3(half.X - 0.35f, 0.15f, half.Y - 0.75f), Plinth);
-            VertexMaterial stone = Hall.Stone(184, 178, 166);
-            float slab = h - 0.7f;
-            b.Box(new Vector3(0f, 0.7f + slab * 0.42f, -0.35f), new Vector3(half.X * 0.55f, slab * 0.42f, 0.2f), stone);
-            // Its rounded head, in steps of a half round.
-            for (int i = 0; i < 6; i++)
+            // The glass: each bulb swelling from the neck to its plate, in bands, so that where the sand lies against it the glass is the sand's gold. Most of it has
+            // run into the bulb towards the floor; the last of it is in the neck of the other.
+            float bulb = plate - 0.2f;
+            const int Bands = 7;
+            float Radius(float t) => 0.1f + (bulb - 0.1f) * MathF.Sin(MathF.Min(t, 1f) * MathF.PI * 0.5f);     // t from the neck, 0, to a plate, 1.
+            VertexMaterial clear = Hall.Flat(178, 214, 220), sand = Hall.Flat(214, 168, 84);
+            foreach (float s in new[] { -1f, 1f })
             {
-                float t0 = MathF.PI * i / 6f, t1 = MathF.PI * (i + 1) / 6f;
-                float w = half.X * 0.55f;
-                float y0 = 0.7f + slab * 0.84f;
-                Vector3 p0 = new Vector3(MathF.Cos(t0) * w, y0 + MathF.Sin(t0) * w * 0.5f, -0.15f), p1 = new Vector3(MathF.Cos(t1) * w, y0 + MathF.Sin(t1) * w * 0.5f, -0.15f);
-                Vector3 c = new Vector3(0f, y0, -0.15f);
-                b.Triangle(c, p0, p1, stone);
-                b.Triangle(c - Vector3.UnitZ * 0.4f, p1 - Vector3.UnitZ * 0.4f, p0 - Vector3.UnitZ * 0.4f, stone);
-                b.Quad(p0 - Vector3.UnitZ * 0.4f, p1 - Vector3.UnitZ * 0.4f, p1, p0, stone);
-            }
-            // Lines cut in it.
-            for (int line = 0; line < 6; line++)
-            {
-                b.Box(new Vector3(0f, 0.7f + slab * 0.72f - line * 0.24f, -0.14f), new Vector3(half.X * (0.4f - (line % 2) * 0.08f), 0.025f, 0.012f), Hall.Flat(70, 64, 56));
-            }
-            // A wreath leaning against it: leaves in a ring, a few flowers.
-            VertexMaterial leaf = new VertexMaterial(MaterialCatalog.FoliageWhite.Index, new Colour(48, 86, 38));
-            Vector3 wreath = new Vector3(0f, 1.25f, 0.0f);
-            for (int i = 0; i < 18; i++)
-            {
-                float a = MathF.Tau * i / 18f;
-                Vector3 p = wreath + new Vector3(MathF.Cos(a) * 0.5f, MathF.Sin(a) * 0.5f, 0.08f);
-                b.Box(p, new Vector3(0.1f, 0.09f, 0.07f), leaf);
-                if (i % 4 == 0) b.Box(p + Vector3.UnitZ * 0.07f, new Vector3(0.06f), Hall.Flat(232, 226, 210));
-            }
-            // Candles along its foot, some burnt down.
-            for (int i = 0; i < 7; i++)
-            {
-                float x = -half.X + 0.4f + i * (half.X * 2f - 0.8f) / 6f;
-                Hall.Candle(b, new Vector3(x, 0.4f, half.Y - 0.55f + random.Range(-0.08f, 0.08f)), random.Range(0.2f, 0.5f), 0.06f, lights, lit: i % 3 != 1);
-            }
-            lights.Add(AssetLight.VigilCandles(new Vector3(0f, 1.3f, half.Y - 0.3f)) with { Intensity = 26f, Radius = 11f });
-        }
-
-        /// <summary>A sloping table with the lands drawn on it, those set free picked out and flagged, and rolled maps beside it.</summary>
-        private static void MapTable(MeshBuilder b, Vector2 half, float h, WorldRandom random)
-        {
-            VertexMaterial wood = Hall.Wood(98, 66, 42);
-            foreach (float x in new[] { -half.X + 0.3f, half.X - 0.3f })
-            {
-                foreach (float z in new[] { -half.Y + 0.4f, half.Y - 0.6f }) Hall.Leg(b, new Vector3(x, 0f, z), z < 0f ? 2.35f : 1.85f, 0.14f, wood);
-            }
-            // The top, tilted towards whoever stands before it.
-            Vector3 lo = new Vector3(0f, 1.85f, half.Y - 0.45f), hi = new Vector3(0f, 2.4f, -half.Y + 0.25f);
-            Vector3 v = (hi - lo).Normalized();
-            Vector3 n = Vector3.Cross(Vector3.UnitX, v);
-            b.PlaneQuad(lo - Vector3.UnitX * half.X, lo + Vector3.UnitX * half.X, hi + Vector3.UnitX * half.X, hi - Vector3.UnitX * half.X, wood, lo, Vector3.UnitX, v, new Vector4(-half.X, half.X, 0f, (hi - lo).Length));
-            Vector3 mapLo = lo + n * 0.02f + v * 0.12f, mapHi = hi + n * 0.02f - v * 0.12f;
-            float mapHalf = half.X - 0.15f;
-            b.PlaneQuad(mapLo - Vector3.UnitX * mapHalf, mapLo + Vector3.UnitX * mapHalf, mapHi + Vector3.UnitX * mapHalf, mapHi - Vector3.UnitX * mapHalf, Hall.Flat(206, 190, 150), mapLo, Vector3.UnitX, v, new Vector4(-1e3f, 1e3f, -1e3f, 1e3f));
-            // Lands on it, those freed in green with a flag in each.
-            float length = (mapHi - mapLo).Length;
-            for (int i = 0; i < 9; i++)
-            {
-                Vector3 at = mapLo + Vector3.UnitX * random.Range(-mapHalf + 0.3f, mapHalf - 0.3f) + v * random.Range(0.2f, length - 0.2f) + n * 0.01f;
-                bool freed = i % 3 != 2;
-                b.Box(at, new Vector3(random.Range(0.18f, 0.32f), 0.01f, random.Range(0.14f, 0.26f)), freed ? Hall.Flat(96, 140, 80) : Hall.Flat(150, 120, 90));
-                if (freed)
+                for (int i = 0; i < Bands; i++)
                 {
-                    b.Beam(at, at + n * 0.45f, 0.012f, Hall.Wood(140, 100, 60));
-                    b.Box(at + n * 0.38f + Vector3.UnitX * 0.08f, new Vector3(0.08f, 0.05f, 0.005f), Hall.Cloth(40, 110, 120));
+                    float t0 = i / (float)Bands, t1 = (i + 1) / (float)Bands;
+                    bool full = s < 0f ? t0 >= 0.42f : t1 <= 0.3f;
+                    Vector3 from = T(0f, s * t0 * glass, 0f), to = T(0f, s * t1 * glass, 0f);
+                    b.Tube(s > 0f ? from : to, s > 0f ? to : from, s > 0f ? Radius(t0) : Radius(t1), s > 0f ? Radius(t1) : Radius(t0), 16, full ? sand : clear, capped: false);
                 }
             }
-            // Maps rolled up in a basket beside it.
-            Vector3 basket = new Vector3(half.X - 0.4f, 0f, half.Y + 0.15f);
-            b.Tube(basket, basket + Vector3.UnitY * 0.6f, 0.32f, 0.38f, 10, Hall.Wood(150, 116, 70), capped: false);
+            b.Tube(T(0f, -0.07f, 0f), T(0f, 0.07f, 0f), 0.14f, 0.14f, 10, Gilt, capped: false);
+            // Ribs of silver down the glass.
+            for (int rib = 0; rib < 6; rib++)
+            {
+                float a = MathF.Tau * rib / 6f;
+                foreach (float s in new[] { -1f, 1f })
+                {
+                    for (int i = 0; i < Bands; i++)
+                    {
+                        float t0 = i / (float)Bands, t1 = (i + 1) / (float)Bands;
+                        b.Beam(T(MathF.Cos(a) * (Radius(t0) + 0.01f), s * t0 * glass, MathF.Sin(a) * (Radius(t0) + 0.01f)), T(MathF.Cos(a) * (Radius(t1) + 0.01f), s * t1 * glass, MathF.Sin(a) * (Radius(t1) + 0.01f)), 0.014f, Silver);
+                    }
+                }
+            }
+
+            // The cradle: two legs either side, spread fore and aft, and the pin through the waist.
+            foreach (float s in new[] { -1f, 1f })
+            {
+                Vector3 pin = pivot + Vector3.UnitX * (s * (plate + 0.16f));
+                foreach (float z in new[] { -0.6f, 0.6f })
+                {
+                    Vector3 on = new Vector3(pin.X, Foot, pivot.Z + z);
+                    b.Tube(on, on + Vector3.UnitY * 0.08f, 0.12f, 0.1f, 8, Gilt);
+                    b.Tube(on + Vector3.UnitY * 0.08f, pin, 0.075f, 0.06f, 8, Gilt, capped: false);
+                }
+                b.Tube(pivot + Vector3.UnitX * (s * 0.13f), pin + Vector3.UnitX * (s * 0.1f), 0.05f, 0.05f, 6, Gilt);
+                b.Tube(pin + Vector3.UnitX * (s * 0.02f), pin + Vector3.UnitX * (s * 0.14f), 0.13f, 0.1f, 8, Gilt);
+            }
+            Lit(lights, new Vector3(0f, h + 1.8f, half.Y + 1.6f), 20f, 9.5f);
+        }
+        // ---- The fallen.
+
+        /// <summary>
+        /// A stone for every time a hero fell: a slab of dark marble, round at its head, lines of gold cut in it and the Haven's blossom over them, a wreath leaning at
+        /// its foot, and a row of candles burning before it, some of them low.
+        /// </summary>
+        private static void Memorial(MeshBuilder b, Vector2 half, float h, List<AssetLight> lights, WorldRandom random)
+        {
+            const float Foot = 0.55f;
+            Pedestal(b, half, Foot);
+            b.Box(new Vector3(0f, Foot + 0.1f, 0.42f), new Vector3(half.X - 0.3f, 0.1f, 0.42f), White);
+            float wide = half.X * 0.64f, thick = 0.2f;
+            float z = -half.Y + 0.45f;
+            float shoulder = h - wide * 0.7f - 0.1f;
+            VertexMaterial slab = DeepTeal;
+            b.Box(new Vector3(0f, (Foot + shoulder) * 0.5f, z), new Vector3(wide, (shoulder - Foot) * 0.5f, thick), slab);
+            // Its head, round.
+            const int Arc = 14;
+            Vector3 centre = new Vector3(0f, shoulder, z);
+            for (int i = 0; i < Arc; i++)
+            {
+                float a0 = MathF.PI * i / Arc, a1 = MathF.PI * (i + 1) / Arc;
+                Vector3 p0 = centre + new Vector3(MathF.Cos(a0) * wide, MathF.Sin(a0) * wide * 0.7f, 0f), p1 = centre + new Vector3(MathF.Cos(a1) * wide, MathF.Sin(a1) * wide * 0.7f, 0f);
+                Vector3 front = Vector3.UnitZ * thick;
+                Hall.Tri(b, centre + front, p0 + front, p1 + front, Vector3.UnitZ, slab);
+                Hall.Tri(b, centre - front, p0 - front, p1 - front, -Vector3.UnitZ, slab);
+                Hall.Face(b, p0 - front, p1 - front, p1 + front, p0 + front, (p0 + p1) * 0.5f - centre, slab);
+            }
+            // The blossom at its head, and the lines under it, each of a few lengths, as names are.
+            float face = z + thick + 0.012f;
+            Vector3 heart = new Vector3(0f, shoulder + wide * 0.12f, face);
+            for (int petal = 0; petal < 5; petal++)
+            {
+                float a = MathF.Tau * petal / 5f + MathF.PI * 0.5f;
+                Vector3 out_ = new Vector3(MathF.Cos(a), MathF.Sin(a), 0f), side = new Vector3(-out_.Y, out_.X, 0f);
+                Hall.Face(b, heart + out_ * 0.08f, heart + out_ * 0.24f + side * 0.13f, heart + out_ * 0.4f, heart + out_ * 0.24f - side * 0.13f, Vector3.UnitZ, Blossom);
+            }
+            b.Box(heart, new Vector3(0.06f, 0.06f, 0.012f), Gilt);
+            for (int line = 0; line < 7; line++)
+            {
+                float y = shoulder - 0.42f - line * 0.3f;
+                if (y < Foot + 0.9f) break;
+                float x = -wide * 0.74f;
+                while (x < wide * 0.7f)
+                {
+                    float length = random.Range(0.18f, 0.42f);
+                    if (x + length > wide * 0.76f) break;
+                    b.Box(new Vector3(x + length * 0.5f, y, face), new Vector3(length * 0.5f, 0.032f, 0.008f), Gilt);
+                    x += length + 0.1f;
+                }
+            }
+            // A wreath against it: leaves in a ring, blossom among them.
+            VertexMaterial leaf = new VertexMaterial(MaterialCatalog.FoliageWhite.Index, new Colour(46, 88, 40));
+            Vector3 wreath = new Vector3(-wide * 0.3f, Foot + 0.85f, z + thick + 0.2f);
+            for (int i = 0; i < 20; i++)
+            {
+                float a = MathF.Tau * i / 20f;
+                Vector3 p = wreath + new Vector3(MathF.Cos(a) * 0.52f, MathF.Sin(a) * 0.52f, -MathF.Sin(a) * 0.1f);
+                b.Box(p, new Vector3(0.1f, 0.09f, 0.07f), leaf);
+                if (i % 4 == 1) b.Box(p + Vector3.UnitZ * 0.07f, new Vector3(0.06f), Hall.Flat(212, 150, 162));
+            }
+            // Candles along the step before it.
+            for (int i = 0; i < 9; i++)
+            {
+                float x = (i - 4f) * ((half.X - 0.55f) / 4f);
+                float tall = 0.22f + 0.34f * MathF.Abs(MathF.Sin(i * 2.4f + 0.7f));
+                Vector3 foot = new Vector3(x, Foot + 0.2f, 0.52f + (i % 2) * 0.16f);
+                b.Tube(foot, foot + Vector3.UnitY * 0.03f, 0.1f, 0.09f, 8, Gilt);
+                Hall.Candle(b, foot + Vector3.UnitY * 0.03f, tall, 0.055f, lights, lit: i % 4 != 2);
+            }
+            lights.Add(AssetLight.VigilCandles(new Vector3(0f, Foot + 1.9f, half.Y + 0.9f)) with { Intensity = 26f, Radius = 11f, Shadow = false });
+        }
+
+        // ---- Lands freed.
+
+        /// <summary>
+        /// The chart of the lands, on a table of marble tilted towards whoever stands before it: parchment in a frame of walnut, the lands drawn on it, those set free
+        /// green with a little flag in each, a compass in its corner, and more charts rolled in an urn beside it. It lies open to the sky, which is how it's seen.
+        /// </summary>
+        private static void MapTable(MeshBuilder b, Vector2 half, float h, List<AssetLight> lights, WorldRandom random)
+        {
+            // Two piers of marble, and the top across them.
+            foreach (float x in new[] { -half.X + 0.5f, half.X - 0.5f })
+            {
+                b.Box(new Vector3(x, 0.14f, -0.1f), new Vector3(0.36f, 0.14f, half.Y - 0.35f), Teal);
+                b.Box(new Vector3(x, 0.3f, -0.1f), new Vector3(0.31f, 0.03f, half.Y - 0.4f), Gilt);
+                b.Box(new Vector3(x, 1.08f, -0.1f), new Vector3(0.24f, 0.76f, half.Y - 0.5f), White);
+            }
+            Vector3 lo = new Vector3(0f, 1.78f, half.Y - 0.3f), hi = new Vector3(0f, h - 0.5f, -half.Y + 0.25f);
+            Vector3 v = (hi - lo).Normalized();
+            Vector3 n = Vector3.Cross(Vector3.UnitX, v).Normalized();
+            if (n.Y < 0f) n = -n;
+            float length = (hi - lo).Length;
+            float wide = half.X - 0.05f;
+            Hall.Board(b, lo - n * 0.1f, hi - n * 0.1f, Vector3.UnitX, wide, 0.1f, Walnut);
+            Hall.Board(b, lo + v * 0.14f + n * 0.008f, hi - v * 0.14f + n * 0.008f, Vector3.UnitX, wide - 0.16f, 0.008f, Parchment);
+            foreach (float s in new[] { -1f, 1f }) Hall.Board(b, lo + Vector3.UnitX * (s * (wide - 0.05f)) + n * 0.03f, hi + Vector3.UnitX * (s * (wide - 0.05f)) + n * 0.03f, Vector3.UnitX, 0.05f, 0.03f, Gilt);
+            Hall.Board(b, lo - Vector3.UnitX * wide + n * 0.03f + v * 0.05f, lo + Vector3.UnitX * wide + n * 0.03f + v * 0.05f, v, 0.05f, 0.03f, Gilt);
+            Hall.Board(b, hi - Vector3.UnitX * wide + n * 0.03f - v * 0.05f, hi + Vector3.UnitX * wide + n * 0.03f - v * 0.05f, v, 0.05f, 0.03f, Gilt);
+
+            // The sea's edge drawn round the lands, and the lands: every third still the Reich's.
+            Vector3 On(float x, float along, float lift) => lo + Vector3.UnitX * x + v * along + n * lift;
+            void Patch(float x, float along, float halfX, float halfAlong, float lift, VertexMaterial material)
+            {
+                Hall.Face(b, On(x - halfX, along - halfAlong, lift), On(x + halfX, along - halfAlong, lift), On(x + halfX, along + halfAlong, lift), On(x - halfX, along + halfAlong, lift), n, material);
+            }
+            Patch(0f, length * 0.5f, wide - 0.4f, length * 0.5f - 0.36f, 0.02f, Hall.Flat(156, 178, 176));
+            for (int i = 0; i < 10; i++)
+            {
+                float x = ((i % 5) - 2f) * (wide * 0.36f) + random.Range(-0.1f, 0.1f);
+                float along = length * (i < 5 ? 0.34f : 0.68f) + random.Range(-0.12f, 0.12f);
+                bool freed = i % 3 != 2;
+                float hx = random.Range(0.2f, 0.3f), ha = random.Range(0.16f, 0.26f);
+                Patch(x, along, hx, ha, 0.026f, freed ? Hall.Flat(98, 146, 84) : Hall.Flat(168, 138, 100));
+                Patch(x + hx * 0.5f, along + ha * 0.6f, hx * 0.6f, ha * 0.5f, 0.027f, freed ? Hall.Flat(98, 146, 84) : Hall.Flat(168, 138, 100));
+                if (!freed) continue;
+                Vector3 pin = On(x, along, 0.03f);
+                b.Beam(pin, pin + n * 0.5f, 0.014f, Gold);
+                Hall.Board(b, pin + n * 0.42f, pin + n * 0.42f + Vector3.UnitX * 0.24f, n, 0.07f, 0.006f, Hall.Cloth(28, 104, 110));
+            }
+            // The compass drawn in its corner.
+            Vector3 rose = On(wide - 0.75f, 0.62f, 0.03f);
+            for (int i = 0; i < 8; i++)
+            {
+                float a = MathF.Tau * i / 8f;
+                Vector3 ray = Vector3.UnitX * MathF.Cos(a) + v * MathF.Sin(a), side = Vector3.UnitX * -MathF.Sin(a) + v * MathF.Cos(a);
+                Hall.Tri(b, rose + side * 0.045f, rose - side * 0.045f, rose + ray * (i % 2 == 0 ? 0.3f : 0.17f), n, i % 2 == 0 ? Hall.Flat(40, 72, 82) : Hall.Flat(190, 140, 60));
+            }
+            // Charts rolled in an urn at its side.
+            Vector3 urn = new Vector3(half.X - 0.42f, 0f, half.Y - 0.36f);
+            Hall.Turned(b, urn, Teal, 12, (0f, 0.26f), (0.08f, 0.3f), (0.2f, 0.2f), (0.75f, 0.34f), (0.95f, 0.3f));
+            b.Tube(urn + Vector3.UnitY * 0.93f, urn + Vector3.UnitY * 0.99f, 0.32f, 0.32f, 12, Gilt, capped: false);
             for (int i = 0; i < 5; i++)
             {
                 float a = MathF.Tau * i / 5f;
-                Vector3 foot = basket + new Vector3(MathF.Cos(a) * 0.16f, 0.1f, MathF.Sin(a) * 0.16f);
-                b.Tube(foot, foot + new Vector3(MathF.Cos(a) * 0.1f, 1.2f, MathF.Sin(a) * 0.1f), 0.07f, 0.07f, 6, Hall.Paper);
+                Vector3 foot = urn + new Vector3(MathF.Cos(a) * 0.13f, 0.5f, MathF.Sin(a) * 0.13f);
+                b.Tube(foot, foot + new Vector3(MathF.Cos(a) * 0.14f, 1.25f, MathF.Sin(a) * 0.14f), 0.07f, 0.07f, 6, Parchment);
             }
+            Lit(lights, new Vector3(0f, h + 2.2f, half.Y + 1.3f), 22f, 9.5f);
         }
 
-        /// <summary>A chest bound in iron, thrown open on a plinth and heaped over with gold, more of it spilled at its foot, a few stones among the coin.</summary>
+        // ---- Gold gathered.
+
+        /// <summary>
+        /// A chest of walnut bound in silver, thrown open on its pedestal and heaped over its rim with gold: coin spilling down its front and across the marble, a cup
+        /// and a circlet half buried, and a few cut stones.
+        /// </summary>
         private static void Hoard(MeshBuilder b, Vector2 half, float h, List<AssetLight> lights, WorldRandom random)
         {
-            b.Box(new Vector3(0f, 0.25f, 0f), new Vector3(half.X, 0.25f, half.Y - 0.3f), PlinthDark);
-            VertexMaterial wood = Hall.Wood(104, 70, 46);
-            VertexMaterial iron = Hall.Iron(86);
-            float floor = 0.5f;
-            b.Box(new Vector3(0f, floor + 0.45f, -0.1f), new Vector3(half.X - 0.4f, 0.45f, half.Y * 0.45f), wood);
-            foreach (float x in new[] { -half.X + 0.6f, 0f, half.X - 0.6f }) b.Box(new Vector3(x, floor + 0.45f, -0.1f), new Vector3(0.06f, 0.46f, half.Y * 0.45f + 0.02f), iron);
+            const float Foot = 0.7f;
+            Pedestal(b, half, Foot);
+            Plate(b, new Vector3(0f, Foot, half.Y - 0.5f));
+            Vector2 chest = new Vector2(half.X - 0.5f, half.Y * 0.44f);
+            float rim = Foot + 0.95f;
+            Vector3 at = new Vector3(0f, 0f, -0.3f);
+            b.Box(at + new Vector3(0f, (Foot + rim) * 0.5f, 0f), new Vector3(chest.X, (rim - Foot) * 0.5f, chest.Y), Walnut);
+            foreach (float x in new[] { -chest.X + 0.22f, 0f, chest.X - 0.22f }) b.Box(at + new Vector3(x, (Foot + rim) * 0.5f, 0f), new Vector3(0.07f, (rim - Foot) * 0.5f + 0.012f, chest.Y + 0.02f), Silver);
+            b.Box(at + new Vector3(0f, rim - 0.2f, chest.Y + 0.03f), new Vector3(0.12f, 0.14f, 0.03f), Silver);
             // The lid, thrown back.
-            Hall.At(b, new Vector3(0f, floor + 0.9f, -0.1f - half.Y * 0.45f), 0f, () =>
+            Vector3 hingeAt = at + new Vector3(0f, rim, -chest.Y);
+            Vector3 up = new Vector3(0f, 0.86f, -0.5f).Normalized();
+            Hall.Board(b, hingeAt, hingeAt + up * (chest.Y * 1.9f), Vector3.UnitX, chest.X, 0.07f, Walnut);
+            foreach (float x in new[] { -chest.X + 0.22f, 0f, chest.X - 0.22f }) Hall.Board(b, hingeAt + Vector3.UnitX * x, hingeAt + Vector3.UnitX * x + up * (chest.Y * 1.9f), Vector3.UnitX, 0.07f, 0.085f, Silver);
+
+            // The gold: heaped over the rim, highest in the middle, and run down the front.
+            for (int i = 0; i < 90; i++)
             {
-                b.Box(new Vector3(0f, 0.38f, -0.12f), new Vector3(half.X - 0.4f, 0.4f, 0.08f), wood);
-                foreach (float x in new[] { -half.X + 0.6f, 0f, half.X - 0.6f }) b.Box(new Vector3(x, 0.38f, -0.12f), new Vector3(0.06f, 0.41f, 0.09f), iron);
-            });
-            // The gold, heaped over its rim.
-            VertexMaterial gold = Hall.Metal(222, 176, 76);
-            for (int i = 0; i < 70; i++)
-            {
-                float x = random.Range(-half.X + 0.5f, half.X - 0.5f), z = random.Range(-half.Y * 0.4f, half.Y * 0.3f) - 0.1f;
-                float mound = 1f - MathF.Abs(x) / half.X * 0.7f;
-                Vector3 at = new Vector3(x, floor + 0.85f + mound * 0.25f + random.Range(0f, 0.08f), z);
-                Hall.At(b, at, random.Range(0f, 3f), () => b.Tube(Vector3.Zero, new Vector3(0.02f, 0.03f, 0f), 0.1f, 0.1f, 7, gold));
+                float x = random.Range(-chest.X + 0.14f, chest.X - 0.14f), z = random.Range(-chest.Y + 0.12f, chest.Y - 0.1f);
+                float mound = (1f - MathF.Abs(x) / chest.X) * (1f - MathF.Abs(z) / chest.Y);
+                Vector3 coin = at + new Vector3(x, rim - 0.08f + mound * 0.42f + random.Range(0f, 0.06f), z);
+                Hall.At(b, coin, random.Range(0f, 3f), () => b.Tube(Vector3.Zero, new Vector3(random.Range(-0.02f, 0.02f), 0.035f, 0f), 0.11f, 0.11f, 7, Gold));
             }
-            for (int i = 0; i < 18; i++)
+            for (int i = 0; i < 30; i++)
             {
-                Vector3 at = new Vector3(random.Range(-half.X + 0.2f, half.X - 0.2f), floor + 0.005f, random.Range(half.Y * 0.4f, half.Y - 0.4f));
-                b.Tube(at, at + Vector3.UnitY * 0.03f, 0.1f, 0.1f, 7, gold);
+                float t = random.Float();
+                Vector3 coin = new Vector3(random.Range(-0.5f, 0.5f) * (1f + t), MathHelper.Lerp(rim - 0.1f, Foot + 0.02f, MathF.Min(t * 1.6f, 1f)), at.Z + chest.Y + 0.06f + t * (half.Y - chest.Y + 0.2f) * 0.8f);
+                if (MathF.Abs(coin.X) > half.X - 0.2f || coin.Z > half.Y - 0.72f) continue;
+                b.Tube(coin, coin + Vector3.UnitY * 0.035f, 0.11f, 0.11f, 7, Gold);
             }
-            Vector3[] gems = { new(0.3f, 0.6f, 1f), new(0.4f, 1f, 0.5f), new(1f, 0.4f, 0.8f) };
-            for (int i = 0; i < 4; i++)
+            // A cup and a circlet in it, and stones.
+            Vector3 cup = at + new Vector3(-0.55f, rim + 0.3f, 0.05f);
+            b.Tube(cup, cup + new Vector3(-0.05f, 0.3f, 0f), 0.05f, 0.16f, 10, Gold, capped: false);
+            Vector3 crown = at + new Vector3(0.5f, rim + 0.32f, -0.05f);
+            b.Tube(crown, crown + new Vector3(0.03f, 0.14f, 0f), 0.2f, 0.21f, 10, Gold, capped: false);
+            for (int k = 0; k < 6; k++)
             {
-                Vector3 c = gems[i % gems.Length];
-                b.Box(new Vector3(random.Range(-0.8f, 0.8f), floor + 1.12f, random.Range(-0.3f, 0.1f)), new Vector3(0.06f), Hall.Gem(c.X, c.Y, c.Z, 1.2f));
+                float a = MathF.Tau * k / 6f;
+                b.Tube(crown + new Vector3(MathF.Cos(a) * 0.2f, 0.14f, MathF.Sin(a) * 0.2f), crown + new Vector3(MathF.Cos(a) * 0.21f, 0.28f, MathF.Sin(a) * 0.21f), 0.035f, 0.004f, 4, Gold);
             }
-            lights.Add(AssetLight.Glow(new Vector3(0f, floor + 1.6f, half.Y + 0.4f), new Vector3(1f, 0.78f, 0.4f), 10f, 6f));
+            Vector3[] stones = { new(0.2f, 0.75f, 0.9f), new(0.25f, 0.9f, 0.5f), new(0.95f, 0.5f, 0.75f), new(1f, 0.55f, 0.15f) };
+            for (int i = 0; i < 5; i++)
+            {
+                Vector3 c = stones[i % stones.Length];
+                b.Box(at + new Vector3(random.Range(-0.8f, 0.8f), rim + 0.3f + random.Range(0f, 0.1f), random.Range(-0.2f, 0.25f)), new Vector3(0.065f), Hall.Gem(c.X, c.Y, c.Z, 1.1f));
+            }
+            Lit(lights, new Vector3(0f, h + 2.2f, half.Y + 1.3f), 22f, 9.5f);
         }
 
-        /// <summary>The climb, cut in stone: steps going up, each with a pale blue stone set in it like a waygate's light, and a little flag on the topmost.</summary>
+        // ---- The deepest land.
+
+        /// <summary>
+        /// The climb, in marble: seven steps one on another, the same from every side, a stone alight in each face of each like a waygate's lights, and on the topmost a
+        /// little waygate with its way open, which is where the next land is.
+        /// </summary>
         private static void Climb(MeshBuilder b, Vector2 half, float h, List<AssetLight> lights)
         {
-            b.Box(new Vector3(0f, 0.2f, 0f), new Vector3(half.X, 0.2f, half.Y - 0.3f), PlinthDark);
+            const float Foot = 0.5f;
+            Pedestal(b, half, Foot);
+            Plate(b, new Vector3(0f, Foot, half.Y - 0.36f), 0.5f);
             const int Steps = 7;
-            float rise = (h - 1.2f) / Steps;
+            float gate = 1.15f;
+            float rise = (h - Foot - gate) / Steps;
+            float widest = MathF.Min(half.X, half.Y) - 0.42f;
             for (int i = 0; i < Steps; i++)
             {
-                float depth = (half.Y * 1.6f) * (1f - i / (float)Steps);
-                float w = half.X * (1f - i * 0.08f);
-                float y = 0.4f + i * rise;
-                b.Box(new Vector3(0f, y + rise * 0.5f, -half.Y * 0.8f + depth * 0.5f), new Vector3(w, rise * 0.5f, depth * 0.5f), i % 2 == 0 ? Plinth : Hall.Stone(186, 176, 158));
-                b.Box(new Vector3(0f, y + rise * 0.6f, -half.Y * 0.8f + depth + 0.01f), new Vector3(0.06f, 0.05f, 0.02f), Hall.Gem(0.4f, 0.8f, 1f, 1.2f));
+                float w = widest * (1f - i * 0.115f);
+                float y = Foot + i * rise;
+                b.Box(new Vector3(0f, y + rise * 0.5f, 0f), new Vector3(w, rise * 0.5f, w), i % 2 == 0 ? Grey : White);
+                b.Box(new Vector3(0f, y + rise - 0.02f, 0f), new Vector3(w + 0.012f, 0.02f, w + 0.012f), Gilt);
+                VertexMaterial stone = Hall.Gem(0.3f, 0.82f, 1f, 1.2f);
+                foreach (float s in new[] { -1f, 1f })
+                {
+                    b.Box(new Vector3(0f, y + rise * 0.45f, s * (w + 0.01f)), new Vector3(0.1f, 0.1f, 0.025f), stone);
+                    b.Box(new Vector3(s * (w + 0.01f), y + rise * 0.45f, 0f), new Vector3(0.025f, 0.1f, 0.1f), stone);
+                }
             }
-            float topY = 0.4f + Steps * rise;
-            b.Beam(new Vector3(0f, topY, -half.Y * 0.6f), new Vector3(0f, topY + 0.9f, -half.Y * 0.6f), 0.02f, Hall.Wood(140, 100, 60));
-            b.Box(new Vector3(0.18f, topY + 0.75f, -half.Y * 0.6f), new Vector3(0.18f, 0.12f, 0.006f), Hall.Cloth(40, 110, 120));
-            lights.Add(AssetLight.Glow(new Vector3(0f, topY * 0.6f, half.Y + 0.5f), new Vector3(0.6f, 0.82f, 1f), 9f, 6f));
+            // The gate at the top: two posts and an arch of teal marble, and the way in it.
+            float topY = Foot + Steps * rise;
+            foreach (float s in new[] { -1f, 1f }) b.Box(new Vector3(s * 0.3f, topY + 0.38f, 0f), new Vector3(0.08f, 0.38f, 0.09f), Teal);
+            const int Arc = 6;
+            for (int i = 0; i < Arc; i++)
+            {
+                float a0 = MathF.PI * i / Arc, a1 = MathF.PI * (i + 1) / Arc;
+                Vector3 p0 = new Vector3(MathF.Cos(a0) * 0.3f, topY + 0.76f + MathF.Sin(a0) * 0.3f, 0f), p1 = new Vector3(MathF.Cos(a1) * 0.3f, topY + 0.76f + MathF.Sin(a1) * 0.3f, 0f);
+                Hall.Board(b, p0, p1, Vector3.UnitZ, 0.09f, 0.08f, Teal);
+            }
+            b.Box(new Vector3(0f, topY + 0.42f, 0f), new Vector3(0.22f, 0.42f, 0.02f), Hall.Glow(0.25f, 0.85f, 0.95f, 1.1f));
+            Hall.Tri(b, new Vector3(-0.22f, topY + 0.84f, 0.02f), new Vector3(0.22f, topY + 0.84f, 0.02f), new Vector3(0f, topY + 1f, 0.02f), Vector3.UnitZ, Hall.Glow(0.25f, 0.85f, 0.95f, 1.1f));
+            Hall.Tri(b, new Vector3(-0.22f, topY + 0.84f, -0.02f), new Vector3(0.22f, topY + 0.84f, -0.02f), new Vector3(0f, topY + 1f, -0.02f), -Vector3.UnitZ, Hall.Glow(0.25f, 0.85f, 0.95f, 1.1f));
+            lights.Add(AssetLight.Glow(new Vector3(0f, h * 0.8f, half.Y + 1.6f), new Vector3(0.78f, 0.88f, 1f), 20f, 9.5f));
         }
     }
 }

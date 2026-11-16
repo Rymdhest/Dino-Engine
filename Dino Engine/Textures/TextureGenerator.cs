@@ -1,4 +1,4 @@
-﻿using Dino_Engine.Core;
+using Dino_Engine.Core;
 using Dino_Engine.Modelling;
 using Dino_Engine.Modelling.Model;
 using Dino_Engine.Modelling.Procedural.Flora;
@@ -115,6 +115,7 @@ namespace Dino_Engine.Textures
         public static int scales = MaterialCatalog.Scales.Index;
         public static int quilt = MaterialCatalog.Quilt.Index;
         public static int fur = MaterialCatalog.Fur.Index;
+        public static int marble = MaterialCatalog.Marble.Index;
 
         public List<MaterialMapsTextures> preparedTextures = new List<MaterialMapsTextures>();
 

@@ -15,7 +15,8 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Halls
         /// <param name="lights">The lights and flames it carries, in model space.</param>
         public static Mesh Build(HallDesign design, bool inside, List<Vector3> chimneys, List<AssetLight> lights)
         {
-            var b = new MeshBuilder();
+            // Beams and tubes wound to face out, as a hall's cut draws whatever is seen from behind as a section (MeshBuilder.Outward).
+            var b = new MeshBuilder { Outward = true };
             if (inside) HallInteriors.Build(b, design, lights);
             else HallShells.Build(b, design, chimneys, lights);
             return b.Build();

@@ -64,6 +64,33 @@ namespace Dino_Engine.ECS.Systems
             return world.CreateEntity(components.ToArray());
         }
 
+        /// <summary>Whether a light of a model's is an effect that goes on there, and one the catalogue has: what isn't known is left out everywhere alike, so that what's made stays in step.</summary>
+        public static bool Emits(in AssetLight light) => light.Effect != null && ParticleCatalog.Effect(light.Effect) != null;
+
+        /// <summary>Whatever else goes on at a place on a model for as long as it stands, by its name (<see cref="AssetLight.Effect"/>): steam off a trough, a furnace's sparks.</summary>
+        public static Entity Emission(ECSWorld world, in AssetLight light, Vector3 position, Quaternion rotation, Vector3 scale, IComponent? with = null)
+        {
+            Vector3 at = Where(light, position, rotation, scale);
+            var effect = new ParticleEffectComponent(ParticleCatalog.Effect(light.Effect!)!, EffectShape.Point, (light.EffectScale > 0f ? light.EffectScale : 1f) * scale.Y);
+            effect.Run.Forward = Forward(light, rotation);
+            if (light.Colour.LengthSquared > 0f) effect.Run.Tint = light.Colour;
+            var components = new List<IComponent>
+            {
+                new PositionComponent(at),
+                new LocalToWorldMatrixComponent { value = Matrix4.CreateTranslation(at) },
+                effect,
+            };
+            if (with != null) components.Add(with);
+            return world.CreateEntity(components.ToArray());
+        }
+
+        // The way an effect on a model faces, once the model is turned: only its heading counts.
+        private static Vector3 Forward(in AssetLight light, Quaternion rotation)
+        {
+            Vector3 way = Vector3.Transform(light.Direction.LengthSquared > 1e-8f ? light.Direction : Vector3.UnitZ, rotation);
+            return way.Xz.LengthSquared > 1e-8f ? way : Vector3.UnitZ;
+        }
+
         /// <summary>Everything a model gives off, placed so, onto a list, each with <paramref name="with"/> on it if it's given.</summary>
         public static void Spawn(ECSWorld world, IReadOnlyList<AssetLight> lights, Vector3 position, Quaternion rotation, Vector3 scale, List<Entity> into, IComponent? with = null)
         {
@@ -71,6 +98,7 @@ namespace Dino_Engine.ECS.Systems
             {
                 if (light.Intensity > 0f) into.Add(Light(world, light, position, rotation, scale, with));
                 if (light.FlameWidth > 0f) into.Add(Flame(world, light, position, rotation, scale, with));
+                if (Emits(light)) into.Add(Emission(world, light, position, rotation, scale, with));
             }
         }
 
@@ -85,6 +113,12 @@ namespace Dino_Engine.ECS.Systems
                 Vector3 at = Where(light, position, rotation, scale);
                 if (light.Intensity > 0f) Place(world, next < made.Count ? made[next++] : default, at, light.ConeAngle > 0f ? Vector3.Transform(light.Direction, rotation) : null);
                 if (light.FlameWidth > 0f) Place(world, next < made.Count ? made[next++] : default, at, null);
+                if (Emits(light))
+                {
+                    Entity emitting = next < made.Count ? made[next++] : default;
+                    Place(world, emitting, at, null);
+                    if (emitting.IsValid() && world.TryGetEntityLocation(emitting, out _, out _)) world.GetEntityView(emitting).Get<ParticleEffectComponent>().Run.Forward = Forward(light, rotation);
+                }
             }
         }
 

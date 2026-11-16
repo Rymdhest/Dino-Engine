@@ -86,6 +86,38 @@ namespace Dino_Engine.World
         Bench,
         Globe,
         Lectern,
+
+        // The Gaming House, an old barn. On the end, as a piece's kind is part of what its details are drawn from.
+        BarnPost,           // One of the four great posts its tie beams rest on, with a lantern on an arm.
+        LoftStore,          // The tuns laid up under the hayloft, which fill the ground under it.
+        Ladder,             // Up to the hayloft.
+        Settle,             // A high-backed bench by the fire.
+        HideRug,
+        StallWall,          // The boarded side of a horse's stall, which is a booth now.
+        BoothBench,
+        BladeBarrel,        // Where blades are left at the door.
+        Easel,              // The house's rules, chalked up.
+        HayBales,
+
+        // The Forge, where everything a Defender wears or carries is made: metal, leather and cloth.
+        Smelter,            // A furnace that iron is won from ore in, its throat open and burning.
+        StockBins,          // Charcoal, ore and bar iron, by the fire they feed.
+        CastingBed,         // Sand with moulds sunk in it, and what's been poured cooling in them.
+        Vat,                // A tub of tanning liquor or dye.
+        Cauldron,           // A copper of dye kept hot over a fire of its own.
+        HideFrame,          // A hide laced out in a frame to dry.
+        FleshingBeam,       // The sloped beam a hide is scraped on.
+        SaddleStand,
+        Loom,
+        TailorTable,
+        DressForm,          // A padded body on a stand, with what's being made for someone on it.
+        ClothRack,          // Bolts of cloth, stacked.
+        SpinningWheel,
+        Uncollected,        // The shelf of what was mended and never fetched.
+        Ballista,           // The engine it's building for the Haven's wall, half done, on trestles.
+
+        // The Archive, a hall of marble laid out as a great church is.
+        Column,             // One of the columns either side of its nave.
     }
 
     /// <summary>What one of the Archive's displays keeps. The game says what each means and what it shows; the world only says where it stands.</summary>

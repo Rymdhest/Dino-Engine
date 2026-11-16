@@ -84,6 +84,8 @@ namespace Dino_Defenders
         private bool _firstWorldOfThisSession = true;
         private float _nextAutosave;
         private int _frames;
+        private const float ForeseeAfter = 2f;     // Seconds after the loading screen goes before the map table's lands grow (MapTablePanel.Foresee).
+        private double _foreseeFrom;
         private int _listVideoMemoryAt;     // The frame to list everything on the card at (--vramlist), or 0.
         private readonly PerfRecorder? _perf;
         private StreamWriter? _trace;
@@ -771,6 +773,10 @@ namespace Dino_Defenders
             // Only the pause menu and the pages over everything stop the world, as they cover it: with any other window open the hero still walks and fights, and what's used is let go of on walking away.
             session.Paused = _ui.OnPage || _ui.Loading.Visible || _options.Tour != null;
             _ui.WalkedAway(session.PlayerPosition);
+            // The map table's lands grow while it's closed, so it opens with them drawn: a little after the Haven is on screen, as its first frames are still bringing in the ground round
+            // the hero, and growing three lands then made them a second slower, and never behind the loading screen.
+            if (_ui.Loading.Visible) _foreseeFrom = Dino_Engine.Core.Engine.Time + ForeseeAfter;
+            else if (session.IsHaven && Dino_Engine.Core.Engine.Time >= _foreseeFrom) _ui.MapTable.Foresee();
 
             if (Dino_Engine.Core.Engine.Time >= _nextAutosave)
             {

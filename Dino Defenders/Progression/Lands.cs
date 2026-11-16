@@ -338,10 +338,13 @@ namespace Dino_Defenders.Progression
         /// arena with a different tyrant. They come from what's saved on the hero and nothing else, so both ends of a connection see the same three, and they stay the same however often the table is looked at and
         /// however many tries they take, until the level is freed again or gold is paid for others.
         /// </summary>
-        public static IReadOnlyList<LandOffer> Offer(HeroState hero, int level)
+        public static IReadOnlyList<LandOffer> Offer(HeroState hero, int level) => Offer(hero, level, hero.RerollsAt(level));
+
+        /// <summary>The lands the waygate would reach at a level after this many rerolls there, as the map table grows the next ones ahead of a reroll.</summary>
+        public static IReadOnlyList<LandOffer> Offer(HeroState hero, int level, int rerolls)
         {
             level = Math.Max(level, 1);
-            var random = new WorldRandom(hero.Offers).Fork("lands").Fork(level).Fork(hero.RerollsAt(level));
+            var random = new WorldRandom(hero.Offers).Fork("lands").Fork(level).Fork(rerolls);
             var offers = new List<LandOffer>(Choices);
             if (IsBossLevel(level))
             {

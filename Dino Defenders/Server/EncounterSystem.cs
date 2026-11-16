@@ -687,10 +687,10 @@ namespace Dino_Defenders.Server
         };
         private const float CrowdReach = 60f;           // Metres from a hero inside which those watching from the stands call out.
 
-        // What the Haven's hall keepers say to whoever comes in: the smith, the dealer and the archivist. Read LORE.md.
+        // What the Haven's hall keepers say to whoever comes in: the Forge's three (its smith, and whoever works its leather and its cloth), the dealer and the archivist. Read LORE.md.
         private static readonly string[][] Keeping =
         {
-            new[] { "Mind the sparks.", "Bring me something worth the iron.", "Leave it on the bench. I'll get to it.", "The fire's been in since dawn.", "That edge won't last another land. Let me see it." },
+            new[] { "Mind the sparks.", "Bring me something worth the iron.", "Leave it on the bench. I'll get to it.", "The fire's been in since dawn.", "That edge won't last another land. Let me see it.", "Leather, cloth or iron, it all gets mended here.", "Mind the vats. That dye doesn't come out.", "Whatever a land did to it, we've seen worse." },
             new[] { "Cards or dice, Defender?", "The table's open whenever you are.", "Gold's no use to anyone in a pocket.", "Sit down. Rest your feet.", "Nobody leaves here poorer than they can stand." },
             new[] { "Everything you've done is written here.", "Mind the shelves. Some of these are older than the Haven.", "Every tyrant you bring down goes on the wall.", "Read what you like. Just put it back.", "We keep the names of the fallen too." },
         };

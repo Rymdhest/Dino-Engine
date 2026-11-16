@@ -94,6 +94,10 @@ run.Forward = gateFront; run.Tint = wayColour;
 
 // A flame that's part of a model, in its generator.
 lights.Add(AssetLight.Burning(at, width));
+
+// Any lasting effect that's part of a model, by its name in the catalogue: it plays there for as long as the model's streamed (AssetLightEntities).
+// Its +z is the direction given, and a tint goes to whatever in it takes one. The Forge's steam, coals and drips are these (Smithing, HALLS.md).
+lights.Add(AssetLight.Emitting(at, "Smithing.Quench", scale: 1f, forward: Vector3.UnitZ));
 ```
 
 In the game, `ParticleShow` says what each kind of damage looks like (a burst, a patch of ground, a bolt's trail, a blow landing), what a blow on flesh, bone or armour throws off (`Wound`), and how big a body is (`BodyOf`). `Ailments` keeps an effect on everyone suffering from something, sized to them. `GhostPresenter` starts them all from what the server says: a zone gets its element's `Ground` over its own shape, a missile its `Bolt`, a blast its `Burst`.

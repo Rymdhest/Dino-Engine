@@ -20,7 +20,7 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Halls
             switch (d.Kind)
             {
                 case HallKind.Forge: Forge(b, d, kit, chimneys, lights, random); break;
-                case HallKind.GamingHouse: GamingHouse(b, d, kit, chimneys, lights, random); break;
+                case HallKind.GamingHouse: Barn(b, d, kit, chimneys, lights, random); break;
                 default: Archive(b, d, kit, chimneys, lights, random); break;
             }
         }
@@ -31,9 +31,41 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Halls
             Vector2 inner = d.Inner;
             const float Y = Hall.FloorTop;
             Vector3 origin = new Vector3(0f, Y, 0f);
-            Vector4 bounds = new Vector4(-inner.X, inner.X, -inner.Y, inner.Y);
             // u along x and v towards the back, so boards run away from the door.
-            b.Panel(origin, Vector3.UnitX, -Vector3.UnitZ, -inner.X, inner.X, -inner.Y, inner.Y, kit.Floor, bounds);
+            void Lay(float x0, float x1, float z0, float z1, VertexMaterial material)
+            {
+                b.Panel(origin, Vector3.UnitX, -Vector3.UnitZ, x0, x1, -z1, -z0, material, new Vector4(x0, x1, -z1, -z0));
+            }
+            if (d.Kind == HallKind.Forge)
+            {
+                // A smithy's floor is three: flags where it's hot, from the walls out to the anvil, as nothing dropped there can burn; boards in the tailor's corner, where
+                // cloth is laid out and nobody wants it on stone; and cobbles everywhere else, which is where the water goes (Smithy.HotFloor, Smithy.BoardFloor).
+                Vector4 hot = Smithy.HotFloor(d), boards = Smithy.BoardFloor(d);
+                Lay(hot.X, hot.Y, hot.Z, hot.W, Hall.Flags(150, 146, 142));
+                Lay(boards.X, boards.Y, boards.Z, boards.W, Hall.Wood(150, 110, 74));
+                Lay(hot.Y, inner.X, -inner.Y, hot.W, kit.Floor);
+                Lay(-inner.X, boards.X, hot.W, inner.Y, kit.Floor);
+                Lay(boards.X, inner.X, hot.W, boards.Z, kit.Floor);
+                return;
+            }
+            if (d.Kind == HallKind.Archive)
+            {
+                // Marble, slab by slab, and everything let into it (Basilica.Floor.cs).
+                Basilica.Floor(b, d);
+                return;
+            }
+
+            // A barn's floor: the threshing floor flagged in stone, straight through from the great doors between the posts; a bay of boards either side of it, the one by
+            // the fire darker with its smoke; and the hearth's own floor of stone before it, where a spark does no harm (GamingHouse.HearthFloor).
+            float bay = HallDesigns.GamingBay;
+            Vector4 hearth = GamingHouse.HearthFloor(d);
+            Lay(-bay, bay, -inner.Y, inner.Y, Hall.Flags(188, 192, 194));
+            Lay(bay, inner.X, -inner.Y, inner.Y, kit.Floor);
+            VertexMaterial smoked = Hall.Wood(108, 80, 56);
+            Lay(-inner.X, -bay, -inner.Y, hearth.Z, smoked);
+            Lay(-inner.X, -bay, hearth.W, inner.Y, smoked);
+            Lay(hearth.Y, -bay, hearth.Z, hearth.W, smoked);
+            Lay(hearth.X, hearth.Y, hearth.Z, hearth.W, Hall.Ashlar(120, 112, 104));
         }
 
         // ---- The Forge.
@@ -72,55 +104,109 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Halls
             });
         }
 
+        /// <summary>
+        /// The forge itself: a block of stone as high as a hip with the fire laid in a pit along its front, open to the room, and over the back of it a hood of beaten copper
+        /// on two piers, set high and well back so that whoever's in the room sees the fire and not the hood: from the camera, which looks down from the south, anything hung
+        /// over the bed lower than this would hide it. The hood narrows to a flue that goes up through the roof as the tallest chimney in the Haven. Bars are heating in the
+        /// coals with their ends out, the tools of the fire hang on the piers, and the ash is raked out of an arch in its front.
+        /// </summary>
         private static void ForgeHearth(MeshBuilder b, HallDesign d, HallKit kit, HallPiece hearth, HallRoofs.Gable gable, List<Vector3> chimneys, List<AssetLight> lights)
         {
             VertexMaterial stone = kit.Dressing;
-            VertexMaterial rough = Hall.Stone(120, 112, 102);
+            VertexMaterial rough = Hall.Stone(124, 116, 106);
+            VertexMaterial brick = Hall.Brick(150, 122, 106);
+            VertexMaterial copper = new VertexMaterial(Textures.MaterialCatalog.RivetedPlate.Index, new Util.Colour(150, 98, 66));
+            VertexMaterial iron = Hall.Iron(70);
             Vector2 at = hearth.At, half = hearth.Half;
             float backFace = -d.Half.Y + d.Wall;
-            float bed = 2f;
-            // The hearth: a block of stone with a bed of coals sunk in its top and a stone rim.
-            b.Box(new Vector3(at.X, bed * 0.5f, at.Y), new Vector3(half.X, bed * 0.5f, half.Y), rough);
-            b.Box(new Vector3(at.X, bed + 0.12f, at.Y + half.Y - 0.18f), new Vector3(half.X, 0.12f, 0.18f), stone);
-            b.Box(new Vector3(at.X - half.X + 0.18f, bed + 0.12f, at.Y), new Vector3(0.18f, 0.12f, half.Y), stone);
-            b.Box(new Vector3(at.X + half.X - 0.18f, bed + 0.12f, at.Y), new Vector3(0.18f, 0.12f, half.Y), stone);
-            b.Box(new Vector3(at.X, bed + 0.04f, at.Y - 0.1f), new Vector3(half.X - 0.36f, 0.06f, half.Y - 0.42f), Hall.Glow(1f, 0.32f, 0.06f, 2.2f));
-            // Coals heaped in the middle, glowing hottest in the heart.
-            var rng = new WorldRandom(0xC0A1);
-            for (int i = 0; i < 26; i++)
-            {
-                float x = at.X + rng.Range(-half.X * 0.6f, half.X * 0.6f), z = at.Y + rng.Range(-half.Y * 0.5f, half.Y * 0.35f);
-                float heart = 1f - Math.Clamp(MathF.Abs(x - at.X) / (half.X * 0.6f), 0f, 1f);
-                float size = rng.Range(0.12f, 0.24f);
-                VertexMaterial coal = heart > 0.55f && rng.Chance(0.7f) ? Hall.Glow(1f, 0.46f, 0.12f, 3.4f) : rng.Chance(0.5f) ? Hall.Glow(0.8f, 0.2f, 0.04f, 1.4f) : Hall.Flat(30, 26, 24);
-                b.Box(new Vector3(x, bed + 0.1f + size * 0.5f, z), new Vector3(size, size * 0.6f, size * 0.9f), coal);
-            }
-            Hall.Flame(lights, new Vector3(at.X - 0.5f, bed + 0.2f, at.Y - 0.2f), 0.9f);
-            Hall.Flame(lights, new Vector3(at.X + 0.6f, bed + 0.2f, at.Y + 0.1f), 0.7f);
-            lights.Add(new AssetLight
-            {
-                Position = new Vector3(at.X, bed + 1.2f, at.Y + 0.4f), Colour = new Vector3(1f, 0.48f, 0.16f), Intensity = 210f, Radius = 22f, Fill = 0.25f,
-                Flicker = 0.3f, FlickerSpeed = 7f, Shadow = true, LightsFog = true,
-            });
+            float front = at.Y + half.Y;
+            const float Bed = 2f;
 
-            // The hood: from a lintel over the hearth, narrowing up to the flue.
-            float mouth = 4.6f, neck = 8.6f;
+            // The block, a kerb of dressed stone round its top, and the arch the ash is drawn from.
+            b.Box(new Vector3(at.X, Bed * 0.5f, at.Y), new Vector3(half.X, Bed * 0.5f, half.Y), rough);
+            b.Box(new Vector3(at.X, Bed + 0.11f, front - 0.17f), new Vector3(half.X, 0.11f, 0.17f), stone);
+            foreach (float s in new[] { -1f, 1f }) b.Box(new Vector3(at.X + s * (half.X - 0.17f), Bed + 0.11f, at.Y - 0.17f), new Vector3(0.17f, 0.11f, half.Y - 0.17f), stone);
+            b.Box(new Vector3(at.X, 0.2f, front + 0.02f), new Vector3(half.X + 0.06f, 0.2f, 0.06f), stone);
+            b.Box(new Vector3(at.X - 1.2f, 0.62f, front + 0.012f), new Vector3(0.52f, 0.42f, 0.02f), Hall.Flat(22, 20, 20));
+            b.Box(new Vector3(at.X - 1.2f, 1.1f, front + 0.03f), new Vector3(0.66f, 0.1f, 0.05f), stone);
+            foreach (float s in new[] { -1f, 1f }) b.Box(new Vector3(at.X - 1.2f + s * 0.6f, 0.62f, front + 0.03f), new Vector3(0.09f, 0.42f, 0.05f), stone);
+            b.Box(new Vector3(at.X - 1.2f, 0.24f, front + 0.3f), new Vector3(0.44f, 0.04f, 0.3f), Hall.Flat(84, 80, 76));
+
+            // The fire: a pit of firebrick along the front of the block, its coals heaped highest and hottest in the middle, where the blast comes in.
+            float pitFrom = front - 2.7f, pitTo = front - 0.4f;
+            float pitMiddle = (pitFrom + pitTo) * 0.5f, pitHalf = (pitTo - pitFrom) * 0.5f;
+            float pitWide = half.X - 0.5f;
+            b.Box(new Vector3(at.X, Bed + 0.03f, pitMiddle), new Vector3(pitWide, 0.03f, pitHalf), brick);
+            b.Box(new Vector3(at.X, Bed + 0.09f, pitMiddle), new Vector3(pitWide - 0.14f, 0.05f, pitHalf - 0.14f), Hall.Glow(0.9f, 0.18f, 0.03f, 0.75f));
+            var rng = new WorldRandom(0xC0A1);
+            for (int i = 0; i < 60; i++)
+            {
+                float x = rng.Range(-pitWide + 0.2f, pitWide - 0.2f), z = rng.Range(-pitHalf + 0.2f, pitHalf - 0.2f);
+                float heart = 1f - Math.Clamp(MathF.Sqrt(x * x / (pitWide * pitWide) + z * z / (pitHalf * pitHalf)), 0f, 1f);
+                float size = rng.Range(0.11f, 0.22f);
+                VertexMaterial coal = heart > 0.5f && rng.Chance(0.75f) ? Hall.Glow(1f, 0.4f, 0.09f, 1.35f) : heart > 0.2f && rng.Chance(0.6f) ? Hall.Glow(0.85f, 0.16f, 0.03f, 0.7f) : Hall.Flat(30, 26, 24);
+                b.Box(new Vector3(at.X + x, Bed + 0.12f + heart * 0.22f + size * 0.4f, pitMiddle + z), new Vector3(size, size * 0.6f, size * 0.9f), coal);
+            }
+
+            // What's in it: three bars with their ends in the coals, each as hot as how long it's lain there, and the rake that tends it across the kerb.
+            float[] heats = { 0.9f, 0.55f, 0.25f };
+            for (int i = 0; i < heats.Length; i++)
+            {
+                float x = at.X - 0.9f + i * 0.85f;
+                Vector3 tip = new Vector3(x, Bed + 0.36f, pitMiddle + 0.1f - i * 0.12f), middle = new Vector3(x + 0.03f, Bed + 0.32f, pitTo - 0.05f), end = new Vector3(x + 0.06f, Bed + 0.27f, front + 0.5f);
+                Hall.Board(b, tip, Vector3.Lerp(tip, middle, 0.6f), Vector3.UnitX, 0.045f, 0.035f, Hall.Glow(1f, 0.14f + 0.44f * heats[i], 0.02f + 0.16f * heats[i] * heats[i], 0.55f + 0.75f * heats[i]));
+                Hall.Board(b, Vector3.Lerp(tip, middle, 0.6f), middle, Vector3.UnitX, 0.045f, 0.035f, Hall.Glow(0.85f, 0.16f, 0.03f, 0.5f + 0.3f * heats[i]));
+                Hall.Board(b, middle, end, Vector3.UnitX, 0.045f, 0.035f, Hall.Iron(60));
+            }
+            b.Beam(new Vector3(at.X + 2.1f, Bed + 0.3f, pitMiddle), new Vector3(at.X + 2.5f, Bed + 0.26f, front + 0.6f), 0.022f, iron);
+            b.Box(new Vector3(at.X + 2.1f, Bed + 0.3f, pitMiddle), new Vector3(0.16f, 0.02f, 0.05f), iron);
+
+            // The piers the hood stands on, at the back corners of the pit, with the fire's tools hung on their fronts.
+            const float Mouth = 6.4f, Neck = 8.6f;
+            float hoodFront = pitFrom + 0.25f;
             Vector2 flueHalf = new Vector2(1.3f, 1.05f);
-            float frontZ = at.Y + half.Y + 0.25f;
-            b.Box(new Vector3(at.X, mouth - 0.3f, frontZ - 0.25f), new Vector3(half.X + 0.4f, 0.3f, 0.28f), stone);
-            foreach (float s in new[] { -1f, 1f }) b.Box(new Vector3(at.X + s * (half.X + 0.15f), (bed + mouth) * 0.5f, frontZ - 0.25f), new Vector3(0.25f, (mouth - bed) * 0.5f, 0.25f), stone);
-            Vector3 l0 = new Vector3(at.X - half.X - 0.4f, mouth, frontZ), l1 = new Vector3(at.X + half.X + 0.4f, mouth, frontZ);
-            Vector3 n0 = new Vector3(at.X - flueHalf.X, neck, backFace + flueHalf.Y * 2f), n1 = new Vector3(at.X + flueHalf.X, neck, backFace + flueHalf.Y * 2f);
-            b.Quad(l0, l1, n1, n0, rough);
-            Vector3 lb0 = new Vector3(at.X - half.X - 0.4f, mouth, backFace), lb1 = new Vector3(at.X + half.X + 0.4f, mouth, backFace);
-            Vector3 nb0 = new Vector3(at.X - flueHalf.X, neck, backFace), nb1 = new Vector3(at.X + flueHalf.X, neck, backFace);
-            b.Quad(l1, lb1, nb1, n1, rough);
-            b.Quad(lb0, l0, n0, nb0, rough);
-            // Underneath it, dark with soot.
-            b.Quad(l1, l0, lb0, lb1, Hall.Flat(34, 30, 28));
+            foreach (float s in new[] { -1f, 1f })
+            {
+                Vector3 pier = new Vector3(at.X + s * (half.X - 0.36f), 0f, hoodFront - 0.3f);
+                b.Box(pier + Vector3.UnitY * ((Bed + Mouth) * 0.5f), new Vector3(0.3f, (Mouth - Bed) * 0.5f, 0.3f), stone);
+                b.Box(pier + Vector3.UnitY * (Mouth - 0.16f), new Vector3(0.38f, 0.16f, 0.38f), stone);
+                b.Box(pier + new Vector3(0f, 4.6f, 0.31f), new Vector3(0.28f, 0.04f, 0.03f), iron);
+                for (int tool = 0; tool < 2; tool++)
+                {
+                    Vector3 hook = pier + new Vector3((tool - 0.5f) * 0.3f, 4.56f, 0.36f);
+                    float length = 1.5f + tool * 0.3f;
+                    b.Beam(hook, hook - Vector3.UnitY * length, 0.02f, iron);
+                    if (s < 0f == (tool == 0)) b.Beam(hook + Vector3.UnitX * 0.06f, hook + Vector3.UnitX * 0.06f - Vector3.UnitY * length, 0.02f, iron);
+                    else b.Box(hook - Vector3.UnitY * length, new Vector3(0.1f, 0.03f, 0.03f), iron);
+                }
+            }
+
+            // The hood: copper, riveted, a band of iron round its mouth, drawn in to the flue.
+            float mouthHalf = half.X - 0.1f;
+            Vector3 l0 = new Vector3(at.X - mouthHalf, Mouth, hoodFront), l1 = new Vector3(at.X + mouthHalf, Mouth, hoodFront);
+            Vector3 n0 = new Vector3(at.X - flueHalf.X, Neck, backFace + flueHalf.Y * 2f), n1 = new Vector3(at.X + flueHalf.X, Neck, backFace + flueHalf.Y * 2f);
+            Vector3 lb0 = new Vector3(at.X - mouthHalf, Mouth, backFace), lb1 = new Vector3(at.X + mouthHalf, Mouth, backFace);
+            Vector3 nb0 = new Vector3(at.X - flueHalf.X, Neck, backFace), nb1 = new Vector3(at.X + flueHalf.X, Neck, backFace);
+            Hall.Face(b, l0, l1, n1, n0, Vector3.UnitZ + Vector3.UnitY, copper);
+            Hall.Face(b, l1, lb1, nb1, n1, Vector3.UnitX, copper);
+            Hall.Face(b, lb0, l0, n0, nb0, -Vector3.UnitX, copper);
+            Hall.Face(b, l1, l0, lb0, lb1, -Vector3.UnitY, Hall.Flat(30, 27, 26));
+            Hall.Board(b, l0 + new Vector3(-0.04f, -0.1f, 0.03f), l1 + new Vector3(0.04f, -0.1f, 0.03f), Vector3.UnitY, 0.14f, 0.035f, iron);
+            foreach (float s in new[] { -1f, 1f }) Hall.Board(b, new Vector3(at.X + s * (mouthHalf + 0.03f), Mouth - 0.1f, backFace), new Vector3(at.X + s * (mouthHalf + 0.03f), Mouth - 0.1f, hoodFront + 0.04f), Vector3.UnitY, 0.14f, 0.035f, iron);
             // The flue, up through the wall top and out of the roof behind the ridge.
             float top = gable.Ridge + gable.Lift + 3.2f;
-            HallRoofs.Chimney(b, new Vector3(at.X, neck, backFace + flueHalf.Y), flueHalf + new Vector2(0.2f, 0.15f), top, kit.OuterWall, stone, chimneys, pots: 1);
+            HallRoofs.Chimney(b, new Vector3(at.X, Neck, backFace + flueHalf.Y), flueHalf + new Vector2(0.2f, 0.15f), top, kit.OuterWall, stone, chimneys, pots: 1);
+
+            // Its flames, its smoke and its sparks, along the bed, thrown towards the room, and its light.
+            foreach (float x in new[] { -1.9f, 0f, 1.9f })
+            {
+                lights.Add(AssetLight.Emitting(new Vector3(at.X + x, Bed + 0.3f, pitMiddle), "Smithing.Coals", x == 0f ? 1.25f : 1f, Vector3.UnitZ));
+            }
+            lights.Add(new AssetLight
+            {
+                Position = new Vector3(at.X, Bed + 2.6f, front + 1f), Colour = new Vector3(1f, 0.48f, 0.16f), Intensity = 170f, Radius = 23f, Fill = 0.25f,
+                Flicker = 0.3f, FlickerSpeed = 7f, Shadow = true, LightsFog = true,
+            });
         }
 
         // An open shed against the east wall: posts, a roof of shingle, and the forge's wood stacked dry under it, with a few things that live out there.
@@ -217,7 +303,7 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Halls
 
         // ---- The Gaming House.
 
-        private static void GamingHouse(MeshBuilder b, HallDesign d, HallKit kit, List<Vector3> chimneys, List<AssetLight> lights, WorldRandom random)
+        private static void Barn(MeshBuilder b, HallDesign d, HallKit kit, List<Vector3> chimneys, List<AssetLight> lights, WorldRandom random)
         {
             var dress = new Dress { StoneSurrounds = false, Shutters = true, FlowerBoxes = true, Lattice = true };
             Framing(b, d, kit, 4.9f);

@@ -40,6 +40,18 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Halls
         public static VertexMaterial Gem(float r, float g, float b, float strength) => new VertexMaterial(MaterialCatalog.Gem.Index, new Colour(r, g, b, strength));
         public static VertexMaterial Mirror(int r, int g, int b) => new VertexMaterial(MaterialCatalog.Mirror.Index, new Colour(r, g, b));
 
+        // One piece of wood with its grain along it, where Wood is a floor's worth of planks side by side: a post, a board, a table's top, a chair.
+        public static VertexMaterial Timber(int r, int g, int b) => new VertexMaterial(MaterialCatalog.Timber.Index, new Colour(r, g, b));
+        public static VertexMaterial Painted(int r, int g, int b) => new VertexMaterial(MaterialCatalog.PaintedBoards.Index, new Colour(r, g, b));
+        public static VertexMaterial Flags(int r, int g, int b) => new VertexMaterial(MaterialCatalog.Flagstones.Index, new Colour(r, g, b));
+        public static VertexMaterial Ashlar(int r, int g, int b) => new VertexMaterial(MaterialCatalog.CutStone.Index, new Colour(r, g, b));
+        public static VertexMaterial Pelt(int r, int g, int b) => new VertexMaterial(MaterialCatalog.Fur.Index, new Colour(r, g, b));
+        public static VertexMaterial Bark(int r, int g, int b) => new VertexMaterial(MaterialCatalog.BarkFurrowed.Index, new Colour(r, g, b));
+        public static VertexMaterial Quilted(int r, int g, int b) => new VertexMaterial(MaterialCatalog.Quilt.Index, new Colour(r, g, b));
+
+        // Stone sawn and polished, in whichever marble its colour says: smooth enough to show what stands on it, which is what the Archive is built of.
+        public static VertexMaterial Marble(int r, int g, int b) => new VertexMaterial(MaterialCatalog.Marble.Index, new Colour(r, g, b));
+
         // Cloth, leather and bone carry a colour of their own (GearMaterials.AlbedoOf), which what's drawn on them is divided by, so that the colour asked for is the one seen.
         private static readonly Vector3 ClothAlbedo = new Vector3(178f, 172f, 158f) / 255f;
         private static readonly Vector3 LeatherAlbedo = new Vector3(112f, 76f, 50f) / 255f;
@@ -191,6 +203,64 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Halls
             b.Yaw = savedYaw;
         }
 
+        /// <summary>
+        /// As <see cref="At(MeshBuilder, Vector3, float, Action)"/>, for what carries lights: whatever <paramref name="build"/> adds to <paramref name="lights"/> it says in its own frame,
+        /// as it does its shapes, and is put where its shapes are. Without this a fireplace's fire burned in the middle of the room, under the table.
+        /// </summary>
+        public static void At(MeshBuilder b, Vector3 at, float yaw, List<AssetLight> lights, Action build)
+        {
+            int first = lights.Count;
+            At(b, at, yaw, build);
+            for (int i = first; i < lights.Count; i++)
+            {
+                AssetLight light = lights[i];
+                lights[i] = light with { Position = at + RotateY(light.Position, yaw), Direction = RotateY(light.Direction, yaw) };
+            }
+        }
+
+        /// <summary>A flat four-cornered face from <paramref name="p0"/> round to <paramref name="p3"/>, wound whichever way faces <paramref name="outward"/>. Its texture runs up from p0 to p3.</summary>
+        public static void Face(MeshBuilder b, Vector3 p0, Vector3 p1, Vector3 p2, Vector3 p3, Vector3 outward, VertexMaterial material)
+        {
+            if (Vector3.Dot(Vector3.Cross(p1 - p0, p3 - p0), outward) >= 0f) b.Quad(p0, p1, p2, p3, material);
+            else b.Quad(p1, p0, p3, p2, material);
+        }
+
+        /// <summary>A triangle wound whichever way faces <paramref name="outward"/>.</summary>
+        public static void Tri(MeshBuilder b, Vector3 p0, Vector3 p1, Vector3 p2, Vector3 outward, VertexMaterial material)
+        {
+            if (Vector3.Dot(Vector3.Cross(p1 - p0, p2 - p0), outward) >= 0f) b.Triangle(p0, p1, p2, material);
+            else b.Triangle(p1, p0, p2, material);
+        }
+
+        /// <summary>
+        /// A board from one point to another, any way up: <paramref name="halfWide"/> each way along <paramref name="wide"/> and <paramref name="halfThick"/> through. Its grain runs
+        /// along it on every face, as a sawn board's does, where a box's runs up its sides whichever way it lies.
+        /// </summary>
+        public static void Board(MeshBuilder b, Vector3 from, Vector3 to, Vector3 wide, float halfWide, float halfThick, VertexMaterial material)
+        {
+            Vector3 axis = to - from;
+            float length = axis.Length;
+            if (length < 1e-4f) return;
+            axis /= length;
+            Vector3 w = wide - axis * Vector3.Dot(wide, axis);
+            if (w.LengthSquared < 1e-8f) w = Vector3.Cross(axis, MathF.Abs(axis.Y) > 0.9f ? Vector3.UnitX : Vector3.UnitY);
+            w = w.Normalized();
+            Vector3 t = Vector3.Cross(axis, w).Normalized();
+            Vector3 W = w * halfWide, T = t * halfThick;
+            Face(b, from - W + T, from + W + T, to + W + T, to - W + T, t, material);
+            Face(b, from - W - T, from + W - T, to + W - T, to - W - T, -t, material);
+            Face(b, from + W - T, from + W + T, to + W + T, to + W - T, w, material);
+            Face(b, from - W - T, from - W + T, to - W + T, to - W - T, -w, material);
+            Face(b, to - W - T, to + W - T, to + W + T, to - W + T, axis, material);
+            Face(b, from - W - T, from + W - T, from + W + T, from - W + T, -axis, material);
+        }
+
+        /// <summary>A curve of boards through points, for a brace or a hoop: each a <see cref="Board"/> from one to the next.</summary>
+        public static void Bent(MeshBuilder b, VertexMaterial material, Vector3 wide, float halfWide, float halfThick, params Vector3[] points)
+        {
+            for (int i = 0; i + 1 < points.Length; i++) Board(b, points[i], points[i + 1], wide, halfWide, halfThick, material);
+        }
+
         /// <summary>The same point in the hall's frame that a builder placed with <see cref="At"/> would put <paramref name="local"/>.</summary>
         public static Vector3 Placed(MeshBuilder b, Vector3 local) => b.Origin + RotateY(local, b.Yaw);
     }
@@ -224,7 +294,7 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Halls
             HallKind.Forge => new HallKit
             {
                 OuterWall = Hall.Stone(170, 160, 146),
-                InnerWall = Hall.Plaster(214, 200, 176),
+                InnerWall = Hall.Stone(176, 166, 150),
                 Plinth = Hall.Stone(134, 128, 118),
                 Dressing = Hall.Stone(196, 186, 168),
                 Timber = Hall.DarkOak,
@@ -254,7 +324,7 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Halls
                 Joinery = Hall.Wood(96, 66, 44),
                 DoorLeaf = Hall.Wood(112, 76, 48),
                 Shutter = Hall.Wood(44, 92, 70),
-                Floor = Hall.Wood(156, 112, 72),
+                Floor = Hall.Wood(126, 94, 66),
                 FloorEdge = Hall.Wood(88, 60, 40),
                 Roof = Hall.Shingle(214, 186, 158),
                 Ridge = Hall.Wood(96, 72, 54),
@@ -270,7 +340,7 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Halls
             _ => new HallKit
             {
                 OuterWall = Hall.Stone(192, 182, 164),
-                InnerWall = Hall.Plaster(224, 212, 188),
+                InnerWall = Hall.Marble(208, 198, 178),
                 Plinth = Hall.Stone(148, 140, 128),
                 Dressing = Hall.Stone(214, 204, 184),
                 Timber = Hall.Wood(82, 56, 38),

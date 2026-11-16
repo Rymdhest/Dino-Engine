@@ -87,6 +87,7 @@ namespace Dino_Engine.Textures
             if (spec == MaterialCatalog.Scales) return Scales(c);
             if (spec == MaterialCatalog.Quilt) return Quilt(c);
             if (spec == MaterialCatalog.Fur) return Fur(c);
+            if (spec == MaterialCatalog.Marble) return Marble(c);
 
             throw new InvalidOperationException($"No recipe for {spec.Name}.");
         }

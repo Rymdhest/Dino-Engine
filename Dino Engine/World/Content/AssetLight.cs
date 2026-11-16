@@ -6,7 +6,8 @@ namespace Dino_Engine.World.Content
     /// A light that is part of a model, in model space: whatever glows also shines. The generators say where theirs are, as they
     /// do for chimneys, and <see cref="Dino_Engine.ECS.Systems.TerrainChunkSystem"/> brings them in and out with the objects
     /// they belong to, so anything placed anywhere lights its surroundings. A <see cref="ConeAngle"/> of 0 is a point light. One with a
-    /// <see cref="FlameWidth"/> is an open flame burning there, as particles (Particles/Content/Fire.cs), whose light is the light beside it.
+    /// <see cref="FlameWidth"/> is an open flame burning there, as particles (Particles/Content/Fire.cs), whose light is the light beside it. One with an <see cref="Effect"/>
+    /// is anything else that goes on there for as long as the model stands: steam off a quench trough, sparks out of a furnace's throat.
     /// </summary>
     public readonly record struct AssetLight
     {
@@ -22,6 +23,8 @@ namespace Dino_Engine.World.Content
         public Vector3 Direction { get; init; }     // Spotlights: the way it shines.
         public float ConeAngle { get; init; }       // Spotlights: radians, edge to edge.
         public float FlameWidth { get; init; }      // Metres across an open flame burning here, or 0: a candle's, a torch's, a brazier's.
+        public string? Effect { get; init; }        // A lasting effect that plays here, by its name in the catalogue ("Smithing.Quench"), or null. Its +z is Direction, if it has one.
+        public float EffectScale { get; init; }     // The scale it plays at.
 
         private static readonly Vector3 Flame = new Vector3(1f, 0.52f, 0.2f);
         private static readonly Vector3 Oil = new Vector3(1f, 0.66f, 0.34f);
@@ -75,6 +78,16 @@ namespace Dino_Engine.World.Content
 
         /// <summary>An open flame <paramref name="width"/> metres across, with its foot here and no light of its own: what it burns in carries that.</summary>
         public static AssetLight Burning(Vector3 at, float width) => new AssetLight { Position = at, FlameWidth = width };
+
+        /// <summary>
+        /// A lasting effect of Particles/Content playing here, by its name, with no light of its own: what it rises from carries that. <paramref name="forward"/> is the way
+        /// its +z points, for one that throws anything a particular way; left out, it's the model's own +z. <paramref name="tint"/> colours what it makes, as a dye does
+        /// what drips off cloth; left out, it's as its recipe has it.
+        /// </summary>
+        public static AssetLight Emitting(Vector3 at, string effect, float scale = 1f, Vector3 forward = default, Vector3 tint = default) => new AssetLight
+        {
+            Position = at, Effect = effect, EffectScale = scale, Direction = forward == default ? Vector3.UnitZ : forward, Colour = tint,
+        };
 
         /// <summary>The cold light of old stones and holy places.</summary>
         public static AssetLight Glow(Vector3 at, Vector3 colour, float intensity, float radius) => new AssetLight

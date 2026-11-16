@@ -27,6 +27,14 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
         public float Yaw = 0f;
         public Vector3 Stretch = Vector3.One;
 
+        /// <summary>
+        /// Winds the sides of a <see cref="Beam"/> and a <see cref="Tube"/> counter-clockwise seen from outside, as every other shape here is. They never were, which nothing showed, as
+        /// a model is drawn from both sides with its normal turned towards the eye, until a hall's cutaway drew every face seen from behind as the face of its cut (Halls.glsl,
+        /// hallCapped): flat, dark and unlit by its own glow. The halls set it. Left unset everywhere else, so that no other model's mesh changes.
+        /// </summary>
+        public bool Outward;
+        private bool _reversed;
+
         public int VertexCount => _vertices.Count;
 
         public void ResetPlacement()
@@ -79,6 +87,12 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
             AddPlaced(tb, material, start + new Vector2(Vector3.Dot(b - a, u), Vector3.Dot(b - a, v)) * tiles, EdgesOf(tb, n, ta, tb, tc, td));
             AddPlaced(tc, material, start + new Vector2(Vector3.Dot(c - a, u), Vector3.Dot(c - a, v)) * tiles, EdgesOf(tc, n, ta, tb, tc, td));
             AddPlaced(td, material, start + new Vector2(Vector3.Dot(d - a, u), Vector3.Dot(d - a, v)) * tiles, EdgesOf(td, n, ta, tb, tc, td));
+            if (_reversed)
+            {
+                AddFace(first, first + 2, first + 1);
+                AddFace(first, first + 3, first + 2);
+                return;
+            }
             AddFace(first, first + 1, first + 2);
             AddFace(first, first + 2, first + 3);
         }
@@ -255,12 +269,14 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
             Vector3 a0 = from - right - up, a1 = from + right - up, a2 = from + right + up, a3 = from - right + up;
             Vector3 b0 = to - right - up, b1 = to + right - up, b2 = to + right + up, b3 = to - right + up;
 
+            _reversed = Outward;
             Quad(a0, a1, b1, b0, material);
             Quad(a1, a2, b2, b1, material);
             Quad(a2, a3, b3, b2, material);
             Quad(a3, a0, b0, b3, material);
             Quad(b0, b1, b2, b3, material);
             Quad(a1, a0, a3, a2, material);
+            _reversed = false;
         }
 
         /// <summary>A round log or pole, tapering from one radius to the other, with shared vertices so it shades round.</summary>
@@ -294,6 +310,12 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
             for (int i = 0; i < sides; i++)
             {
                 int a = first + i * 2;
+                if (Outward)
+                {
+                    AddFace(a, a + 1, a + 2);
+                    AddFace(a + 2, a + 1, a + 3);
+                    continue;
+                }
                 AddFace(a, a + 2, a + 1);
                 AddFace(a + 2, a + 3, a + 1);
             }

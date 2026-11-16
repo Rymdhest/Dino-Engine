@@ -79,6 +79,7 @@ namespace Dino_NetLab
             OnlyInTheHaven(report, worlds, land);
             ABadLine(report, worlds);
             LevelCheat(report, worlds, land);
+            FreeCheat(report, worlds, land);
             return report.Finish();
         }
 
@@ -170,6 +171,38 @@ namespace Dino_NetLab
             scene.Player.Client.Cheat(DeveloperCheat.LevelUp);
             scene.Lab.Run(1);
             report.Check("Each ask is one more", scene.Real.Level == before + 3 && scene.Shown.Level == scene.Real.Level);
+        }
+
+        // The F3 Developer window's freeing of a land: in a land, it's done as play does it; from the Haven, the next level on the table.
+        private static void FreeCheat(Report report, WorldCache worlds, WorldRequest land)
+        {
+            report.Section("The developer's freeing of a land");
+            using (var scene = new Scene(worlds, land, "Landing", Line))
+            {
+                int best = scene.Real.BestLand, cleared = scene.Real.WorldsCleared, gold = scene.Real.Gold;
+                scene.Player.Client.Cheat(DeveloperCheat.FreeLand);
+                scene.Lab.Run(1);
+                ServerSession session = scene.Lab.Server.Session!;
+                report.Check("In a land, it's free, with everything it asked done", session.Liberated && session.Chronicle.WorldCleared);
+                int expected = Lands.ClimbTo(best, session.World.Plan.Level, session.Terms.Climb);
+                report.Check("And the hero climbs as freeing it would, with its rewards", scene.Real.BestLand == expected && scene.Real.WorldsCleared == cleared + 1 && scene.Real.Gold > gold,
+                    $"best {best} to {scene.Real.BestLand} (rules say {expected}), gold {gold} to {scene.Real.Gold}");
+                report.Check("And the client is told", scene.Shown.BestLand == scene.Real.BestLand);
+                int after = scene.Real.BestLand;
+                scene.Player.Client.Cheat(DeveloperCheat.FreeLand);
+                scene.Lab.Run(1);
+                report.Check("Asking again in a free land does nothing", scene.Real.BestLand == after && scene.Real.WorldsCleared == cleared + 1);
+            }
+            using (var scene = new Scene(worlds, Lands.Haven, null, Line))
+            {
+                int next = scene.Real.LandLevel;
+                scene.Player.Client.Cheat(DeveloperCheat.FreeLand);
+                scene.Lab.Run(1);
+                report.Check("From the Haven, the next level on the table is freed", scene.Real.BestLand == next && scene.Shown.LandLevel == next + 1, $"next was {next}, now {scene.Shown.LandLevel}");
+                for (int i = 0; i < 12; i++) scene.Player.Client.Cheat(DeveloperCheat.FreeLand);
+                scene.Lab.Run(1);
+                report.Check("Each ask is one level, through a tyrant's too", scene.Real.BestLand == next + 12 && scene.Shown.BestLand == scene.Real.BestLand, $"{scene.Real.BestLand}");
+            }
         }
 
         private static void ABadLine(Report report, WorldCache worlds)

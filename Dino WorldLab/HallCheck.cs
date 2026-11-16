@@ -7,7 +7,8 @@ using OpenTK.Mathematics;
 namespace Dino_WorldLab
 {
     /// <summary>
-    /// Builds every hall's models with no GPU and says what they come to: triangles, lights, chimneys and how far they reach, against what a hall may cost. Exit code 1 if any is over.
+    /// Builds every hall's models with no GPU and says what they come to: triangles, lights, flames, whatever else they give off, chimneys and how far they reach, against
+    /// what a hall may cost. Exit code 1 if any is over, or gives off something the particle catalogue hasn't got.
     /// </summary>
     internal static class HallCheck
     {
@@ -31,11 +32,18 @@ namespace Dino_WorldLab
                     var box = mesh.createAABB();
                     int lit = lights.Count(l => l.Intensity > 0f);
                     int flames = lights.Count(l => l.FlameWidth > 0f);
+                    int effects = lights.Count(l => l.Effect != null);
                     string part = inside ? "inside" : "shell";
-                    Console.WriteLine($"{design.Name,-18} {part,-7} {triangles,7} triangles, {lit,2} lights, {flames,3} flames, {chimneys.Count} chimneys, {watch.ElapsedMilliseconds,4} ms, box {Fmt(box.Min)} to {Fmt(box.Max)}");
+                    Console.WriteLine($"{design.Name,-18} {part,-7} {triangles,7} triangles, {lit,2} lights, {flames,3} flames, {effects,2} effects, {chimneys.Count} chimneys, {watch.ElapsedMilliseconds,4} ms, box {Fmt(box.Min)} to {Fmt(box.Max)}");
                     int most = inside ? MostInsideTriangles : MostShellTriangles;
                     if (triangles > most) { Console.WriteLine($"   PROBLEM: over {most} triangles"); problems++; }
                     if (lit > MostLights) { Console.WriteLine($"   PROBLEM: over {MostLights} lights"); problems++; }
+                    // An effect a model names has to be one there is, or nothing plays there and nothing says so (AssetLightEntities.Emits).
+                    foreach (string unknown in lights.Where(l => l.Effect != null && Dino_Engine.Particles.Content.ParticleCatalog.Effect(l.Effect) == null).Select(l => l.Effect!).Distinct())
+                    {
+                        Console.WriteLine($"   PROBLEM: gives off {unknown}, which isn't an effect");
+                        problems++;
+                    }
                     // What flies keeps over the stated top, so it has to be true: nothing above it, and not so far short that birds climb for nothing.
                     if (box.Max.Y > design.Top) { Console.WriteLine($"   PROBLEM: rises to {box.Max.Y:0.0} m, over its Top of {design.Top:0.0}"); problems++; }
                     if (!inside && box.Max.Y < design.Top - 3f) { Console.WriteLine($"   PROBLEM: rises only to {box.Max.Y:0.0} m, well short of its Top of {design.Top:0.0}"); problems++; }

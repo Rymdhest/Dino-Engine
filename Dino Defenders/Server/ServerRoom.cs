@@ -1377,6 +1377,9 @@ namespace Dino_Defenders.Server
                         case DeveloperCheat.LevelUp:
                             world.GiveLevel(player);
                             break;
+                        case DeveloperCheat.FreeLand:
+                            world.GiveFreedLand(player);
+                            break;
                         default:
                             throw new NetReadException($"No such cheat as {cheat}.");
                     }

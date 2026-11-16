@@ -269,5 +269,27 @@ namespace Dino_Engine.Textures
             Paint colour = Paint.Lerp(Rgb(168, 168, 168) * Field.Lerp(0.85f, 1f, dents), Rgb(92, 50, 32) * Field.Lerp(0.7f, 1.15f, c.Noise(40f, octaves: 3)), rust);
             return new Surface(colour, Field.Lerp(0.42f, 0.9f, rust), height) { Metallic = Field.Lerp(0.8f, 0f, rust) };
         }
+
+        // Marble, sawn and polished. A pale stone clouded in slow drifts, with veins where it once broke and healed: a few long ones wandering across a slab, each with a soft
+        // edge to it, and finer ones off them that come and go. A vein is where a noise pulled about crosses its middle, with few octaves, so it runs and never crazes. Flat, as
+        // a polished face is, and smooth enough to show what stands on it; a vein is a little duller than the stone. Pale and neutral, as which marble it is is in the vertices.
+        private static Surface Marble(Canvas c)
+        {
+            Field cloud = c.Noise(3f, octaves: 5, gain: 0.55f, warp: 0.12f);
+            Field drift = c.Noise(new Vector2(2f, 4f), octaves: 4, warp: 0.2f);
+            // Stretched one way, so that the long veins run along a slab and don't close into rings.
+            Field across = ((c.Noise(new Vector2(1f, 4f), octaves: 3, warp: 0.3f) - 0.5f).Abs() * 2f);
+            // A vein comes and goes along its length: all of one strength, it's a line on a chart.
+            Field great = (1f - across.Smooth(0f, 0.055f)) * c.Noise(3f, octaves: 3).Smooth(0.36f, 0.6f);
+            Field halo = 1f - across.Smooth(0f, 0.3f);
+            Field fine = (1f - ((c.Noise(new Vector2(3f, 8f), octaves: 3, warp: 0.25f) - 0.5f).Abs() * 2f).Smooth(0f, 0.05f)) * drift.Smooth(0.4f, 0.65f);
+            Field veins = (great * 0.6f).Max(fine * 0.3f);
+
+            Paint stone = Paint.Lerp(Rgb(238, 236, 231), Rgb(218, 217, 214), cloud.Smooth(0.3f, 0.7f));
+            stone = Paint.Lerp(stone, Rgb(212, 212, 213), halo * 0.4f);
+            stone = Paint.Lerp(stone, Rgb(150, 152, 160), veins);
+            // Honed more than mirrored: a floor as smooth as water shows every candle over it as a white blot.
+            return new Surface { Albedo = stone, Roughness = Field.Lerp(0.27f, 0.33f, veins) };
+        }
     }
 }

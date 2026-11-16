@@ -60,6 +60,10 @@ namespace Dino_Defenders.UI
         private readonly List<int> _slotted = new();
         private readonly Dictionary<string, Preview> _previews = new();
         private readonly HashSet<string> _shownKeys = new();
+        private readonly HashSet<string> _aheadKeys = new();     // The lands a reroll would bring, grown once what's shown has.
+        private string? _aheadFor;                               // The table those were grown ahead for.
+        private readonly HashSet<string> _foreseenKeys = new();  // The lands the table will show when it's next opened, grown before it is (Foresee).
+        private (ulong offers, int level, int rerolls)? _foreseenFor;
         private int _level = 1;
         private string _shownFor = "";
         private int _levelsFor = -1;
@@ -80,6 +84,8 @@ namespace Dino_Defenders.UI
             public Vector2 Landing;
             public Vector2 Tyrant;
             public LandCensus? Census;
+            public volatile float Progress;     // How far along growing it is, 0 to 1, and what it's doing, written by the thread growing it.
+            public volatile string Doing = "";
         }
 
         private readonly record struct Grown(byte[] Pixels, Vector2 Landing, Vector2 Tyrant, LandCensus Census);
@@ -203,6 +209,8 @@ namespace Dino_Defenders.UI
             _offers = Lands.Offer(Hero, _level);
             _cards.ClearChildren();
             _shownKeys.Clear();
+            _aheadKeys.Clear();
+            _aheadFor = null;
             List<Item> given = _slotted.Select(cell => Hero.Inventory[cell]!).ToList();
             for (int i = 0; i < _offers.Count; i++)
             {
@@ -353,12 +361,36 @@ namespace Dino_Defenders.UI
         private static string KeyOf(in WorldRequest request, LandTerms terms) =>
             $"{GroundOf(request)}/{request.MorePeople:R}/{request.MorePacks:R}/{string.Join(",", terms.Orders.OrderBy(id => id, StringComparer.Ordinal))}";
 
-        private Preview PreviewOf(WorldRequest request, LandTerms terms)
+        /// <summary>
+        /// Grows the lands the table will show when it's next opened, while it's closed: the deepest level the hero can open, with nothing slotted, which is what <see cref="Open"/> shows. Called every
+        /// frame in the Haven, so that walking up to the table finds its maps already drawn; it only does anything when what it would show has changed, as on freeing a land.
+        /// </summary>
+        public void Foresee()
+        {
+            if (GameSession.Current == null || Visible) return;
+            int level = Math.Max(Hero.LandLevel, 1);
+            var now = (Hero.Offers, level, Hero.RerollsAt(level));
+            if (_foreseenFor != now)
+            {
+                _foreseenFor = now;
+                _foreseenKeys.Clear();
+                foreach (LandOffer offer in Lands.Offer(Hero, level))
+                {
+                    LandTerms terms = Lands.TermsFor(offer, Array.Empty<Item>());
+                    PreviewOf(Lands.RequestFor(offer, terms), terms, _foreseenKeys);
+                }
+            }
+            TendPreviews();
+        }
+
+        private Preview PreviewOf(WorldRequest request, LandTerms terms, HashSet<string>? into = null)
         {
             string key = KeyOf(request, terms);
-            _shownKeys.Add(key);
+            (into ?? _shownKeys).Add(key);
             if (_previews.TryGetValue(key, out Preview? preview)) return preview;
-            preview = new Preview { Ground = GroundOf(request), Growing = Task.Run(() => Grow(request, terms)) };
+            preview = new Preview { Ground = GroundOf(request) };
+            Preview growing = preview;
+            preview.Growing = Task.Run(() => Grow(request, terms, growing));
             _previews[key] = preview;
             return preview;
         }
@@ -374,9 +406,17 @@ namespace Dino_Defenders.UI
             return null;
         }
 
-        private static Grown Grow(WorldRequest request, LandTerms terms)
+        // Drawing the chart comes after the world, and takes about this share of the whole.
+        private const float ChartShare = 0.12f;
+
+        private static Grown Grow(WorldRequest request, LandTerms terms, Preview preview)
         {
-            WorldData world = new Dino_Engine.World.Generation.WorldGenerator().Generate(request);
+            WorldData world = new Dino_Engine.World.Generation.WorldGenerator().Generate(request, (share, doing) =>
+            {
+                preview.Progress = share * (1f - ChartShare);
+                preview.Doing = doing;
+            });
+            preview.Doing = "Drawing the chart";
             // The land as its map will show it, before anyone's been there, so in colour all over.
             Dino_Engine.World.Chart.Chart chart = Dino_Engine.World.Chart.WorldChart.Draw(world, PreviewResolution);
             WorldSite? tyrant = world.Sites.FirstOrDefault(site => site.Kind is SiteKind.Keep or SiteKind.Arena);
@@ -404,13 +444,33 @@ namespace Dino_Defenders.UI
                 preview.Growing = null;
             }
 
+            if (Visible) GrowAhead();
+
             if (_previews.Count <= MostPreviewsKept) return;
-            foreach (string key in _previews.Keys.Where(key => !_shownKeys.Contains(key)).Take(_previews.Count - MostPreviewsKept).ToList())
+            foreach (string key in _previews.Keys.Where(key => !_shownKeys.Contains(key) && !_aheadKeys.Contains(key) && !_foreseenKeys.Contains(key)).Take(_previews.Count - MostPreviewsKept).ToList())
             {
                 Preview old = _previews[key];
                 if (old.Growing != null) continue;
                 if (old.Texture != 0) GL.DeleteTexture(old.Texture);
                 _previews.Remove(key);
+            }
+        }
+
+        // What a reroll brings is already settled by what's saved on the hero (Lands.Offer), so once the lands on the table have grown, the next three grow behind them with what's slotted,
+        // and paying for new lands shows them at once rather than after seconds of growing. Only once what's shown is done, so they never hold up the lands being looked at.
+        private void GrowAhead()
+        {
+            if (_aheadFor == _shownFor || Hero.Gold < Lands.RerollCost(_level)) return;
+            foreach (string key in _shownKeys)
+            {
+                if (_previews.TryGetValue(key, out Preview? shown) && shown.Growing != null) return;
+            }
+            _aheadFor = _shownFor;
+            List<Item> given = _slotted.Select(cell => Hero.Inventory[cell]!).ToList();
+            foreach (LandOffer offer in Lands.Offer(Hero, _level, Hero.RerollsAt(_level) + 1))
+            {
+                LandTerms terms = Lands.TermsFor(offer, given);
+                PreviewOf(Lands.RequestFor(offer, terms), terms, _aheadKeys);
             }
         }
 
@@ -536,7 +596,14 @@ namespace Dino_Defenders.UI
                 Preview? preview = _panel.MapOf(_preview);
                 if (preview == null || preview.Texture == 0)
                 {
-                    Ui.Text(Context, draw, "…", 22f, map, Ui.Faded, Alignment.Center);
+                    // How far the land has grown, and what it's doing, rather than an empty square.
+                    float share = Math.Clamp(_preview.Progress, 0f, 1f);
+                    float barWidth = map.Width * 0.6f;
+                    var bar = new GuiRect(map.X + (map.Width - barWidth) * 0.5f, map.Y + map.Height * 0.5f - 3f, barWidth, 6f);
+                    draw.AddRect(bar, GuiColors.Rgba(30, 25, 19, 255), 3f, 1f, Line);
+                    if (share > 0f) draw.AddRect(new GuiRect(bar.X, bar.Y, bar.Width * share, bar.Height), Ui.Gold.MultiplyAlpha(0.8f), 3f);
+                    var caption = new GuiRect(map.X, bar.Y + 12f, map.Width, 20f);
+                    Ui.Text(Context, draw, _preview.Doing.Length > 0 ? _preview.Doing : "Charting the land", 13f, caption, Ui.Faded, Alignment.Center);
                     return;
                 }
 

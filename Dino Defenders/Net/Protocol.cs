@@ -73,6 +73,7 @@ namespace Dino_Defenders.Net
     public enum DeveloperCheat : byte
     {
         LevelUp,        // The rest of this level's experience, so the hero goes up one, as killing would.
+        FreeLand,       // The land the hero is in freed as if by play, or from the Haven the next level on the map table.
     }
 
     public enum NoticeKind : byte

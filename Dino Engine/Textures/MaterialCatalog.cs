@@ -178,6 +178,10 @@ namespace Dino_Engine.Textures
         public static readonly MaterialSpec Quilt = Add("quilt", 0.8f, 0.018f, 0.85f);
         public static readonly MaterialSpec Fur = Add("fur", 0.5f, 0.02f, 0.6f);
 
+        // Marble, sawn and polished, as the Archive's floor, columns and plinths are (HALLS.md): clouded, veined, flat, and smooth enough to show what stands on it. Pale, as which
+        // marble it is, white, grey, green or rose, is in the vertices. Last, so that adding it moved no other material's layer.
+        public static readonly MaterialSpec Marble = Add("marble", 6f, 0f, 0.05f);
+
         public static IReadOnlyList<MaterialSpec> All => _all;
 
         public static int Count => _all.Count;

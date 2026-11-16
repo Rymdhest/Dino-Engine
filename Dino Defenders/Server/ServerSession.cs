@@ -189,6 +189,36 @@ namespace Dino_Defenders.Server
             GiveExperience(hero, (int)MathF.Ceiling(needed / gain) + 1);
         }
 
+        /// <summary>
+        /// A land freed as if by play, for a developer (the F3 Developer window). In a land, everything it asks is done through <see cref="Advance"/>, so its rewards are given, it's
+        /// <see cref="Free"/>d and everyone standing in it climbs by its terms. In the Haven, the next level on the map table is freed for this hero alone, as freeing a land of it
+        /// with no orders would. Nothing in the asset lexicon counts.
+        /// </summary>
+        public void GiveFreedLand(ServerPlayer player)
+        {
+            if (IsLexicon) return;     // Lexicon (developer tool, LEXICON.md): nothing done in the room counts.
+            if (IsHaven)
+            {
+                int level = player.Hero.LandLevel;
+                player.Hero.Freed(level, 1);
+                player.SummaryChanged = true;
+                Console.WriteLine($"{player.Name} was given level {level} as freed: the map table opens any level up to {player.Hero.LandLevel}.");
+                Server.Note(player, $"Level {level} is freed. The map table opens any level up to {player.Hero.LandLevel}.");
+                return;
+            }
+
+            if (Liberated || Over || player.Out) return;
+            var kinds = new HashSet<ObjectiveKind>();
+            foreach (Objective objective in Chronicle.Objectives)
+            {
+                if (objective.Done) continue;
+                objective.Progress = Math.Max(objective.Goal - 1, 0);
+                kinds.Add(objective.Kind);
+            }
+            foreach (ObjectiveKind kind in kinds) Advance(kind);
+            if (!Liberated) Free();
+        }
+
         /// <summary>Whatever's slain anywhere in the land is worth all of it to everyone in the land, wherever they are, as if each were alone.</summary>
         public void ShareExperience(Vector2 position, int amount)
         {

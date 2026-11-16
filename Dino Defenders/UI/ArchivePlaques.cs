@@ -12,9 +12,11 @@ using System.Globalization;
 namespace Dino_Defenders.UI
 {
     /// <summary>
-    /// The Archive's records, read off its displays: walk up to one and a card rises over it saying what it keeps, for all of this player's heroes together and for the one being
-    /// played (HALLS.md). Only the nearest display within reach speaks, and it fades in and out rather than popping. The numbers are this player's own: the hero being played as the
-    /// server last told it, and every other hero on this machine as their saves have them (<see cref="Others"/>).
+    /// The Archive's records, read off its displays (HALLS.md). While the hero's in the Archive every display has its name and its number over it, small, so that the whole
+    /// of what's kept there is read from the door; walk up to one and that opens into its card, for all of this player's heroes together and for the one being played.
+    /// Only the nearest display within reach opens, and everything fades in and out rather than popping. A card stands over the far edge of its display, which from a
+    /// camera that looks north is clear of it. The numbers are this player's own: the hero being played as the server last told it, and every other hero on this machine
+    /// as their saves have them (<see cref="Others"/>).
     /// </summary>
     internal sealed class ArchivePlaques : GuiElement
     {
@@ -23,12 +25,20 @@ namespace Dino_Defenders.UI
         private const float CardWidth = 380f;
         private const float Above = 1.6f;           // Metres over the top of the display that the card's stem ends.
         private const float StemLength = 18f;
+        private const float CaptionFromFoot = 176f; // Pixels from the foot of the screen to the foot of a card shown as a caption, which clears the action bar.
+        private const float TagWidth = 152f;
+        private const float TagHeight = 44f;
+        private const float TagStem = 8f;
+        private const float TagSeconds = 0.5f;      // Between readings of what the tags say, which changes with nothing the hero does in here.
 
         /// <summary>Every other hero on this machine, as their saves have them, for the records of them all. Empty when it isn't this player's own heroes being played, as in a scripted run.</summary>
         public static IReadOnlyList<HeroState> Others = Array.Empty<HeroState>();
 
         private ExhibitKind? _showing;
         private float _shown;
+        private float _inside;
+        private float _tagAge = float.MaxValue;
+        private readonly Dictionary<ExhibitKind, Plaque> _tags = new();
 
         public ArchivePlaques()
         {
@@ -46,9 +56,10 @@ namespace Dino_Defenders.UI
 
             // The nearest display in reach, if the hero's in the Archive at all.
             Vector2 hero = session.PlayerPosition;
+            bool inside = archive.Contains(hero, 0.5f);
             HallExhibit? nearest = null;
             float best = Reach;
-            if (archive.Contains(hero, 0.5f))
+            if (inside)
             {
                 foreach (HallExhibit exhibit in archive.Design.Exhibits)
                 {
@@ -64,16 +75,61 @@ namespace Dino_Defenders.UI
             if (nearest is HallExhibit wanted && wanted.Kind == _showing) _shown = MathF.Min(_shown + step, 1f);
             else _shown = MathF.Max(_shown - step, 0f);
             if (_shown <= 0f) _showing = nearest?.Kind;
-            if (_showing is not ExhibitKind showing || _shown <= 0f) return;
+            _inside = Math.Clamp(_inside + (inside ? step : -step) * 0.6f, 0f, 1f);
+            if (_inside <= 0f) return;
 
+            // What every display says in brief, read again now and then.
+            _tagAge += Engine.Delta;
+            if (_tagAge >= TagSeconds || _tags.Count == 0)
+            {
+                _tagAge = 0f;
+                foreach (HallExhibit exhibit in archive.Design.Exhibits) _tags[exhibit.Kind] = Card(exhibit.Kind, session);
+            }
+            foreach (HallExhibit exhibit in archive.Design.Exhibits)
+            {
+                float opened = exhibit.Kind == _showing ? Smooth(_shown) : 0f;
+                float alpha = Smooth(_inside) * (1f - opened);
+                if (alpha <= 0.01f || !_tags.TryGetValue(exhibit.Kind, out Plaque tag)) continue;
+                // Only over a display that's in the picture: one pinned to the edge of the screen would point at nothing.
+                if (!Hud.Project(AnchorOf(archive, exhibit), Bounds, out Vector2 at)) continue;
+                if (at.X < TagWidth * 0.5f || at.X > Bounds.Width - TagWidth * 0.5f || at.Y < -220f || at.Y > Bounds.Height - 150f) continue;
+                DrawTag(draw, at, tag, alpha);
+            }
+
+            if (_showing is not ExhibitKind showing || _shown <= 0f) return;
             HallExhibit shown = archive.Design.Exhibits.First(e => e.Kind == showing);
-            float top = archive.Design.Pieces.Where(p => p.Kind == PieceKind.Plinth && p.Variant == (int)showing).Select(p => p.Height).DefaultIfEmpty(3f).First();
-            Vector2 at2 = archive.ToWorld(shown.At);
-            Vector3 anchor = new Vector3(at2.X, archive.Floor + top + Above, at2.Y);
-            if (!Hud.Project(anchor, Bounds, out Vector2 point)) return;
-            DrawCard(draw, point, Card(showing, session), Smooth(_shown));
+            if (!Hud.Project(AnchorOf(archive, shown), Bounds, out Vector2 point)) return;
+            DrawCard(draw, point, Card(showing, session), Smooth(_shown) * Smooth(_inside));
         }
 
+        // Where a display's card hangs from: over its far edge, as the camera looks north, so that what's written is drawn past the display and never across it.
+        private static Vector3 AnchorOf(WorldHall archive, HallExhibit exhibit)
+        {
+            float top = 3f;
+            Vector2 half = Vector2.Zero;
+            foreach (HallPiece piece in archive.Design.Pieces)
+            {
+                if (piece.Kind != PieceKind.Plinth || piece.Variant != (int)exhibit.Kind) continue;
+                top = piece.Height;
+                half = piece.Half;
+                break;
+            }
+            float far = MathF.Abs(MathF.Cos(exhibit.Yaw)) * half.Y + MathF.Abs(MathF.Sin(exhibit.Yaw)) * half.X;
+            Vector2 at = archive.ToWorld(exhibit.At - Vector2.UnitY * far);
+            return new Vector3(at.X, archive.Floor + top + Above, at.Y);
+        }
+
+        // A display's name and number, small, over it.
+        private void DrawTag(GuiDrawList draw, Vector2 point, Plaque plaque, float alpha)
+        {
+            GuiContext context = Context!;
+            var rect = new GuiRect(point.X - TagWidth * 0.5f, point.Y - TagStem - TagHeight, TagWidth, TagHeight);
+            rect = new GuiRect(Math.Clamp(rect.X, 8f, MathF.Max(Bounds.Width - TagWidth - 8f, 8f)), MathF.Max(rect.Y, 8f), rect.Width, rect.Height);
+            draw.AddRect(new GuiRect(point.X - 1f, rect.Y + rect.Height, 2f, MathF.Max(point.Y - rect.Y - rect.Height, 0f)), Ui.Gold.MultiplyAlpha(0.55f * alpha));
+            draw.AddRect(rect, GuiColors.Rgba(14, 11, 8, (int)(176 * alpha)), 5f, 1f, Ui.Gold.MultiplyAlpha(0.45f * alpha));
+            Ui.Text(context, draw, plaque.Title, 12.5f, new GuiRect(rect.X, rect.Y + 4f, rect.Width, 16f), Ui.Gold.MultiplyAlpha(0.92f * alpha), Alignment.Center);
+            Ui.Text(context, draw, plaque.Value, 16.5f, new GuiRect(rect.X, rect.Y + 19f, rect.Width, 22f), Ui.Parchment.MultiplyAlpha(alpha), Alignment.Center);
+        }
         private static float Smooth(float t) => t * t * (3f - 2f * t);
 
         private readonly record struct Plaque(string Title, string Value, string Mine, string Words);
@@ -84,10 +140,14 @@ namespace Dino_Defenders.UI
             float rise = (1f - alpha) * 10f;
             float height = 132f;
             var rect = new GuiRect(point.X - CardWidth * 0.5f, point.Y - StemLength - height + rise, CardWidth, height);
-            // Keep it on the screen, whatever the camera's doing.
-            rect = new GuiRect(Math.Clamp(rect.X, 12f, MathF.Max(Bounds.Width - CardWidth - 12f, 12f)), MathF.Max(rect.Y, 12f), rect.Width, rect.Height);
+            // Keep it on the screen, whatever the camera's doing. With the camera drawn in close there may be no room over the display: then it's a caption under the
+            // hero, over the action bar, as pushed down from the top of the screen it would lie across the very thing it's about.
+            bool over = rect.Y >= 12f;
+            rect = over
+                ? new GuiRect(Math.Clamp(rect.X, 12f, MathF.Max(Bounds.Width - CardWidth - 12f, 12f)), rect.Y, rect.Width, rect.Height)
+                : new GuiRect((Bounds.Width - CardWidth) * 0.5f, Bounds.Height - CaptionFromFoot - height + rise, rect.Width, rect.Height);
 
-            draw.AddRect(new GuiRect(point.X - 1f, rect.Y + rect.Height, 2f, MathF.Max(point.Y - rect.Y - rect.Height, 0f)), Ui.Gold.MultiplyAlpha(0.7f * alpha));
+            if (over) draw.AddRect(new GuiRect(point.X - 1f, rect.Y + rect.Height, 2f, MathF.Max(point.Y - rect.Y - rect.Height, 0f)), Ui.Gold.MultiplyAlpha(0.7f * alpha));
             draw.AddRect(rect, GuiColors.Rgba(14, 11, 8, (int)(222 * alpha)), 6f, 1.2f, Ui.Gold.MultiplyAlpha(0.65f * alpha));
             draw.AddRect(new GuiRect(rect.X + 14f, rect.Y + 40f, rect.Width - 28f, 1f), Ui.Gold.MultiplyAlpha(0.35f * alpha));
 
