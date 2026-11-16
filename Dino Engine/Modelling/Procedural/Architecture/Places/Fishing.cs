@@ -89,8 +89,26 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Places
         /// A clinker-built fishing boat along z, bow towards +z: its strakes in the land's paint over a white band at the waterline, dark inside, its thwarts, gunwales, stem and stern posts,
         /// oars in it and a heap of net; afloat with its waterline at y = 0, or drawn up on the shingle on its keel, or lying over on its side. Numbers: length, form.
         /// </summary>
+        /// <summary>
+        /// Which way a boat on its side has fallen along x (+1 or -1) and how broad it is, as <see cref="Boat"/> draws them, for what's solid about it (Hitboxes): it draws the
+        /// same first numbers from the same stream, so keep the two in step.
+        /// </summary>
+        public static (float Side, float Beam) Lying(in PlaceSpec spec)
+        {
+            var random = new WorldRandom(spec.Seed).Fork(spec.Kind.ToString());
+            float beam = Math.Clamp(spec.Metres(0), 3.5f, 9f) * random.Range(0.32f, 0.38f);
+            random.Range(0.4f, 0.48f);
+            random.Int(BoatPaints.Length);
+            random.Range(0.9f, 1.08f);
+            random.Range(0.85f, 1f);
+            random.Range(0.9f, 1.08f);
+            random.Range(0.88f, 1.06f);
+            return (random.Chance(0.5f) ? -1f : 1f, beam);
+        }
+
         public static void Boat(MeshBuilder b, in PlaceSpec spec, WorldRandom random)
         {
+            // What's solid about one on its side follows the numbers drawn here up to its heel (Lying): keep them in step.
             float length = Math.Clamp(spec.Metres(0), 3.5f, 9f);
             int form = Math.Clamp(spec.Int(1), 0, 2);
             float beam = length * random.Range(0.32f, 0.38f), depth = beam * random.Range(0.4f, 0.48f);

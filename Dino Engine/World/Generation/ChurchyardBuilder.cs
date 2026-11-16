@@ -835,6 +835,11 @@ namespace Dino_Engine.World.Generation
             }
         }
 
+        private readonly List<HitPart> _parts = new();
+
+        // A piece of the yard's ground kept for it, and what's solid about it where it stands (Hitboxes).
+        private void Piece(in YardSpec spec, in Footprint f, float height, Vector2 at, float yaw) => Hitboxes.Put(_world.Placement, Hitboxes.Of(spec, _parts), _parts, f, PlacementLayer.Prop, height, at, yaw);
+
         private bool Grave(Vector2 local, Cell cell, WorldRandom r, (StoneForm Form, GraveDress Dress, int Age, uint Seed)? kind = null, float wobble = 0.05f)
         {
             if (!_plan.InsideLocal(local + new Vector2(0f, Graves.Length * 0.5f), -Margin) || !_plan.InsideLocal(local - new Vector2(0f, Graves.Length * 0.5f), -Margin)) return false;
@@ -846,9 +851,9 @@ namespace Dino_Engine.World.Generation
             Vector2 down = _plan.Az * (Graves.Length * 0.5f);
             bool level = MathF.Abs(_world.Elevation.Sample(at + down) - _world.Elevation.Sample(at - down)) < GraveSlope * Graves.Length;
             var chosen = kind.HasValue && (level || kind.Value.Dress is GraveDress.Grass or GraveDress.Mound) ? kind.Value : StoneFor(cell.Era, r, level);
-            // A stone a post's width thick is in nobody's way but whoever walks into it, as a post is (Sight.Above).
-            _world.Placement.Add(f, PlacementLayer.Prop, solid: true, height: 0.9f);
+            // The grave is walked over, and so is a stone low or thin enough to step over or brush through: a cross is a post and an obelisk stands in the way (Hitboxes).
             var spec = new YardSpec(YardKind.Stone, chosen.Seed, (int)chosen.Form, (int)chosen.Dress, chosen.Age);
+            Piece(spec, f, 0.9f, at, yaw);
             _world.Pending.Add(new PendingObject(spec.Id, at, yaw, Vector3.One, null));
             // Someone still comes to the newer graves, and now and then to an older one.
             // Left at the foot of the stone, so it's lit from in front, where the grave's turf lets them stand; on a kerb or a slab, at the grave's foot.
@@ -884,8 +889,8 @@ namespace Dino_Engine.World.Generation
                 Vector2 at = W(local);
                 Footprint f = Footprint.Box(at, new Vector2(1.5f, 2.2f), Yaw);
                 if (!Ground(f, 0.4f) || _world.Placement.Overlaps(f, PlacementLayer.Built | PlacementLayer.Road, 0.2f)) continue;
-                _world.Placement.Add(f, PlacementLayer.Prop, solid: true, height: 0.9f);
                 var spec = new YardSpec(YardKind.Dug, NextSeed(), r.Chance(0.7f) ? 0 : 1, (int)MathF.Round(cell.Age * 100f));
+                Piece(spec, f, 0.9f, at, Yaw);
                 _world.Pending.Add(new PendingObject(spec.Id, at, Yaw, Vector3.One, null));
                 _b.Paint(GroundPaint.Yard, Footprint.Box(at, new Vector2(2.2f, 2.8f), Yaw), 2f);
             }
@@ -1003,9 +1008,9 @@ namespace Dino_Engine.World.Generation
                 float yaw = Yaw + r.Range(-0.04f, 0.04f);
                 Footprint f = Footprint.Box(at, new Vector2(size.X * 0.5f + 0.15f, size.Z * 0.5f + 0.15f), yaw);
                 if (!Ground(f, 0.25f) || _world.Placement.Overlaps(f, PlacementLayer.Built | PlacementLayer.Road | PlacementLayer.Tree, 0.3f)) continue;
-                _world.Placement.Add(f, PlacementLayer.Prop, solid: true, height: size.Y);
                 bool opened = r.Chance(cell.Age > 0.5f ? 0.3f : 0.12f);
                 var spec = new YardSpec(YardKind.Tomb, seed, r.Int(0, 2), opened ? 1 : 0, age, _shade, _warmth);
+                Piece(spec, f, size.Y, at, yaw);
                 _world.Pending.Add(new PendingObject(spec.Id, at, yaw, Vector3.One, null));
                 placed++;
                 deepest = MathF.Max(deepest, size.Z + 0.8f);
@@ -1105,8 +1110,8 @@ namespace Dino_Engine.World.Generation
                     Vector2 at = W(local);
                     Footprint f = Footprint.Circle(at, 1.95f);
                     if (!_b.GroundFits(f, 0.3f) || _world.Placement.Overlaps(f, PlacementLayer.Built | PlacementLayer.Road | PlacementLayer.Tree, 0.3f)) continue;
-                    _world.Placement.Add(f, PlacementLayer.Prop, solid: true, height: 1.3f);
                     var spec = new YardSpec(YardKind.Cross, NextSeed(), r.Chance(0.5f) ? 1 : 0, YardSpec.Cm(height), _shade, _warmth);
+                    Piece(spec, f, 1.3f, at, Yaw);
                     _world.Pending.Add(new PendingObject(spec.Id, at, Yaw, Vector3.One, null));
                     // Candles at its foot, on the side towards the path.
                     Candles(W(local + new Vector2(-side * 2.3f, 0.6f)), 0, r);
@@ -1177,9 +1182,9 @@ namespace Dino_Engine.World.Generation
             Vector2 at = W(local);
             Footprint f = Footprint.Circle(at, 0.45f);
             if (!_b.GroundFits(f, 0.5f) || _world.Placement.Overlaps(f, PlacementLayer.Structure | PlacementLayer.Prop | PlacementLayer.Fence | PlacementLayer.Road | PlacementLayer.Tree, 0.2f)) return false;
-            _world.Placement.Add(f, PlacementLayer.Prop, solid: true, height: 0f);
             // A churchyard's lanterns were all made by one smith, in two patterns: two models, however many there are.
             var spec = new YardSpec(YardKind.Lamp, _seed0 + (uint)(_lamps % 2), (int)_lamp, YardSpec.Cm(height), _shade, _warmth);
+            Piece(spec, f, 0f, at, SiteBuilder.YawFacing(_plan.Dir(toward)));
             _world.Pending.Add(new PendingObject(spec.Id, at, SiteBuilder.YawFacing(_plan.Dir(toward)), Vector3.One, null));
             _lamps++;
             return true;
@@ -1211,8 +1216,9 @@ namespace Dino_Engine.World.Generation
                 Vector2 at = W(local);
                 Footprint f = Footprint.Box(at, new Vector2(1.75f, 0.55f), Yaw);
                 if (_world.Placement.Overlaps(f, PlacementLayer.Structure | PlacementLayer.Prop | PlacementLayer.Fence | PlacementLayer.Tree | PlacementLayer.Road, 0.3f)) continue;
-                _world.Placement.Add(f, PlacementLayer.Prop, solid: true, height: 1f);
-                _world.Pending.Add(new PendingObject(new YardSpec(YardKind.Bench, NextSeed(), YardSpec.Cm(3.3f)).Id, at, Yaw, Vector3.One, null));
+                var bench = new YardSpec(YardKind.Bench, NextSeed(), YardSpec.Cm(3.3f));
+                Piece(bench, f, 1f, at, Yaw);
+                _world.Pending.Add(new PendingObject(bench.Id, at, Yaw, Vector3.One, null));
             }
         }
 

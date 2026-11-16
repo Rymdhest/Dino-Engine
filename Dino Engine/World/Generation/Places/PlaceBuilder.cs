@@ -112,10 +112,22 @@ namespace Dino_Engine.World.Generation.Places
             float padding = 0.3f, PlacementLayer blockers = PlacementLayer.Built | PlacementLayer.Road | PlacementLayer.Tree, float? floor = null, bool solid = true, float wet = -1f, float scale = 1f)
         {
             if (!Ground(footprint, maxSlope, wet) || !Clear(footprint, blockers, padding)) return false;
-            World.Placement.Add(footprint, layer, solid, height);
+            LayOut(spec, at, yaw, footprint, layer, height, solid, scale);
             if (floor is float level) World.Pads.Add(new GroundPad(footprint.Grown(0.4f), level, 3f));
             World.Pending.Add(new PendingObject(spec.Id, at, yaw, new Vector3(scale), floor));
             return true;
+        }
+
+        private readonly List<HitPart> _parts = new();
+
+        /// <summary>
+        /// Keeps a piece's footprint for it, which nothing else is laid out on, and makes solid what's solid about it (<see cref="Hitboxes"/>): where its model stands in the way,
+        /// and nowhere else, so that a tent's guys, a cart's pole or a barrel by a door don't shut anyone out of anywhere. What's put down as not solid isn't.
+        /// </summary>
+        protected void LayOut(in PlaceSpec spec, Vector2 at, float yaw, in Footprint footprint, PlacementLayer layer, float height, bool solid = true, float scale = 1f)
+        {
+            HitKind kind = solid ? Hitboxes.Of(spec, _parts) : HitKind.Open;
+            Hitboxes.Put(World.Placement, kind, _parts, footprint, layer, height, at, yaw, scale);
         }
 
         /// <summary>Puts a piece down as a box of half its size about <paramref name="at"/>, turned by <paramref name="yaw"/>.</summary>

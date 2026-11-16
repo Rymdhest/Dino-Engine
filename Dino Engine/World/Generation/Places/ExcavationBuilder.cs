@@ -141,7 +141,8 @@ namespace Dino_Engine.World.Generation.Places
             float yaw = YawOf(new Vector2(headWay, 0f));
             Vector2 at = W(local);
             Footprint core = Footprint.Box(at, new Vector2(length * 0.12f, length * 0.32f), yaw);
-            World.Placement.Add(core, PlacementLayer.Prop, solid: true, height: 0.9f);
+            // Its ribs and limbs stand up out of the rock, so it's walked round, but they're seen and struck through (Hitboxes).
+            World.Placement.Add(core, PlacementLayer.Prop, solid: true, height: 0f);
             World.Pending.Add(new PendingObject(new PlaceSpec(PlacePiece.Fossil, NextSeed(), (int)form, PlaceSpec.Cm(length), (int)MathF.Round(freed * 100f)).Id, at, yaw, Vector3.One, floor));
             // The grid over the freed end.
             Vector2 grid = local + new Vector2(headWay * length * 0.22f, 0f);
@@ -235,7 +236,7 @@ namespace Dino_Engine.World.Generation.Places
                         Keep(scrape);
                         Paint(GroundPaint.Mud, scrape, 1.5f);
                         Paint(GroundPaint.Yard, Footprint.Circle(at, MathF.Max(_floorHalf.X, _floorHalf.Y) + 6f), 4f);
-                        World.Placement.Add(Footprint.Box(at, new Vector2(l * 0.32f, l * 0.12f), Plan.Yaw), PlacementLayer.Prop, solid: true, height: 0.9f);
+                        World.Placement.Add(Footprint.Box(at, new Vector2(l * 0.32f, l * 0.12f), Plan.Yaw), PlacementLayer.Prop, solid: true, height: 0f);
                         World.Pending.Add(new PendingObject(new PlaceSpec(PlacePiece.Fossil, NextSeed(), (int)form, PlaceSpec.Cm(l), (int)MathF.Round(r.Range(0.3f, 0.55f) * 100f)).Id, at, yaw, Vector3.One, null));
                         World.Pending.Add(new PendingObject(new PlaceSpec(PlacePiece.DigGrid, NextSeed(), PlaceSpec.Cm(MathF.Min(l * 0.42f, _floorHalf.X)), PlaceSpec.Cm(MathF.Min(l * 0.36f, _floorHalf.Y * 1.6f))).Id, at + Plan.Ax * (l * 0.2f), Plan.Yaw, Vector3.One, null));
                         Plan.Marks.Add(new PlaceMark(PlaceMarkKind.Pit, at, Plan.Yaw, _floorHalf));

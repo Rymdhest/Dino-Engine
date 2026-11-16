@@ -608,8 +608,8 @@ namespace Dino_Defenders.Server
             return true;
         }
 
-        /// <summary>How much further a body of <paramref name="radius"/> reaches than the person <see cref="WorldData.Passable"/> was worked out for.</summary>
-        public static float Wider(float radius) => MathF.Max(radius - WorldData.CharacterRadius, 0f);
+        /// <summary>How much further into the things of the world a body of <paramref name="radius"/> goes than the person <see cref="WorldData.Passable"/> was worked out for (<see cref="WorldData.WorldRadius"/>).</summary>
+        public static float Wider(float radius) => MathF.Max(WorldData.WorldRadius(radius) - WorldData.ShoulderRadius, 0f);
 
         // Whether a body that much wider than a person stands here: the middle, and round it.
         private static bool Fits(WorldData world, Vector2 at, float wider)

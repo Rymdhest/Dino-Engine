@@ -20,8 +20,21 @@ namespace Dino_Engine.World
         public const float WalkCell = 2f;
         /// <summary>Metres between nodes of the passability map.</summary>
         public const float PassCell = 1f;
-        /// <summary>Metres from a character's centre to its side, for what it can squeeze through.</summary>
+        /// <summary>Metres from a person's centre to their side, for the room a body keeps from another body and what a blow has to reach.</summary>
         public const float CharacterRadius = 1.1f;
+
+        /// <summary>
+        /// Metres less than how far it reaches that a body is to the things of the world: a person meets a cart or a wall with their shoulders and the arms hanging by them
+        /// (BodyForm.ShoulderX and an arm, 0.8 m from their middle), and keeps a little more room than that from another person, as a crowd does. So a gap that looks wide
+        /// enough to walk through is.
+        /// </summary>
+        public const float WorldSlack = 0.3f;
+
+        /// <summary>Metres from a person's middle to their side as the things of the world meet them, which is what they squeeze between and passable ground is worked out for.</summary>
+        public const float ShoulderRadius = CharacterRadius - WorldSlack;
+
+        /// <summary>How far into the things of the world a body that reaches <paramref name="radius"/> from its middle goes: as much less than its reach as a person's, and never less than half of it.</summary>
+        public static float WorldRadius(float radius) => MathF.Max(radius - WorldSlack, radius * 0.5f);
         /// <summary>Reads in <see cref="PondLevel"/> where there is no pond.</summary>
         public const float NoPond = -1e6f;
         /// <summary>Metres of water a character can wade through.</summary>

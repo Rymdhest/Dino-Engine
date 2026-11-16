@@ -13,7 +13,11 @@ namespace Dino_WorldLab
     ///   chart   [--seed N] [--archetype id] [--out file.png] [--size pixels] [--walked share]  One world drawn as the game's map, and as it looks with only the ground within
     ///           that share of the walk from the landing seen (written beside it, as file.walked.png).
     ///   sheet   [--seed N] [--count N] [--archetype id] [--out file.png]       A contact sheet of many worlds.
-    ///   plan    [--seed N] [--archetype id] [--site kind] [--nth N] [--span m] [--out f] A surveyor's plan of one site, the Nth of its kind.
+    ///   plan    [--seed N] [--archetype id] [--site kind] [--nth N] [--span m] [--out f] A surveyor's plan of one site, the Nth of its kind. --solids true fills
+    ///           what's solid (red stops a blow, yellow only a body, orange a post or a rack) and shades ground nobody can stand on; --blow x,z[,r] shows what a
+    ///           blow going off that far from the site's middle reaches round what's in its way, as its mark is drawn.
+    ///   hitboxes [--mode check|measure|map|catalog] [--seed N] [--count N] [--kind k]  Holds what's solid about every kind of built thing to its model (Hitboxes),
+    ///           or says where each kind's model stands, to write a rule from. Exit code 1 on any problem.
     ///   check   [--seed N] [--count N] [--archetype id] [--layout linear|open] Generates worlds and validates them. Exit code 1 on any problem.
     ///   packs   [--seed N] [--archetype id] [--level N] [--out file.png]       Who stands where: the mix, and a map of it, each folk in its colour.
     ///   relief  [--seed N] [--count N] [--archetype id]                        What the land is made of, and where the rock stands highest.
@@ -87,6 +91,8 @@ namespace Dino_WorldLab
                     return LexiconCheck.Run(options.Text("out"), options.Int("size", 1600), options.Text("game"), options.Text("find"));
                 case "yard":
                     return YardCheck.Run(options.Int("seed", 1), options.Int("count", 12), options.Text("archetype"));
+                case "hitboxes":
+                    return HitboxCheck.Run(options.Text("mode") ?? "check", options.Int("seed", 1), options.Int("count", 6), options.Text("archetype"), options.Text("kind"));
                 case "places":
                     return PlaceCheck.Run(options.Int("seed", 1), options.Int("count", 12), options.Text("archetype"), options.Text("kind"), options.Text("pieces") == "true");
                 case "arenas":
@@ -249,7 +255,12 @@ namespace Dino_WorldLab
             int resolution = options.Int("size", 1200);
             Console.WriteLine($"{site.Definition.Label} {site.Name}: r {site.Radius:0} at {site.Position}, {site.Spawns.Count} spawns");
 
-            var plan = new SitePlan(world, site.Position, span, resolution);
+            var plan = new SitePlan(world, site.Position, span, resolution) { Solids = options.Text("solids") == "true" };
+            if (options.Text("blow") is string blow)
+            {
+                float[] b = blow.Split(',').Select(v => float.Parse(v, System.Globalization.CultureInfo.InvariantCulture)).ToArray();
+                plan.Blow = (site.Position + new Vector2(b[0], b[1]), b.Length > 2 ? b[2] : 7f);
+            }
             plan.Draw();
             string path = options.Text("out") ?? "plan.png";
             PngWriter.Write(path, plan.Pixels, resolution, resolution);

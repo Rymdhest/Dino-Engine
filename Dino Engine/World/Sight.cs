@@ -9,8 +9,12 @@ namespace Dino_Engine.World
     /// </summary>
     public static class Sight
     {
-        /// <summary>Metres something solid has to stand above the ground before it's in the way: a fence, a pillar, a wall or a boulder, but not a stone in the grass. Posts and poles are none (their height is 0).</summary>
-        public const float Above = 1f;
+        /// <summary>
+        /// Metres something solid has to stand above the ground before it's in the way: as high as a person's hip (BodyForm.Hip), so a blow, a blast or what's thrown goes over a
+        /// chest, a barrel, a woodpile, a bench or a gravestone, as a person found every small thing stopping what they cast, and a fence, a pillar, a wall, a cart or a
+        /// boulder hides whoever's behind it. Posts, poles and racks are none (their height is 0).
+        /// </summary>
+        public const float Above = 2f;
 
         /// <summary>The most blockers one blow minds, nearest first. It's the same number on both ends, so it can't make them disagree.</summary>
         public const int MostBlockers = 128;

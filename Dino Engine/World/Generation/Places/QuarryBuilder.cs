@@ -156,7 +156,7 @@ namespace Dino_Engine.World.Generation.Places
         {
             Footprint f = Footprint.Box(W(local), half, yaw);
             if (!Clear(f, PlacementLayer.Structure | PlacementLayer.Prop | PlacementLayer.Fence | PlacementLayer.Road, 0.3f) || !Inside(local, half.Length)) return false;
-            World.Placement.Add(f, PlacementLayer.Prop, solid: true, height: height);
+            LayOut(spec, W(local), yaw, f, PlacementLayer.Prop, height);
             World.Pending.Add(new PendingObject(spec.Id, W(local), yaw, Vector3.One, _floor));
             return true;
         }

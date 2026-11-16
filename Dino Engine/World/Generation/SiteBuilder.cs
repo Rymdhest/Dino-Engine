@@ -186,10 +186,13 @@ namespace Dino_Engine.World.Generation
                 : Footprint.Box(position, definition.HalfExtents * scale, yaw);
         }
 
+        private readonly List<HitPart> _parts = new();
+
+        // Keeps its footprint for it and makes solid what's solid about it (Hitboxes): a building all over, anything else where its model stands in the way.
         private void Commit(StructureDefinition definition, Vector2 position, float yaw, float scale, in Footprint footprint)
         {
             PlacementLayer layer = definition.SpansRoad ? PlacementLayer.Keepout : definition.OnPad ? PlacementLayer.Structure : PlacementLayer.Prop;
-            World.Placement.Add(footprint, layer, definition.Solid, definition.Height);
+            Hitboxes.Put(World.Placement, Hitboxes.Of(definition, _parts), _parts, footprint, layer, definition.Height, position, yaw, scale);
 
             float? padHeight = null;
             if (definition.OnPad)

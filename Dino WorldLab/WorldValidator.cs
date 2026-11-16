@@ -14,7 +14,7 @@ namespace Dino_WorldLab
     /// </summary>
     internal sealed class WorldValidator
     {
-        private const float CharacterRadius = 1.1f;
+        private const float CharacterRadius = WorldData.ShoulderRadius;     // As the things of the world meet a person (CharacterMover).
         private const float RoadGradeLimit = 0.3f;
         private const float BareStretchLimit = 330f;    // 30 seconds at a run.
         private const float GradeWindow = 4f;           // Grades are measured over at least this much road, as walked.

@@ -528,7 +528,8 @@ namespace Dino_Engine.World.Generation
         private void PotAt(Vector2 at, int form, float height, WorldAsset plant)
         {
             Piece(new PlazaSpec(PlazaKind.Pot, NextSeed(), form, Cm(height)), at, _random.Float() * MathF.Tau, 0f);
-            Solid(Footprint.Circle(_c + at, height * 0.5f + 0.1f), height);
+            // A pot lower than a knee is stepped over (Hitboxes.StepOver), and the plant in it brushed through.
+            if (height >= Hitboxes.StepOver) Solid(Footprint.Circle(_c + at, height * 0.5f + 0.1f), height);
             Flower(plant, at, PlazaDressing.PotSoil(form, height), 0.8f);
         }
 

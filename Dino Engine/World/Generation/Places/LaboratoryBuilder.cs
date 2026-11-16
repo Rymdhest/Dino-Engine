@@ -120,7 +120,9 @@ namespace Dino_Engine.World.Generation.Places
                 Vector2 to = from + toHouse.Normalized() * length;
                 Footprint pipe = Footprint.Segment(W(from), W(to), 0.45f);
                 if (!Clear(pipe, PlacementLayer.Structure | PlacementLayer.Prop | PlacementLayer.Road, 0.2f)) continue;
-                World.Placement.Add(pipe, PlacementLayer.Prop, solid: true, height: 0.9f);
+                // Kept clear on either side, and solid only where the brass is, which stands to a person's thigh.
+                World.Placement.Add(pipe, PlacementLayer.Prop, solid: false, height: 1.6f);
+                World.Placement.Add(Footprint.Segment(W(from), W(to), 0.3f), PlacementLayer.None, solid: true, height: 1.6f);
                 World.Pending.Add(new PendingObject(new PlaceSpec(PlacePiece.Pipes, NextSeed(), PlaceSpec.Cm(length)).Id, W(from), YawOf(toHouse) - MathF.PI * 0.5f, Vector3.One, null));
             }
         }

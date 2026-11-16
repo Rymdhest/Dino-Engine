@@ -15,9 +15,9 @@ using OpenTK.Mathematics;
 namespace Dino_Engine.ECS.Systems
 {
     /// <summary>
-    /// Breaks loose clutter (<see cref="StructureDefinition.Loose"/>): barrels and crates go to pieces when a blast that bends the grass is strong enough where they stand,
-    /// or when a body walks into them, and the pieces fly, tumble and lie on the ground a while. It's only something to see. It runs on each client by itself,
-    /// reads nothing but what's drawn, and nothing in the rules knows of it: clutter is solid to nothing, so a fight never waits on what's broken.
+    /// Breaks loose clutter (<see cref="Hitboxes.BreaksAs"/>): barrels, crates, sacks, jars and bales, a village's or a camp's, go to pieces when a blast that bends the grass
+    /// is strong enough where they stand, or when a body walks into them, and the pieces fly, tumble and lie on the ground a while. It's only something to see. It runs on each
+    /// client by itself, reads nothing but what's drawn, and nothing in the rules knows of it: clutter is solid to nothing, so a fight never waits on what's broken.
     /// </summary>
     public class BreakageSystem : SystemBase
     {
@@ -98,7 +98,7 @@ namespace Dino_Engine.ECS.Systems
                     Vector2 walking = body.Has<VelocityComponent>() ? body.Get<VelocityComponent>().value.Xz : Vector2.Zero;
                     foreach ((long key, LooseObject loose) in stream.Loose)
                     {
-                        float reach = radius + loose.Definition.FootprintAt(Vector2.Zero, 0f).BoundingRadius * loose.Scale.X * Reach;
+                        float reach = radius + loose.Kind.Reach * loose.Scale.X * Reach;
                         Vector2 away = loose.Position.Xz - at;
                         if (away.LengthSquared >= reach * reach) continue;
                         Vector2 push = away.LengthSquared > 1e-4f ? away.Normalized() * 3f : Vector2.Zero;
@@ -120,17 +120,17 @@ namespace Dino_Engine.ECS.Systems
             Audio.Play(Impacts.Wood, loose.Position + Vector3.UnitY, 2f, Range(0.8f, 1.1f));
             Audio.Play(Impacts.Debris, loose.Position + Vector3.UnitY, 0f, Range(0.9f, 1.15f));
 
-            if (!_pieces.TryGetValue(loose.Definition, out var kinds))
+            if (!_pieces.TryGetValue(loose.Kind.Pieces, out var kinds))
             {
-                Mesh[] meshes = PropGenerator.Pieces(loose.Definition);
+                Mesh[] meshes = PropGenerator.Pieces(loose.Kind.Pieces);
                 kinds = Array.ConvertAll(meshes, mesh => (glLoader.loadToVAO(mesh), Extent(mesh)));
-                _pieces.Add(loose.Definition, kinds);
+                _pieces.Add(loose.Kind.Pieces, kinds);
             }
 
             int count = Math.Min(PiecesEach, Math.Max(MostPieces - _live, 0));
             _live += count;
-            float wide = loose.Definition.FootprintAt(Vector2.Zero, 0f).BoundingRadius * loose.Scale.X;
-            float tall = loose.Definition.Height * loose.Scale.Y;
+            float wide = loose.Kind.Reach * loose.Scale.X;
+            float tall = loose.Kind.Height * loose.Scale.Y;
             for (int i = 0; i < count; i++)
             {
                 (glModel model, Vector3 half) = kinds[_random.Next(kinds.Length)];

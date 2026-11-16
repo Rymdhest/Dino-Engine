@@ -64,7 +64,7 @@ namespace Dino_Engine.Rendering.Renderers.Lighting.GlobalIllumination
 
         private WorldData? _world;
         private glModel[] _objectModels = Array.Empty<glModel>();
-        private StructureDefinition?[] _objectLoose = Array.Empty<StructureDefinition?>();
+        private LooseKind?[] _objectLoose = Array.Empty<LooseKind?>();
         private float _chunkSize = WorldScene.ChunkSize;
         private readonly HashSet<Vector2i> _liveChunks = new();
         private readonly HashSet<Vector2i> _stillLive = new();
@@ -91,12 +91,12 @@ namespace Dino_Engine.Rendering.Renderers.Lighting.GlobalIllumination
         // ---- The world it's built from.
 
         /// <summary>The world being played, its objects' models and which of them are loose clutter, as WorldStreamSingleton has them.</summary>
-        public void SetWorld(WorldData? world, glModel[]? objectModels, StructureDefinition?[]? objectLoose)
+        public void SetWorld(WorldData? world, glModel[]? objectModels, LooseKind?[]? objectLoose)
         {
             if (ReferenceEquals(world, _world)) return;
             _world = world;
             _objectModels = objectModels ?? Array.Empty<glModel>();
-            _objectLoose = objectLoose ?? Array.Empty<StructureDefinition?>();
+            _objectLoose = objectLoose ?? Array.Empty<LooseKind?>();
             InvalidateLevels();
             if (world != null && _resources) UploadHeightMap(world);
         }

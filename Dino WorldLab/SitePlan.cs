@@ -15,6 +15,12 @@ namespace Dino_WorldLab
 
         public byte[] Pixels => _pixels;
 
+        /// <summary>Whether to show what's solid filled in red, and ground nobody can stand on (off <see cref="WorldData.Passable"/>) shaded, to see where a body can get.</summary>
+        public bool Solids;
+
+        /// <summary>A blow going off here, reaching this far, shown as the ground it reaches round what's in its way (Sight), as its mark is drawn in the game.</summary>
+        public (Vector2 At, float Reach)? Blow;
+
         public SitePlan(WorldData world, Vector2 centre, float span, int resolution)
         {
             _world = world;
@@ -27,6 +33,8 @@ namespace Dino_WorldLab
         public void Draw()
         {
             DrawGround();
+            if (Solids) DrawSolids();
+            if (Blow is (Vector2 at, float reach)) DrawBlow(at, reach);
 
             _world.Placement.ForEach((footprint, layer, solid) =>
             {
@@ -66,6 +74,63 @@ namespace Dino_WorldLab
                     Dot(spawn.Position, 1.2f, colour);
                 }
             }
+        }
+
+        // Ground walkable but not passable shaded dark, and every solid footprint filled red, posts and racks (in nobody's way in the air) paler.
+        private void DrawSolids()
+        {
+            Parallel.For(0, _resolution, row =>
+            {
+                for (int column = 0; column < _resolution; column++)
+                {
+                    Vector2 p = ToWorld(column, row);
+                    if (!_world.Walkable.IsSet(p) || _world.Passable.IsSet(p)) continue;
+                    Blend(column, row, new Vector3(0.12f, 0.1f, 0.1f), 0.45f);
+                }
+            });
+            _world.Placement.ForEach((footprint, layer, solid, height) =>
+            {
+                if (!solid) return;
+                (float cx, float cy) = ToPixel(footprint.Centre);
+                float reach = footprint.BoundingRadius / _metresPerPixel + 1f;
+                for (int y = (int)(cy - reach); y <= (int)(cy + reach); y++)
+                {
+                    for (int x = (int)(cx - reach); x <= (int)(cx + reach); x++)
+                    {
+                        if (x < 0 || y < 0 || x >= _resolution || y >= _resolution || !Dino_Engine.World.Sight.Contains(footprint, ToWorld(x, y))) continue;
+                        // Red stops a blow (Sight.Above) and a body, yellow only a body, orange is a post or a rack.
+                        Vector3 colour = height > Dino_Engine.World.Sight.Above ? new Vector3(0.9f, 0.08f, 0.06f) : height > 0f ? new Vector3(0.95f, 0.85f, 0.15f) : new Vector3(1f, 0.55f, 0.1f);
+                        Blend(x, y, colour, 0.7f);
+                    }
+                }
+            });
+        }
+
+        private void DrawBlow(Vector2 at, float reach)
+        {
+            var blockers = new List<Footprint>();
+            Dino_Engine.World.Sight.Gather(_world.Placement, at, reach, blockers);
+            (float cx, float cy) = ToPixel(at);
+            float r = reach / _metresPerPixel;
+            for (int y = (int)(cy - r) - 1; y <= (int)(cy + r) + 1; y++)
+            {
+                for (int x = (int)(cx - r) - 1; x <= (int)(cx + r) + 1; x++)
+                {
+                    if (x < 0 || y < 0 || x >= _resolution || y >= _resolution) continue;
+                    Vector2 p = ToWorld(x, y);
+                    float d = (p - at).Length;
+                    if (d > reach) continue;
+                    bool reached = Dino_Engine.World.Sight.Clear(blockers, at, p);
+                    if (reached) Blend(x, y, new Vector3(0.25f, 0.55f, 1f), d > reach - 0.25f ? 0.9f : 0.3f);
+                }
+            }
+            Dot(at, 0.5f, new Vector3(1f, 1f, 1f));
+        }
+
+        private void Blend(int x, int y, Vector3 colour, float amount)
+        {
+            int i = (y * _resolution + x) * 4;
+            for (int k = 0; k < 3; k++) _pixels[i + k] = (byte)Math.Clamp(_pixels[i + k] * (1f - amount) + colour[k] * 255f * amount, 0f, 255f);
         }
 
         private void DrawGround()
