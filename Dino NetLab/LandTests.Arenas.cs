@@ -327,19 +327,27 @@ namespace Dino_NetLab
                 Vector3 at = default;
                 var hurt = new List<uint>();
                 bool covered = false, moved = false, outOf = false;
+                Vector2 stoodAt = default, landedAt = default;
+                string near = "";
                 scene.Lab.Run(Rulebook.BallistaEvery + Rulebook.BallistaWindUp + 2f, () =>
                 {
                     uint tick = server.Tick - 1;
                     if (mark.Serial == 0 && ArenaMark(server.Ecs, ShapeKind.Line, bolt, seen, out mark, out at))
                     {
                         covered = ShapeOf(mark, at).Covers(scene.Truth.Sim.Position, 0f);
+                        stoodAt = scene.Truth.Sim.Position;
                         if (step)
                         {
                             scene.Player.Client.TravelTo(Aside(scene, plan, scene.Truth.Sim.Position, mark.Facing, 6f));
                             moved = true;
                         }
                     }
-                    if (mark.Serial != 0 && tick == mark.Lands) outOf = !ShapeOf(mark, at).Covers(scene.Truth.Sim.Position, GroundShape.HeroBodyShare * hero.Radius);
+                    if (mark.Serial != 0 && tick == mark.Lands)
+                    {
+                        outOf = !ShapeOf(mark, at).Covers(scene.Truth.Sim.Position, GroundShape.HeroBodyShare * hero.Radius);
+                        landedAt = scene.Truth.Sim.Position;
+                        near = string.Join(", ", scene.Session.Arrivals.Where(a => !a.Dead).OrderBy(a => (a.Position - landedAt).Length).Take(3).Select(a => $"{server.Ecs.GetEntityView(a.Entity).Get<EnemyComponent>().Name} at {(a.Position - landedAt).Length:0.0} m"));
+                    }
                     if (hero.Vitals.Health < last - 0.5f) hurt.Add(tick);
                     last = hero.Vitals.Health;
                 });
@@ -348,7 +356,7 @@ namespace Dino_NetLab
                 if (!step)
                 {
                     report.Check($"{name}: a bolt-thrower is aimed at whoever's on the floor, down a line from the commander's box", mark.Serial != 0 && covered, mark.Serial == 0 ? "no mark" : $"{(at.Xz - plan.Centre).Length:0} m from the middle");
-                    report.Check($"{name}: its bolt goes down the line on the tick its mark said, into whoever's still in it", struck && hurt.Min() == mark.Lands, $"marked for {mark.Lands}, hurt on {string.Join(",", hurt)}");
+                    report.Check($"{name}: its bolt goes down the line on the tick its mark said, into whoever's still in it", struck && hurt.Min() == mark.Lands, $"marked for {mark.Lands}, hurt on {string.Join(",", hurt)}; the hero was {(outOf ? "out of" : "in")} the line as it landed, {(landedAt - stoodAt).Length:0.00} m from where they stood when it was marked, with {hero.Vitals.Health:0} of {hero.Sheet.MaxHealth:0} Health, Evasion {hero.Sheet.Evasion:0}, blocking {hero.Sheet.BlockAttacks:0}%; nearest of the brood: {near}");
                 }
                 else
                 {

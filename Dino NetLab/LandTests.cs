@@ -934,6 +934,14 @@ namespace Dino_NetLab
                 scene.Lab.Run(1);
                 scene.Session.Combat.Harm(scene.Hero, tyrant, 1e12f, DamageType.Magic);
                 scene.Lab.Run(3);
+
+                // A tyrant wears real uniques and takes a keystone, and some of those put its death off: one that gets up again is brought down again, and one that's
+                // gasping falls when its time is up, which is longer than this waited, so that this failed on about one arena in ten (left with 1 Health, or 41).
+                if (!tyrant.Dead)
+                {
+                    scene.Session.Combat.Harm(scene.Hero, tyrant, 1e12f, DamageType.Magic);
+                    scene.Lab.Run(Rulebook.GaspSeconds + 2);
+                }
                 report.Check("Bringing it down frees the arena", scene.Session.Liberated && scene.Seen.Liberated, $"{(scene.Truth.Out ? "the hero is out" : "the hero stands")}, the tyrant {(tyrant.Dead ? "is down" : $"has {tyrant.Vitals.Health:0}")}");
                 report.Check("And opens the next level, and room at the table for one more orders", scene.Truth.Hero.BestLand == 10 && Lands.OrderSlots(scene.Truth.Hero) == 2 && Lands.OrderSlots(scene.Player.Client.Hero) == 2);
             }

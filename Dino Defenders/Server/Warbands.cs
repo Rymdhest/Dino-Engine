@@ -311,9 +311,12 @@ namespace Dino_Defenders.Server
                     // bones it raised at its dig, the ghosts it called up at the barrow, and at the bile works its failures, with greycoats at the gate.
                     switch (site.Seat?.Kind)
                     {
-                        case SeatKind.Boneyard: return Dead;
-                        case SeatKind.Barrow: return Ghosts;
-                        case SeatKind.Bileworks when folk == SpawnRole.Undead: return Rotting;
+                        case SeatKind.Boneyard: return DeadOf(cold);
+                        case SeatKind.Barrow: return GhostsOf(cold);
+                        case SeatKind.Bileworks when folk == SpawnRole.Undead: return RottingOf(cold);
+
+                        // The Institute's great hatchery is guarded as its outstations are, by what it grew and didn't lose.
+                        case SeatKind.Hatchery: return folk is SpawnRole.Raider or SpawnRole.Guard ? (cold ? ReichInSnow : Institute) : null;
                         default: return folk is SpawnRole.Raider or SpawnRole.Guard ? (cold ? ReichInSnow : Reich) : null;
                     }
                 case SiteKind.Prison:
