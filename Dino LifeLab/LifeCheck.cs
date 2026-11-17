@@ -30,6 +30,8 @@ namespace Dino_LifeLab
             public long Frames, Allocated, CreatureFrames, LeafFrames, AirborneFrames, MeasuredFrames;
             public int MostCreatures, MostLeaves, WorldsWithBirds, WorldsWithRabbits, WorldsWithCrabs;
 
+            public int OnRoofs;
+
             public void Fail(string report)
             {
                 if (Failures++ < 24) Reports.Add(report);
@@ -109,7 +111,10 @@ namespace Dino_LifeLab
         private static void Walk(WorldData world, int seed, float seconds, float windSpeed, Tally tally)
         {
             var random = new WorldRandom(seed).Fork("lifecheck");
+            // There's no game here to make the models as they come into view, so every one the world stands is made first, for what flies to keep over (SkyFloor).
+            Parallel.ForEach(System.Collections.Concurrent.Partitioner.Create(world.Objects.AssetIds, System.Collections.Concurrent.EnumerablePartitionerOptions.NoBuffering), WorldAssetLibrary.MeasureAlone);
             var sim = new WildlifeSim(world);
+            sim.Land.Sky.LayInAll();
             var canvas = new CountingCanvas();
             Vector2 at = world.Sites.Count > 0 ? world.Sites[0].Position : new Vector2(world.Size * 0.5f);
             Vector2 goal = at;
@@ -216,8 +221,18 @@ namespace Dino_LifeLab
                     if (high > 0.2f) tally.Fail($"{who} is {high:0.00} m off the ground");
                     if (sim.Land.World.WaterDepthAt(xz) > 1f) tally.Fail($"{who} is in deep water");
                     break;
-                case Bird:
+                case Bird bird:
                     if (high < -0.1f) tally.Fail($"{who} is {-high:0.00} m under the ground");
+                    // Nothing flies through a house or a tree, as a person saw it do and called it cheap: anything in the air is over whatever stands where it is.
+                    float standing = MathF.Max(sim.Land.RoofAt(xz), sim.Land.Sky.At(xz));
+                    if (bird.Aloft && bird.Doing != "Waiting" && bird.FromPerch > 1.5f && at.Y < standing && standing - sim.Land.RoughGround(xz) > 1.6f) tally.Fail($"{who} is {standing - at.Y:0.0} m inside something standing (from perch {bird.FromPerch:0.0}, sky {sim.Land.Sky.At(xz):0.0})");
+                    // One on a roof sits on its edge: there's a roof under it, and nothing over it.
+                    if (bird.OnRoof && !bird.Aloft)
+                    {
+                        tally.OnRoofs++;
+                        if (sim.Land.Sky.At(xz) < at.Y - 0.3f) tally.Fail($"{who} is sitting on nothing, {at.Y - sim.Land.Sky.At(xz):0.0} m over what's there");
+                        if (sim.Land.Sky.At(xz) > at.Y + 1.3f) tally.Fail($"{who} is sitting under something, {sim.Land.Sky.At(xz) - at.Y:0.0} m over it");
+                    }
                     if ((at - view.Camera).Length < 7f) tally.Fail($"{who} is up by the camera, {(at - view.Camera).Length:0.0} m from it");
                     break;
                 case Frog:
@@ -293,7 +308,8 @@ namespace Dino_LifeLab
                                     closestRabbit = length;
                                     caught = $"rabbit {quarry.Doing} in seed {seed} frame {frame} at {quarry.Position.X:0},{quarry.Position.Z:0}, fright {sim.Fright(quarry.Position.Xz, 12f, out _):0.00}";
                                 }
-                                if (quarry is Bird bird && !bird.Aloft) closestBird = MathF.Min(closestBird, length);
+                                // One up on a roof lets someone nearer underneath, as it's out of reach (Flock.RoofCalm).
+                                if (quarry is Bird bird && !bird.Aloft && !bird.OnRoof) closestBird = MathF.Min(closestBird, length);
                                 if (quarry is Crab && quarry.Doing is not ("Digging" or "Wading") && length < closestCrab)
                                 {
                                     closestCrab = length;
@@ -346,6 +362,7 @@ namespace Dino_LifeLab
             foreach (string report in tally.Reports) Console.WriteLine("  " + report);
             Console.WriteLine();
             Console.WriteLine($"Worlds with rabbits {tally.WorldsWithRabbits}, birds {tally.WorldsWithBirds}, crabs {tally.WorldsWithCrabs}.");
+            Console.WriteLine($"Birds seen sitting on a roof's edge {tally.OnRoofs} times.");
             long frames = Math.Max(tally.MeasuredFrames, 1);
             Console.WriteLine($"In the view on average: {tally.CreatureFrames / (double)frames:0.0} creatures, {tally.AirborneFrames / (double)frames:0.0} leaves in the air, {tally.LeafFrames / (double)frames:0.0} in all. At most {tally.MostCreatures} and {tally.MostLeaves}.");
             Console.WriteLine($"A step takes {tally.TotalStep / frames:0.000} ms, at worst {tally.WorstStep:0.00}. Drawing {tally.TotalDraw / frames:0.000} ms, at worst {tally.WorstDraw:0.00}. It allocates {tally.Allocated / frames} bytes a frame.");

@@ -33,12 +33,15 @@ namespace Dino_Engine.Wildlife
         private const float TipHeight = 0.68f;      // How far up a blade its tip gets, as a share of how long it is.
 
         public readonly WorldData World;
+        /// <summary>How high whatever stands reaches, over every metre near the view (SkyFloor).</summary>
+        public readonly SkyFloor Sky;
         private readonly TerrainSurface _surface;
         private readonly RoadFrames _roads;
 
         public LifeLand(WorldData world)
         {
             World = world;
+            Sky = new SkyFloor(world);
             _surface = new TerrainSurface(world);
             _roads = new RoadFrames(world);
         }
@@ -50,10 +53,20 @@ namespace Dino_Engine.Wildlife
         public float RoughGround(Vector2 at) => World.Height.Sample(at.X, at.Y) + TerrainRenderer.SurfaceOffset;
 
         /// <summary>
-        /// What anything flying has to keep above at a point: the ground as it's drawn, or a hall's roof where one stands (HALLS.md), from a little past its eaves, so that a flock goes
-        /// over the building and never through it, which an open roof would show from inside.
+        /// What anything flying has to keep above at a point: the ground as it's drawn, or whatever stands there, a house, a wall, a stone or a tree's crown, as its model is really built
+        /// (<see cref="SkyFloor"/>), within <see cref="FlightBerth"/> of it, or a hall's roof (HALLS.md) from a little past its eaves, so that a flock goes over all of it and never through,
+        /// which an open roof would show from inside.
         /// </summary>
-        public float Overhead(Vector2 at) => MathF.Max(RoughGround(at), RoofAt(at));
+        public float Overhead(Vector2 at) => MathF.Max(RoughGround(at), Standing(at));
+
+        /// <summary>The top of whatever stands within <see cref="FlightBerth"/> of a point, a hall's roof among it, or negative infinity where nothing does.</summary>
+        public float Standing(Vector2 at) => MathF.Max(RoofAt(at), Sky.Around(at, FlightBerth));
+
+        /// <summary>Metres to either side that anything flying keeps from whatever stands, for its wings.</summary>
+        public const float FlightBerth = 1.5f;
+
+        /// <summary>How far over the ground the tallest thing near a point stands, for a bird choosing where to come down: under a crown or by a wall isn't anywhere it could fly into.</summary>
+        public float Over(Vector2 at) => Standing(at) - RoughGround(at);
 
         /// <summary>The top of a hall over a point, from a little past its eaves, or nothing at all where none stands.</summary>
         public float RoofAt(Vector2 at)

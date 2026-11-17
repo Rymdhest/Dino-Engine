@@ -199,6 +199,7 @@ namespace Dino_Engine.Wildlife
             }
 
             Air.Refresh(view, dt);
+            Land.Sky.Refresh(view.Least, view.Most, dt);
 
             if (Now >= _nextSurvey || !_settled)
             {

@@ -1,4 +1,4 @@
-using Dino_Engine.Animation;
+﻿using Dino_Engine.Animation;
 using Dino_Engine.Modelling.Procedural.Wildlife;
 using OpenTK.Mathematics;
 
@@ -25,6 +25,13 @@ namespace Dino_Engine.Wildlife
         internal Vector2 Goal;
         internal float GoalHeight = -1f;
         internal bool Roosted;                          // Where it's going is a tree, and it's gone once it gets there.
+        internal bool OnRoofs;                          // Where it's going, or where it is, is along the edges of roofs, a perch to each bird (Bird.Perch).
+        private readonly List<SkyFloor.Perch> _perches = new();
+        private int _nextPerch;
+        private const float RoofShare = 0.6f;           // How often what sits on roofs goes to one when there's one to go to.
+        private const float RoofFrom = 12f, RoofTo = 60f;   // Metres off that a roof it flies to is.
+        private const float RoofGather = 7f;            // Metres round the first perch it takes the rest from, so a flock sits along one roof or two.
+        private const float RoofCalm = 0.55f;           // How much nearer something can come to a bird up on a roof than on the ground.
         private readonly int _count;
         private int _flights;
         private float _nextSense;
@@ -40,6 +47,15 @@ namespace Dino_Engine.Wildlife
             {
                 Stage = Plan.Hidden;
                 return;
+            }
+
+            // In a town, often already up along a roof.
+            if (kind.Rooftops && sim.Random.Float() < RoofShare && TryRoofs(home.At, Vector2.Zero, 0f, RoofGather * 3f, home.Count))
+            {
+                OnRoofs = true;
+                for (int i = 0; i < _perches.Count; i++) Members.Add(new Bird(sim, this, _perches[i]));
+                if (Members.Count > 0) return;
+                OnRoofs = false;
             }
 
             float spread = Spread * kind.Scatter;
@@ -59,8 +75,12 @@ namespace Dino_Engine.Wildlife
         internal bool Fits(Vector2 at)
         {
             if (!Sim.Land.CanScuttle(at) || (Kind.Lives & Sim.Land.HabitatAt(at)) == 0) return false;
+            // Nowhere under a crown or a roof, or by anything taller than a fence, as getting up from there or coming down to it would go through it.
+            if (Sim.Land.Over(at) > ClearOver) return false;
             return !Kind.Walks || Sim.Land.GrassTop(at) < 0.6f;
         }
+
+        internal const float ClearOver = 1.6f;      // Metres over the ground that what stands near a bird on the ground may reach.
 
         private Flock(WildlifeSim sim, BirdKind kind) : base(sim, null)
         {
@@ -88,7 +108,7 @@ namespace Dino_Engine.Wildlife
             for (int i = 0; i < count; i++)
             {
                 Vector2 at = start + new Vector2(sim.Random.Range(-7f, 7f), sim.Random.Range(-7f, 7f));
-                float height = sim.Land.Ground(at) + kind.Height * sim.Random.Range(1f, 1.3f);
+                float height = sim.Land.Overhead(at) + kind.Height * sim.Random.Range(1f, 1.3f);
                 flock.Members.Add(new Bird(sim, flock, new Vector3(at.X, height, at.Y), way));
             }
             return flock;
@@ -107,7 +127,8 @@ namespace Dino_Engine.Wildlife
             if (Sim.Now < _nextSense) return;
             _nextSense = Sim.Now + 0.14f;
 
-            if (Stage == Plan.Feeding) SenseOnGround();
+            // Those already down keep watch while the rest are still coming in.
+            if (Stage is Plan.Feeding or Plan.Settling) SenseOnGround();
             else if (Stage == Plan.Hidden) SenseInTree();
         }
 
@@ -118,7 +139,8 @@ namespace Dino_Engine.Wildlife
             for (int i = 0; i < Members.Count; i++)
             {
                 Bird bird = (Bird)Members[i];
-                float fright = Sim.Fright(bird.Position.Xz, Wariness, out Vector2 away);
+                if (bird.Aloft) continue;
+                float fright = Sim.Fright(bird.Position.Xz, bird.OnRoof ? Wariness * RoofCalm : Wariness, out Vector2 away);
                 if (fright >= 1f) continue;
                 Flee(bird, away);
                 return;
@@ -130,12 +152,19 @@ namespace Dino_Engine.Wildlife
             float fright = Sim.Fright(_tree.At, Wariness * 0.8f, out Vector2 away);
             if (fright >= 1f) return;
 
-            Frightened = true;
+            // A crown that reaches up by the camera keeps its birds, as they'd come out of it into the lens.
             Vector3 top = new Vector3(_tree.At.X, _tree.CrownHigh * 0.9f + _tree.CrownLow * 0.1f, _tree.At.Y);
+            if ((new Vector3(top.X, MathF.Max(top.Y, Sim.Land.Standing(top.Xz)), top.Z) - Sim.View.Camera).Length < Bird.ClearOfCamera + _tree.Radius) return;
+
+            Frightened = true;
             for (int i = 0; i < _count; i++)
             {
                 Vector2 off = Turn.Heading(Sim.Random.Range(-MathF.PI, MathF.PI)) * _tree.Radius * Sim.Random.Range(0.3f, 0.8f);
-                var bird = new Bird(Sim, this, top + new Vector3(off.X, Sim.Random.Range(-1.4f, RoostTop), off.Y), away);
+                // From the outside of the crown, where the tree really is over that spot, as one coming out from deep in it would fly out through its leaves.
+                Vector3 from = top + new Vector3(off.X, Sim.Random.Range(-1.4f, RoostTop), off.Y);
+                float crown = Sim.Land.Standing(from.Xz);
+                if (float.IsFinite(crown)) from.Y = crown + Sim.Random.Range(0.1f, 0.4f);
+                var bird = new Bird(Sim, this, from, away);
                 bird.Perch(Sim.Now + Sim.Random.Range(0f, 0.3f), away);
                 Members.Add(bird);
             }
@@ -170,9 +199,19 @@ namespace Dino_Engine.Wildlife
             _flights++;
             Stage = Plan.Fleeing;
             Roosted = false;
+            OnRoofs = false;
 
             if (_flights <= MostFlights)
             {
+                if (Kind.Rooftops && Sim.Random.Float() < RoofShare && TryRoofs(from, away, RoofFrom, RoofTo, Members.Count))
+                {
+                    OnRoofs = true;
+                    Goal = _perches[0].At.Xz;
+                    GoalHeight = _perches[0].At.Y;
+                    Stage = Plan.Settling;
+                    return;
+                }
+
                 if (Kind.Roosts && Sim.Leaves.TryTreeAway(from, away, LandFrom, LandTo * 1.3f, out StandingTree tree))
                 {
                     _tree = tree;
@@ -200,6 +239,74 @@ namespace Dino_Engine.Wildlife
             Goal = from + away * ((Sim.View.Most - Sim.View.Least).Length + 70f);
             GoalHeight = -1f;
         }
+
+        // A roof's edge some way off, ahead of where it's going if it's going anywhere, with room along it for the flock, and nothing frightening near: its perches, nearest the first first.
+        private readonly List<SkyFloor.Perch> _near = new();
+        private readonly List<int> _skipped = new();
+        private const float RoofGaps = 0.35f;
+        private bool TryRoofs(Vector2 from, Vector2 away, float nearest, float furthest, int count)
+        {
+            _near.Clear();
+            Sim.Land.Sky.PerchesNear(from, furthest, _near);
+            _perches.Clear();
+            _nextPerch = 0;
+            if (_near.Count == 0) return false;
+
+            int first = -1;
+            float best = float.NegativeInfinity;
+            for (int i = 0; i < _near.Count; i++)
+            {
+                Vector2 offset = _near[i].At.Xz - from;
+                float distance = offset.Length;
+                if (distance < nearest) continue;
+                float ahead = away == Vector2.Zero || distance < 1e-3f ? 0f : Vector2.Dot(offset / distance, away);
+                if (away != Vector2.Zero && ahead < 0.2f) continue;
+                if (Sim.Fright(_near[i].At.Xz, Wariness * RoofCalm * 1.5f, out _) < 1f) continue;
+                float score = ahead + Sim.Random.Range(0f, 0.8f);
+                if (score <= best) continue;
+                best = score;
+                first = i;
+            }
+            if (first < 0) return false;
+
+            _skipped.Clear();
+            SkyFloor.Perch start = _near[first];
+            if (count > 0 && _near.Count < count) return false;
+            _perches.Add(start);
+            while (_perches.Count < count)
+            {
+                int next = -1;
+                float closest = RoofGather * RoofGather;
+                for (int i = 0; i < _near.Count; i++)
+                {
+                    float gap = (_near[i].At - start.At).LengthSquared;
+                    if (gap >= closest || _perches.Contains(_near[i]) || _skipped.Contains(i)) continue;
+                    closest = gap;
+                    next = i;
+                }
+                if (next < 0) break;
+                // Some left empty, so the row has gaps in it as a real one does, and isn't birds set out a metre apart.
+                if (Sim.Random.Float() < RoofGaps)
+                {
+                    _skipped.Add(next);
+                    continue;
+                }
+                _perches.Add(_near[next]);
+            }
+            return _perches.Count >= count;
+        }
+
+        /// <summary>The next perch along the roof for one of them coming down, or false if they've all been given out.</summary>
+        internal bool TryNextPerch(out SkyFloor.Perch perch)
+        {
+            perch = default;
+            if (!OnRoofs || _nextPerch >= _perches.Count) return false;
+            perch = _perches[_nextPerch++];
+            return true;
+        }
+
+        /// <summary>One of them can't get down where they were going without going through something, so they all go somewhere else.</summary>
+        internal void Resettle(Bird bird) => Choose(Turn.Heading(bird.Yaw), bird.Position.Xz);
 
         internal Vector2 Landing(Vector2 at) => Goal + new Vector2(Sim.Random.Range(-Spread, Spread), Sim.Random.Range(-Spread, Spread)) * Kind.Scatter;
 
@@ -236,6 +343,13 @@ namespace Dino_Engine.Wildlife
         private const float Separation = 1.7f;
         private const float MostClimb = 0.9f;       // Of its speed, straight up.
         private const float ClearOfGround = 0.5f;
+        private const float ClearOfSolid = 1.2f;    // Metres over the top of anything standing that it keeps, at the least.
+        private const float LookAhead = 26f;        // Metres ahead it looks for what's in its way, which its turning and climbing can get it out of from there.
+        private const float LookStep = 2.5f;        // Metres between looks, under the narrowest thing that stands (a crown, a tower) with its berth.
+        private const float GoRound = 3f;
+        private const float RoofOut = 9f;
+        private const float RoofPatience = 12f;     // Seconds it tries for a roof's edge before giving it up.           // Metres out from a roof's edge it comes in to it from.
+        internal const float ClearOfCamera = 14f;   // Metres it keeps from the camera, as the camera's often no higher than the tallest crowns.           // Metres over where it is, or over its ceiling, past which it goes round what's ahead rather than over.
 
         private readonly Flock _flock;
         private readonly BirdKind _kind;
@@ -251,6 +365,12 @@ namespace Dino_Engine.Wildlife
         private float _footing;     // How far over the ground it stands: on top of the grass, for what perches.
         private float _hopFooting;
         private float _slotFooting;
+        private int _balked;        // How many times running the way down to where it was coming down went through something.
+        private bool _onRoof;       // Sitting on the edge of a roof, on its perch.
+        private bool _roofSlot;     // Where it's coming down is a perch on a roof's edge.
+        private SkyFloor.Perch _perch;
+        private bool _hadPerch;
+        private float _slottedAt;
 
         // On the ground.
         private float _nextMove;
@@ -278,6 +398,10 @@ namespace Dino_Engine.Wildlife
         private bool _glide;
 
         public bool Aloft => _state != State.Feeding;
+        /// <summary>Sitting along the edge of a roof.</summary>
+        public bool OnRoof => _onRoof && _state != State.Leaping && _state != State.Flying;
+        /// <summary>Metres across from the perch it's sitting on, coming down to or just left, or infinity if it's never had one: a lab's, as up against a roof's edge is no fault.</summary>
+        public float FromPerch => _hadPerch ? (Position.Xz - _perch.At.Xz).Length : float.PositiveInfinity;
         public override WildlifeShape Shape => _kind.Shape;
         public override float Reach => (_kind.Look.Arm + _kind.Look.Hand + _kind.Look.Body) * Size;
         public override string Doing => _state.ToString();
@@ -306,6 +430,17 @@ namespace Dino_Engine.Wildlife
             _fold = 0f;
             _legs = 0f;
             _velocity = new Vector3(way.X, 0f, way.Y) * _speed;
+        }
+
+        // Up on the edge of a roof, facing out over the drop.
+        internal Bird(WildlifeSim sim, Flock flock, SkyFloor.Perch perch) : this(sim, flock, perch.At.Xz)
+        {
+            _footing = 0f;
+            Position = perch.At;
+            Yaw = Turn.YawOf(perch.Out) + sim.Random.Range(-0.35f, 0.35f);
+            _onRoof = true;
+            _perch = perch;
+            _hadPerch = true;
         }
 
         private float FootingAt(Vector2 at) => _kind.Walks ? 0f : Sim.Land.GrassTop(at);
@@ -358,6 +493,8 @@ namespace Dino_Engine.Wildlife
         {
             float now = Sim.Now;
             if (_flock.Stage == Flock.Plan.Feeding) _crouch = Spring.Damp(_crouch, 0f, 0.05f, deltaTime);
+            // On a roof it shuffles round to face out over the edge after it comes down, and stays put.
+            if (_onRoof) Yaw = Spring.DampAngle(Yaw, Turn.YawOf(_perch.Out), 0.35f, deltaTime);
 
             // A peck is a stab down and a look up, a few at a time.
             if (_pecks > 0 && now >= _peckUntil)
@@ -430,6 +567,7 @@ namespace Dino_Engine.Wildlife
 
         private void Wander()
         {
+            if (_onRoof) return;
             float yaw = Yaw + Sim.Random.Range(-1.5f, 1.5f);
             float length = (_kind.Walks ? Sim.Random.Range(0.8f, 2.4f) : Sim.Random.Range(0.3f, 0.75f)) * Size;
             Vector2 to = Position.Xz + Turn.Heading(yaw) * length;
@@ -451,7 +589,10 @@ namespace Dino_Engine.Wildlife
         private void Leap()
         {
             _state = State.Leaping;
-            float yaw = Turn.YawOf(_away) + Sim.Random.Range(-0.5f, 0.5f);
+            // Off a roof it goes out over the edge, whichever way it's going after, as back over the roof is into it.
+            Vector2 off = _onRoof && Vector2.Dot(_away, _perch.Out) < 0.3f ? _away + _perch.Out * 1.4f : _away;
+            _onRoof = false;
+            float yaw = Turn.YawOf(off) + Sim.Random.Range(-0.5f, 0.5f);
             Vector2 way = Turn.Heading(yaw);
             Yaw = yaw;
             _speed = _kind.Cruise * 0.45f * _pace;
@@ -460,15 +601,66 @@ namespace Dino_Engine.Wildlife
             _slotted = false;
         }
 
-        // The highest it has to clear here and on the way ahead, roofs among it (LifeLand.Overhead), which are looked for closely enough that no corner of a hall falls between two looks.
+        // A roof's edge is come at from outside it, over the drop, as from over the roof it would come down through it: first to a point out from the edge, then in.
+        private Vector2 RoofApproach(Vector2 at) => OutsideEdge(at, LandBegins) ? _slot : _slot + _perch.Out * RoofOut;
+
+        private bool OutsideEdge(Vector2 at, float within)
+        {
+            Vector2 off = at - _slot;
+            float distance = off.Length;
+            return distance < within && Vector2.Dot(off, _perch.Out) > 0.6f * distance;
+        }
+
+        // The highest it has to clear here and on the way ahead, whatever stands among it (LifeLand.Overhead), which is looked for closely enough that no crown or corner falls between two looks.
         private float GroundAhead(Vector2 at, Vector2 way)
         {
             float ground = Sim.Land.Overhead(at);
-            ground = MathF.Max(ground, Sim.Land.Overhead(at + way * 9f));
-            ground = MathF.Max(ground, Sim.Land.Overhead(at + way * 20f));
-            ground = MathF.Max(ground, Sim.Land.RoofAt(at + way * 4.5f));
-            ground = MathF.Max(ground, Sim.Land.RoofAt(at + way * 14.5f));
+            for (float along = LookStep; along <= LookAhead; along += LookStep) ground = MathF.Max(ground, Sim.Land.Overhead(at + way * along));
             return MathF.Max(ground, Sim.Land.WaterLevel(at));
+        }
+
+        // The top of whatever stands on the way ahead, and nothing of the ground.
+        private float StandingAhead(Vector2 at, Vector2 way)
+        {
+            float top = float.NegativeInfinity;
+            for (float along = LookStep; along <= LookAhead; along += LookStep) top = MathF.Max(top, Sim.Land.Standing(at + way * along));
+            return top;
+        }
+
+        // Where something too tall to go over stands ahead, the nearest way to what it wants that's clear of it, as a bird swings round a tree rather than climbing over the camera.
+        private bool TryWayRound(Vector2 at, float wantedYaw, float limit, out Vector2 round)
+        {
+            round = default;
+            if (StandingAhead(at, Turn.Heading(Yaw)) + ClearOfSolid <= limit) return false;
+            for (int i = 1; i <= 4; i++)
+            {
+                for (int side = -1; side <= 1; side += 2)
+                {
+                    float yaw = wantedYaw + side * i * 0.42f;
+                    Vector2 way = Turn.Heading(yaw);
+                    if (StandingAhead(at, way) + ClearOfSolid > limit) continue;
+                    round = way;
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        // Never into anything standing: if a move would take it closer over something than it keeps, it doesn't go on, and climbs instead. What starts closer than that, getting up beside a
+        // fence, is let climb out by itself, as only something low is ever beside where a bird comes down (Flock.Fits).
+        private bool KeepOut(Vector3 was)
+        {
+            float here = Sim.Land.Standing(Position.Xz);
+            if (Position.Y >= here + ClearOfSolid) return false;
+            float there = Sim.Land.Standing(was.Xz);
+            // Within its berth of something it may go where nothing is taller, but never in under the top of anything taller than where it was, as a tower beside a low roof shares its berth.
+            float top = Sim.Land.Sky.At(Position.Xz);
+            bool under = Position.Y < top && top > Sim.Land.Sky.At(was.Xz) + 0.3f;
+            if (!under && was.Y < there + ClearOfSolid - 0.05f && here <= there + 0.05f) return false;
+            Position.X = was.X;
+            Position.Z = was.Z;
+            Position.Y = MathF.Max(Position.Y, was.Y);
+            return true;
         }
 
         private void Fly(float deltaTime)
@@ -476,7 +668,7 @@ namespace Dino_Engine.Wildlife
             Vector2 at = Position.Xz;
             Vector2 way = Turn.Heading(Yaw);
 
-            Vector2 toGoal = _flock.Goal - at;
+            Vector2 toGoal = (_roofSlot && _slotted && _flock.Stage == Flock.Plan.Settling ? RoofApproach(at) : _flock.Goal) - at;
             float distance = toGoal.Length;
             Vector2 seek = distance > 1e-3f ? toGoal / distance : way;
 
@@ -526,7 +718,16 @@ namespace Dino_Engine.Wildlife
             float ground = GroundAhead(at, way);
             float cruiseAt = ground + _kind.Height * _height;
             float ceiling = Sim.View.Focus.Y + Ceiling;
-            if (_flock.GoalHeight >= 0f && distance < 30f) cruiseAt = _flock.GoalHeight + 1f;
+
+            // Out of the camera's way, which a crown as tall as the camera is up can bring it near.
+            Vector3 fromCamera = Position - Sim.View.Camera;
+            float nearCamera = fromCamera.Length;
+            if (nearCamera < ClearOfCamera * 1.6f && fromCamera.Xz.LengthSquared > 1e-4f) wanted += fromCamera.Xz.Normalized() * (ClearOfCamera * 1.6f - nearCamera) / ClearOfCamera * 4f;
+
+            // What's too tall to go over without climbing at the camera, it goes round, if there's a way.
+            float limit = MathF.Max(ceiling, MathF.Min(Position.Y + GoRound, Sim.View.Camera.Y - ClearOfCamera));
+            if (TryWayRound(at, Turn.YawOf(wanted), limit, out Vector2 round)) wanted = round * MathF.Max(wanted.Length, 1f) * 2f;
+            if (_flock.GoalHeight >= 0f && distance < 30f) cruiseAt = MathF.Max(_flock.GoalHeight + 1f, ground + ClearOfSolid + 0.5f);
             float targetHeight = MathF.Min(cruiseAt, MathF.Max(ceiling, ground + 3f));
             climb = Math.Clamp((targetHeight - Position.Y) * 1.3f, -3.5f, _kind.Cruise * MostClimb);
 
@@ -541,6 +742,9 @@ namespace Dino_Engine.Wildlife
 
             float cruise = _kind.Cruise * _pace;
             float urgency = _state == State.Leaping ? 1.15f : 1f;
+            // Something to get over close ahead slows it, as a bird climbing hard does, so that it gets over in time.
+            float toClimb = ground + ClearOfSolid - Position.Y;
+            if (toClimb > 0f) urgency *= Math.Clamp(1f - toClimb / 14f, 0.35f, 1f);
             _speed = Spring.Damp(_speed, cruise * urgency, 0.32f, deltaTime);
 
             way = Turn.Heading(Yaw);
@@ -553,7 +757,13 @@ namespace Dino_Engine.Wildlife
 
             // Bounding dips between bursts, as there's nothing holding it up with its wings shut.
             float dip = _kind.Bounds ? _fold * 2.8f : 0f;
+            Vector3 was = Position;
             Position += (_velocity - Vector3.UnitY * dip) * deltaTime;
+            if (KeepOut(was))
+            {
+                _speed *= MathF.Exp(-6f * deltaTime);
+                _velocity.Y = MathF.Max(_velocity.Y, _kind.Cruise * MostClimb * 0.6f);
+            }
 
             // However steep the land, it goes over it and never through it. A bird can't outclimb a cliff, so it slows, as a real one would. It's the ground as it's drawn that
             // it keeps over, as on a sheer face that and a straight line between the height map's points can be a metre apart.
@@ -575,12 +785,38 @@ namespace Dino_Engine.Wildlife
             {
                 if (!_slotted)
                 {
-                    _slot = _flock.Landing(at);
-                    if (!_flock.Fits(_slot)) _slot = _flock.Goal;
-                    _slotFooting = FootingAt(_slot);
+                    _roofSlot = _flock.TryNextPerch(out SkyFloor.Perch perch);
+                    if (_roofSlot)
+                    {
+                        _perch = perch;
+                        _hadPerch = true;
+                        _slot = perch.At.Xz;
+                        _slotFooting = 0f;
+                    }
+                    else if (_flock.OnRoofs)
+                    {
+                        // Every edge along that roof is taken, by those who balked at theirs: they all go somewhere else rather than drop to the ground under it.
+                        _flock.Resettle(this);
+                        return;
+                    }
+                    else
+                    {
+                        _slot = _flock.Landing(at);
+                        for (int attempt = 0; attempt < 6 && !_flock.Fits(_slot); attempt++) _slot = _flock.Landing(at);
+                        if (!_flock.Fits(_slot)) _slot = _flock.Goal;
+                        _slotFooting = FootingAt(_slot);
+                    }
                     _slotted = true;
+                    _slottedAt = Sim.Now;
                 }
-                if ((_slot - at).Length < LandBegins) _state = State.Landing;
+                // A roof's edge it can't get in to in good time isn't worth it: the flock goes elsewhere.
+                if (_roofSlot && Sim.Now - _slottedAt > RoofPatience)
+                {
+                    _roofSlot = false;
+                    _slotted = false;
+                    _flock.Resettle(this);
+                }
+                if (_roofSlot ? OutsideEdge(at, LandBegins * 0.75f) && Position.Y > _perch.At.Y - 0.5f : (_slot - at).Length < LandBegins) _state = State.Landing;
             }
 
             // In among the leaves, and gone.
@@ -643,7 +879,7 @@ namespace Dino_Engine.Wildlife
             Vector2 at = Position.Xz;
             Vector2 toSlot = _slot - at;
             float distance = toSlot.Length;
-            float ground = Sim.Land.Ground(at) + _slotFooting;
+            float ground = _roofSlot ? _perch.At.Y : Sim.Land.Ground(at) + _slotFooting;
             float high = Position.Y - ground;
 
             Vector2 way = distance > 1e-3f ? toSlot / distance : Turn.Heading(Yaw);
@@ -656,7 +892,33 @@ namespace Dino_Engine.Wildlife
             float sink = MathF.Min(MathF.Max(slope, 0.25f) * _speed, 6f);
 
             Vector2 heading = Turn.Heading(Yaw);
+            Vector3 was = Position;
             Position += new Vector3(heading.X * MathF.Min(_speed, distance / MathF.Max(deltaTime, 1e-3f)), -sink, heading.Y * MathF.Min(_speed, distance / MathF.Max(deltaTime, 1e-3f))) * deltaTime;
+            // Its slot is clear of anything standing, but the way down to it may not be: where it would come down into something taller than a fence it doesn't, and flies on to look again.
+            // Coming to a roof's edge it's under the roof's own berth all the way in, so only what's really there counts, and nothing at all at the very edge.
+            bool blocked;
+            if (_roofSlot)
+            {
+                Position.Y = MathF.Max(Position.Y, _perch.At.Y);
+                blocked = (Position.Xz - _slot).Length > 1.5f && Position.Y < Sim.Land.Sky.At(Position.Xz) + 0.2f;
+            }
+            else
+            {
+                float standing = Sim.Land.Standing(Position.Xz);
+                blocked = Position.Y < standing + ClearOfSolid && standing - Sim.Land.RoughGround(Position.Xz) > Flock.ClearOver;
+            }
+            if (blocked)
+            {
+                Position = was;
+                _state = State.Flying;
+                _slotted = false;
+                if (++_balked >= 2)
+                {
+                    _balked = 0;
+                    _flock.Resettle(this);
+                }
+                return;
+            }
 
             // The flare: wings forward and hard against the air, tail down, feet out.
             bool flaring = distance < FlareBegins * _kind.Look.Body * 3f || high < 2.2f;
@@ -671,9 +933,12 @@ namespace Dino_Engine.Wildlife
             _stroke += MathF.Tau * _kind.Wingbeats * deltaTime;
             if (_stroke > MathF.Tau) _stroke -= MathF.Tau;
 
-            if (Position.Y <= ground + 0.03f || distance < 0.2f && high < 0.4f)
+            bool down = _roofSlot ? (Position.Xz - _slot).Length < 0.25f && Position.Y <= ground + 0.4f : Position.Y <= ground + 0.03f || distance < 0.2f && high < 0.4f;
+            if (down)
             {
-                Position = new Vector3(at.X, ground, at.Y);
+                Position = _roofSlot ? _perch.At : new Vector3(at.X, ground, at.Y);
+                _onRoof = _roofSlot;
+                _roofSlot = false;
                 _footing = _slotFooting;
                 _state = State.Feeding;
                 _nextMove = Sim.Now + Sim.Random.Range(0.4f, 1.4f);

@@ -121,18 +121,22 @@ namespace Dino_Engine.World
             var queue = Partitioner.Create(wanted.OrderByDescending(item => item.slowness), EnumerablePartitionerOptions.NoBuffering);
             Parallel.ForEach(queue, new ParallelOptions { MaxDegreeOfParallelism = Math.Max(Environment.ProcessorCount - 1, 1) }, item =>
             {
-                _grown[item.id] = item.make();
+                FloraMesh grown = item.make();
+                ModelTops.Learn(item.id, grown);
+                _grown[item.id] = grown;
             });
             Parallel.ForEach(Partitioner.Create(forging, EnumerablePartitionerOptions.NoBuffering), new ParallelOptions { MaxDegreeOfParallelism = Math.Max(Environment.ProcessorCount - 1, 1) }, item =>
             {
                 var lights = new List<AssetLight>();
                 Mesh mesh = PlazaForge.Make(item.spec, lights);
+                ModelTops.Learn(item.id, mesh);
                 _forged[item.id] = (mesh, lights);
             });
             Parallel.ForEach(Partitioner.Create(raising, EnumerablePartitionerOptions.NoBuffering), new ParallelOptions { MaxDegreeOfParallelism = Math.Max(Environment.ProcessorCount - 1, 1) }, item =>
             {
                 var lights = new List<AssetLight>();
                 Mesh mesh = ArenaForge.Make(item.spec, lights);
+                ModelTops.Learn(item.id, mesh);
                 _forged[item.id] = (mesh, lights);
             });
             // The church first, as it takes a hundred times as long as a gravestone.
@@ -140,6 +144,7 @@ namespace Dino_Engine.World
             {
                 var lights = new List<AssetLight>();
                 Mesh mesh = YardForge.Make(item.spec, lights);
+                ModelTops.Learn(item.id, mesh);
                 _forged[item.id] = (mesh, lights);
             });
             // The biggest first, as a hull or a laboratory takes a hundred times as long as a crate.
@@ -147,6 +152,7 @@ namespace Dino_Engine.World
             {
                 var lights = new List<AssetLight>();
                 Mesh mesh = PlaceForge.Make(item.spec, lights);
+                ModelTops.Learn(item.id, mesh);
                 _forged[item.id] = (mesh, lights);
             });
             // Houses first, as one takes a hundred times as long as a bench.
@@ -156,6 +162,7 @@ namespace Dino_Engine.World
                 var chimneys = new List<Vector3>();
                 Mesh mesh = TownForge.Make(item.spec, lights, chimneys);
                 _smoking[item.id] = chimneys;
+                ModelTops.Learn(item.id, mesh);
                 _forged[item.id] = (mesh, lights);
             });
         }
@@ -169,6 +176,7 @@ namespace Dino_Engine.World
                 // Every arena and keep has pieces of its own, so they go too once no world uses them.
                 if (thisWorld.Contains(id) || _lastWorld.Contains(id) || !(id.Contains('#') || FenceSpec.IsFence(id) || ArenaSpec.IsArena(id) || YardSpec.IsYard(id) || PlaceSpec.IsPlace(id))) continue;
                 if (_models.TryRemove(id, out glModel? model)) model.cleanUp();
+                ModelTops.Forget(id);
                 _lights.Remove(id);
                 _chimneys.Remove(id);
             }
@@ -184,11 +192,13 @@ namespace Dino_Engine.World
             if (FenceSpec.TryParse(id, out FenceSpec fence))
             {
                 if (!_grown.TryRemove(id, out FloraMesh? built)) built = FenceForge.Make(fence);
+                if (!ModelTops.Has(id)) ModelTops.Learn(id, built);
                 model = glLoader.loadToVAO(built);
             }
             else if (FloraCatalog.TryGet(name, out PlantSpecies species))
             {
                 if (!_grown.TryRemove(id, out FloraMesh? plant)) plant = FloraForge.Grow(species, seed);
+                if (!ModelTops.Has(id)) ModelTops.Learn(id, plant);
                 model = glLoader.loadToVAO(plant);
                 imposterDistance = species.Asset.ImposterDistance;
                 // Trees, and nothing else that isn't asked for, thin away for the player behind them (glModel.OpensForFocus).
@@ -198,6 +208,7 @@ namespace Dino_Engine.World
             else if (NatureCatalog.TryGetRock(name, out RockKind kind, out RockForm form))
             {
                 if (!_grown.TryRemove(id, out FloraMesh? stone)) stone = RockForge.Forge(form, kind, seed);
+                if (!ModelTops.Has(id)) ModelTops.Learn(id, stone);
                 model = glLoader.loadToVAO(stone);
                 imposterDistance = NatureCatalog.RockOf(kind, form).ImposterDistance;
             }
@@ -208,6 +219,7 @@ namespace Dino_Engine.World
                 Mesh mesh = BuildStructure(id, chimneys, lights, out imposterDistance);
                 if (chimneys.Count > 0) _chimneys[id] = chimneys;
                 if (lights.Count > 0) _lights[id] = lights;
+                if (!ModelTops.Has(id)) ModelTops.Learn(id, mesh);
                 model = glLoader.loadToVAO(mesh);
             }
 
@@ -246,6 +258,27 @@ namespace Dino_Engine.World
             foreach (string model in NatureCatalog.ModelsOf(asset, worldSeed))
             {
                 if (seen.Add(model)) ids.Add(model);
+            }
+        }
+
+        /// <summary>
+        /// Makes a model with nothing on the GPU and nothing kept, and learns its top (<see cref="ModelTops"/>), for a lab with no game to make them as they're drawn. Safe from any thread.
+        /// </summary>
+        public static void MeasureAlone(string id)
+        {
+            if (ModelTops.Has(id)) return;
+            string name = NatureCatalog.SpeciesOf(id, out ulong seed);
+            try
+            {
+                if (FenceSpec.TryParse(id, out FenceSpec fence)) ModelTops.Learn(id, FenceForge.Make(fence));
+                else if (FloraCatalog.TryGet(name, out PlantSpecies species)) ModelTops.Learn(id, FloraForge.Grow(species, seed));
+                else if (NatureCatalog.TryGetRock(name, out RockKind kind, out RockForm form)) ModelTops.Learn(id, RockForge.Forge(form, kind, seed));
+                else ModelTops.Learn(id, new WorldAssetLibrary().BuildStructure(id, new List<Vector3>(), new List<AssetLight>(), out _));
+            }
+            catch (ArgumentException)
+            {
+                // An id the structures don't know and nothing else grows stands over nothing.
+                ModelTops.Learn(id, (ModelTop?)null);
             }
         }
 

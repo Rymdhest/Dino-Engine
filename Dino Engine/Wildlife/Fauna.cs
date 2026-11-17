@@ -105,6 +105,7 @@ namespace Dino_Engine.Wildlife
         public float Hold = 0.05f;          // Radians its wings are held up.
         public bool Walks;                  // Walks, with its head going, and doesn't hop. What walks stays out of long grass; what hops sits up on top of it, on the seed heads.
         public bool Roosts;                 // Sits up in trees, unseen until something sets it off.
+        public bool Rooftops;               // Sits along the edges of roofs, in a row, as sparrows, pigeons, crows and gulls do in any town.
         public float Turning = 2.6f;        // Radians a second.
         public bool Calls;                  // Cries out when it goes.
         public float Scatter = 1f;          // How wide a flock feeds.
@@ -249,7 +250,7 @@ namespace Dino_Engine.Wildlife
 
         // --- Birds. Small ones feed in the open and sit in trees; big ones are few. ---
         public static readonly BirdKind Sparrow = new BirdKind("sparrow", new BirdLook())
-        { Bounds = true, Roosts = true, Shy = 13f, Density = 0.4f, Lives = Habitat.Meadow | Habitat.Edge | Habitat.Yard | Habitat.Field };
+        { Bounds = true, Roosts = true, Rooftops = true, Shy = 13f, Density = 0.4f, Lives = Habitat.Meadow | Habitat.Edge | Habitat.Yard | Habitat.Field };
 
         public static readonly BirdKind Goldfinch = new BirdKind("goldfinch", new BirdLook
         {
@@ -265,21 +266,21 @@ namespace Dino_Engine.Wildlife
             Body = 0.58f, Girth = 0.2f, Neck = 0.13f, Head = 0.105f, Bill = 0.075f, BillDepth = 0.032f, Tail = 0.34f, TailWidth = 0.17f, Arm = 0.36f, Hand = 0.48f, Chord = 0.34f, Point = 0.62f, Legs = 0.13f,
             Back = V(0.25f, 0.27f, 0.31f), Belly = V(0.31f, 0.33f, 0.37f), Crown = V(0.1f, 0.15f, 0.19f), Wing = V(0.34f, 0.36f, 0.4f), Tips = V(0.06f, 0.06f, 0.07f), TailColour = V(0.16f, 0.17f, 0.2f), Bars = V(0.03f, 0.03f, 0.035f), Beak = V(0.05f, 0.05f, 0.05f), Foot = V(0.45f, 0.08f, 0.06f),
         })
-        { Walks = true, Wingbeats = 6.5f, Cruise = 15f, Height = 6f, Shy = 11f, Density = 0.55f, Group = new IntRange(4, 10), Lives = Habitat.Yard | Habitat.Field, Turning = 2.2f };
+        { Walks = true, Rooftops = true, Wingbeats = 6.5f, Cruise = 15f, Height = 6f, Shy = 11f, Density = 0.55f, Group = new IntRange(4, 10), Lives = Habitat.Yard | Habitat.Field, Turning = 2.2f };
 
         public static readonly BirdKind Crow = new BirdKind("crow", new BirdLook
         {
             Body = 0.72f, Girth = 0.21f, Neck = 0.14f, Head = 0.125f, Bill = 0.17f, BillDepth = 0.06f, Tail = 0.5f, TailWidth = 0.18f, Arm = 0.5f, Hand = 0.68f, Chord = 0.48f, Point = 0.24f, Fingers = 3, Legs = 0.17f,
             Back = V(0.016f, 0.016f, 0.02f), Belly = V(0.014f, 0.014f, 0.018f), Crown = V(0.014f, 0.014f, 0.018f), Wing = V(0.018f, 0.018f, 0.024f), Tips = V(0.01f, 0.01f, 0.012f), TailColour = V(0.012f, 0.012f, 0.016f), Beak = V(0.01f, 0.01f, 0.01f), Foot = V(0.012f, 0.012f, 0.012f),
         })
-        { Walks = true, Wingbeats = 3.6f, Cruise = 13f, Height = 7f, Shy = 24f, Density = 0.2f, Group = new IntRange(2, 5), Lives = Habitat.Field | Habitat.Meadow | Habitat.Barren, Calls = true, Scatter = 2.2f, Turning = 1.8f };
+        { Walks = true, Rooftops = true, Wingbeats = 3.6f, Cruise = 13f, Height = 7f, Shy = 24f, Density = 0.2f, Group = new IntRange(2, 5), Lives = Habitat.Field | Habitat.Meadow | Habitat.Barren, Calls = true, Scatter = 2.2f, Turning = 1.8f };
 
         public static readonly BirdKind Gull = new BirdKind("gull", new BirdLook
         {
             Body = 0.74f, Girth = 0.2f, Neck = 0.13f, Head = 0.125f, Bill = 0.14f, BillDepth = 0.05f, Tail = 0.36f, TailWidth = 0.18f, Arm = 0.64f, Hand = 0.96f, Chord = 0.42f, Point = 0.82f, Legs = 0.18f,
             Back = V(0.3f, 0.33f, 0.37f), Belly = V(0.72f, 0.72f, 0.7f), Crown = V(0.74f, 0.74f, 0.72f), Wing = V(0.36f, 0.39f, 0.43f), Tips = V(0.012f, 0.012f, 0.014f), TailColour = V(0.72f, 0.72f, 0.7f), Beak = V(0.55f, 0.38f, 0.02f), Foot = V(0.5f, 0.3f, 0.16f),
         })
-        { Walks = true, Wingbeats = 2.9f, Glides = 0.65f, Cruise = 12f, Height = 7f, Hold = 0.16f, Shy = 18f, Density = 0.6f, Group = new IntRange(3, 7), Lives = Habitat.Beach, Calls = true, Scatter = 2f, Turning = 1.5f, Rain = 0.6f };
+        { Walks = true, Rooftops = true, Wingbeats = 2.9f, Glides = 0.65f, Cruise = 12f, Height = 7f, Hold = 0.16f, Shy = 18f, Density = 0.6f, Group = new IntRange(3, 7), Lives = Habitat.Beach, Calls = true, Scatter = 2f, Turning = 1.5f, Rain = 0.6f };
 
         public static readonly BirdKind Egret = new BirdKind("egret", new BirdLook
         {
