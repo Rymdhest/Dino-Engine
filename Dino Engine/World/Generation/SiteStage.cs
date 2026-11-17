@@ -481,6 +481,8 @@ namespace Dino_Engine.World.Generation
                 considered++;
 
                 float interest = Interest(definition, candidate);
+                // A seat's ways in are known before it's sited, and one that opens onto a cliff or the sea is no way in (SEATS.md).
+                if (definition.Kind == SiteKind.Keep) interest *= MathF.Max(MathF.Pow(Seats.SeatBuilder.RoomAt(world, candidate.Position, radius), 10f), 0.003f);
                 if (interest > bestInterest)
                 {
                     bestInterest = interest;
@@ -498,6 +500,8 @@ namespace Dino_Engine.World.Generation
             foreach (Candidate candidate in candidates)
             {
                 float away = (candidate.Position - near).Length;
+                // A seat a little further off with room at its ways in is nearer than one hard by with none.
+                if (definition.Kind == SiteKind.Keep && away < nearest + 60f) away += (1f - Seats.SeatBuilder.RoomAt(world, candidate.Position, definition.Radius.Max)) * 60f;
                 if (away >= nearest || !MeetsLimits(world, definition, candidate, definition.Radius.Max)) continue;
                 nearest = away;
                 pick = candidate;
@@ -583,6 +587,8 @@ namespace Dino_Engine.World.Generation
                 Biome = world.DominantBiome(candidate.Position),
                 Story = story,
                 Name = NameFor(world, definition, random.Fork("name"), story),
+                // A keep is whichever seat the land's seed says, which its name, its builder and the game's story of it all read (SEATS.md).
+                Seat = definition.Kind == SiteKind.Keep ? new SeatPlan { Kind = SeatCatalog.KindOf(world.Plan.Seed) } : null,
             });
         }
 
@@ -631,7 +637,7 @@ namespace Dino_Engine.World.Generation
                 case SiteKind.StandingStones:
                     return "The Stones of " + PlaceNames.Root(seed, random);
                 case SiteKind.Keep:
-                    return "Fort " + PlaceNames.Root(seed, random);
+                    return SeatCatalog.NameOf(SeatCatalog.KindOf(seed), seed, random);
                 case SiteKind.Waygate:
                     return PlaceNames.Height(seed, random) + " Gate";
                 case SiteKind.Haven:

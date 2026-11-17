@@ -69,6 +69,7 @@ namespace Dino_Engine.World.Generation
                 }
                 foreach (WorldRoad road in world.Roads) pass.LineRoad(road);
                 pass.FillWild();
+                pass.MeetTheLanding();
             }
 
             // A place that has lost everyone to the land around it, as a camp on a cliff can, is no use to anybody, but its props can stay.
@@ -144,7 +145,7 @@ namespace Dino_Engine.World.Generation
                     if (site.Place is PlacePlan framed && !framed.Inside(spot, -2f)) continue;
                     if (!CanStand(spot)) continue;
                     // A keep's garrison camps round the yard its tyrant waits in, and leaves the yard to it.
-                    if (site.Kind == SiteKind.Keep && (spot - site.Position).Length < SettlementStage.KeepYard(site) + 1.5f) continue;
+                    if (site.Kind == SiteKind.Keep && (spot - SettlementStage.KeepHeart(site)).Length < SettlementStage.KeepYard(site) + 1.5f) continue;
                     site.Spawns.Add(new SiteSpawn(role, spot));
                     placed++;
                 }
@@ -185,6 +186,8 @@ namespace Dino_Engine.World.Generation
                         SiteKind.Nest => SpawnRole.Beast,
                         SiteKind.Shipwreck => site.Spawns.Any(s => s.Role == SpawnRole.Beast) ? SpawnRole.Beast : SpawnRole.Raider,
                         SiteKind.SnowCastle => SpawnRole.Cultist,
+                        // The Ossuary's seats are watched by what it raised (SEATS.md).
+                        SiteKind.Keep when site.Seat is SeatPlan seat && SeatCatalog.IsOssuary(seat.Kind) => SpawnRole.Undead,
                         _ => SpawnRole.Raider,
                     };
                     TryPack(HauntKind.Picket, spot, folk, Next());
@@ -232,6 +235,27 @@ namespace Dino_Engine.World.Generation
                         Vector2 spot = corner + new Vector2(random.Float(), random.Float()) * cell;
                         if (TryPack(HauntKind.Den, spot, _territory.FolkAt(spot, random), Next())) break;
                     }
+                }
+            }
+
+            private const float FirstFight = 150f;      // Metres from the landing within which a land has something to fight.
+
+            /// <summary>
+            /// A pack near enough the landing that a land's first fight isn't a long walk off, where the roads and the wild happened to leave none: on a fork of its own, and only
+            /// in a land that needs it, so that no other changes.
+            /// </summary>
+            public void MeetTheLanding()
+            {
+                WorldSite landing = _world.Sites[0];
+                foreach (WorldSite haunt in _world.Haunts)
+                {
+                    if (haunt.Spawns.Count > 0 && (haunt.Position - landing.Position).Length <= FirstFight) return;
+                }
+                WorldRandom random = _random.Fork("landing");
+                for (int attempt = 0; attempt < 240; attempt++)
+                {
+                    Vector2 spot = landing.Position + SiteBuilder.Direction(random.Float() * MathF.Tau) * random.Range(landing.Radius + LandingMargin + 2f, FirstFight);
+                    if (TryPack(HauntKind.Den, spot, _territory.FolkAt(spot, random), random.Fork(attempt))) return;
                 }
             }
 

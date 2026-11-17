@@ -65,8 +65,8 @@ namespace Dino_Engine.World.Generation
             }
         }
 
-        // A keep's middle is the arena its tyrant is kept in and the camp round it (ARENAS.md), and a churchyard's is its church and graves (CHURCHYARD.md): a road that doesn't end
-        // there goes round, and one that does is cut back to its gate later.
+        // A keep is its commander's seat, walled, with the yard its tyrant waits in (SEATS.md), and a churchyard's middle is its church and graves (CHURCHYARD.md): a road that doesn't
+        // end there goes round, and one that does is cut back to its gate later.
         private const float KeepCoreCost = 25f;
 
         private static float KeepCore(WorldData world, Vector2 at)
@@ -75,7 +75,7 @@ namespace Dino_Engine.World.Generation
             {
                 float core = site.Kind switch
                 {
-                    SiteKind.Keep => site.Radius * SettlementStage.KeepRoadEnd,
+                    SiteKind.Keep => site.Radius * Seats.SeatBuilder.CutShare,   // Its walls and the road that's brought round them to a gate (SEATS.md).
                     SiteKind.Graveyard => site.Radius * 1.32f,    // Out past the corners of its wall, which reach further than its radius.
                     SiteKind.Quarry => site.Radius * 1.1f,        // Its face and the ground laid level behind it (PLACES.md).
                     _ => 0f,

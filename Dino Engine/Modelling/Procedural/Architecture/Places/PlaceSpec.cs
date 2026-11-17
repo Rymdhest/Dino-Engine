@@ -180,6 +180,41 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Places
         Lantern,        // A lantern on a post: height, whose.
         Banner,         // The Reich's banner, as at a keep's gate, or a cloth of the land's: height, whose.
         Shelter,        // An open-fronted shelter of boards on posts, a lean-to roof: width, depth.
+
+        // ---- A commander's seat, where a land's tyrant waits (Seats/*.cs, SEATS.md). A stone is the land's own (r, g, b per mille, PlaceMaterials.StoneOf) wherever the Reich took what it holds.
+        SeatWall,       // A stretch of curtain wall along x, its outside to -z: length, height, thickness, form (0 a walk behind battlements, 1 low under a coping, 2 breached and closed in the Reich's plate), stone (r, g, b).
+        SeatTower,      // A round tower: radius, height, form (0 battlements and a beacon burning, 1 a timber hoarding under a cone of shingles, 2 battlements and the Reich's pennant), stone (r, g, b).
+        SeatGate,       // A gatehouse, its way through along z and its outside to -z: the way's width, its towers' radius, their height, form (0 the great gate, 1 a lesser one), stone (r, g, b).
+        SeatSteps,      // A flight of steps from the middle of its bottom riser up towards -z, between cheek walls: width, steps, rise, tread, a cheek's width, stone (r, g, b).
+        SeatRevet,      // A wall along x holding a terrace up behind it (-z), paved along its top, with a parapet: length, rise, stone (r, g, b).
+        GreatHall,      // A citadel's hall and keep, their front to +z: width, depth, eaves, how high the keep stands, stone (r, g, b).
+        TyrantStall,    // The stall the Reich built for a tyrant, its front to +z: width, depth, height.
+        FallenLord,     // The land's lord in stone, pulled down off his plinth: length, stone (r, g, b).
+        GreatBrazier,   // A great bowl of fire on a plinth: height, whose (0 the Reich's, 1 the Ossuary's cold green, 2 the blue a ghost is called by, 3 the bile's sick light).
+        LongBanner,     // One of the Reich's long banners, hung to +z: the height of its top, the cloth's width, its drop, form (0 on a standard of its own, 1 on a bar off a wall behind it).
+        FeedTrough,     // The trough a tyrant's fed from, along z: length.
+        YardRing,       // The ring a tyrant was chained by, set in the ground, its chain run out along +z to where it broke: the chain's length.
+        Hoard,          // What a commander has taken of the land, heaped by the door: how far across.
+        GatePier,       // A pier of the Reich's a fence ends on at a gate: height, form (0 a lantern on an arm, 1 a bowl of fire), build (0 dark granite, 1 brick).
+        BoneMatrix,     // The slab a bone tyrant was raised out of, tilted up to -z, the hollow it left in it and the tackle over it: width, depth, how high its back stands, stone (r, g, b).
+        BonePale,       // A stretch of the Ossuary's fence of great bones along x, its outside to -z: length, height.
+        RibArch,        // Two great ribs crossed over a way in, across x: span, height.
+        GreatBarrow,    // One of the land's great barrows along x, cut open towards +z: length, depth, height, stone (r, g, b).
+        BileVats,       // The vats of bile in a row along x on their firebox, their front to +z: how many, a vat's height.
+        BileCradle,     // The frame a rotting tyrant is hooked into, across x: width, height.
+        BilePool,       // Bile standing on the ground, lit: radius, whether it lights what's round it (0, 1).
+        BroodDome,      // A hatchery's brood house, a dome of iron and amber glass over a drum of brick, burst open towards +z: radius.
+        BroodTanks,     // A row of the tanks the next brood is grown in, along x, their front to +z: how many, a tank's height.
+        GreatShell,     // The shell a land's tyrant hatched from, kept on a round of stone behind a chain: how far across the egg was.
+        BlastFurnace,   // A foundry's blast furnace, its tapping arch and casting bed to +z, its stove at -x and its hoist at +x: height.
+        Armature,       // A tyrant's fitting dummy in canvas in a cradle of timber, the regalia being made for it on it, along x: which tyrant, its length, which way it faces (0 +x, 1 -x).
+        ScrapHeap,      // What a foundry is fed and leaves: form (0 the land's bells, ploughs and gates, 1 coal, 2 slag still bright in its cracks), how far across.
+        Colossus,       // A triumph's colossus, the land's tyrant in black iron on a plinth of granite, roaring, along x: which tyrant, its length, the plinth's height, which way it faces (0 +x, 1 -x).
+        TrophyPylon,    // A pier of granite hung with the shields of the land's dead: height, form (0 a bowl of fire that lights what's round it, 1 a bowl of fire, 2 a point of brass).
+        Dais,           // The stand a commander watches from, its steps to +z, a canopy over the chair nobody's in: width.
+        Pavilion,       // A brood's pavilion, a great tent between two lesser ones, its door and fly to +z: width, depth.
+        WarWagon,       // One of the wagons a war camp is walled with, along x, its plated side to -z: length, form (0 a wagon, 1 with a bolt thrower raised on it).
+        CageWagon,      // The cage on wheels a tyrant was brought in, along z, its door let down as a ramp to +z: length.
     }
 
     /// <summary>

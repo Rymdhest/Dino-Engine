@@ -66,13 +66,13 @@ A boss map's sky is held to its kind's (`WorldArchetype.Weather`, read by `Weath
 
 ## A keep's tyrant
 
-**A keep's tyrant waits in the open**, in the yard in the middle of its walls (`SettlementStage.BuildKeep`, `KeepYard`). A person found a sealed arena in every keep, gone down into by a gate, made every land's tyrant the same fight as every tenth level's, with nowhere to lead it. So the locked-in fight is the boss maps' alone, and a keep is somewhere to fight however a player likes:
+**A keep's tyrant waits in the open**, in the yard in the middle of its walls (`SeatBuilder.OpenYard`, `SettlementStage.KeepYard`; a keep is one of eight kinds of seat, each laid out round the same yard, `SEATS.md`). A person found a sealed arena in every keep, gone down into by a gate, made every land's tyrant the same fight as every tenth level's, with nowhere to lead it. So the locked-in fight is the boss maps' alone, and a keep is somewhere to fight however a player likes:
 
 - **The yard is half the keep's radius**, about 30 m, kept clear of anything solid (a `PlacementLayer.Keepout` over it), with the tyrant in its middle as soon as anyone comes. `WorldValidator.CheckKeepYard` fails a keep whose ground within 20 m of its tyrant isn't 85% passable, and one with an arena, a second tyrant or anyone watching in it.
 - **Three of its four walls have an open gatehouse**, the road's and both sides, so that a fight can spill out onto the land and come back in by another. The back wall has the keep itself against it, with the hoard before its door.
 - **Its camp and garrison stand along the walls**, out of the yard (`PackStage.Reinforce` keeps the garrison out of it).
 - **A tyrant follows whoever leads it out**, as far as 120 m from where it waited (every tyrant's and the warlord's `LeashRadius` in `Bestiary`), and the keep's music holds while the fight's within 60 m of its walls (`MusicDirectorSystem.KeepLeaves`). `Dino NetLab arenas --kind keeps` leads one out of the gate and checks that it follows.
-- **Roads that end at a keep stop inside its gate** (`SettlementStage.KeepRoadEnd`), and roads going elsewhere go round its middle (`RoadStage.KeepCore`).
+- **Roads that end at a keep stop inside its gate** (`SeatBuilder.Frame`, which cuts them short and brings them round its walls to it), and roads going elsewhere go round its middle (`RoadStage.KeepCore`).
 
 ## Adding to it
 

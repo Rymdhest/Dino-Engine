@@ -235,6 +235,16 @@ namespace Dino_Defenders.Server
             bool cold = biome.Temperature <= 0.3f;
             switch (site.Kind)
             {
+                case SiteKind.Keep:
+                    // A commander's seat is held by its own (SEATS.md): the Reich's by its greycoats and their beasts and never a turncoat, and the Ossuary's by what it made there, the
+                    // bones it raised at its dig, the ghosts it called up at the barrow, and at the bile works its failures, with greycoats at the gate.
+                    switch (site.Seat?.Kind)
+                    {
+                        case SeatKind.Boneyard: return Dead;
+                        case SeatKind.Barrow: return Ghosts;
+                        case SeatKind.Bileworks when folk == SpawnRole.Undead: return Rotting;
+                        default: return folk is SpawnRole.Raider or SpawnRole.Guard ? (cold ? ReichInSnow : Reich) : null;
+                    }
                 case SiteKind.Prison:
                 case SiteKind.Farm:
                 case SiteKind.Quarry:

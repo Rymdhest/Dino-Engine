@@ -178,7 +178,8 @@ namespace Dino_Defenders.Client
                     night = MathF.Max(night, u * u * (3f - 2f * u));
                     continue;
                 }
-                if (state.Wild || state.Site.Kind != SiteKind.Graveyard) continue;
+                // And a barrow the Ossuary opened, where a ghost walks by the cold fires that called it up (SEATS.md).
+                if (state.Wild || !(state.Site.Kind == SiteKind.Graveyard || state.Site.Seat is { Kind: SeatKind.Barrow })) continue;
                 float outside = (state.Site.Position - session.PlayerPosition).Length - state.Site.Radius;
                 float t = Math.Clamp(1f - outside / NightReach, 0f, 1f);
                 night = MathF.Max(night, t * t * (3f - 2f * t));

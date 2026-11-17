@@ -18,6 +18,8 @@ namespace Dino_WorldLab
     ///           blow going off that far from the site's middle reaches round what's in its way, as its mark is drawn.
     ///   hitboxes [--mode check|measure|map|catalog] [--seed N] [--count N] [--kind k]  Holds what's solid about every kind of built thing to its model (Hitboxes),
     ///           or says where each kind's model stands, to write a rule from. Exit code 1 on any problem.
+    ///   seats   [--seed N] [--count N] [--kind k] [--archetype id] [--pieces true] [--list true]  Grows the commander's seat of each land, or of the first lands from a seed on whose
+    ///           seat is of a kind, and holds it to what a seat promises and what it may cost (SEATS.md); --list says which seeds have which kind. Exit code 1 on any problem.
     ///   check   [--seed N] [--count N] [--archetype id] [--layout linear|open] [--most N] Generates worlds and validates them, naming the first N problems of each (6). Exit code 1 on any problem.
     ///   packs   [--seed N] [--archetype id] [--level N] [--out file.png]       Who stands where: the mix, and a map of it, each folk in its colour.
     ///   relief  [--seed N] [--count N] [--archetype id]                        What the land is made of, and where the rock stands highest.
@@ -97,6 +99,8 @@ namespace Dino_WorldLab
                     return HitboxCheck.Run(options.Text("mode") ?? "check", options.Int("seed", 1), options.Int("count", 6), options.Text("archetype"), options.Text("kind"));
                 case "places":
                     return PlaceCheck.Run(options.Int("seed", 1), options.Int("count", 12), options.Text("archetype"), options.Text("kind"), options.Text("pieces") == "true");
+                case "seats":
+                    return SeatCheck.Run(options.Int("seed", 1), options.Int("count", 12), options.Text("archetype"), options.Text("kind"), options.Text("pieces") == "true", options.Text("list") == "true");
                 case "arenas":
                     if (options.Text("land") is string land) return ArenaCheck.Keep(options.Int("seed", 1), land);
                     return ArenaCheck.Run(options.Int("seed", 1), options.Text("archetype"));

@@ -16,7 +16,6 @@ namespace Dino_Engine.World.Generation
     {
         private const float WaysideSpacing = 130f;
         private const float AltarForecourt = 4.7f;      // A road that ends at an altar stops this far short of it, which clears the road's own width and leaves room to stand.
-        internal const float KeepRoadEnd = 0.66f;        // Of a keep's radius, where a road that ends there stops: inside its gatehouse, short of the yard in the middle of it.
         private const float EssentialReach = 1.5f;      // Share of a site's radius something it can't do without may stray to find ground: a neighbour's field can cover all of a small site.
 
         public string Description => "Raising the villages";
@@ -38,7 +37,8 @@ namespace Dino_Engine.World.Generation
                 if (site.Kind is SiteKind.StandingStones or SiteKind.Watchtower) EndRoadsShortOf(world, site.Position, site.Radius * 0.88f);
                 if (site.Kind == SiteKind.BanditCamp) EndRoadsShortOf(world, site.Position, site.Radius * 0.86f);
                 if (site.Kind == SiteKind.Waygate) EndRoadsShortOf(world, site.Position, StructureCatalog.Waygate.HalfExtents.Y + AltarForecourt);
-                if (site.Kind == SiteKind.Keep) EndRoadsShortOf(world, site.Position, site.Radius * KeepRoadEnd);
+                // A commander's seat faces the camera whichever way its road comes, so its road is cut where it nears it and brought round to one of its gates (SEATS.md).
+                if (site.Kind == SiteKind.Keep) Seats.SeatBuilder.Frame(world, site);
                 // A walled place with a story of its own (PLACES.md) is come into by its gate, which its builder puts where the road comes: the road stops there, and at a quarry's mouth.
                 // A dig's road stops at its camp, short of the pit, a road to ruins at their gateway, short of the hall, one to a snow castle short of its gate, and one to a
                 // nesting ground at the edge of its clearing, as nobody goes further who means to come back.
@@ -73,7 +73,7 @@ namespace Dino_Engine.World.Generation
                     case SiteKind.Ruins: Places.RuinsBuilder.Build(builder); break;
                     case SiteKind.BanditCamp: Places.PenBuilder.Build(builder); break;
                     case SiteKind.Graveyard: ChurchyardBuilder.Build(builder); break;
-                    case SiteKind.Keep: BuildKeep(builder); break;
+                    case SiteKind.Keep: Seats.SeatBuilder.Build(builder); break;
                     case SiteKind.Waygate: BuildWaygate(builder); break;
                     case SiteKind.Haven: HavenBuilder.Build(builder); break;
                     case SiteKind.Arena: ArenaBuilder.Build(builder); break;
@@ -908,104 +908,14 @@ namespace Dino_Engine.World.Generation
             return (point - (from + span * along)).Length;
         }
 
-        private const int TowerRetreats = 4;
-        private const float TowerRetreatStep = 1.5f;
-        private const float TowerClearance = 0.5f;      // Metres of ground between a tower's foot and where its walls are tried from, which is more than the padding a wall keeps.
-        private const float WallIntoTower = 2.6f;       // Metres a wall is drawn on into a tower, and the end it stops at hidden in it.
-        private const float WallIntoGatehouse = 1.8f;
+        /// <summary>
+        /// The radius of the open yard in a commander's seat, where its tyrant waits and nothing stands, which nobody of its garrison camps in (SEATS.md): round its
+        /// <see cref="KeepHeart"/>.
+        /// </summary>
+        public static float KeepYard(WorldSite site) => site.Seat is { Framed: true } seat ? seat.Yard : site.Radius * Seats.SeatBuilder.YardShare;
 
-        private static void BuildKeep(SiteBuilder b)
-        {
-            WorldSite site = b.Site;
-            Vector2 toRoad = site.RoadDirection;
-            Vector2 side = new Vector2(-toRoad.Y, toRoad.X);
-            b.Paint(GroundPaint.Plaza, Footprint.Circle(b.Centre, site.Radius * 0.9f), 8f);
-
-            float half = site.Radius * 0.86f;
-            Vector2[] corners =
-            {
-                b.Centre + toRoad * half + side * half,
-                b.Centre - toRoad * half + side * half,
-                b.Centre - toRoad * half - side * half,
-                b.Centre + toRoad * half - side * half,
-            };
-            // A tower too close to a passing road gives ground toward the keep, and the walls meet it where it ends up.
-            for (int i = 0; i < corners.Length; i++)
-            {
-                Vector2 inward = (b.Centre - corners[i]).Normalized();
-                for (int step = 0; step <= TowerRetreats; step++)
-                {
-                    Vector2 spot = corners[i] + inward * (step * TowerRetreatStep);
-                    if (!b.Place(StructureCatalog.StoneTower, spot, 0f, padding: 0f, maxSlope: 0.6f)) continue;
-                    corners[i] = spot;
-                    break;
-                }
-            }
-
-            // Walls start where a tower's foot ends, as they can't stand in it, and are drawn on into the towers and the gatehouse so that they meet them.
-            float clear = StructureCatalog.StoneTower.HalfExtents.X + TowerClearance;
-            for (int i = 0; i < 4; i++)
-            {
-                Vector2 from = corners[i];
-                Vector2 to = corners[(i + 1) % 4];
-                Vector2 along = (to - from).Normalized();
-                Vector2 start = from + along * clear;
-                Vector2 end = to - along * clear;
-                if (i != 1)
-                {
-                    // Every wall but the back one carries a gatehouse, open, so that a fight in the yard can spill out onto the land and back in by another.
-                    Vector2 middle = (start + end) * 0.5f;
-                    Vector2 outward = (middle - b.Centre).Normalized();
-                    b.Wall(FenceUse.Curtain, start, middle - along * 7f, b.Centre, WallIntoTower, WallIntoGatehouse);
-                    b.Wall(FenceUse.Curtain, middle + along * 7f, end, b.Centre, WallIntoGatehouse, WallIntoTower);
-                    b.Place(StructureCatalog.Gatehouse, middle, YawFacing(outward), padding: -1f, maxSlope: 0.6f);
-                    // Nothing the camp puts down stands in a gate's way.
-                    b.World.Placement.Add(Footprint.Box(middle - outward * 7f, new Vector2(7f, 7f), YawFacing(outward)), PlacementLayer.Keepout);
-                }
-                else
-                {
-                    b.Wall(FenceUse.Curtain, start, end, b.Centre, WallIntoTower, WallIntoTower);
-                }
-            }
-
-            // The keep stands against the back wall, its door on the yard, with its hoard before it.
-            float keepDepth = StructureCatalog.Keep.HalfExtents.Y;
-            Vector2 keep = b.Centre - toRoad * (half - keepDepth - 3.5f);
-            b.Place(StructureCatalog.Keep, keep, YawFacing(toRoad), padding: 0.5f, maxSlope: 0.6f);
-            b.Spawn(SpawnRole.Chest, keep + toRoad * (keepDepth + 3f) + side * 7f);
-
-            // The yard is the tyrant's: open ground with nothing standing in it, so that whoever fights it has room to lead it round, and nobody of the keep's garrison is in it.
-            float yard = KeepYard(site);
-            Vector2 heart = b.Centre + toRoad * (half * 0.08f);
-            b.World.Placement.Add(Footprint.Circle(heart, yard), PlacementLayer.Keepout);
-            b.Paint(GroundPaint.Yard, Footprint.Circle(heart, yard * 0.85f), 6f);
-            b.Spawn(SpawnRole.Boss, heart);
-
-            // The keep's people camp along its walls, out of the yard.
-            float camp = (yard + half) * 0.5f;
-            b.Scatter(StructureCatalog.Tent, b.Centre + side * camp - toRoad * (half * 0.45f), 6f);
-            b.Scatter(StructureCatalog.Tent, b.Centre - side * camp - toRoad * (half * 0.45f), 6f);
-            b.Scatter(StructureCatalog.Tent, b.Centre + side * camp + toRoad * (half * 0.5f), 5f);
-            b.Scatter(StructureCatalog.Tent, b.Centre - side * camp + toRoad * (half * 0.5f), 5f);
-            for (int i = 0; i < 6; i++)
-            {
-                float angle = b.Random.Float() * MathF.Tau;
-                b.Scatter(StructureCatalog.Crates, b.Centre + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * (half - 6f), 4f);
-            }
-
-            b.SpawnAround(SpawnRole.Guard, b.Centre + toRoad * (half - 5f), 6f, 3);
-            int raiders = b.Random.Int(6, 9);
-            for (int i = 0; i < raiders; i++)
-            {
-                float angle = (i + b.Random.Range(-0.3f, 0.3f)) * MathF.Tau / raiders;
-                b.Spawn(SpawnRole.Raider, b.Centre + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * (camp + b.Random.Range(-3f, 3f)));
-            }
-        }
-
-        private const float KeepYardShare = 0.5f;           // Of a keep's radius, the open yard in its middle where its tyrant waits.
-
-        /// <summary>The radius of the open yard in a keep's middle, where its tyrant waits and nothing stands, which nobody of its garrison camps in.</summary>
-        public static float KeepYard(WorldSite site) => site.Radius * KeepYardShare;
+        /// <summary>Where a seat's tyrant waits: the middle of its yard, which is a little in front of the middle of its ground.</summary>
+        public static Vector2 KeepHeart(WorldSite site) => site.Seat is { Framed: true } seat ? seat.Heart : site.Position;
 
         // Things along the road that promise something further on, spaced to be met every half minute or so at a run.
         private static void PlaceWayside(WorldData world, WorldRandom random)
@@ -1077,9 +987,6 @@ namespace Dino_Engine.World.Generation
                     // A ring of stones' barrow and a pen's cages and banners are their builders' own now (PLACES.md).
                     case SiteKind.Ruins when own.Chance(0.45f):
                         OpenDig(b);
-                        break;
-                    case SiteKind.Keep:
-                        FlyBanners(b, b.Centre + site.RoadDirection * (site.Radius * 0.86f + 3.5f), site.RoadDirection, 9f);
                         break;
                 }
             }

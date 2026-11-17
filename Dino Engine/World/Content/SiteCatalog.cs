@@ -149,10 +149,10 @@ namespace Dino_Engine.World.Content
             Kind = SiteKind.Keep,
             Label = "Stronghold",
             MapColour = new Vector3(0.75f, 0.1f, 0.12f),
-            Radius = new FloatRange(56f, 64f),     // Room inside its walls for an open yard its tyrant can be led round, and the camp along them.
+            Radius = new FloatRange(60f, 68f),     // Room for an open yard its tyrant can be led round, what the seat is across its back, and its garrison along its walls (SEATS.md).
             Limits = new IntRange(1, 1),
             MaxSlope = 0.42f,
-            MinInland = 40f,
+            MinInland = 66f,                        // All of it stands on land: its walls reach as far as its radius.
             Remoteness = new FloatRange(0.72f, 1f),
             HighGround = 1f,
             Road = RoadClass.Highway,

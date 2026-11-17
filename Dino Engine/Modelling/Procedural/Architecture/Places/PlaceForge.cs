@@ -1,4 +1,5 @@
 using Dino_Engine.Modelling.Model;
+using Dino_Engine.Modelling.Procedural.Architecture.Seats;
 using Dino_Engine.World;
 using Dino_Engine.World.Content;
 using OpenTK.Mathematics;
@@ -169,6 +170,41 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Places
                 case PlacePiece.Lantern: Common.Lantern(b, spec, random, lights); break;
                 case PlacePiece.Banner: Common.Banner(b, spec, random); break;
                 case PlacePiece.Shelter: Common.Shelter(b, spec, random); break;
+
+                // A commander's seat (SEATS.md).
+                case PlacePiece.SeatWall: Fortress.Wall(b, spec, random); break;
+                case PlacePiece.SeatTower: Fortress.Tower(b, spec, random, lights); break;
+                case PlacePiece.SeatGate: Fortress.Gate(b, spec, random, lights); break;
+                case PlacePiece.SeatSteps: Fortress.Steps(b, spec, random); break;
+                case PlacePiece.SeatRevet: Fortress.Revet(b, spec, random); break;
+                case PlacePiece.GreatHall: Fortress.Hall(b, spec, random, lights); break;
+                case PlacePiece.TyrantStall: Fortress.Stall(b, spec, random, lights); break;
+                case PlacePiece.FallenLord: SeatDressing.FallenLord(b, spec, random); break;
+                case PlacePiece.GreatBrazier: SeatDressing.GreatBrazier(b, spec, random, lights); break;
+                case PlacePiece.LongBanner: SeatDressing.LongBanner(b, spec, random); break;
+                case PlacePiece.FeedTrough: SeatDressing.FeedTrough(b, spec, random); break;
+                case PlacePiece.YardRing: SeatDressing.YardRing(b, spec, random); break;
+                case PlacePiece.Hoard: SeatDressing.Hoard(b, spec, random); break;
+                case PlacePiece.GatePier: SeatDressing.GatePier(b, spec, random, lights); break;
+                case PlacePiece.BoneMatrix: OssuaryWorks.Matrix(b, spec, random, lights); break;
+                case PlacePiece.BonePale: OssuaryWorks.BonePale(b, spec, random); break;
+                case PlacePiece.RibArch: OssuaryWorks.RibArch(b, spec, random, lights); break;
+                case PlacePiece.GreatBarrow: OssuaryWorks.GreatBarrow(b, spec, random, lights); break;
+                case PlacePiece.BileVats: OssuaryWorks.BileVats(b, spec, random, lights); break;
+                case PlacePiece.BileCradle: OssuaryWorks.Cradle(b, spec, random, lights); break;
+                case PlacePiece.BilePool: OssuaryWorks.BilePool(b, spec, random, lights); break;
+                case PlacePiece.BroodDome: ReichWorks.BroodDome(b, spec, random, lights); break;
+                case PlacePiece.BroodTanks: ReichWorks.BroodTanks(b, spec, random, lights); break;
+                case PlacePiece.GreatShell: ReichWorks.GreatShell(b, spec, random, lights); break;
+                case PlacePiece.BlastFurnace: ReichWorks.BlastFurnace(b, spec, random, lights); break;
+                case PlacePiece.Armature: ReichWorks.Armature(b, spec, random); break;
+                case PlacePiece.ScrapHeap: ReichWorks.ScrapHeap(b, spec, random, lights); break;
+                case PlacePiece.Colossus: ReichField.Colossus(b, spec, random, lights); break;
+                case PlacePiece.TrophyPylon: ReichField.TrophyPylon(b, spec, random, lights); break;
+                case PlacePiece.Dais: ReichField.Dais(b, spec, random, lights); break;
+                case PlacePiece.Pavilion: ReichField.Pavilion(b, spec, random, lights); break;
+                case PlacePiece.WarWagon: ReichField.WarWagon(b, spec, random); break;
+                case PlacePiece.CageWagon: ReichField.CageWagon(b, spec, random); break;
             }
             return b.Build();
         }
@@ -180,6 +216,9 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Places
             PlacePiece.CharcoalClamp => Logging.VentsOf(Logging.ClampRadius(spec)),
             PlacePiece.Smokehouse => Fishing.SmokeOf(),
             PlacePiece.Boiler => Works.BoilerSmoke(),
+            PlacePiece.BileVats => OssuaryWorks.VatChimneys(Math.Clamp(spec.Int(0), 1, 5), Math.Clamp(spec.Metres(1), 5f, 13f)),
+            PlacePiece.BlastFurnace => ReichWorks.FurnaceChimneys(Math.Clamp(spec.Metres(0), 14f, 28f)),
+            PlacePiece.GreatHall => Fortress.HallChimneys(Math.Clamp(spec.Metres(0), 18f, 34f), Math.Clamp(spec.Metres(1), 10f, 18f), Math.Clamp(spec.Metres(2), 8f, 16f)),
             _ => Array.Empty<Vector3>(),
         };
 
@@ -187,8 +226,12 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Places
         public static int Slowness(PlacePiece kind) => kind switch
         {
             PlacePiece.Hull or PlacePiece.LabHall or PlacePiece.Face or PlacePiece.Fossil or PlacePiece.BeaconTower or PlacePiece.ShrineHall => 3,
+            PlacePiece.GreatHall or PlacePiece.Colossus or PlacePiece.Armature or PlacePiece.BroodDome or PlacePiece.BlastFurnace or PlacePiece.Pavilion => 3,
             PlacePiece.Mast or PlacePiece.Hatchery or PlacePiece.Cage or PlacePiece.RuinWall or PlacePiece.SnowTower or PlacePiece.Jetty or PlacePiece.Barrow or PlacePiece.Kennel
                 or PlacePiece.CommandTent or PlacePiece.Menhir or PlacePiece.Trilithon => 2,
+            PlacePiece.SeatWall or PlacePiece.SeatTower or PlacePiece.SeatGate or PlacePiece.TyrantStall or PlacePiece.SeatSteps or PlacePiece.SeatRevet => 2,
+            PlacePiece.BoneMatrix or PlacePiece.GreatBarrow or PlacePiece.BileVats or PlacePiece.BileCradle => 2,
+            PlacePiece.BroodTanks or PlacePiece.CageWagon or PlacePiece.WarWagon or PlacePiece.Dais or PlacePiece.TrophyPylon => 2,
             _ => 1,
         };
     }

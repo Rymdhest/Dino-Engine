@@ -46,6 +46,10 @@ namespace Dino_Engine.World.Generation
                 float away = (site.Position - at).Length - site.Radius;
                 switch (site.Kind)
                 {
+                    // The ground round one of the Ossuary's seats is the dead's (SEATS.md).
+                    case SiteKind.Keep when site.Seat is SeatPlan seat && SeatCatalog.IsOssuary(seat.Kind):
+                        dead += 1.6f * Reach(away, 240f);
+                        break;
                     case SiteKind.BanditCamp:
                     case SiteKind.Keep:
                     case SiteKind.Prison:

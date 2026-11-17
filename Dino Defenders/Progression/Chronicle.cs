@@ -153,11 +153,19 @@ namespace Dino_Defenders.Progression
         public bool WorldCleared => Objectives.Count > 0 && Objectives.All(objective => objective.Done);
 
         /// <summary>What a land's tyrant is, which the story and the keep have to agree on. Most are bred and armoured; some lands have one the Ossuary raised from the rock, or one rotting where it stands.</summary>
-        public static string BossKindOf(int seed)
+        public static string BossKindOf(int seed) => KindOf(SeatCatalog.TyrantOf(seed));
+
+        /// <summary>
+        /// The kind of enemy a tyrant of a make is. A land's seat is the place that make of tyrant comes from (SEATS.md), the Ossuary's dig, its bile works or the barrow it opened, and
+        /// both are read from the land's seed by the world (<see cref="SeatCatalog"/>), so the place and the animal tell one story.
+        /// </summary>
+        public static string KindOf(TyrantMake make) => make switch
         {
-            float roll = new WorldRandom((ulong)(uint)seed).Fork("boss").Float();
-            return roll < 0.7f ? TyrantKinds[0] : roll < 0.8f ? TyrantKinds[1] : roll < 0.9f ? TyrantKinds[2] : TyrantKinds[3];
-        }
+            TyrantMake.Bones => TyrantKinds[1],
+            TyrantMake.Rotting => TyrantKinds[2],
+            TyrantMake.Ghost => TyrantKinds[3],
+            _ => TyrantKinds[0],
+        };
 
         /// <summary>Who holds a land, from its seed alone, so that the map table can tell of it before it's grown. The chronicle written once it is says the same.</summary>
         public static Herald HeraldOf(int seed) => HeraldOf(seed, new WorldRandom(seed).Fork("chronicle"));
@@ -287,6 +295,19 @@ namespace Dino_Defenders.Progression
         public static WorldSite? TwinSite(WorldData world) => world.Sites.Where(site => site.Kind == SiteKind.BanditCamp).OrderByDescending(site => site.Remoteness).FirstOrDefault()
             ?? world.Sites.Where(Counts).OrderByDescending(site => site.Remoteness).FirstOrDefault();
 
+        // What a commander's seat is, by its kind (SEATS.md): each is a place of its own, and says where its tyrant came from or what the Reich did with the land to have it.
+        private string[] SeatLines(SeatKind seat) => seat switch
+        {
+            SeatKind.Hatchery => new[] { $"The Amber Institute's great hatchery, where {Beast} was grown. The next one is already in the glass.", $"Everything under that dome is kept warm for what comes after {Beast}." },
+            SeatKind.Foundry => new[] { $"The land's bells and ploughs go into the fire here, and come out as armour for {Beast}.", $"The furnace never goes out. {Commander} has the land melted down a cartload at a time." },
+            SeatKind.Triumph => new[] { $"The Reich's monument to taking this land: a tyrant in black iron, and {Beast} let loose at its feet.", "Raised on the land's own broken stones, so that nobody forgets whose land it is." },
+            SeatKind.Warcamp => new[] { $"The wagons of {Faction} are chained in a ring, and the cage {Beast} travels in stands open.", $"{Commander} has not unpacked. This land was only the road to the next one." },
+            SeatKind.Boneyard => new[] { $"The Ossuary's great dig. The hollow in the rock is where {Beast} lay, before it was raised.", "They found it whole in the rock. Its eyes were lit before it was out." },
+            SeatKind.Bileworks => new[] { $"Where the Ossuary keeps {Beast} on its feet, with iron and bile.", $"It hatched dying. {Commander} would not let it." },
+            SeatKind.Barrow => new[] { $"A barrow of the land's, opened. The bones in it were too far gone to stand, so the Ossuary called {Beast} up in light.", "The cold fires round the barrow are what holds it here." },
+            _ => new[] { $"The land's own castle, and the seat of {Commander} now. {Beast} is stabled against its hall.", "Its lord lies in the yard in pieces, and the Reich's banner hangs where his arms were." },
+        };
+
         /// <summary>A place's short history, for when the hero first comes upon it.</summary>
         public string Describe(WorldSite site, WorldData world)
         {
@@ -320,7 +341,7 @@ namespace Dino_Defenders.Progression
                 SiteKind.Prison => new[] { "Where the Reich breaks what was born free. Free them before the collar's on.", "Iron cages round a breaking yard. The beasts in them were never anyone's." },
                 SiteKind.BanditCamp => new[] { $"A pen of {Faction}: cages, chains and the smell of blood.", "Where the Reich keeps its beasts between hunts." },
                 SiteKind.Graveyard => new[] { "The dead here do not lie quiet.", "The Ossuary has been digging here. It is always night in that churchyard." },
-                SiteKind.Keep => new[] { $"The seat of {Commander}, and the pen of {Beast}.", "Built with stolen stone, held with teeth." },
+                SiteKind.Keep => SeatLines(site.Seat?.Kind ?? SeatKind.Citadel),
                 SiteKind.Waygate => new[] { "One of the land's old roads. It knows the way home, and to every other gate you've found.", "Raised by no people anyone remembers. It still answers." },
                 _ => new[] { "The way you came." },
             };

@@ -173,7 +173,8 @@ namespace Dino_Engine.World.Generation
             {
                 // The Haven's streets are laid as a village's are, in setts between kerbs, as they're the way to its halls.
                 if (site.Kind is not (SiteKind.Village or SiteKind.Keep or SiteKind.Haven)) continue;
-                float reach = site.Radius * 1.2f;
+                // A seat's road is brought round its walls to a gate (SEATS.md), and is cobbled all the way.
+                float reach = site.Radius * (site.Kind == SiteKind.Keep ? 1.5f : 1.2f);
                 if ((site.Position - position).LengthSquared < reach * reach) return true;
             }
             return false;

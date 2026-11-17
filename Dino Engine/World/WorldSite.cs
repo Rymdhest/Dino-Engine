@@ -98,6 +98,9 @@ namespace Dino_Engine.World
         /// <summary>The frame of a place with a story of its own, and what in it moves once it's freed (PLACES.md).</summary>
         public PlacePlan? Place;
 
+        /// <summary>A keep's: which kind of seat its commander holds the land from, where its tyrant waits and the frame it's laid out in (SEATS.md).</summary>
+        public SeatPlan? Seat;
+
         /// <summary>Where a game should put characters and things. Worldgen only says where and what for.</summary>
         public readonly List<SiteSpawn> Spawns = new();
 

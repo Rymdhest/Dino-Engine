@@ -1,4 +1,5 @@
 using Dino_Engine.Modelling.Procedural.Architecture.Places;
+using Dino_Engine.Modelling.Procedural.Architecture.Seats;
 using Dino_Engine.World.Content;
 using OpenTK.Mathematics;
 
@@ -289,6 +290,172 @@ namespace Dino_Engine.World
                 // ---- The Amber Institute's.
                 case PlacePiece.Vat: return Round(parts, Laboratory.VatRadius(spec) * 1.02f, PlacementIndex.Tall);
                 case PlacePiece.Boiler: return Box(parts, 2.1f, 0.8f, 7.5f, 0.15f, -0.25f);
+
+                // ---- A commander's seat (SEATS.md).
+                case PlacePiece.SeatWall:
+                {
+                    float hl = Math.Clamp(spec.Metres(0), 3f, 30f) * 0.5f, high = Math.Clamp(spec.Metres(1), 2f, 16f), ht = Math.Clamp(spec.Metres(2), 1f, 4f) * 0.5f;
+                    bool low = spec.Int(3) == Fortress.WallLow;
+                    // The wall and the foot of its batter, and the buttress or the pier at its end.
+                    Box(parts, hl, ht + 0.2f, high, 0f, -0.15f);
+                    return low ? Box(parts, 0.62f, ht + 0.28f, high, -hl, 0f) : Box(parts, 0.75f, 0.6f, high * 0.8f, -hl, -ht - 0.6f);
+                }
+                case PlacePiece.SeatTower: return Round(parts, Math.Clamp(spec.Metres(0), 2.2f, 8f) + 0.4f, PlacementIndex.Tall);
+                case PlacePiece.SeatGate:
+                {
+                    float way = Math.Clamp(spec.Metres(0), 4f, 10f), radius = Math.Clamp(spec.Metres(1), 2.4f, 6f);
+                    float offset = Fortress.GateTowerOffset(way, radius);
+                    if (spec.Int(3) == Fortress.GateOpen)
+                    {
+                        // An open gate's two towers, and its leaves of bars standing open, which are walked round and seen and struck through.
+                        for (int k = 0; k < 2; k++)
+                        {
+                            float side = k == 0 ? -1f : 1f, length = way * 0.5f - 0.2f;
+                            Round(parts, radius + 0.4f, PlacementIndex.Tall, side * offset, 0f);
+                            Vector2 swing = new Vector2(-side * MathF.Cos(Fortress.GateLeaves[k]), MathF.Sin(Fortress.GateLeaves[k]));
+                            parts.Add(new HitPart(new Vector2(side * way * 0.5f, Fortress.GateHinge) + swing * (length * 0.5f), new Vector2(length * 0.5f, 0.12f), 0f, -MathF.Atan2(swing.Y, swing.X)));
+                        }
+                        return HitKind.Solid;
+                    }
+                    // Its two towers, and the ends of the block between them: the way through is open.
+                    foreach (float side in new[] { -1f, 1f })
+                    {
+                        Round(parts, radius + 0.4f, PlacementIndex.Tall, side * offset, -0.6f);
+                        Box(parts, 0.45f, Fortress.GateHalfDepth, PlacementIndex.Tall, side * (way * 0.5f + 0.45f), 0f);
+                    }
+                    return HitKind.Solid;
+                }
+                case PlacePiece.SeatSteps:
+                {
+                    // Its cheeks and the piers they end in: the flight between them is the way up.
+                    float half = Math.Clamp(spec.Metres(0), 3f, 26f) * 0.5f, cheek = Math.Clamp(spec.Metres(4), 0.6f, 3f);
+                    int count = Math.Clamp(spec.Int(1), 1, 14);
+                    float run = Fortress.StepsRun(count, Math.Clamp(spec.Metres(3), 0.5f, 2f)), high = count * Math.Clamp(spec.Metres(2), 0.15f, 0.6f) + 1.1f;
+                    foreach (float side in new[] { -1f, 1f }) Box(parts, cheek * 0.5f + 0.2f, (run + 2.2f) * 0.5f, high, side * (half + cheek * 0.5f), (2.2f - run) * 0.5f);
+                    return HitKind.Solid;
+                }
+                case PlacePiece.SeatRevet: return Box(parts, Math.Clamp(spec.Metres(0), 2f, 30f) * 0.5f, 0.6f, Math.Clamp(spec.Metres(1), 0.6f, 6f) + 1.1f, 0f, -0.12f);
+                case PlacePiece.GreatHall:
+                {
+                    float hx = Math.Clamp(spec.Metres(0), 18f, 34f) * 0.5f, hz = Math.Clamp(spec.Metres(1), 10f, 18f) * 0.5f;
+                    Box(parts, hx + 0.45f, hz + 0.45f, PlacementIndex.Tall);
+                    Box(parts, Fortress.PorchHalf, Fortress.PorchDepth * 0.5f, PlacementIndex.Tall, 0f, hz + Fortress.PorchDepth * 0.5f);
+                    foreach (float side in new[] { -1f, 1f })
+                    {
+                        Box(parts, Fortress.WingWidth * 0.5f, hz - 1.8f, 6.2f, side * (hx + Fortress.WingWidth * 0.5f), -0.8f);
+                        Round(parts, Fortress.TurretRadius + 0.3f, PlacementIndex.Tall, side * hx, hz);
+                    }
+                    return HitKind.Solid;
+                }
+                case PlacePiece.TyrantStall:
+                {
+                    float hx = Math.Clamp(spec.Metres(0), 10f, 26f) * 0.5f, hz = Math.Clamp(spec.Metres(1), 10f, 24f) * 0.5f, high = Math.Clamp(spec.Metres(2), 5f, 12f);
+                    float gate = hx * Fortress.StallGateShare;
+                    // Boarded at its back and down the back half of its sides; the rest is bars, which are walked round and seen and struck through, the open leaves of its gate too.
+                    Box(parts, hx + 0.3f, 0.3f, high, 0f, -hz);
+                    foreach (float side in new[] { -1f, 1f })
+                    {
+                        Box(parts, 0.3f, hz * 0.5f, high, side * hx, -hz * 0.5f);
+                        Rack(parts, 0.3f, hz * 0.5f, side * hx, hz * 0.5f);
+                        Rack(parts, (hx - gate) * 0.5f + 0.3f, 0.3f, side * (hx + gate) * 0.5f, hz);
+                        float open = Fortress.StallLeaves[side < 0f ? 0 : 1];
+                        Vector2 swing = new Vector2(-side * MathF.Cos(open), MathF.Sin(open));
+                        Vector2 middle = new Vector2(side * gate, hz + 0.35f) + swing * (gate * 0.5f);
+                        parts.Add(new HitPart(middle, new Vector2(gate * 0.5f, 0.15f), 0f, -MathF.Atan2(swing.Y, swing.X)));
+                    }
+                    return HitKind.Solid;
+                }
+                case PlacePiece.FallenLord: return Box(parts, SeatDressing.PlinthHalf, SeatDressing.PlinthHalf, SeatDressing.PlinthHigh);
+                case PlacePiece.GreatBrazier: return Round(parts, 1.25f, Math.Clamp(spec.Metres(0), 1.6f, 5f));
+                case PlacePiece.LongBanner: return spec.Int(3) == 1 ? HitKind.Open : Post(parts, 0.5f);
+                case PlacePiece.GatePier: return Box(parts, 0.95f, 0.95f, Math.Clamp(spec.Metres(0), 2.5f, 9f));
+                case PlacePiece.FeedTrough:
+                case PlacePiece.YardRing:
+                case PlacePiece.Hoard:
+                case PlacePiece.BilePool:
+                    return HitKind.Open;
+
+                // ---- The Ossuary's seats.
+                case PlacePiece.BoneMatrix:
+                {
+                    // The slab, all of it, as its lip stands over a knee, and the feet of the sheerlegs over it.
+                    float hw = Math.Clamp(spec.Metres(0), 14f, 40f) * 0.5f, hd = Math.Clamp(spec.Metres(1), 8f, 22f) * 0.5f, span = hw * 0.68f;
+                    Box(parts, hw, hd, Math.Clamp(spec.Metres(2), 4f, 12f));
+                    foreach (float side in new[] { -1f, 1f })
+                    {
+                        Post(parts, 0.3f, side * (span + 1.6f), hd + 2.2f);
+                        Post(parts, 0.3f, side * (span + 4.5f), 0f);
+                    }
+                    return HitKind.Solid;
+                }
+                // ---- The Reich's other seats.
+                case PlacePiece.BroodDome: return Round(parts, Math.Clamp(spec.Metres(0), 8f, 18f) + 0.3f, PlacementIndex.Tall);
+                case PlacePiece.BroodTanks: return Box(parts, Math.Clamp(spec.Int(0), 1, 6) * ReichWorks.TankSpacing * 0.5f + 0.4f, 1.6f, PlacementIndex.Tall);
+                case PlacePiece.GreatShell: return Round(parts, Math.Clamp(spec.Metres(0), 2.2f, 5f) * 0.5f + 1.5f, 1.6f);
+                case PlacePiece.BlastFurnace:
+                {
+                    Box(parts, ReichWorks.FurnaceFoot + 0.1f, ReichWorks.FurnaceFoot + 0.1f, PlacementIndex.Tall);
+                    Box(parts, ReichWorks.StoveHalf, ReichWorks.StoveHalf, PlacementIndex.Tall, ReichWorks.StoveAt.X, ReichWorks.StoveAt.Y);
+                    Box(parts, ReichWorks.StackHalf, ReichWorks.StackHalf, PlacementIndex.Tall, ReichWorks.StackAt.X, ReichWorks.StackAt.Y);
+                    Box(parts, ReichWorks.HoistHalf, ReichWorks.HoistHalf, PlacementIndex.Tall, ReichWorks.HoistAt.X, ReichWorks.HoistAt.Y);
+                    // Its casting bed, which is iron still bright: nothing walks over it.
+                    return Rack(parts, ReichWorks.BedHalf, (ReichWorks.FurnaceBed - 1.2f) * 0.5f, 0f, ReichWorks.FurnaceFoot + (ReichWorks.FurnaceBed + 1.2f) * 0.5f);
+                }
+                case PlacePiece.Armature:
+                {
+                    float length = Math.Clamp(spec.Metres(1), 8f, 28f);
+                    return Box(parts, length * 0.24f, length * 0.1f, PlacementIndex.Tall);
+                }
+                case PlacePiece.ScrapHeap:
+                {
+                    float size = Math.Clamp(spec.Metres(1), 3f, 9f);
+                    // A heap that stands over a knee is walked round, and none stands over a hip, so a blow goes over it: the land's metal by its bells, coal and slag by how
+                    // far across they are.
+                    float tall = spec.Int(0) == 0 ? 1.6f : size * 0.25f - 0.05f;
+                    return tall > StepOver ? Round(parts, size * 0.36f, MathF.Min(tall, 1.9f)) : HitKind.Open;
+                }
+                case PlacePiece.Colossus:
+                {
+                    Vector2 half = ReichField.PlinthOf(Math.Clamp(spec.Metres(1), 14f, 40f));
+                    return Box(parts, half.X, half.Y, PlacementIndex.Tall);
+                }
+                case PlacePiece.TrophyPylon: return Box(parts, 1.05f, 1.05f, Math.Clamp(spec.Metres(0), 4f, 12f));
+                case PlacePiece.Dais: return Box(parts, Math.Clamp(spec.Metres(0), 7f, 16f) * 0.5f, ReichField.DaisDepth * 0.5f, ReichField.DaisHigh);
+                case PlacePiece.Pavilion:
+                {
+                    float w = Math.Clamp(spec.Metres(0), 14f, 26f), hz = Math.Clamp(spec.Metres(1), 8f, 14f) * 0.5f;
+                    (float middle, float wing, float at) = ReichField.PavilionBays(w);
+                    Box(parts, middle + 0.2f, hz + 0.2f, PlacementIndex.Tall);
+                    foreach (float side in new[] { -1f, 1f })
+                    {
+                        Box(parts, wing + 0.2f, hz * 0.8f + 0.2f, PlacementIndex.Tall, side * at, -hz * 0.15f);
+                        Post(parts, 0.3f, side * middle * 0.9f, hz + ReichField.PavilionFly);
+                        Post(parts, 0.45f, side * (middle + 1.4f), hz + ReichField.PavilionFly + 0.3f);
+                    }
+                    return HitKind.Solid;
+                }
+                case PlacePiece.WarWagon: return Box(parts, Math.Clamp(spec.Metres(0), 5f, 9f) * 0.5f, ReichField.WagonHalf + 0.3f, 3.6f);
+                case PlacePiece.CageWagon: return Rack(parts, ReichField.CageHalf + 0.4f, Math.Clamp(spec.Metres(0), 8f, 16f) * 0.5f);
+
+                case PlacePiece.BonePale: return Rack(parts, Math.Clamp(spec.Metres(0), 3f, 16f) * 0.5f, 0.3f);
+                case PlacePiece.RibArch:
+                {
+                    float hs = Math.Clamp(spec.Metres(0), 5f, 14f) * 0.5f;
+                    Post(parts, 0.7f, -hs, 0f);
+                    return Post(parts, 0.7f, hs, 0f);
+                }
+                case PlacePiece.GreatBarrow: return Box(parts, Math.Clamp(spec.Metres(0), 16f, 52f) * 0.4f, Math.Clamp(spec.Metres(1), 10f, 26f) * 0.33f, Math.Clamp(spec.Metres(2), 3f, 10f));
+                case PlacePiece.BileVats: return Box(parts, Math.Clamp(spec.Int(0), 1, 5) * OssuaryWorks.VatSpacing * 0.5f + 0.25f, 4.85f, PlacementIndex.Tall);
+                case PlacePiece.BileCradle:
+                {
+                    float hw = Math.Clamp(spec.Metres(0), 8f, 18f) * 0.5f;
+                    foreach (float side in new[] { -1f, 1f })
+                    {
+                        Post(parts, 0.6f, side * hw, -OssuaryWorks.CradleSpread);
+                        Post(parts, 0.6f, side * hw, OssuaryWorks.CradleSpread);
+                    }
+                    return HitKind.Solid;
+                }
 
                 // ---- Whatever has no rule of its own is laid out as it stands, until it's given one: `Dino WorldLab hitboxes` fails on it. What its builder makes solid itself is
                 // laid out as it stands too, as its builder says (ByBuilder).
