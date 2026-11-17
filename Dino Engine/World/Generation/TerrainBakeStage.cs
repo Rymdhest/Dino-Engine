@@ -201,6 +201,13 @@ namespace Dino_Engine.World.Generation
             if (patch.Paint == GroundPaint.Chippings) world.Chipped = true;
             Footprint shape = patch.Shape;
             float softness = patch.Softness;
+            if (patch.Paint == GroundPaint.Green)
+            {
+                // Only a town has any, so only a town keeps a map of it.
+                ByteField green = world.Green ??= ByteField.ForWorld(world.Size, WorldData.DetailCell);
+                ForEachNode(world.Height, shape.Centre, shape.BoundingRadius + softness, (x, z, position) => green.Raise(x, z, 1f - Smoothstep(0f, softness, DistanceOutside(shape, position))));
+                return;
+            }
             ForEachNode(world.Height, shape.Centre, shape.BoundingRadius + softness, (x, z, position) =>
             {
                 float outside = DistanceOutside(shape, position);

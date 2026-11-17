@@ -314,9 +314,10 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Halls
                 Overhang = 1.3f,
                 Moss = new Vector3(0.86f, 0.94f, 0.8f),
             },
+            // An old barn: weathered boards between its timbers, on a foot of field stone as high as a cart's wheel.
             HallKind.GamingHouse => new HallKit
             {
-                OuterWall = Hall.Plaster(226, 210, 182),
+                OuterWall = Hall.Wood(164, 140, 112),
                 InnerWall = Hall.Plaster(222, 204, 172),
                 Plinth = Hall.Stone(150, 142, 130),
                 Dressing = Hall.Stone(184, 174, 156),
@@ -332,7 +333,7 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Halls
                 Panelling = Hall.Wood(92, 60, 40),
                 Lead = Hall.Iron(80),
                 Framed = true,
-                PlinthTop = 1.3f,
+                PlinthTop = 2.2f,
                 RoofPitch = 0.92f,
                 Overhang = 1.8f,
                 Moss = new Vector3(0.84f, 0.92f, 0.76f),

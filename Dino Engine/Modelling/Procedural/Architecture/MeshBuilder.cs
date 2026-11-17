@@ -342,7 +342,8 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
         /// A smooth surface over a grid of points, from a function of u and v (each 0..1). Corners run counter-clockwise seen from
         /// outside as u and then v increase.
         /// </summary>
-        public void Surface(int stepsU, int stepsV, Func<float, float, Vector3> point, VertexMaterial material)
+        /// <param name="tint">If given, colours each point by where it is, so that a roof can weather in soft patches and still be one smooth surface.</param>
+        public void Surface(int stepsU, int stepsV, Func<float, float, Vector3> point, VertexMaterial material, Func<Vector3, Colour>? tint = null)
         {
             int first = _vertices.Count;
             int row = stepsU + 1;
@@ -363,7 +364,8 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
                     // Its edges are the grid's boundary, never the lines between its quads.
                     float scale = MathF.Cbrt(MathF.Abs(Stretch.X * Stretch.Y * Stretch.Z));
                     Vector4 edges = new Vector4(acrossU, lengthU - acrossU, acrossV, lengthV - acrossV) * scale;
-                    AddPlaced(Transform(p), material, new Vector2(acrossU, acrossV) * tiles, edges);
+                    VertexMaterial painted = tint == null ? material : new VertexMaterial(material.materialTextureIndex, tint(p));
+                    AddPlaced(Transform(p), painted, new Vector2(acrossU, acrossV) * tiles, edges);
                 }
             }
 
@@ -394,6 +396,18 @@ namespace Dino_Engine.Modelling.Procedural.Architecture
             {
                 if (_vertices[i].joint < 0) _vertices[i].joint = joint;
             }
+        }
+
+        /// <summary>
+        /// Ties every vertex from <paramref name="firstVertex"/> on that nothing holds yet to a joint of its own, hanging from <paramref name="top"/> to
+        /// <paramref name="bottom"/>: a banner, a pennant, washing on a line, a lantern on a cord. It swings from its top in the wind as a plant leans in it (Plant.glsl),
+        /// all of it as one, and nothing walking by touches it. <paramref name="give"/> is how much of the lean of the plants round it it takes.
+        /// </summary>
+        public int Hang(int firstVertex, Vector3 top, Vector3 bottom, float give = 0.5f, float flutter = 1.2f, float most = 0.6f)
+        {
+            int joint = AddJoint(new PlantJoint { Parent = -1, Give = give, MostBend = most, Touch = 0f, Flutter = flutter }.Between(top, bottom));
+            BindFrom(firstVertex, joint);
+            return joint;
         }
 
         /// <summary>A chain of joints through <paramref name="points"/>, with every vertex from <paramref name="firstVertex"/> on tied to the link it's nearest. See <see cref="Mesh.BindChain"/>.</summary>

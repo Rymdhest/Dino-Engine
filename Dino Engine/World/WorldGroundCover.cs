@@ -141,7 +141,11 @@ namespace Dino_Engine.World
             float drift = Smoothstep(0.42f, 0.7f, _drifts.Fbm01(point.X, point.Y, 34f, 3));
             float floor = biome.FloorDensity * canopy;
             float open = biome.OpenDensity * (1f - canopy) * (0.12f + 0.88f * drift);
-            float waterside = biome.Waterside.Length > 0 ? 0.85f * (1f - Smoothstep(0.25f, 1.3f, above)) : 0f;
+            // A town's turf is kept: little of what the meadow round it grows comes up in it (HAVEN.md).
+            float kept = world.Green?.Sample(point) ?? 0f;
+            open *= 1f - 0.985f * kept;
+            // And its shore is a working beach: what grows at the water's edge is cut back as far as the turf is kept.
+            float waterside = biome.Waterside.Length > 0 ? 0.85f * (1f - Smoothstep(0.25f, 1.3f, above)) * (1f - 0.8f * kept) : 0f;
 
             // One draw, three bands: where it falls decides the layer, so layers can't land on the same spot.
             Species[] list;

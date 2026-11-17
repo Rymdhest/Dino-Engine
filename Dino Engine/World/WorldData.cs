@@ -133,6 +133,13 @@ namespace Dino_Engine.World
 
         /// <summary>A churchyard's turf (GroundPaint.Sward), short, dark and in no flower, so that its stones show (CHURCHYARD.md).</summary>
         public ByteField Sward = null!;
+        /// <summary>
+        /// Whether what's paved here was laid by masons to a line, as a town's is: its cobbles and flags end where they were laid, at a kerb or a wall, and don't fray out into
+        /// the grass as a camp's trodden ground does (TerrainSurface, HAVEN.md).
+        /// </summary>
+        public bool Trim;
+        /// <summary>A town's turf (GroundPaint.Green), short, fresh and daisied, so that a town isn't waist deep in the meadow it stands in (HAVEN.md). Null in a world with none.</summary>
+        public ByteField? Green;
         /// <summary>An arena's floor of sand, a pen's of mud and straw, and the ash of the Onslaught (GroundPaint.Sand, Mud and Ash), laid over whatever was there, which nothing grows through.</summary>
         public ByteField Sand = null!;
         public ByteField Mud = null!;

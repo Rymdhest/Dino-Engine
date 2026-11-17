@@ -119,7 +119,8 @@ namespace Dino_Engine.World.Generation
         /// Puts down a hall of a kind if it fits, with its front (+z) turned by <paramref name="yaw"/>: the whole of it is kept for it, its walls and whatever stands in it are solid as its design
         /// says, the ground under it is levelled to its floor, and the ground in front of its doors is kept clear. Read HALLS.md.
         /// </summary>
-        public bool PlaceHall(HallKind kind, Vector2 centre, float yaw, out WorldHall hall, float padding = 2f, float maxSlope = 0.3f)
+        /// <param name="floor">How high its floor is, where whoever lays the town out has decided that; otherwise the ground it stands on, levelled.</param>
+        public bool PlaceHall(HallKind kind, Vector2 centre, float yaw, out WorldHall hall, float padding = 2f, float maxSlope = 0.3f, float? floor = null)
         {
             HallDesign design = HallDesigns.Of(kind);
             hall = null!;
@@ -137,12 +138,12 @@ namespace Dino_Engine.World.Generation
                 if (!GroundFits(step, maxSlope) || World.Placement.Overlaps(step, PlacementLayer.Built, 0.2f)) return false;
             }
 
-            float floor = AverageGround(footprint);
-            hall = new WorldHall(design, centre, yaw, floor);
+            float level = floor ?? AverageGround(footprint);
+            hall = new WorldHall(design, centre, yaw, level);
 
             // Kept whole for the hall, but not solid: its walls and what stands in it are.
             World.Placement.Add(footprint, PlacementLayer.Structure);
-            World.Pads.Add(new GroundPad(footprint, floor, HallPadMargin));
+            World.Pads.Add(new GroundPad(footprint, level, HallPadMargin));
             World.Clearings.Add(new Clearing(centre, design.Half.Length + 2f, 14f));
             foreach (HallOpening door in design.Doors) World.Placement.Add(Doorstep(hall, door), PlacementLayer.Keepout);
 
@@ -162,8 +163,8 @@ namespace Dino_Engine.World.Generation
             foreach (HallSpot spot in design.Spots) Spawn(spot.Role, hall.ToWorld(spot.At));
 
             World.Halls.Add(hall);
-            World.Pending.Add(new PendingObject(design.ShellAsset, centre, yaw, Vector3.One, floor));
-            World.Pending.Add(new PendingObject(design.InsideAsset, centre, yaw, Vector3.One, floor));
+            World.Pending.Add(new PendingObject(design.ShellAsset, centre, yaw, Vector3.One, level));
+            World.Pending.Add(new PendingObject(design.InsideAsset, centre, yaw, Vector3.One, level));
             return true;
         }
 

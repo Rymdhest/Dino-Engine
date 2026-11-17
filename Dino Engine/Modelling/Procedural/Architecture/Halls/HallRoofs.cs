@@ -43,17 +43,32 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Halls
             public float FaceAt(float z) => Base + (HalfZ - MathF.Abs(z)) * Pitch + Lift;
         }
 
-        /// <summary>How a roof weathers: lichen and moss in soft patches, a little darker towards the eaves where the rain runs off.</summary>
-        public static Func<Vector3, Colour> Weathering(VertexMaterial roof, Vector3 moss, float eaveY, float ridgeY, int seed)
+        /// <summary>
+        /// How a roof weathers, as it's seen from above, where a roof is most of a building: lichen and moss in patches that gather towards the eaves, streaks down the slope
+        /// where the rain runs, broad drifts of lighter and darker courses, the whole of it darker at its foot, and soot spread from wherever a chimney stands
+        /// (<paramref name="sootAt"/>, as far as <paramref name="sootReach"/>).
+        /// </summary>
+        public static Func<Vector3, Colour> Weathering(VertexMaterial roof, Vector3 moss, float eaveY, float ridgeY, int seed, Vector3? sootAt = null, float sootReach = 5f)
         {
             Vector3 colour = roof.colour.ToVector3();
-            float s = seed * 0.137f;
+            var noise = new WorldNoise(new WorldRandom(seed).Fork("roof"));
+            float at = seed * 7.3f;
             return p =>
             {
-                float patch = 0.5f + 0.5f * MathF.Sin(p.X * 0.31f + s) * MathF.Cos(p.Z * 0.43f - s * 1.7f) + 0.25f * MathF.Sin((p.X + p.Z) * 0.9f + s * 3.1f);
-                patch = Math.Clamp((patch - 0.55f) * 2.2f, 0f, 1f);
                 float down = Math.Clamp((ridgeY - p.Y) / MathF.Max(ridgeY - eaveY, 0.1f), 0f, 1f);
-                Vector3 c = colour * Vector3.Lerp(Vector3.One, moss, patch) * (1.04f - 0.1f * down * down);
+                float across = p.X + p.Z * 0.6f + at, up = p.Y * 1.5f + p.Z * 0.35f;
+                float broad = noise.Fbm(across, up, 6.5f, 2);
+                float streak = noise.Fbm(across, p.Y * 0.2f, 0.9f, 2);
+                float patch = noise.Fbm01(across + 53f, up + 17f, 3.1f, 3);
+                float mossy = Math.Clamp((patch - 0.56f) * 3.2f, 0f, 1f) * (0.25f + 0.75f * down);
+                float tone = 1.05f - 0.15f * down * down + broad * 0.14f + streak * 0.09f;
+                if (sootAt is Vector3 stack)
+                {
+                    float away = new Vector2(p.X - stack.X, p.Z - stack.Z).Length;
+                    tone *= 1f - 0.34f * Math.Clamp(1f - away / sootReach, 0f, 1f);
+                }
+                Vector3 c = colour * tone;
+                c = Vector3.Lerp(c, c * moss, mossy);
                 return new Colour(c.X, c.Y, c.Z);
             };
         }
@@ -62,13 +77,13 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Halls
         /// A gable roof over walls <paramref name="g"/> describes: two slopes of <paramref name="kit"/>'s roof in a grid so that they can weather, the cut ends of the roof at the eaves and up
         /// the verges, boards along the verges and the eaves, the gable walls up to the underside, and a ridge with finials. <paramref name="gableWall"/> is what the gables are faced with.
         /// </summary>
-        public static void GableRoof(MeshBuilder b, in Gable g, HallKit kit, VertexMaterial gableWall, VertexMaterial gableInner, float wallThickness, int seed, bool finials = true)
+        public static void GableRoof(MeshBuilder b, in Gable g, HallKit kit, VertexMaterial gableWall, VertexMaterial gableInner, float wallThickness, int seed, bool finials = true, Vector3? sootAt = null)
         {
             float x0 = -g.HalfX - g.Verge, x1 = g.HalfX + g.Verge;
             float zEave = g.HalfZ + g.Eaves;
             float eave = g.EaveY + g.Lift;
             float ridge = g.Ridge + g.Lift;
-            var tint = Weathering(kit.Roof, kit.Moss, eave, ridge, seed);
+            var tint = Weathering(kit.Roof, kit.Moss, eave, ridge, seed, sootAt, 7f);
 
             // The two slopes, each in a grid so that the weathering can vary across it.
             float slope = MathF.Sqrt(zEave * zEave + (ridge - eave) * (ridge - eave));
@@ -78,7 +93,8 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Halls
                 Vector3 u = side > 0f ? Vector3.UnitX : -Vector3.UnitX;
                 Vector3 origin = new Vector3(0f, eave, zEave * side);
                 Vector4 bounds = new Vector4(x0, x1, 0f, slope);
-                const int Across = 10, Up = 5;
+                int Across = Math.Clamp((int)((x1 - x0) / 0.9f), 10, 40), Up = Math.Clamp((int)(slope / 0.9f), 5, 18);
+                var mends = new WorldRandom(seed * 31 + (side > 0f ? 7 : 11)).Fork("mends");
                 for (int i = 0; i < Across; i++)
                 {
                     for (int j = 0; j < Up; j++)
@@ -88,7 +104,7 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Halls
                         // u runs left to right seen from outside, so the back slope's runs from +x.
                         float pa = side > 0f ? ua : -ub, pb = side > 0f ? ub : -ua;
                         Vector3 c00 = origin + u * pa + v * va, c10 = origin + u * pb + v * va, c11 = origin + u * pb + v * vb, c01 = origin + u * pa + v * vb;
-                        b.PlaneQuad(c00, c10, c11, c01, kit.Roof, origin, u, v, new Vector4(side > 0f ? x0 : -x1, side > 0f ? x1 : -x0, 0f, slope), tint);
+                        b.PlaneQuad(c00, c10, c11, c01, kit.Roof, origin, u, v, new Vector4(side > 0f ? x0 : -x1, side > 0f ? x1 : -x0, 0f, slope), Mended(tint, mends));
                     }
                 }
 
@@ -137,6 +153,19 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Halls
                 Vector3 foot = new Vector3(end * (x1 + 0.1f), ridge - 0.3f, 0f);
                 Hall.Turned(b, foot, kit.Soffit, 6, (0f, 0.16f), (0.5f, 0.14f), (0.62f, 0.24f), (0.9f, 0.1f), (1.4f, 0.17f), (1.75f, 0.02f));
             }
+        }
+
+        // A roof that's been up a hundred years has been mended: here and there a patch of it was laid later than the rest and hasn't weathered down to it yet, a little
+        // lighter or a little darker, with an edge, as a patch has. One patch in a dozen or so, each a square of the grid.
+        private static Func<Vector3, Colour> Mended(Func<Vector3, Colour> tint, WorldRandom random)
+        {
+            if (!random.Chance(0.085f)) return tint;
+            float by = random.Chance(0.6f) ? random.Range(1.1f, 1.2f) : random.Range(0.8f, 0.88f);
+            return p =>
+            {
+                Colour c = tint(p);
+                return new Colour(c.Red * by, c.Green * by, c.Blue * by, c.Intensity, c.Alpha);
+            };
         }
 
         // A board along a verge with its lower edge cut into scallops, the way a carpenter finishes a gable.
@@ -196,11 +225,12 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Halls
             Vector3 fl = new Vector3(-ex, eave, ez), fr = new Vector3(ex, eave, ez), br = new Vector3(ex, eave, -ez), bl = new Vector3(-ex, eave, -ez);
 
             // The long slopes, front and back, as grids so that they weather.
-            Slope(b, fl, fr, r1, r0, kit.Roof, tint, 10, 6);
-            Slope(b, br, bl, r0, r1, kit.Roof, tint, 10, 6);
+            var mends = new WorldRandom(seed * 31 + 5).Fork("mends");
+            Slope(b, fl, fr, r1, r0, kit.Roof, tint, 44, 16, mends);
+            Slope(b, br, bl, r0, r1, kit.Roof, tint, 44, 16, mends);
             // The hipped ends.
-            Slope(b, fr, br, r1, r1, kit.Roof, tint, 6, 6);
-            Slope(b, bl, fl, r0, r0, kit.Roof, tint, 6, 6);
+            Slope(b, fr, br, r1, r1, kit.Roof, tint, 26, 16, mends);
+            Slope(b, bl, fl, r0, r0, kit.Roof, tint, 26, 16, mends);
 
             // The cut edge of the roof all round the eaves, and a fascia.
             Vector3[] corners = { fl, fr, br, bl };
@@ -230,7 +260,7 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Halls
         }
 
         // A flat slope from its eave (a, c) up to its ridge (d, e: e above c, d above a), cut into a grid of quads so that its colour can vary.
-        private static void Slope(MeshBuilder b, Vector3 a, Vector3 c, Vector3 e, Vector3 d, VertexMaterial material, Func<Vector3, Colour> tint, int across, int up)
+        private static void Slope(MeshBuilder b, Vector3 a, Vector3 c, Vector3 e, Vector3 d, VertexMaterial material, Func<Vector3, Colour> tint, int across, int up, WorldRandom? mends = null)
         {
             Vector3 u = (c - a).Normalized();
             Vector3 normal = Vector3.Cross(c - a, d - a).Normalized();
@@ -249,7 +279,8 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Halls
                     float s0 = (float)i / across, s1 = (float)(i + 1) / across;
                     Vector3 p00 = Vector3.Lerp(l0, r0, s0), p10 = Vector3.Lerp(l0, r0, s1), p11 = Vector3.Lerp(l1, r1, s1), p01 = Vector3.Lerp(l1, r1, s0);
                     if ((p10 - p00).LengthSquared < 1e-6f && (p11 - p01).LengthSquared < 1e-6f) continue;
-                    b.PlaneQuad(p00, p10, p11, p01, material, origin, u, v, bounds, tint);
+                    // A hip's squares narrow to nothing at its top, where a patch would be a sliver.
+                    b.PlaneQuad(p00, p10, p11, p01, material, origin, u, v, bounds, mends != null && (p11 - p01).Length > 0.5f ? Mended(tint, mends) : tint);
                 }
             }
         }

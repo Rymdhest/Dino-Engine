@@ -18,7 +18,7 @@ namespace Dino_WorldLab
     ///           blow going off that far from the site's middle reaches round what's in its way, as its mark is drawn.
     ///   hitboxes [--mode check|measure|map|catalog] [--seed N] [--count N] [--kind k]  Holds what's solid about every kind of built thing to its model (Hitboxes),
     ///           or says where each kind's model stands, to write a rule from. Exit code 1 on any problem.
-    ///   check   [--seed N] [--count N] [--archetype id] [--layout linear|open] Generates worlds and validates them. Exit code 1 on any problem.
+    ///   check   [--seed N] [--count N] [--archetype id] [--layout linear|open] [--most N] Generates worlds and validates them, naming the first N problems of each (6). Exit code 1 on any problem.
     ///   packs   [--seed N] [--archetype id] [--level N] [--out file.png]       Who stands where: the mix, and a map of it, each folk in its colour.
     ///   relief  [--seed N] [--count N] [--archetype id]                        What the land is made of, and where the rock stands highest.
     ///   view    --at x,z [--seed N] [--archetype id] [--span m] [--angle d] [--yaw d] [--out f]  A drawing of a place, for shaping land with no game.
@@ -87,6 +87,8 @@ namespace Dino_WorldLab
                     return HallCheck.Run();
                 case "square":
                     return SquareCheck.Run();
+                case "town":
+                    return TownCheck.Run();
                 case "lexicon":     // Lexicon (developer tool, LEXICON.md).
                     return LexiconCheck.Run(options.Text("out"), options.Int("size", 1600), options.Text("game"), options.Text("find"));
                 case "yard":
@@ -133,6 +135,10 @@ namespace Dino_WorldLab
                 near = new Vector2(float.Parse(parts[0], System.Globalization.CultureInfo.InvariantCulture), float.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture));
                 what ??= "";
                 Console.WriteLine($"  at {near.Value.X:0},{near.Value.Y:0}: {world.BiomeAt(near.Value).Name}, height {world.Height.Sample(near.Value):0.0} m, slope {world.Elevation.SlopeAt(near.Value):0.00}, {(world.Passable.IsSet(near.Value) ? "passable" : "not passable")}");
+                // What the ground there is painted as, each from 0 to 1, and how far above the water's edge it stands.
+                Vector2 p = near.Value;
+                Console.WriteLine($"  painted: street {world.PavedRoad.Sample(p):0.00}, track {world.TrailRoad.Sample(p):0.00}, yard {world.Yard.Sample(p):0.00}, cobbles {world.Plaza.Sample(p):0.00}, flags {world.Paving.Sample(p):0.00}, " +
+                    $"bed {world.Garden.Sample(p):0.00}, farmland {world.Farmland.Sample(p):0.00}, turf {world.Green?.Sample(p) ?? 0f:0.00}; {world.ShoreHeightAt(p):0.0} m above the water's edge");
             }
             if (what == null) return 0;
             float within = options.Int("within", 20);
@@ -398,7 +404,7 @@ namespace Dino_WorldLab
                 if (validator.Problems.Count == 0) continue;
                 failures++;
                 Console.WriteLine($"[{seed}] {world.Plan.Name} ({id}): {validator.Problems.Count} problems");
-                foreach (string problem in validator.Problems.Take(6)) Console.WriteLine($"    {problem}");
+                foreach (string problem in validator.Problems.Take(options.Int("most", 6))) Console.WriteLine($"    {problem}");
             }
 
             Console.WriteLine($"{count - failures}/{count} worlds passed in {clock.Elapsed.TotalSeconds:0.0} s. " +

@@ -178,7 +178,7 @@ Not built:
 - **Music of its own.** The score doesn't change for the Reich.
 - **A first screen that says any of this.** The menu shows the title, a hero standing in a world and the Haven's giants grazing beyond them, with nothing of the invasion.
 - **Who a Defender is**, beyond the name the people give them.
-- **Who lives in the Haven**, and how it's stayed hidden. It's a village of people who got out, and nothing more is said.
+- **Who lives in the Haven**, and how it's stayed hidden. It's a town of people who got out, and since 2026-11-17 the town itself says they came by sea and are waiting for more (below); who they were, where from and why the Reich hasn't found them isn't said.
 
 ## Decided, and open to change
 
@@ -200,6 +200,7 @@ Choices made without asking. Say if any are wrong.
 - **A raptor is a little slower than a hero**, 9.6 m/s against 10, so a pack can be got away from by someone who stops fighting.
 - **The Haven is an isle of blossom under a sky of its own**, peaceful and warm, going through golden evenings, misty nights, still rain and sunlit storms, never the same twice, with no black iron, oxblood or brass anywhere in it but the orders a Defender brings back.
 - **The Haven is a little town of people who got out**, timber-framed, with three halls anyone can walk into, each kept by one of them: the Forge, a smith's; the Gaming House, a dealer's, where gold goes on cards and dice; and the Archive, an archivist's, where what the Defenders have done is kept on displays, every foe and tyrant brought down, every fall and the swiftest land freed among it, as the Haven remembers what it owes (`HALLS.md`).
+- **The Haven's people came by sea, and are still waiting for some.** The town shows it and nobody says it: below its wall is the house where whoever lands next is taken in, with a fire lit and a table laid; lanterns hang at the water for those who haven't come yet, one each, which is what "we keep a lamp lit for whoever's out there" was already about; and on the shore of the bay the town is building a boat bigger than any that brought it, to go back for them. Each home has a trade a town needs (a baker, a thatcher, a gardener, a joiner, a brewer, a fisher), and its colours are six dyes and cream, blossom first (`HAVEN.md`). How this sits with every waygate's road coming here first is left open: nothing says the people could use the ways.
 - **Orders' names** are the Reich's plain army words and its tongue: a Kommandant, a Brutmeister, a garrison and a writ.
 - **The north's villages are red with white corners** (`NORDIC.md`), after the old farms of Sweden, which a person who grew up there asked for: wherever the pinewoods and the snow are settled, the houses are boards painted the red of the copper mines' earth, white at every corner, window and verge, with a pole for midsummer on the green, poles on the slant fencing every field and lane (a gärdesgård) and a birch by every farm. That red is the land's own: warm, with the yellow of iron earth in it, and always with white. It's kept apart from the Reich's oxblood, which is deeper and leans to blue, and which nothing white goes with, so a red farm never reads as the Reich's. No flag of any country flies in any of it, Sweden's included.
 

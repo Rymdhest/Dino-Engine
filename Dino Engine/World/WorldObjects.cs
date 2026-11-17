@@ -64,6 +64,7 @@ namespace Dino_Engine.World
         Ash,        // The Onslaught's floor, the ash the charge was buried in.
         Sward,      // A churchyard's turf: kept short enough that the stones show, dark and cool, and in no flower, whatever the land round it grows (CHURCHYARD.md).
         Chippings,  // A quarry's floor, the land's stone broken small over the bedrock, which nothing grows through (PLACES.md).
+        Green,      // A town's turf, kept short by feet, geese and a scythe: fresh, low and full of daisies, whatever the meadows round the town grow (HAVEN.md).
     }
 
     /// <summary>

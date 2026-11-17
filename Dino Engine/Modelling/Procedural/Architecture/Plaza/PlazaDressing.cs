@@ -420,8 +420,11 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Plaza
                 Vector3 hang = new Vector3(random.Range(-0.03f, 0.03f), -0.6f, random.Range(-0.04f, 0.04f));
                 Vector3 a = new(x, y - 0.02f, 0f);
                 VertexMaterial cloth = PlazaStone.Cloth(Festive[(i + offset) % Festive.Length] * random.Range(0.92f, 1.04f));
+                int first = b.VertexCount;
                 b.Triangle(a - across, a + across, a + hang, cloth);
                 b.Triangle(a + across, a - across, a + hang, cloth);
+                // Each lifts in the wind by itself, from the cord.
+                b.Hang(first, a, a + hang, 0.8f, 2.4f, 0.9f);
             }
         }
     }

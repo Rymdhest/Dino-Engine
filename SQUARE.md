@@ -13,9 +13,9 @@ The heart of the Haven is built as a town's square is: in layers of walls, steps
 - **The southern beds.** An arc of ground either side of the lane in from the south, walled in field stone on both sides with half circles at their ends, a white cherry in one and an olive in the other.
 - **The arch.** Over the lane where it comes into the square: piers, an arch of wedge stones round a keystone, coursed spandrels, a cornice and a little roof of clay tiles, with a lantern hung under its crown. Coming in from the south, it frames the square, the heart, the flight and the gate.
 - **The loggia.** On the east side, by the way to the Gaming House: stone columns under oak beams and joists, a striped sail over half of it, lanterns hung in its bays, and two trestle tables laid for a meal (plates, cups, bread, fruit, jugs). The stash stands beside it, facing across the square.
-- **The market** keeps the west side: the merchant and the beta vendor (`HavenBuilder.PlaceTrade`).
+- **The market** is west of the square, along the street out of it under the Forge's terrace, where the merchant and the beta vendor keep the two stalls nearest the square (`HavenTown.Market`, `HAVEN.md`).
 - **The well** stands off the heart to the south-east, a round wall round dark water under a windlass and a little tiled roof.
-- **Masts and bunting.** Four masts round the square, each with a lantern out over it, which is all that lights the square's middle at night, and bunting in the Haven's colours strung between them and on to the loggia. A hung lantern reaches 17 m rather than a street lantern's 24 (`PlazaStone.HungLantern`), as at 24 the masts' four cost 0.3 ms, each lighting most of the square, and at 13 the heart went dark.
+- **Masts and bunting.** Four masts round the square, each with a lantern out over it, which is all that lights the square's middle at night, and bunting in the Haven's colours strung between them and on to the loggia, every pennant lifting in the wind by itself (`MeshBuilder.Hang`, `HAVEN.md`). A hung lantern reaches 17 m rather than a street lantern's 24 (`PlazaStone.HungLantern`), as at 24 the masts' four cost 0.3 ms, each lighting most of the square, and at 13 the heart went dark.
 - **Paving.** The square, the avenue, the court round the gate and the loggia's floor are the gates' stone (`GroundPaint.Paving`), with cobbles round the beds; the halls' streets and the lane in from the south are setts between kerbs, as a village's streets are (`TerrainBakeStage.NearVillage` counts the Haven).
 
 ## Pieces are grown from their ids
@@ -26,7 +26,7 @@ Every piece is a `PlazaSpec` (`Modelling/Procedural/Architecture/Plaza/`, headle
 - **A wall** is laid along a `WallLine`, straight along +x or round an arc by bearing (clockwise from +z, from above, as `HavenSquare.Toward` is), its stones cut to the curve so their joints run to its middle. `PlazaWalls.Lay` turns a block's corners round to the way `Masonry` wants them, whichever way a wall faces.
 - **Nothing here is the Reich's**: no black iron, oxblood or brass (`LORE.md`). Cloth is blossom, cream, gold, sky, sage and lilac, and metal is left out.
 - **Every lantern is a piece of its own** (`PlazaKind.Lamp`), set on the flight's piers, under the arch and in the loggia by `HavenSquare` at the places their pieces say (`PlazaPieces.FlightLamps`, `ArchCrown`, `PlazaDressing.PergolaLamps`). A light inside a model over 6 m across is shadowed by that model (`LocalShadowCasters`), so built into the flight they were shut in by their own glass whenever they held one of the few shadow maps, which go to the lights nearest the hero, and they went dark and lit again as anyone climbed it. A mast's lantern stays in the mast, which is small enough to be left out of its shadow.
-- `Dino WorldLab square` builds every piece of the Haven's square from its id and says what it costs. It's about 140,000 triangles and 11 lights, and builds in a fifth of a second on one thread.
+- `Dino WorldLab square` builds every piece of the kind in the Haven from its id, the square's and the walls, flights and piers of the rest of the town (`HAVEN.md`), and says what they cost. It's about 241,000 triangles and 29 lights, 140,000 and 11 of them the square's own, and builds in a third of a second on one thread.
 
 ## Raised ground
 
@@ -49,5 +49,7 @@ A bed, the terrace and the flight are ground raised exactly, and walls hide wher
 `--haven true` with `--at x,z`: the square is `--at 211,142` (its middle, 211,134, is in the heart's bed), the flight and the terrace `--at 211,151` and `--at 211,158`, the loggia `--at 232,126`, the arch from the south `--at 211,99`, and `--look 20` comes in close. `--render night=1` shows its lanterns. The intro banner covers the top of the screen for a while, so take a shot after 1,300 frames. Judge it from the game's camera and the closest zoom. Of all of it only the trees thin away for a hero behind them (`glModel.OpensForFocus`): the arch's roof hides someone just north of it for a step or two, which is what was asked for.
 
 After any change here run `Dino WorldLab check --seed 1610 --count 1 --archetype haven` and `square`, `Dino NetLab lands`, and `Dino LifeLab giants` on several seeds, and look at it in the game, by day and at night.
+
+The rest of the town, its levels, streets, homes and harbour, is in `HAVEN.md`, and is laid out with the same walls, flights and kerbs at whatever level it's told (`TownMason`).
 
 Nobody has walked through it but the bots and the stills.

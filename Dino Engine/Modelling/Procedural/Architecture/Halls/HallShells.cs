@@ -77,7 +77,8 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Halls
             Quoins(b, d, kit.Dressing);
 
             var gable = new HallRoofs.Gable(d.Half.X, d.Half.Y, d.WallTop, kit.RoofPitch, kit.Overhang, 1f);
-            HallRoofs.GableRoof(b, gable, kit, kit.OuterWall, kit.InnerWall, d.Wall, 11);
+            // A smithy's slates are black with its own smoke for a good way round its stack.
+            HallRoofs.GableRoof(b, gable, kit, kit.OuterWall, kit.InnerWall, d.Wall, 11, sootAt: new Vector3(0f, 0f, -8.5f));
             RidgeVent(b, gable, kit, 7.5f);
             // Two dormers on the slope towards the street, lighting the loft where the stock is kept.
             foreach (float along in new[] { -8.5f, 8.5f }) HallRoofs.Dormer(b, gable, kit, kit.OuterWall, along, 6.4f, 1.5f, 2.8f, lights, (int)(along * 5f) + 70);
@@ -305,21 +306,19 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Halls
 
         private static void Barn(MeshBuilder b, HallDesign d, HallKit kit, List<Vector3> chimneys, List<AssetLight> lights, WorldRandom random)
         {
-            var dress = new Dress { StoneSurrounds = false, Shutters = true, FlowerBoxes = true, Lattice = true };
+            var dress = new Dress { StoneSurrounds = false, Shutters = true, FlowerBoxes = false, Lattice = true };
             Framing(b, d, kit, 4.9f);
             HallDressing.Openings(b, d, kit, dress, lights, random);
 
-            var gable = new HallRoofs.Gable(d.Half.X, d.Half.Y, d.WallTop, kit.RoofPitch, kit.Overhang, 1.3f);
-            HallRoofs.GableRoof(b, gable, kit, kit.OuterWall, kit.InnerWall, d.Wall, 23);
-            GableTimbers(b, d, gable, kit);
-            foreach (float along in new[] { -8.2f, 0f, 8.2f })
-            {
-                HallRoofs.Dormer(b, gable, kit, kit.OuterWall, along, 6.8f, 1.7f, 3.2f, lights, (int)(along * 7f) + 40);
-            }
+            // An old barn's roof: thatch, as the homes round it are roofed, sagging along its ridge as a roof this long does after a hundred years, with a brow lifted over
+            // each of the hayloft's windows. The loft's door is over the great doors, under the eaves, with the beam its hay was hoisted on.
+            float ridge = Town.TownHouse.ThatchOver(b, d.Half.X, d.Half.Y, d.WallTop, kit.RoofPitch, 0xBA54E1u, new[] { -8.2f, 8.2f }, kit.OuterWall, kit.Timber, lights, 0.3f);
+            var gable = new HallRoofs.Gable(d.Half.X, d.Half.Y, d.WallTop, kit.RoofPitch, Town.TownHouse.ThatchEaves, 0.5f);
+            LoftDoor(b, d, kit);
 
             // The fire's chimney, built out from the east wall from the ground up past the eaves.
             HallPiece breast = d.Outside.First(p => p.Kind == PieceKind.ChimneyBreast);
-            float top = gable.Ridge + gable.Lift + 1.6f;
+            float top = ridge + 1.3f;
             Vector3 foot = new Vector3(breast.At.X, -0.4f, breast.At.Y);
             b.Box(foot + Vector3.UnitY * 3.6f, new Vector3(breast.Half.X + 0.15f, 4f, breast.Half.Y + 0.2f), kit.Plinth);
             b.Box(foot + new Vector3(0.05f, 7.9f, 0f), new Vector3(breast.Half.X + 0.06f, 0.3f, breast.Half.Y + 0.05f), kit.Dressing);
@@ -327,8 +326,70 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Halls
             // A smaller one at the back, for the bar's kitchen.
             HallRoofs.Chimney(b, new Vector3(6.4f, d.WallTop, -6.6f), new Vector2(0.7f, 0.6f), gable.FaceAt(-6.6f) + 2.2f, Hall.Brick(150, 100, 76), kit.Dressing, chimneys, pots: 1);
 
-            Porch(b, d, kit, lights);
+            Entrance(b, d, kit, lights);
             StringLanterns(b, d, gable, lights);
+        }
+
+        // The hayloft's door, over the great doors: boards in a frame, shut, and over it the beam hay was hoisted on, a wheel at its end and the rope still through it.
+        private static void LoftDoor(MeshBuilder b, HallDesign d, HallKit kit)
+        {
+            HallOpening door = d.Doors.First();
+            float z = d.Half.Y;
+            float sill = door.Head + 0.45f, head = d.WallTop - 0.35f;
+            const float Half = 1.15f;
+            b.Box(new Vector3(door.Along, (sill + head) * 0.5f, z + 0.05f), new Vector3(Half, (head - sill) * 0.5f, 0.05f), kit.DoorLeaf);
+            foreach (float s in new[] { -1f, 1f }) b.Box(new Vector3(door.Along + s * (Half + 0.12f), (sill + head) * 0.5f, z + 0.08f), new Vector3(0.12f, (head - sill) * 0.5f + 0.1f, 0.08f), kit.Timber);
+            b.Box(new Vector3(door.Along, sill - 0.1f, z + 0.14f), new Vector3(Half + 0.3f, 0.1f, 0.16f), kit.Timber);
+            b.Beam(new Vector3(door.Along - Half + 0.1f, sill + 0.15f, z + 0.12f), new Vector3(door.Along + Half - 0.1f, head - 0.15f, z + 0.12f), 0.07f, kit.Joinery);
+            foreach (float y in new[] { sill + 0.25f, head - 0.25f }) b.Box(new Vector3(door.Along, y, z + 0.12f), new Vector3(Half - 0.05f, 0.09f, 0.03f), kit.Joinery);
+            // The hoist.
+            Vector3 root = new Vector3(door.Along, d.WallTop - 0.12f, z), end = root + Vector3.UnitZ * 2.1f;
+            b.Box((root + end) * 0.5f, new Vector3(0.13f, 0.15f, 1.05f), kit.Timber);
+            b.Beam(root + new Vector3(0f, -1.3f, 0.08f), end + new Vector3(0f, -0.1f, -0.45f), 0.08f, kit.Timber);
+            Vector3 wheel = end + new Vector3(0f, -0.38f, -0.2f);
+            b.Tube(wheel - Vector3.UnitX * 0.07f, wheel + Vector3.UnitX * 0.07f, 0.24f, 0.24f, 10, Hall.Wood(120, 92, 64));
+            VertexMaterial rope = Hall.Cloth(160, 142, 104);
+            b.Beam(wheel + new Vector3(0f, 0f, 0.24f), wheel + new Vector3(0f, -2.6f, 0.24f), 0.025f, rope);
+            b.Beam(wheel + new Vector3(0f, 0f, -0.24f), new Vector3(door.Along + Half + 0.4f, sill + 0.4f, z + 0.15f), 0.025f, rope);
+            b.Tube(wheel + new Vector3(0f, -2.75f, 0.24f), wheel + new Vector3(0f, -2.6f, 0.24f), 0.03f, 0.1f, 6, Hall.Iron(96));
+        }
+
+        // The way in: two turned posts before the great doors with a beam across them under a board of a roof, the house's sign hung from the middle of it, two dice, and a
+        // lantern either side. Open to the sky, so that the doors are seen under it from above.
+        private static void Entrance(MeshBuilder b, HallDesign d, HallKit kit, List<AssetLight> lights)
+        {
+            VertexMaterial timber = kit.Timber;
+            const float Beam = 7.3f;
+            float z = d.Half.Y + 3.1f;
+            foreach (HallPiece post in d.Outside.Where(p => p.Kind == PieceKind.Post))
+            {
+                Vector3 foot = new Vector3(post.At.X, -0.1f, post.At.Y);
+                b.Box(foot + Vector3.UnitY * 0.35f, new Vector3(0.42f, 0.35f, 0.42f), kit.Dressing);
+                Hall.Turned(b, foot + Vector3.UnitY * 0.7f, timber, 8, (0f, 0.26f), (0.3f, 0.3f), (0.42f, 0.22f), (3f, 0.24f), (3.3f, 0.3f), (3.45f, 0.21f), (Beam - 0.9f, 0.23f), (Beam - 0.75f, 0.32f), (Beam - 0.7f, 0.3f));
+                b.Beam(foot + new Vector3(0f, Beam - 1.9f, 0f), foot + new Vector3(-MathF.Sign(post.At.X) * 1.5f, Beam - 0.1f, 0f), 0.09f, timber);
+                b.Beam(foot + new Vector3(0f, Beam - 1.9f, 0f), foot + new Vector3(MathF.Sign(post.At.X) * 1.1f, Beam - 0.1f, 0f), 0.08f, timber);
+            }
+            b.Box(new Vector3(0f, Beam + 0.1f, z), new Vector3(4.5f, 0.2f, 0.18f), timber);
+            b.Box(new Vector3(0f, Beam + 0.36f, z), new Vector3(4.8f, 0.06f, 0.34f), Hall.Shingle(200, 176, 150));
+
+            // The sign.
+            Vector3 middle = new Vector3(0f, Beam - 1.3f, z);
+            foreach (float s in new[] { -0.8f, 0.8f }) b.Beam(new Vector3(s, Beam - 0.1f, z), new Vector3(s, Beam - 0.5f, z), 0.02f, Hall.Iron(80));
+            b.Box(middle, new Vector3(1.2f, 0.8f, 0.05f), Hall.Wood(44, 92, 70));
+            b.Box(middle, new Vector3(1.27f, 0.87f, 0.035f), Hall.DarkOak);
+            Die(b, middle + new Vector3(-0.45f, 0.06f, 0.1f), 0.27f, 0.3f);
+            Die(b, middle + new Vector3(0.45f, -0.1f, 0.1f), 0.25f, -0.45f);
+
+            // A lantern either side of it.
+            foreach (float s in new[] { -2.5f, 2.5f })
+            {
+                Vector3 hang = new Vector3(s, Beam - 0.95f, z);
+                b.Tube(hang + Vector3.UnitY * 0.85f, hang + Vector3.UnitY * 0.33f, 0.02f, 0.02f, 4, Hall.Iron(70));
+                b.Box(hang, new Vector3(0.22f, 0.3f, 0.22f), Hall.Glow(1f, 0.6f, 0.24f, 2.6f));
+                b.Box(hang + Vector3.UnitY * 0.34f, new Vector3(0.28f, 0.05f, 0.28f), Hall.Iron(70));
+                b.Box(hang - Vector3.UnitY * 0.34f, new Vector3(0.26f, 0.05f, 0.26f), Hall.Iron(70));
+                lights.Add(AssetLight.Lantern(hang) with { Intensity = 95f, Radius = 16f });
+            }
         }
 
         // Timber framing over the plaster, outside: a sill along the plinth, a rail where an upper floor would be, a plate along the top, posts at the corners and beside every opening,
@@ -396,84 +457,6 @@ namespace Dino_Engine.Modelling.Procedural.Architecture.Halls
                     }
                 }
             }
-        }
-
-        // The timbers of a gable end: a king post up to the ridge and struts out from it.
-        private static void GableTimbers(MeshBuilder b, HallDesign d, HallRoofs.Gable g, HallKit kit)
-        {
-            foreach (float end in new[] { -1f, 1f })
-            {
-                float x = end * (d.Half.X + 0.06f);
-                float bottom = d.WallTop;
-                float peak = g.Ridge - 0.3f;
-                b.Beam(new Vector3(x, bottom, 0f), new Vector3(x, peak, 0f), 0.16f, kit.Timber);
-                foreach (float s in new[] { -1f, 1f })
-                {
-                    float z = s * d.Half.Y * 0.55f;
-                    float atRoof = g.Base + (d.Half.Y - MathF.Abs(z)) * g.Pitch - 0.35f;
-                    b.Beam(new Vector3(x, bottom + 0.4f, z), new Vector3(x, atRoof, z), 0.13f, kit.Timber);
-                    b.Beam(new Vector3(x, bottom + 0.3f, 0f), new Vector3(x, atRoof - 0.1f, z), 0.11f, kit.Timber);
-                    b.Beam(new Vector3(x, bottom + 0.2f, s * d.Half.Y), new Vector3(x, bottom + 0.2f, 0f), 0.14f, kit.Timber);
-                }
-            }
-        }
-
-        // A porch over the front door: two turned posts on stone bases, a beam across them, and a small gabled roof back to the wall, with a lantern hung under it and the sign.
-        private static void Porch(MeshBuilder b, HallDesign d, HallKit kit, List<AssetLight> lights)
-        {
-            VertexMaterial timber = kit.Timber;
-            float front = d.Half.Y + 3.1f;
-            float beam = 6.9f;
-            foreach (HallPiece post in d.Outside.Where(p => p.Kind == PieceKind.Post))
-            {
-                Vector3 foot = new Vector3(post.At.X, -0.1f, post.At.Y);
-                b.Box(foot + Vector3.UnitY * 0.35f, new Vector3(0.42f, 0.35f, 0.42f), kit.Dressing);
-                Hall.Turned(b, foot + Vector3.UnitY * 0.7f, timber, 8, (0f, 0.26f), (0.3f, 0.3f), (0.42f, 0.22f), (3f, 0.24f), (3.3f, 0.3f), (3.45f, 0.21f), (beam - 0.9f, 0.23f), (beam - 0.75f, 0.32f), (beam - 0.7f, 0.3f));
-                // Knee braces up to the beam and back to the wall.
-                b.Beam(foot + new Vector3(0f, beam - 2f, 0f), foot + new Vector3(-MathF.Sign(post.At.X) * 1.4f, beam - 0.2f, 0f), 0.09f, timber);
-                b.Beam(foot + new Vector3(0f, beam - 2f, 0f), foot + new Vector3(0f, beam - 0.2f, -1.4f), 0.09f, timber);
-            }
-            b.Box(new Vector3(0f, beam, front), new Vector3(4f, 0.22f, 0.2f), timber);
-            foreach (float s in new[] { -3.1f, 3.1f }) b.Box(new Vector3(s, beam, (front + d.Half.Y) * 0.5f), new Vector3(0.18f, 0.2f, (front - d.Half.Y) * 0.5f), timber);
-
-            // Its roof: a little gable running back into the wall.
-            float pitch = 0.75f, half = 4.2f;
-            float eave = beam + 0.25f, ridge = eave + half * pitch;
-            float z0 = d.Half.Y, z1 = front + 0.5f;
-            foreach (float s in new[] { -1f, 1f })
-            {
-                Vector3 e0 = new Vector3(s * half, eave, z1), e1 = new Vector3(s * half, eave, z0), r1 = new Vector3(0f, ridge, z0), r0 = new Vector3(0f, ridge, z1);
-                Vector3 normal = Vector3.Cross(e1 - e0, r0 - e0);
-                VertexMaterial roof = kit.Roof;
-                var tint = HallRoofs.Weathering(roof, kit.Moss, eave, ridge, 77);
-                Vector3 u = (e1 - e0).Normalized();
-                Vector3 n = normal.Y > 0f ? normal.Normalized() : -normal.Normalized();
-                Vector3 v = Vector3.Cross(n, u).Normalized();
-                if (normal.Y > 0f) b.PlaneQuad(e0, e1, r1, r0, roof, e0, u, v, new Vector4(-1e3f, 1e3f, -1e3f, 1e3f), tint);
-                else b.PlaneQuad(e1, e0, r0, r1, roof, e1, -u, v, new Vector4(-1e3f, 1e3f, -1e3f, 1e3f), tint);
-                b.Quad(e0, r0, r0 - Vector3.UnitY * 0.25f, e0 - Vector3.UnitY * 0.25f, kit.Soffit);
-            }
-            b.Tube(new Vector3(0f, ridge + 0.02f, z0), new Vector3(0f, ridge + 0.02f, z1 + 0.1f), 0.16f, 0.16f, 6, kit.Ridge);
-            // The gable of the porch, boarded.
-            b.Triangle(new Vector3(-half + 0.3f, eave, z1 - 0.05f), new Vector3(half - 0.3f, eave, z1 - 0.05f), new Vector3(0f, ridge - 0.15f, z1 - 0.05f), Hall.Wood(120, 86, 56));
-
-            // A lantern hung from the beam, and the sign, two dice.
-            Vector3 hang = new Vector3(0f, beam - 0.5f, front - 0.4f);
-            b.Tube(hang + Vector3.UnitY * 0.8f, hang + Vector3.UnitY * 0.33f, 0.02f, 0.02f, 4, Hall.Iron(70));
-            b.Box(hang, new Vector3(0.24f, 0.32f, 0.24f), Hall.Glow(1f, 0.6f, 0.24f, 2.6f));
-            b.Box(hang + Vector3.UnitY * 0.36f, new Vector3(0.3f, 0.05f, 0.3f), Hall.Iron(70));
-            b.Box(hang - Vector3.UnitY * 0.36f, new Vector3(0.28f, 0.05f, 0.28f), Hall.Iron(70));
-            lights.Add(AssetLight.Lantern(hang) with { Intensity = 120f, Radius = 18f });
-
-            HallDressing.Sign(b, HallWalls.OnWall(d, HallSide.Front, -5.3f, 6.4f), Vector3.UnitZ, Hall.Wood(44, 92, 70), Hall.Paper, (middle, out_, across) =>
-            {
-                foreach (float face in new[] { 0.08f, -0.08f })
-                {
-                    Vector3 f = middle + across * face;
-                    Die(b, f + out_ * -0.28f + Vector3.UnitY * 0.05f, 0.26f, 0.3f);
-                    Die(b, f + out_ * 0.3f - Vector3.UnitY * 0.12f, 0.24f, -0.45f);
-                }
-            });
         }
 
         /// <summary>A die, pale with dark pips, turned a little.</summary>

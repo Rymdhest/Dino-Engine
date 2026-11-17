@@ -147,13 +147,16 @@ namespace Dino_Engine.World
             float above = height - world.Height.Sample(position) + world.ShoreHeightAt(position);
             float shore = 1f - Smoothstep(0.3f, 1.8f, above + breakup * 0.45f + drift * 0.4f);
 
-            // Trodden ground has no clean edge: it frays out into the grass around it.
-            yard = Smoothstep(0.22f, 0.78f, yard + (breakup * 0.55f + drift * 0.5f) * Saturate(yard * 3f));
-            // Gravel is kept, so it frays only at its edge, where it's painted fading out: a square's middle stays a square.
-            plaza = Smoothstep(0.22f, 0.78f, plaza + (breakup * 0.4f + drift * 0.3f) * Saturate(plaza * 3f) * Saturate((1f - plaza) * 3f));
+            // Trodden ground has no clean edge: it frays out into the grass around it. In the open that reaches right through it, so a camp's yard is trodden in patches;
+            // a town's is trodden every day, and frays only where it's painted fading out, so that a yard there is a yard and a worn way goes all the way.
+            float worn = world.Trim ? Saturate((1f - yard) * 3f) : 1f;
+            yard = Smoothstep(0.22f, 0.78f, yard + (breakup * 0.55f + drift * 0.5f) * Saturate(yard * 3f) * worn);
+            // Gravel is kept, so it frays only at its edge, where it's painted fading out: a square's middle stays a square. What a town's masons laid hardly frays at all.
+            float trim = world.Trim ? 0.12f : 1f;
+            plaza = Smoothstep(0.22f, 0.78f, plaza + (breakup * 0.4f + drift * 0.3f) * trim * Saturate(plaza * 3f) * Saturate((1f - plaza) * 3f));
             // Paving is laid, not worn: it gives way to what's round it over a stride or so, and where it's shared the slabs stand proudest, so the edge is
             // where its slabs end.
-            paving = Smoothstep(0.28f, 0.72f, paving + (breakup * 0.32f + drift * 0.12f) * Saturate(paving * 3f) * Saturate((1f - paving) * 3f));
+            paving = Smoothstep(0.28f, 0.72f, paving + (breakup * 0.32f + drift * 0.12f) * trim * Saturate(paving * 3f) * Saturate((1f - paving) * 3f));
 
             float notRoad = 1f - onRoad;
             pavement *= notRoad * (1f - plaza) * (1f - farm) * (1f - yard) * (1f - garden) * (1f - shore);
@@ -271,6 +274,31 @@ namespace Dino_Engine.World
             if (garden > 0f) Tend(ref grass, garden, x, z, normalY, small);
             float sward = world.Sward?.Sample(x, z) ?? 0f;
             if (sward > 0f) Mow(ref grass, sward, x, z);
+            float green = world.Green?.Sample(x, z) ?? 0f;
+            if (green > 0f) Crop(ref grass, green, x, z, Saturate(grows * normalY * (1f - shore)) * (0.84f + 0.16f * small));
+        }
+
+        // A town's turf: nobody tends it as a garden's is, but feet, geese and a scythe keep it low, so it's short, fresh and even, a little longer in drifts where nobody walks,
+        // and full of daisies and clover rather than whatever the meadow outside is in flower with. Read HAVEN.md.
+        private static readonly Vector3 TownGrass = new Vector3(0.165f, 0.3f, 0.07f);
+        private static readonly Vector3 Daisies = new Vector3(0.52f, 0.52f, 0.47f);
+        private static readonly Vector3 Clover = new Vector3(0.5f, 0.3f, 0.42f);
+        private const float TownHeight = 0.165f;
+
+        private void Crop(ref GrassCell grass, float green, float x, float z, float thick)
+        {
+            float drift = _noise.Fbm01(x + 227f, z - 349f, 7.5f, 2);
+            // Turf is a sward, not tufts: it grows as thick as the ground lets it, a little thinner in drifts, and stops at the beach, which a harbour keeps bare.
+            grass.Cover = Lerp(grass.Cover, thick * (0.8f + 0.2f * drift), green);
+            float longer = Smoothstep(0.6f, 0.85f, _noise.Fbm01(x - 131f, z + 613f, 13f, 2));
+            float which = Smoothstep(0.45f, 0.6f, _noise.Fbm01(x + 57f, z + 811f, 9f, 2));
+            grass.Height = Lerp(grass.Height, TownHeight * (0.88f + 0.24f * drift) + longer * 0.05f, green);
+            grass.Colour = Vector3.Lerp(grass.Colour, TownGrass * (0.9f + 0.2f * drift), green);
+            // Kept turf is never dry: any dryness at all turns whole drifts of its tufts to straw, which in a town reads as a patch nobody mowed.
+            grass.Dryness = Lerp(grass.Dryness, 0f, green);
+            grass.Plumes = Lerp(grass.Plumes, 0f, green);
+            grass.Bloom = Lerp(grass.Bloom, 0.055f * Smoothstep(0.5f, 0.78f, _noise.Fbm01(x - 419f, z + 37f, 6f, 2)), green);
+            grass.BloomColour = Vector3.Lerp(grass.BloomColour, Vector3.Lerp(Daisies, Clover, which), green);
         }
 
         // A churchyard's turf: someone still comes, so it's kept short enough that the stones stand out of it, but nobody tends it as a garden is tended, so it's dark, cool, a little

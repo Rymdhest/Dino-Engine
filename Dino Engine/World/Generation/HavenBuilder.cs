@@ -1,53 +1,77 @@
+using Dino_Engine.Modelling.Procedural.Architecture.Places;
+using Dino_Engine.Modelling.Procedural.Architecture.Plaza;
 using Dino_Engine.Modelling.Procedural.Fence;
 using Dino_Engine.Modelling.Procedural.Flora;
 using Dino_Engine.World.Content;
 using OpenTK.Mathematics;
 using static Dino_Engine.World.Generation.SiteBuilder;
+using static Dino_Engine.World.WorldMath;
 
 namespace Dino_Engine.World.Generation
 {
     /// <summary>
-    /// Builds the Haven, the one village the Reich has never found, where a hero spends more time than anywhere else: a little town laid out for the game's camera, which looks north
-    /// from the south and high up. The great waygate stands at the head of everything on a terrace of its own among blossom, with the map table before it at the top of the square,
-    /// and two of the halls that can be walked into flank it, facing down over the square: the Archive to the west and the Gaming House to the east. Streets run from the square to
-    /// each of their doors. The merchant and the beta vendor keep the west side of the square and the strongbox its east; the Forge stands to the south, its doors onto the training
-    /// ground, where the lane from the square ends; a quiet garden is off the square to the south-east; homes stand round all of it; and two plots are kept empty for halls to come.
-    /// Every hall faces south, towards the camera, as a hall's front is the wall that comes down when someone's inside it (HALLS.md). Everything here goes through
-    /// <see cref="SiteBuilder"/> like anything else built, so walls, paths and plants keep to the same rules, and what can be used is placed with <see cref="SiteBuilder.PlaceNear"/>,
-    /// as a mark with nothing under it is a prompt in an empty field. The ground, not this, says where everything ends up exactly: a thing that doesn't fit moves or isn't built.
+    /// Builds the Haven, the one town the Reich has never found, where a hero spends more time than anywhere else (HAVEN.md): a little town on a rise over its harbour, laid out
+    /// for the game's camera, which looks north from high in the south, so that everything worth seeing faces south or stands at the head of something. The great waygate is at
+    /// the top of it all on its terrace (<see cref="HavenSquare"/>), the square below that, and either side of the gate, each on a terrace of its own up a flight of steps, the
+    /// Forge to the west, which is where a Defender goes most, with the market along the foot of its wall, and the Gaming House to the east. A lane runs south from the square's
+    /// arch to the Row, the street along the top of the town's wall, with the Archive at its west end on a podium and homes along its north side, each behind its own garden;
+    /// and from the Row the Harbour Steps go down through the wall to the tiltyard, the fishers' cottages and the water. Every level is ground laid exactly, with walls hiding
+    /// where it's raised (SQUARE.md), and every hall faces south, as a hall's front is the wall that comes down when someone's inside it (HALLS.md). What stands where is
+    /// decided here to the metre: nothing is tried and left out, so a Haven with something missing is a fault <c>Dino WorldLab check</c> finds.
     /// </summary>
     internal static class HavenBuilder
     {
-        private const float SquareRadius = 16f;
-        private const float GateAhead = 31f;
-        private const float StallAside = 26f;
-        private const float StashAside = 17.4f;
-        private const float StashNorth = -0.6f;
-        private const float BetaBelow = 11f;            // Metres south of the merchant's stall that the beta vendor's stands.
-        private const float GroundSouth = 66f;          // Of the training ground's middle, from the square's.
-        private const float GroundWest = 4f;
+        // ---------------------------------------------------------------- The lie of the town
+
+        /// <summary>Metres the town stands above its harbour: five steps.</summary>
+        public const float Lift = 2f;
+        private const int LiftSteps = 5;
+        private const float HallUp = 1.2f;              // The Forge and the Gaming House above the square: three steps.
+        private const int HallSteps = 3;
+        private const float PodiumUp = 0.8f;            // The Archive above the Row: two.
+        private const int PodiumSteps = 2;
+
+        // The rise the town stands on: a box with rounded corners, level on top, falling away in banks all round but along the wall to the south.
+        private static readonly Vector2 MoundMiddle = new Vector2(0f, 12.25f);
+        private static readonly Vector2 MoundHalf = new Vector2(84f, 65.75f);
+        private const float MoundCorner = 24f;
+        private const float Bank = 18f;
+
+        public const float WallZ = -53.5f;              // The face of the town's wall, south of its middle.
+        private const float WallHalf = 50f;             // How far it runs either way from the Harbour Steps.
+        private const float WallThick = 1.3f;
+        public const float RowZ = -43.5f;               // The middle of the Row, the street along the wall's top.
+        private const float StreetHalf = 3f;            // Half the width of a paved street (RoadClass.Highway).
+        private const float StepsHalf = 3f;             // Half the width of the Harbour Steps, between their cheeks.
+
+        // Where each hall stands, from the square's middle, east and north. They all face south, at the camera.
+        private static readonly Vector2 ForgeAt = new Vector2(-43.5f, 30.6f);
+        private static readonly Vector2 GamingHouseAt = new Vector2(43.5f, 30.6f);
+        private static readonly Vector2 ArchiveAt = new Vector2(-47f, -21.7f);
+        private const float TerraceFace = 12.6f;        // The face of the two halls' terraces, in line with the fronts of the avenue's beds.
+        private const float GateWall = 19.5f;           // Where the gate's terrace ends, either side of the square's middle (HavenSquare.TerraceSide).
+        private const float PodiumFace = -39.5f;           // Clear of the Row's kerb.
+
+        // The tiltyard, below the wall, with three groups to try a build on: one alone, a handful, and a crowd.
+        private static readonly Vector2 YardAt = new Vector2(2f, -72f);
         private static readonly Vector2 GroundHalf = new Vector2(36f, 12f);
-        private const float SingleAlong = 27f;          // Metres east of the training ground's middle, and the handful and the crowd west of it, each far enough from the next that nothing aimed at one reaches another.
+        private const float SingleAlong = 27f;          // Metres east of the yard's middle, and the handful and the crowd west of it, each far enough from the next that nothing aimed at one reaches another.
         private const float SmallAlong = 7f;
         private const float BigAlong = -20f;
         private const float PenReach = 4f;
         private const float FencePiece = 5f;            // Metres of the yard's fence placed at a time, so that whatever stands in the way of one piece leaves the rest standing.
         private const float YardGate = 3.2f;            // Half the width of the way into it.
-        private const float Apron = 3f;                 // Metres of gravel outside the fence: grass grows in tufts that reach as far again as they stand, and the yard's edge would be overgrown.
         private const float DummyGap = 3.4f;            // Between the dummies of a group: close enough that what hits one can reach the next.
         private const int SmallGroup = 5;
         private const int BigGroup = 15;
+
+        private const float GateAhead = 31f;
+        private const float StashAside = 17.4f;
+        private const float StashNorth = -0.6f;
         private const float ReachForEssentials = 30f;
-        private const float DoorPath = 0.4f;            // Metres short of a hall's doorstep that the street to it ends.
 
-        // Where each hall stands, from the square's middle, east and north. They all face south, at the camera.
-        private static readonly Vector2 ArchiveAt = new Vector2(-46f, 28f);
-        private static readonly Vector2 GamingHouseAt = new Vector2(41f, 25f);
-        private static readonly Vector2 ForgeAt = new Vector2(-39f, -32f);
-        private const float HallReach = 12f;            // Metres a hall may move from where it's meant to be if the ground there won't have it.
-
-        /// <summary>The ground kept for halls to come, from the square's middle: each the size of the Forge, facing south, with its own way to it.</summary>
-        public static readonly Vector2[] Plots = { new Vector2(36f, -32f), new Vector2(78f, 23.5f) };
+        /// <summary>The ground kept for halls to come, from the square's middle: each the size of the Forge, facing south.</summary>
+        public static readonly Vector2[] Plots = { new Vector2(0f, 62f), new Vector2(64f, 56f) };
         private static readonly Vector2 PlotHalf = new Vector2(16f, 12f);
 
         public static readonly Vector2 North = new Vector2(0f, 1f);
@@ -57,194 +81,255 @@ namespace Dino_Engine.World.Generation
         public static void Build(SiteBuilder b)
         {
             Vector2 c = b.Centre;
+            WorldData world = b.World;
 
-            // The square is built as a town's is, in layers of walls, steps and beds round the gate (HavenSquare, SQUARE.md): its ground first, as the streets into it are
-            // planned to meet it.
+            // The town stands on a rise two metres over its harbour, which is the land as it was. The rise is put into the land itself, so that everything built on it,
+            // every road and every tree stands where the ground will be, and the square's own level is the rise's.
+            float harbour = AverageGround(world, c + YardAt, 14f);
+            world.Trim = true;
+            OpenTown(world, c);
+            RaiseTown(world, c, harbour + Lift);
             var square = new HavenSquare(b);
+            float upper = square.Level, lower = upper - Lift;
+            var m = new TownMason(b, "town", 0x70A11E00u);
+
+            // Level ground first, as the streets are planned to meet it: the town's on the rise, the harbour's below the wall, and the square's own.
+            m.Level(m.Box(new Vector2(-76f, RowZ - 0.5f), new Vector2(76f, 72f)), upper, 12f);
+            m.Level(m.Box(new Vector2(-44f, -90f), new Vector2(46f, WallZ - 2.5f)), lower, 6f);
             square.LayGround();
-            LayPaths(b, square.Level);
 
             PlaceGate(b, c);
             PlaceTable(b, c);
-            WorldHall? archive = PlaceHall(b, HallKind.Archive, c + ArchiveAt);
-            WorldHall? gaming = PlaceHall(b, HallKind.GamingHouse, c + GamingHouseAt);
-            WorldHall? forge = PlaceHall(b, HallKind.Forge, c + ForgeAt);
+            WorldHall? forge = PlaceHall(b, HallKind.Forge, c + ForgeAt, upper + HallUp);
+            WorldHall? gaming = PlaceHall(b, HallKind.GamingHouse, c + GamingHouseAt, upper + HallUp);
+            WorldHall? archive = PlaceHall(b, HallKind.Archive, c + ArchiveAt, upper + PodiumUp);
             // Every street before anything else, so that what's put down after keeps off them.
-            LayStreets(b, c, archive, gaming, forge, square.Level);
-            PlaceTrade(b, c);
+            LayStreets(b, upper);
+            PlaceStash(b, c);
             square.Build();
-            PlaceTrainingGround(b, c + North * -GroundSouth + East * -GroundWest);
-            DressHalls(b, archive, gaming, forge);
+
+            var town = new HavenTown(m, upper, lower);
+            BuildWall(m, upper, lower);
+            if (forge != null) HallTerrace(m, forge, upper, west: true);
+            if (gaming != null) HallTerrace(m, gaming, upper, west: false);
+            if (archive != null) Podium(m, archive, upper);
+            PlaceTiltyard(b, m, YardAt, lower);
+            town.Build(forge, gaming, archive);
             KeepPlots(b, c);
-            PlaceGarden(b, c);
-            PlaceHomes(b, c);
-            PlaceShore(b, c);
-            PlantGardens(b, c);
 
-            for (int i = 0; i < 4; i++)
+            square.People(4);
+        }
+
+        // ---------------------------------------------------------------- The rise
+
+        // How far a point is outside the top of the rise, in metres: nothing on it.
+        private static float OutsideMound(Vector2 p)
+        {
+            Vector2 q = new Vector2(MathF.Abs(p.X - MoundMiddle.X), MathF.Abs(p.Y - MoundMiddle.Y)) - (MoundHalf - new Vector2(MoundCorner));
+            float outside = new Vector2(MathF.Max(q.X, 0f), MathF.Max(q.Y, 0f)).Length + MathF.Min(MathF.Max(q.X, q.Y), 0f) - MoundCorner;
+            return MathF.Max(outside, 0f);
+        }
+
+        // Lifts the land the town stands on to one level, with banks down to the land as it was all round, short along the south, where the wall holds it up. Only ever up:
+        // where the hill behind the town already stands higher, it's left as it is, so nothing's dammed.
+        private static void RaiseTown(WorldData world, Vector2 c, float level)
+        {
+            ScalarField land = world.Elevation;
+            float reach = MoundHalf.Length + Bank;
+            int minX = Math.Max((int)((c.X - reach) / land.CellSize), 0), maxX = Math.Min((int)((c.X + reach) / land.CellSize) + 1, land.Width - 1);
+            int minZ = Math.Max((int)((c.Y - reach) / land.CellSize), 0), maxZ = Math.Min((int)((c.Y + reach) / land.CellSize) + 1, land.Depth - 1);
+            for (int z = minZ; z <= maxZ; z++)
             {
-                b.Scatter(StructureCatalog.Barrels, c, b.Site.Radius * 0.85f, attempts: 10, padding: 0.8f);
-                b.Scatter(StructureCatalog.Crates, c, b.Site.Radius * 0.85f, attempts: 10, padding: 0.8f);
+                for (int x = minX; x <= maxX; x++)
+                {
+                    Vector2 p = land.WorldPosition(x, z) - c;
+                    float south = (1f - Smoothstep(WallHalf + 4f, WallHalf + 16f, MathF.Abs(p.X))) * (1f - Smoothstep(-48f, -32f, p.Y));
+                    float width = Lerp(Bank, 6f, south);
+                    float share = 1f - Smoothstep(0f, width, OutsideMound(p));
+                    if (share <= 0f) continue;
+                    int i = land.Index(x, z);
+                    if (land.Data[i] < level) land.Data[i] = Lerp(land.Data[i], level, share);
+                }
             }
-            b.Scatter(StructureCatalog.Cart, c + North * -30f + East * 14f, 12f, attempts: 12);
-            square.People(5);
-            b.SpawnAround(SpawnRole.Villager, c, b.Site.Radius * 0.7f, 4);
         }
 
-        // The ways that everything else keeps off: from the square's arch on south past the Forge to the training ground's gate, and out to the shore. The square and its avenue
-        // up to the gate are laid out by HavenSquare, which keeps its own ways clear.
-        private static void LayPaths(SiteBuilder b, float level)
+        // The land the town's laid out on is land people walk, all of it: what the survey before it took for the foot of a hill or the back of a beach (WorldData.Reachable)
+        // is ground this lays to the metre, so nothing here is left out of a fence's run or a house's plot for standing on it. The sea stays the sea.
+        private static void OpenTown(WorldData world, Vector2 c)
         {
-            Vector2 c = b.Centre;
-            WorldData world = b.World;
-            float fromArch = -HavenSquare.ArchAt + 2.6f;
-            Lay(world, new List<Vector2> { c + North * -fromArch, c + North * -30f + East * 1.5f, c + North * -(GroundSouth - GroundHalf.Y - 7f) + East * -GroundWest * 0.5f, c + North * -(GroundSouth - GroundHalf.Y - 2.5f) + East * -GroundWest },
-                RoadClass.Highway, startHeight: level);
+            ScalarField land = world.Elevation, open = world.Reachable;
+            for (int z = 0; z < open.Depth; z++)
+            {
+                for (int x = 0; x < open.Width; x++)
+                {
+                    Vector2 p = open.WorldPosition(x, z) - c;
+                    bool town = OutsideMound(p) <= 0f || (p.Y < WallZ + 6f && p.Y > -98f && p.X > -72f && p.X < 86f);
+                    if (town && land[x, z] > WorldPlan.SeaLevel + 0.5f) open[x, z] = 1f;
+                }
+            }
         }
 
-        private static WorldRoad? Lay(WorldData world, List<Vector2> corners, RoadClass kind, float? endHeight = null, float? startHeight = null)
+        private static float AverageGround(WorldData world, Vector2 centre, float radius)
         {
-            WorldRoad? path = RoadStage.BuildRoad(world, corners, kind, startHeight, endHeight);
+            float total = 0f;
+            int count = 0;
+            for (float x = -radius; x <= radius; x += 4f)
+            {
+                for (float z = -radius; z <= radius; z += 4f)
+                {
+                    if (x * x + z * z > radius * radius) continue;
+                    total += world.Elevation.Sample(centre + new Vector2(x, z));
+                    count++;
+                }
+            }
+            return count > 0 ? total / count : world.Elevation.Sample(centre);
+        }
+
+        // ---------------------------------------------------------------- Halls, and the ground they stand on
+
+        private static WorldHall? PlaceHall(SiteBuilder b, HallKind kind, Vector2 at, float floor)
+        {
+            // WorldLab's check fails a Haven with a hall missing, so a world this happens in doesn't go unnoticed. It isn't tried anywhere else: its terrace is laid to where it is.
+            return b.PlaceHall(kind, at, FacingCamera, out WorldHall hall, floor: floor) ? hall : null;
+        }
+
+        /// <summary>
+        /// The terrace the Forge or the Gaming House stands on, beside the gate's: a forecourt before its door, three steps above the street, held up by a wall of dressed stone
+        /// with a parapet, a flight cut into it before the door with the Haven's lanterns on its piers, and the yard between the hall and the gate's own terrace raised with it.
+        /// On its far side the ground falls away in a bank, which is the way round for anyone who'd sooner not climb.
+        /// </summary>
+        private static void HallTerrace(TownMason m, WorldHall hall, float street, bool west)
+        {
+            // The Forge's is cobbled, as a smith's yard has to be; the barn's is the earth carts have packed.
+            GroundPaint floored = west ? GroundPaint.Plaza : GroundPaint.Yard;
+            float s = west ? -1f : 1f;
+            float floor = hall.Floor, up = floor - street;
+            HallDesign d = hall.Design;
+            Vector2 at = hall.Centre - m.C;
+            float front = at.Y - d.Half.Y;                          // Its front wall.
+            float far = at.X + s * (d.Half.X + 3f);                 // The face of the wall at the terrace's far end.
+            float near = s * GateWall;                              // And at the gate's end, in line with the gate's own terrace.
+            float top = up + PlazaStone.Ground + TownMason.Parapet;
+            const float FlightHalf = 4f, Cheek = 1.4f, Thick = 1.2f;
+
+            // The forecourt, and the yard beside the hall, level with its floor; their edges inside the walls that hide them.
+            m.Raise(m.Box(new Vector2(far - s * TownMason.Inset, TerraceFace + TownMason.Inset), new Vector2(near + s * TownMason.Inset, front)), floor);
+            m.Raise(m.Box(new Vector2(at.X - s * d.Half.X, front), new Vector2(near - s * 0.5f, at.Y + d.Half.Y + 4f)), floor);
+            // Cobbled, but for a border of flowers along the inside of its parapet.
+            m.Paint(floored, m.Box(new Vector2(far - s * 1.3f, TerraceFace + 2.6f), new Vector2(near + s * 1.3f, front + 0.5f)), 0.5f);
+            m.Paint(GroundPaint.Plaza, m.Box(new Vector2(at.X - FlightHalf, TerraceFace), new Vector2(at.X + FlightHalf, front)), 0.4f);
+            m.Paint(floored, m.Box(new Vector2(at.X - s * (d.Half.X - 1f), front), new Vector2(near + s * 1.3f, at.Y + d.Half.Y + 3f)), 0.6f);
+            foreach ((float from, float to) in new[] { (MathF.Min(far, near) + 1.5f, at.X - FlightHalf - 1.5f), (at.X + FlightHalf + 1.5f, MathF.Max(far, near) - 1.5f) })
+            {
+                Footprint border = m.Box(new Vector2(from, TerraceFace + 1.25f), new Vector2(to, TerraceFace + 2.4f));
+                m.Paint(GroundPaint.Garden, border, 0.4f);
+                m.Garden(border);
+            }
+
+            // Its front wall, either side of the flight, and a return at each end.
+            float gapFrom = at.X - FlightHalf - Cheek, gapTo = at.X + FlightHalf + Cheek;
+            m.Run(new Vector2(MathF.Min(far, near), TerraceFace), new Vector2(gapFrom, TerraceFace), -North, WallForm.Dressed, top, up, Thick, street);
+            m.Run(new Vector2(gapTo, TerraceFace), new Vector2(MathF.Max(far, near), TerraceFace), -North, WallForm.Dressed, top, up, Thick, street);
+            m.Run(new Vector2(far, TerraceFace + 1f), new Vector2(far, front + 1.6f), East * s, WallForm.Dressed, top, up, Thick, street);
+            m.Run(new Vector2(near, TerraceFace + 1f), new Vector2(near, HavenSquare.TerraceFront - 0.4f), -East * s, WallForm.Dressed, top, up, Thick, street);
+            m.Pier(new Vector2(far - s * 0.5f, TerraceFace + 0.5f), 1.7f, top + 0.4f, 2, Undergrowth.Lavender, street);
+            m.Pier(new Vector2(near + s * 0.5f, TerraceFace + 0.5f), 1.7f, top + 0.4f, 2, Undergrowth.Azalea, street);
+            m.Flight(new Vector2(at.X, TerraceFace), North, FlightHalf, HallSteps, top, street);
+        }
+
+        /// <summary>The Archive's podium: its forecourt two steps over the Row behind a wall low enough to sit on, and a flight right across its door.</summary>
+        private static void Podium(TownMason m, WorldHall hall, float street)
+        {
+            float floor = hall.Floor, up = floor - street;
+            HallDesign d = hall.Design;
+            Vector2 at = hall.Centre - m.C;
+            float front = at.Y - d.Half.Y;
+            float westEnd = at.X - d.Half.X + 1f, eastEnd = at.X + d.Half.X - 1f;
+            float top = up + PlazaStone.Ground + 0.27f;
+            const float FlightHalf = 7f, Cheek = 1.4f, Thick = 1f;
+            m.Raise(m.Box(new Vector2(westEnd + TownMason.Inset, PodiumFace + TownMason.Inset), new Vector2(eastEnd - TownMason.Inset, front)), floor);
+            m.Paint(GroundPaint.Paving, m.Box(new Vector2(at.X - FlightHalf, PodiumFace), new Vector2(at.X + FlightHalf, front + 0.4f)), 0.4f);
+            m.Run(new Vector2(westEnd, PodiumFace), new Vector2(at.X - FlightHalf - Cheek, PodiumFace), -North, WallForm.Seat, top, up, Thick, street);
+            m.Run(new Vector2(at.X + FlightHalf + Cheek, PodiumFace), new Vector2(eastEnd, PodiumFace), -North, WallForm.Seat, top, up, Thick, street);
+            m.Run(new Vector2(westEnd, PodiumFace + 0.9f), new Vector2(westEnd, front - 0.1f), -East, WallForm.Seat, top, up, Thick, street);
+            m.Run(new Vector2(eastEnd, PodiumFace + 0.9f), new Vector2(eastEnd, front - 0.1f), East, WallForm.Seat, top, up, Thick, street);
+            m.Flight(new Vector2(at.X, PodiumFace), North, FlightHalf, PodiumSteps, top + 0.45f, street, pierOut: 0f);
+        }
+
+        // ---------------------------------------------------------------- The wall
+
+        /// <summary>
+        /// The town's wall: dressed stone holding the Row up over the harbour, a parapet along its top, a pier with a lantern at each end where it turns back into the bank,
+        /// and the Harbour Steps cut down through the middle of it.
+        /// </summary>
+        private static void BuildWall(TownMason m, float upper, float lower)
+        {
+            float top = Lift + PlazaStone.Ground + TownMason.Parapet;
+            const float Cheek = 1.4f;
+            // The walk along its top, exactly level to the wall's back, and the ground at its foot, exactly as low as the harbour.
+            m.Raise(m.Box(new Vector2(-WallHalf + TownMason.Inset, WallZ + TownMason.Inset), new Vector2(WallHalf - TownMason.Inset, RowZ - StreetHalf - 0.4f)), upper);
+            m.Raise(m.Box(new Vector2(-WallHalf + 4f, WallZ - 6.1f), new Vector2(WallHalf - 4f, WallZ - 0.12f)), lower);
+
+            m.Run(new Vector2(-WallHalf, WallZ), new Vector2(-StepsHalf - Cheek, WallZ), -North, WallForm.Dressed, top, Lift, WallThick, lower);
+            m.Run(new Vector2(StepsHalf + Cheek, WallZ), new Vector2(WallHalf, WallZ), -North, WallForm.Dressed, top, Lift, WallThick, lower);
+            foreach (float s in new[] { -1f, 1f })
+            {
+                // Where it turns back into the bank, which rises along it until the wall's no more than its parapet.
+                m.Run(new Vector2(s * WallHalf, WallZ + 1f), new Vector2(s * WallHalf, RowZ - StreetHalf - 0.95f), East * s, WallForm.Dressed, top, Lift, WallThick, lower);
+                m.Pier(new Vector2(s * (WallHalf - 0.5f), WallZ + 0.5f), 1.8f, top + 0.45f, 1, null, lower);
+            }
+            m.Flight(new Vector2(0f, WallZ), North, StepsHalf, LiftSteps, top, lower);
+
+            // Buttresses along its face, which is what says how high it stands from above: every other one with flowers in an urn on its head.
+            foreach (float s in new[] { -1f, 1f })
+            {
+                for (int i = 0; i < 4; i++)
+                {
+                    float x = s * (9.4f + i * 11.6f);
+                    m.Pier(new Vector2(x, WallZ - 0.5f), 1.5f, top + (i % 2 == 0 ? 0.35f : 0.1f), i % 2 == 0 ? 2 : 0, i % 4 == 0 ? Undergrowth.Azalea : Undergrowth.Lavender, lower);
+                }
+            }
+        }
+
+        // ---------------------------------------------------------------- Streets
+
+        private static WorldRoad? Lay(WorldData world, Vector2 c, RoadClass kind, float? startHeight, float? endHeight, params Vector2[] corners)
+        {
+            WorldRoad? path = RoadStage.BuildRoad(world, corners.Select(corner => c + corner).ToList(), kind, startHeight, endHeight);
             if (path == null) return null;
             world.Roads.Add(path);
             SettlementStage.ReserveRoad(world, path);
             return path;
         }
 
-        // A hall where it's meant to be, or as near as the ground lets it, facing the camera.
-        private static WorldHall? PlaceHall(SiteBuilder b, HallKind kind, Vector2 at)
-        {
-            for (float distance = 0f; distance <= HallReach; distance += 2f)
-            {
-                int directions = distance > 0f ? 8 : 1;
-                for (int i = 0; i < directions; i++)
-                {
-                    Vector2 placed = at + Direction(i * (MathF.Tau / 8f)) * distance;
-                    if (b.PlaceHall(kind, placed, FacingCamera, out WorldHall hall)) return hall;
-                }
-            }
-            // WorldLab's check fails a Haven with a hall missing, so a world this happens in doesn't go unnoticed.
-            return null;
-        }
+        /// <summary>Where the two streets out of the square's sides leave it: the market's, to the Forge, and the lane to the Gaming House.</summary>
+        public const float MarketZ = 4.5f;
+        public const float BarnLaneZ = 7f;
 
-        // A street from the square to each hall's door, ending at its doorstep at the height of its floor, and a forecourt there.
-        private static void LayStreets(SiteBuilder b, Vector2 c, WorldHall? archive, WorldHall? gaming, WorldHall? forge, float level)
+        // The paved streets: the market's west out of the square past the Forge, the lane east past the Gaming House, the lane south from the arch, and the Row along the top
+        // of the wall. Then the ways down off the rise at either end of the Row, and along the foot of the wall to them.
+        private static void LayStreets(SiteBuilder b, float upper)
         {
             WorldData world = b.World;
-            // The halls' streets leave the square at its edge, at the square's own height, between its beds.
-            Vector2 west = new Vector2(-HavenSquare.SquareRadius + 0.8f, 7.2f), east = new Vector2(HavenSquare.SquareRadius - 0.8f, 7.2f);
-            if (archive != null)
-            {
-                Vector2 door = DoorStreetEnd(archive);
-                Lay(world, new List<Vector2> { c + west, c + new Vector2(-26f, 8.6f), door + new Vector2(10f, -1.2f), door }, RoadClass.Highway, archive.Floor, level);
-                Forecourt(b, archive, 13f, 6f);
-            }
-            if (gaming != null)
-            {
-                Vector2 door = DoorStreetEnd(gaming) - North * 2.6f;   // Short of its porch's posts.
-                Lay(world, new List<Vector2> { c + east, c + new Vector2(26f, 8.6f), door + new Vector2(-9f, -0.8f), door }, RoadClass.Highway, gaming.Floor, level);
-                Forecourt(b, gaming, 12f, 7f);
-            }
-            // The training ground's street, along the north of its fence: the Forge at its west end and a plot kept at its east, both facing onto it.
-            Vector2 lane = c + North * -(GroundSouth - GroundHalf.Y - 5.6f) + East * -2.4f;
-            if (forge != null)
-            {
-                Vector2 door = DoorStreetEnd(forge);
-                Lay(world, new List<Vector2> { lane, lane + new Vector2(-12f, 1.5f), door + new Vector2(8f, -0.5f), door }, RoadClass.Track, forge.Floor);
-                Forecourt(b, forge, 14f, 5f);
-            }
-            Vector2 plotDoor = c + Plots[0] - North * (PlotHalf.Y + 4.95f);
-            Lay(world, new List<Vector2> { lane, lane + new Vector2(14f, -0.3f), plotDoor + new Vector2(-8f, -0.2f), plotDoor }, RoadClass.Track);
-
-            // And the east street goes on past the Gaming House to the other plot.
-            Vector2 farDoor = c + Plots[1] - North * (PlotHalf.Y + 4.95f);
-            Vector2 from = gaming != null ? DoorStreetEnd(gaming) - North * 2.6f : c + new Vector2(30f, 7f);
-            Lay(world, new List<Vector2> { from, from + new Vector2(13f, 0.1f), farDoor + new Vector2(-10f, -0.2f), farDoor }, RoadClass.Track);
-
-            // A path down to the water from the edge of the town nearest it, once everything it might have run through is placed.
-            if (b.FindWater(260f, out Vector2 toWater, out float distance) && distance > SquareRadius + 30f)
-            {
-                Vector2 start = ShoreStart(c, toWater, forge);
-                Vector2 end = c + toWater * MathF.Max(distance - 6f, SquareRadius + 10f);
-                Vector2 bend = new Vector2(-toWater.Y, toWater.X) * (end - start).Length * 0.1f;
-                Lay(world, new List<Vector2> { start, (start + end) * 0.5f + bend, end }, RoadClass.Footpath);
-            }
+            Vector2 c = b.Centre;
+            float edge = HavenSquare.SquareRadius - 0.6f;
+            float fromArch = -HavenSquare.ArchAt + 2.6f;
+            Lay(world, c, RoadClass.Highway, upper, upper, new Vector2(-edge, MarketZ), new Vector2(-26f, MarketZ + 0.1f), new Vector2(-50f, MarketZ), new Vector2(-70f, MarketZ));
+            Lay(world, c, RoadClass.Highway, upper, upper, new Vector2(edge, BarnLaneZ), new Vector2(26f, BarnLaneZ + 0.3f), new Vector2(50f, BarnLaneZ), new Vector2(70f, BarnLaneZ));
+            Lay(world, c, RoadClass.Highway, upper, upper, new Vector2(0f, -fromArch), new Vector2(0f, -32f), new Vector2(0f, RowZ + StreetHalf));
+            // The Row, which at its west end turns down off the rise as a cart's way to the harbour, paved all the way; at its east end a footpath goes down.
+            Lay(world, c, RoadClass.Highway, upper, null, new Vector2(62f, RowZ), new Vector2(30f, RowZ), new Vector2(-30f, RowZ), new Vector2(-70f, RowZ), new Vector2(-80.5f, -48.5f), new Vector2(-80f, -57f), new Vector2(-70f, -63f), new Vector2(-62f, -64f));
+            Lay(world, c, RoadClass.Footpath, upper, null, new Vector2(62f, RowZ), new Vector2(66.5f, -50f), new Vector2(60.5f, -58f), HavenTown.HarbourWay);
+            // And along the wall's foot to both.
+            Lay(world, c, RoadClass.Footpath, null, null, new Vector2(-42f, WallZ - 3.4f), new Vector2(-52f, -60f), new Vector2(-62f, -64f));
+            Lay(world, c, RoadClass.Footpath, null, null, new Vector2(44f, WallZ - 3.4f), new Vector2(48f, -60.5f), HavenTown.HarbourWay);
+            // And the back lanes, of trodden earth, which make a round of each half of the town, so that no street ends at nothing: from the end of the market's street
+            // down behind the Archive to the Row, and from the end of the barn's lane down past the joiner's yard to the Row's other end.
+            Lay(world, c, RoadClass.Footpath, upper, upper, new Vector2(-70f, MarketZ), new Vector2(-76.5f, -3f), new Vector2(-77.5f, -20f), new Vector2(-75.5f, -35f), new Vector2(-70f, RowZ));
+            Lay(world, c, RoadClass.Footpath, upper, upper, new Vector2(70f, BarnLaneZ), new Vector2(69f, -8f), new Vector2(66.5f, -28f), new Vector2(62f, RowZ));
         }
 
-        // Where the path to the shore leaves the town: the end of whichever street is nearest the water.
-        private static Vector2 ShoreStart(Vector2 c, Vector2 toWater, WorldHall? forge)
-        {
-            var ends = new List<Vector2>
-            {
-                c + new Vector2(-GroundWest - GroundHalf.X - 6f, -GroundSouth + GroundHalf.Y + 5.6f),   // the west end of the training ground's street
-                c + new Vector2(-GroundWest + GroundHalf.X + 6f, -GroundSouth + GroundHalf.Y + 5.6f),   // its east end
-                c + new Vector2(-GroundWest - GroundHalf.X - 6f, -GroundSouth),                        // the west end of the yard
-                c + new Vector2(-GroundWest + GroundHalf.X + 6f, -GroundSouth),                        // its east end
-                c + North * (SquareRadius + 2f),
-            };
-            if (forge != null) ends.Add(DoorStreetEnd(forge) - forge.Axis * 14f);
-            return ends.OrderBy(end => -Vector2.Dot(end - c, toWater)).First();
-        }
-
-        // Where the street to a hall's main door stops: on the ground just outside its doorstep.
-        private static Vector2 DoorStreetEnd(WorldHall hall)
-        {
-            HallOpening door = hall.Design.Doors.First();
-            return DoorOutside(hall, door, 4.5f + DoorPath + 0.05f);
-        }
-
-        // Paved ground before a hall's door, as wide as its front wants.
-        private static void Forecourt(SiteBuilder b, WorldHall hall, float halfWidth, float depth)
-        {
-            HallOpening door = hall.Design.Doors.First();
-            Vector2 middle = DoorOutside(hall, door, depth * 0.5f);
-            b.Paint(GroundPaint.Plaza, Footprint.Box(middle, new Vector2(halfWidth, depth * 0.5f), hall.Yaw), 3f);
-        }
-
-        // What stands about each hall outside: lanterns at its forecourt, a bench, barrels by the forge and the gaming house, flowers along their fronts.
-        private static void DressHalls(SiteBuilder b, WorldHall? archive, WorldHall? gaming, WorldHall? forge)
-        {
-            if (archive != null)
-            {
-                HallOpening door = archive.Design.Doors.First();
-                foreach (float s in new[] { -1f, 1f })
-                {
-                    b.Place(StructureCatalog.StoneLantern, archive.ToWorld(archive.Design.Doorstep(door, 6.6f) + new Vector2(s * 9.5f, 0f)), 0f, padding: 0.2f);
-                    b.Place(StructureCatalog.Bench, archive.ToWorld(archive.Design.Doorstep(door, 4.4f) + new Vector2(s * 15f, 0f)), archive.Yaw + MathF.PI, padding: 0.2f);
-                }
-            }
-            if (gaming != null)
-            {
-                HallOpening door = gaming.Design.Doors.First();
-                b.Place(StructureCatalog.Barrels, gaming.ToWorld(new Vector2(gaming.Design.Half.X + 2.4f, 6f)), 0f, padding: 0.3f);
-                b.Place(StructureCatalog.Barrels, gaming.ToWorld(new Vector2(gaming.Design.Half.X + 2.2f, 2.2f)), 0f, padding: 0.3f);
-                b.Place(StructureCatalog.Bench, gaming.ToWorld(gaming.Design.Doorstep(door, 5.2f) + new Vector2(10f, 0f)), gaming.Yaw + MathF.PI, padding: 0.2f);
-                b.Place(StructureCatalog.Lantern, gaming.ToWorld(gaming.Design.Doorstep(door, 7.2f) + new Vector2(-9f, 0f)), 0f, padding: 0.2f);
-            }
-            if (forge != null)
-            {
-                HallOpening door = forge.Design.Doors.First();
-                b.Place(StructureCatalog.Crates, forge.ToWorld(forge.Design.Doorstep(door, 3.4f) + new Vector2(10.5f, 0f)), 0.3f, padding: 0.3f);
-                b.Place(StructureCatalog.Barrels, forge.ToWorld(forge.Design.Doorstep(door, 3f) + new Vector2(-10f, 0f)), 0f, padding: 0.3f);
-                b.Place(StructureCatalog.Woodpile, forge.ToWorld(new Vector2(-forge.Design.Half.X - 2.6f, -4f)), forge.Yaw + MathF.PI * 0.5f, padding: 0.3f);
-                b.Place(StructureCatalog.Lantern, forge.ToWorld(forge.Design.Doorstep(door, 6.4f) + new Vector2(6.5f, 0f)), 0f, padding: 0.2f);
-            }
-        }
-
-        // The plots kept for halls to come: the ground's kept clear, and timber and stone are stacked on each, waiting.
-        private static void KeepPlots(SiteBuilder b, Vector2 c)
-        {
-            foreach (Vector2 plot in Plots)
-            {
-                Footprint ground = Footprint.Box(c + plot, PlotHalf, FacingCamera);
-                if (!b.Fits(ground, 0.3f, 1.5f)) continue;
-                b.World.Placement.Add(ground, PlacementLayer.Keepout);
-                b.World.Clearings.Add(new Clearing(c + plot, PlotHalf.Length, 10f));
-                // What's stacked there, out of the middle, where a hall will stand.
-                b.World.Pending.Add(new PendingObject(StructureCatalog.LogStack.Id, c + plot + new Vector2(-PlotHalf.X + 5f, -PlotHalf.Y + 3.5f), 0.1f, Vector3.One, null));
-                b.World.Pending.Add(new PendingObject(StructureCatalog.Rubble.Id, c + plot + new Vector2(PlotHalf.X - 4f, -PlotHalf.Y + 3.5f), 1.3f, Vector3.One * 0.8f, null));
-            }
-        }
+        // ---------------------------------------------------------------- What a hero comes for
 
         // The great waygate, at the head of everything on the square's terrace, facing down over the square, with a lantern either side. The flight up to it carries its own.
         private static void PlaceGate(SiteBuilder b, Vector2 c)
@@ -267,24 +352,9 @@ namespace Dino_Engine.World.Generation
             b.Spawn(SpawnRole.MapTable, table - North * (StructureCatalog.MapTable.HalfExtents.Y + 1.8f));
         }
 
-        // The merchant on the west side of the square and the strongbox on the east, each facing in, and the beta vendor along from the merchant.
-        private static void PlaceTrade(SiteBuilder b, Vector2 c)
+        // The strongbox beside the loggia, facing in across the square.
+        private static void PlaceStash(SiteBuilder b, Vector2 c)
         {
-            Vector2 stallAt = c - East * StallAside + North * -4f;
-            if (b.PlaceNear(StructureCatalog.MarketStall, stallAt, YawFacing(East), ReachForEssentials, out Vector2 stall, padding: 0.6f))
-            {
-                b.Spawn(SpawnRole.Merchant, stall + East * 3.6f);
-                b.Place(StructureCatalog.Crates, stall - East * 1.5f + North * 4.2f, 0f, padding: 0.3f);
-                b.Place(StructureCatalog.Barrels, stall - East * 1f - North * 4f, 0f, padding: 0.3f);
-            }
-
-            // The beta vendor along from the merchant, who gives away anything there is, for testing the game.
-            if (b.PlaceNear(StructureCatalog.MarketStall, stallAt - North * BetaBelow, YawFacing(East), ReachForEssentials, out Vector2 beta, padding: 0.6f))
-            {
-                b.Spawn(SpawnRole.BetaVendor, beta + East * 3.6f);
-            }
-
-            // Beside the loggia, facing in across the square.
             Vector2 boxAt = c + East * StashAside + North * StashNorth;
             if (b.PlaceNear(StructureCatalog.Strongbox, boxAt, YawFacing(-East), ReachForEssentials, out Vector2 box, padding: 0.6f))
             {
@@ -293,31 +363,29 @@ namespace Dino_Engine.World.Generation
             }
         }
 
-        // A quiet garden off the square to the south-east, to sit in: lanterns, a bench under a tree and flowers. There's no shrine, as nothing here needs a blessing to face.
-        private static void PlaceGarden(SiteBuilder b, Vector2 c)
+        // The plots kept for halls to come: the ground's kept clear, and timber and stone are stacked on each, waiting.
+        private static void KeepPlots(SiteBuilder b, Vector2 c)
         {
-            Vector2 at = c + East * 27f + North * -14f;
-            Vector2 facing = (c - at).Normalized();
-            Vector2 side = new Vector2(-facing.Y, facing.X);
-            b.Paint(GroundPaint.Plaza, Footprint.Circle(at, 3.4f), 2f);
-            b.Place(StructureCatalog.StoneLantern, at + side * 3.8f, 0f, padding: 0.2f);
-            b.Place(StructureCatalog.StoneLantern, at - side * 3.8f, 0f, padding: 0.2f);
-            b.Place(StructureCatalog.Bench, at - facing * 1.5f, YawFacing(facing), padding: 0.2f);
-
-            Plant(b, Broadleaves.Sakura, at - facing * 8f, 0.85f);
-            foreach (float flank in new[] { -1f, 1f })
+            foreach (Vector2 plot in Plots)
             {
-                Plant(b, Undergrowth.Azalea, at + side * (flank * 6.4f) - facing * 1f, 0.55f);
-                Plant(b, Undergrowth.Lavender, at + side * (flank * 5.8f) + facing * 2.4f, 0.6f);
+                Footprint ground = Footprint.Box(c + plot, PlotHalf, FacingCamera);
+                if (!b.Fits(ground, 0.3f, 1.5f)) continue;
+                b.World.Placement.Add(ground, PlacementLayer.Keepout);
+                b.World.Clearings.Add(new Clearing(c + plot, PlotHalf.Length, 10f));
+                // What's stacked there, out of the middle, where a hall will stand.
+                b.World.Pending.Add(new PendingObject(StructureCatalog.LogStack.Id, c + plot + new Vector2(-PlotHalf.X + 5f, -PlotHalf.Y + 3.5f), 0.1f, Vector3.One, null));
+                b.World.Pending.Add(new PendingObject(StructureCatalog.Rubble.Id, c + plot + new Vector2(PlotHalf.X - 4f, -PlotHalf.Y + 3.5f), 1.3f, Vector3.One * 0.8f, null));
             }
         }
 
-        // A fenced yard south of the Forge with three groups to try a build on: one alone, a handful, and a crowd.
-        private static void PlaceTrainingGround(SiteBuilder b, Vector2 centre)
+        // ---------------------------------------------------------------- The tiltyard
+
+        // A fenced yard below the wall, on raked sand, with three groups to try a build on: one alone, a handful, and a crowd. Whoever's on the wall's walk looks down into it.
+        private static void PlaceTiltyard(SiteBuilder b, TownMason m, Vector2 at, float lower)
         {
+            Vector2 centre = b.Centre + at;
             Footprint yard = Footprint.Box(centre, GroundHalf, 0f);
-            // Packed gravel, as a yard that's drilled in every day is, so that what's in it stands out, and a little way past its fence.
-            b.Paint(GroundPaint.Plaza, Footprint.Box(centre, GroundHalf + new Vector2(Apron), 0f), Apron + 2f);
+            b.Paint(GroundPaint.Sand, Footprint.Box(centre, GroundHalf + new Vector2(0.4f), 0f), 1.2f);
             b.World.Placement.Add(yard, PlacementLayer.Keepout);
             FenceYard(b, centre);
 
@@ -344,20 +412,13 @@ namespace Dino_Engine.World.Generation
                 Vector2 offset = new Vector2((column - 2f) * DummyGap * 1.2f + (row % 2) * DummyGap * 0.6f, (row - 1f) * DummyGap * 1.25f);
                 b.Spawn(SpawnRole.Dummy, big + offset);
             }
-
-            // Benches at either end to watch from, as the street runs along its north side.
-            b.Place(StructureCatalog.Bench, centre - East * (GroundHalf.X + 2.6f) + North * 3f, YawFacing(East), padding: 0.2f);
-            b.Place(StructureCatalog.Bench, centre + East * (GroundHalf.X + 2.6f) - North * 3f, YawFacing(-East), padding: 0.2f);
-            b.Place(StructureCatalog.DryingRack, centre - North * (GroundHalf.Y + 2f) + East * 4f, 0f, padding: 0.3f);
-            b.Place(StructureCatalog.Barrels, centre + East * (GroundHalf.X + 2.4f) - North * 7f, 0f, padding: 0.2f);
-            b.Place(StructureCatalog.Lantern, centre + East * (GroundHalf.X + 1.6f) - North * (GroundHalf.Y + 1.6f), 0f, padding: 0.2f);
-            b.Place(StructureCatalog.Lantern, centre - East * (GroundHalf.X + 1.6f) - North * (GroundHalf.Y + 1.6f), 0f, padding: 0.2f);
         }
 
-        // A fence round the yard, open in the middle of its north side, where the lane from the square comes in.
+        // A fence round the yard, open in the middle of its north side, at the foot of the Harbour Steps.
         private static void FenceYard(SiteBuilder b, Vector2 centre)
         {
             Vector2 half = GroundHalf + new Vector2(0.8f);
+            float gate = b.Centre.X;        // In line with the steps.
             Vector2[] corners = { centre + new Vector2(-half.X, -half.Y), centre + new Vector2(half.X, -half.Y), centre + new Vector2(half.X, half.Y), centre + new Vector2(-half.X, half.Y) };
             for (int side = 0; side < 4; side++)
             {
@@ -370,90 +431,15 @@ namespace Dino_Engine.World.Generation
                     Vector2 start = Vector2.Lerp(from, to, i / (float)pieces);
                     Vector2 end = Vector2.Lerp(from, to, (i + 1f) / pieces);
                     // The north side is the third, from the north-east corner to the north-west.
-                    if (side == 2 && MathF.Max(start.X, end.X) > centre.X - YardGate && MathF.Min(start.X, end.X) < centre.X + YardGate)
+                    if (side == 2 && MathF.Max(start.X, end.X) > gate - YardGate && MathF.Min(start.X, end.X) < gate + YardGate)
                     {
-                        if (start.X > centre.X + YardGate) b.Wall(FenceUse.Yard, start, new Vector2(centre.X + YardGate, start.Y), centre);
-                        if (end.X < centre.X - YardGate) b.Wall(FenceUse.Yard, new Vector2(centre.X - YardGate, end.Y), end, centre);
+                        if (start.X > gate + YardGate) b.Wall(FenceUse.Yard, start, new Vector2(gate + YardGate, start.Y), centre);
+                        if (end.X < gate - YardGate) b.Wall(FenceUse.Yard, new Vector2(gate - YardGate, end.Y), end, centre);
                         continue;
                     }
                     b.Wall(FenceUse.Yard, start, end, centre);
                 }
             }
-        }
-
-        // Homes round the town, each facing the way into it, on whatever ground is left: the people who got out live here.
-        private static void PlaceHomes(SiteBuilder b, Vector2 c)
-        {
-            (StructureDefinition kind, Vector2 at, Vector2 facing)[] homes =
-            {
-                (StructureCatalog.House, new Vector2(-62f, -9f), East),
-                (StructureCatalog.Cottage, new Vector2(-46f, -10f), East),
-                (StructureCatalog.Cottage, new Vector2(47f, -5f), -East),
-                (StructureCatalog.House, new Vector2(63f, -13f), -East),
-                (StructureCatalog.Cottage, new Vector2(-81f, 15f), East + -North * 0.4f),
-                (StructureCatalog.Longhouse, new Vector2(-64f, 55f), -North),
-                (StructureCatalog.Cottage, new Vector2(58f, 52f), -North + -East * 0.3f),
-                (StructureCatalog.Cottage, new Vector2(12f, -35f), -East),
-                (StructureCatalog.House, new Vector2(-12f, -21f), East),
-                (StructureCatalog.Shed, new Vector2(-60f, -24f), East),
-                (StructureCatalog.Cottage, new Vector2(70f, -42f), -East + North),
-            };
-            foreach ((StructureDefinition kind, Vector2 at, Vector2 facing) in homes)
-            {
-                Vector2 front = facing.Normalized();
-                for (int attempt = 0; attempt < 9; attempt++)
-                {
-                    Vector2 placed = c + at + (attempt == 0 ? Vector2.Zero : Direction(attempt * (MathF.Tau / 8f)) * (2.5f + attempt * 0.8f));
-                    if (!b.Place(kind, placed, YawFacing(front), padding: 1.8f, maxSlope: 0.34f)) continue;
-                    b.Paint(GroundPaint.Yard, Footprint.Circle(placed + front * (kind.HalfExtents.Y + 1f), kind.HalfExtents.X * 0.8f), 4f);
-                    Vector2 side = new Vector2(-front.Y, front.X);
-                    if (b.Random.Chance(0.6f)) b.Place(StructureCatalog.Woodpile, placed + side * (kind.HalfExtents.X + 2f), YawFacing(-front), padding: 0.3f);
-                    if (b.Random.Chance(0.5f)) b.Place(StructureCatalog.Lantern, placed + front * (kind.HalfExtents.Y + 2.2f) + side * (kind.HalfExtents.X * 0.7f), 0f, padding: 0.2f);
-                    break;
-                }
-            }
-        }
-
-        // Blossom, planted about the halls and beyond the terrace's back wall: everything in the square and on its terrace is planted by HavenSquare. These are the Haven's own and
-        // nobody else's, so every one is chosen here rather than drawn from the woods. A tree needs room for its crown, so they stand well apart and clear of the streets.
-        private static void PlantGardens(SiteBuilder b, Vector2 c)
-        {
-            Vector2 gate = c + North * GateAhead;
-            foreach (float side in new[] { -1f, 1f })
-            {
-                Plant(b, Broadleaves.WhiteCherry, gate + East * (side * 15.5f) + North * 16.5f, 0.75f);
-            }
-
-            // Trees about the halls, clear of their walls and their streets.
-            Plant(b, Broadleaves.JapaneseMaple, c + ArchiveAt + new Vector2(-27f, -2f), 0.7f);
-            Plant(b, Broadleaves.Sakura, c + ArchiveAt + new Vector2(-6f, 22f), 0.8f);
-            Plant(b, Broadleaves.WisteriaTree, c + GamingHouseAt + new Vector2(20f, -6f), 0.65f);
-            Plant(b, Broadleaves.WhiteCherry, c + GamingHouseAt + new Vector2(6f, 19f), 0.7f);
-            Plant(b, Broadleaves.JapaneseMaple, c + ForgeAt + new Vector2(-20f, 4f), 0.6f);
-            foreach (float s in new[] { -1f, 1f })
-            {
-                Plant(b, Undergrowth.Lavender, c + ArchiveAt + new Vector2(s * 19f, -18.5f), 0.6f);
-                Plant(b, Undergrowth.Azalea, c + GamingHouseAt + new Vector2(s * 12.5f, -15.5f), 0.55f);
-            }
-        }
-
-        private static void Plant(SiteBuilder b, WorldAsset asset, Vector2 at, float growth)
-        {
-            b.World.Plantings.Add(new Planting(asset, at, asset.Scale.Lerp(growth), b.Random.Float() * MathF.Tau));
-        }
-
-        // A jetty where the path meets the water, with a boat or two drawn up beside it, as the Haven is an island and everyone came by water once.
-        private static void PlaceShore(SiteBuilder b, Vector2 c)
-        {
-            if (!b.FindWater(260f, out Vector2 toWater, out float distance) || distance < SquareRadius + 20f) return;
-            Vector2 shore = c + toWater * (distance - 3f);
-            Vector2 side = new Vector2(-toWater.Y, toWater.X);
-            b.World.Pending.Add(new PendingObject(StructureCatalog.Jetty.Id, shore + toWater * 8f, YawFacing(toWater), Vector3.One, 0.9f));
-            for (int i = -1; i <= 1; i += 2)
-            {
-                b.Place(StructureCatalog.Boat, shore + side * (i * b.Random.Range(8f, 12f)) - toWater * 4f, YawFacing(side) + b.Random.Range(-0.3f, 0.3f), padding: 0.4f, maxSlope: 0.5f);
-            }
-            b.Place(StructureCatalog.DryingRack, shore - toWater * 9f + side * 5f, YawFacing(side), padding: 0.3f);
         }
     }
 }

@@ -7,6 +7,7 @@ using Dino_Engine.Modelling.Procedural.Architecture.Churchyard;
 using Dino_Engine.Modelling.Procedural.Architecture.Halls;
 using Dino_Engine.Modelling.Procedural.Architecture.Places;
 using Dino_Engine.Modelling.Procedural.Architecture.Plaza;
+using Dino_Engine.Modelling.Procedural.Architecture.Town;
 using Dino_Engine.Modelling.Procedural.Fence;
 using Dino_Engine.Modelling.Procedural.Flora;
 using Dino_Engine.Modelling.Procedural.Rock;
@@ -31,6 +32,7 @@ namespace Dino_Engine.World
         private readonly ConcurrentDictionary<string, glModel> _models = new();
         private readonly ConcurrentDictionary<string, FloraMesh> _grown = new();
         private readonly ConcurrentDictionary<string, (Mesh Mesh, List<AssetLight> Lights)> _forged = new();
+        private readonly ConcurrentDictionary<string, List<Vector3>> _smoking = new();
         private readonly Dictionary<string, List<Vector3>> _chimneys = new();
         private readonly Dictionary<string, List<AssetLight>> _lights = new();
         private HashSet<string> _lastWorld = new();
@@ -70,6 +72,7 @@ namespace Dino_Engine.World
             var raising = new List<(string id, ArenaSpec spec)>();
             var carving = new List<(string id, YardSpec spec)>();
             var building = new List<(string id, PlaceSpec spec)>();
+            var housing = new List<(string id, TownSpec spec)>();
             foreach (string id in ids)
             {
                 if (_models.ContainsKey(id) || _grown.ContainsKey(id) || _forged.ContainsKey(id)) continue;
@@ -95,6 +98,12 @@ namespace Dino_Engine.World
                 if (PlaceSpec.TryParse(id, out PlaceSpec place))
                 {
                     building.Add((id, place));
+                    continue;
+                }
+                // And the Haven's town (HAVEN.md).
+                if (TownSpec.TryParse(id, out TownSpec town))
+                {
+                    housing.Add((id, town));
                     continue;
                 }
                 if (FenceSpec.TryParse(id, out FenceSpec fence))
@@ -138,6 +147,15 @@ namespace Dino_Engine.World
             {
                 var lights = new List<AssetLight>();
                 Mesh mesh = PlaceForge.Make(item.spec, lights);
+                _forged[item.id] = (mesh, lights);
+            });
+            // Houses first, as one takes a hundred times as long as a bench.
+            Parallel.ForEach(Partitioner.Create(housing.OrderByDescending(item => TownForge.Slowness(item.spec.Kind)), EnumerablePartitionerOptions.NoBuffering), new ParallelOptions { MaxDegreeOfParallelism = Math.Max(Environment.ProcessorCount - 1, 1) }, item =>
+            {
+                var lights = new List<AssetLight>();
+                var chimneys = new List<Vector3>();
+                Mesh mesh = TownForge.Make(item.spec, lights, chimneys);
+                _smoking[item.id] = chimneys;
                 _forged[item.id] = (mesh, lights);
             });
         }
@@ -247,6 +265,17 @@ namespace Dino_Engine.World
                     return forged.Mesh;
                 }
                 return PlazaForge.Make(piece, lights);
+            }
+            if (TownSpec.TryParse(id, out TownSpec town))
+            {
+                imposterDistance = 0f;
+                if (_forged.TryRemove(id, out var housed))
+                {
+                    lights.AddRange(housed.Lights);
+                    if (_smoking.TryRemove(id, out List<Vector3>? smoke)) chimneys.AddRange(smoke);
+                    return housed.Mesh;
+                }
+                return TownForge.Make(town, lights, chimneys);
             }
             if (ArenaSpec.TryParse(id, out ArenaSpec arena))
             {
