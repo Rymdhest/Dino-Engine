@@ -203,6 +203,7 @@ namespace Dino_Defenders.Stats
         Used,           // You used a book by hand.
         Time,           // Every so many seconds, while what it asks for holds.
         Walked,         // Every so many metres.
+        Fell,           // You've fallen: what's left behind where you lay.
     }
 
     /// <summary>

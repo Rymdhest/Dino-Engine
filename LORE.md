@@ -95,11 +95,47 @@ Every dinosaur is grown from a species and a seed, so no two are alike: `DINOSAU
 | Domehead | Pachycephalosaurus | A grazer on two legs with a dome of bone for a skull, which it lowers and runs at whatever's in its way | Wild, at the head of flocks of striders |
 | Weaver | Nothing that ever lived | The Institute's worst idea, grown from blood that wasn't all one animal's: a raptor's head with eight eyes and two fangs, on a low body slung between eight legs whose knees stand over its back, with an egg of an abdomen behind. It waits for whatever comes under it and spits before it bites. Lost from its pens | The deep woods, with skitters after it |
 | Tyrant | Tyrannosaurus | A commander's war-beast, the largest thing the Institute grows, in its commander's regalia: an iron helm with a crest of blades, a gorget, iron plates down its back over an oxblood cloth, tabards with the mark down its flanks and two standards on its shoulders | At the keep: every land's boss |
-| Bone Tyrant, Bone Raptor, Bone Ravager, Bone Hornback, Bone Spikeback, Bone Weaver | | The Ossuary's skeletons | Among the dead, and now and then a land's boss |
-| Rotting Tyrant, Rotting Raptor, Rotting Hornback, Rotting Ravager, Rotting Wader, Rotting Shagback | | The Ossuary's failures | Among the dead in wet country, and now and then a land's boss |
-| Ghost Tyrant, Ghost Raptor, Ghost Ravager, Ghost Ripper, Ghost Weaver | | The Ossuary's ghosts, called up in light | Among the dead, and now and then a land's boss |
+| Wild Tyrant | | A tyrant no commander ever claimed: it broke its pen at the Institute before it was grown, and has lived on what else got out ever since. Not yet the size of a commander's, bare of any regalia, and nobody's | Now and then, leading what got out. Heard before it's seen |
+| War Skitter, War Strider, War Domehead | | What the Reich hunts with: its ratters, loosed by the dozen, its coursers, which nothing outruns, and its rams, with an iron cap bolted over the dome | With a hunt (below), and a ram at the head of a war-band |
+| War Wader | | The few waders the Reich kept hold of, with an iron mask over the snout | Chained at its fords and its fishing villages |
+| War Weaver | | The weavers the Institute didn't lose, taught to lay their venom down under whoever comes | At the Institute's own doors, guarding its laboratories |
+| Wild Reaper | | A reaper that got out and went back to grazing | At the edge of a flock of striders, in gentle country |
+| Bone Tyrant, and the bones of a raptor, skitter, spitter, ravager, hornback, ripper, wader, spikeback, weaver, shagback, reaper, strider, clubtail and domehead | | The Ossuary's skeletons | Among the dead, a Bone Shagback where it's cold, and a Bone Tyrant now and then as a land's boss |
+| Rotting Tyrant, and a rotting raptor, skitter, spitter, ravager, hornback, ripper, wader, spikeback, weaver, shagback, reaper, strider, clubtail and domehead | | The Ossuary's failures | Among the dead in wet country, at the Institute's laboratories, and a Rotting Tyrant now and then as a land's boss |
+| Ghost Tyrant, and the ghosts of a raptor, skitter, spitter, ravager, hornback, ripper, wader, spikeback, weaver, shagback, reaper, strider, clubtail and domehead | | The Ossuary's ghosts, called up in light | Among the dead, a Ghost Shagback where it's cold, and a Ghost Tyrant now and then as a land's boss |
 | Reich Legionary, Reich Marksman, Reich Wrangler | | The greycoats | With the war-bands, and on guard over what the Reich has taken |
 | Giant | Brachiosaurus and Giraffatitan | The Haven's own, and free: long-necked and gentle, cropping the tops of trees | The Haven, and behind the main menu. Never in a land, and never fought |
+
+**Every beast is met every way** (since 2026-11-17): each of the fifteen kinds the Reich has is somewhere in harness, wild, raised as bones, rotting and as a ghost, and the developer's room has no empty plot (`LEXICON.md`). What tells them apart isn't how much of each there is. A kind fights its own way, and what's been done to it changes the fight:
+
+| Kind | What's its own |
+|---|---|
+| Raptor | Hunts in a pack. A wild one goes for whatever's bleeding |
+| Skitter | Little alone and a great deal together: it bites harder at whoever's surrounded |
+| Spitter | Spits from behind the pack, and bites whoever gets in among them |
+| Ravager | A stamp, and jaws. A wild one is at its worst badly hurt |
+| Hornback | Charges, from a long way off |
+| Ripper | Pounces. The Reich's are taught on what runs, and are worst for whoever's moving |
+| Wader | Takes what's at the water's edge from further off than it looks, and is at its worst standing in water |
+| Spikeback | Whoever strikes it from within reach of its spikes is struck by them |
+| Weaver | Spits once and then comes on, and its venom slows |
+| Shagback | The cold is nothing to it. A wild one mends if it's left alone |
+| Reaper | Sweeps wide and far with its scythes, and is worst at the ends of its arms: the place to be is in under them |
+| Strider | Strikes and is gone again |
+| Clubtail | Its club goes all the way round, and stops whoever it reaches |
+| Domehead | Lowers its dome and rams |
+
+| Met | What that does to it |
+|---|---|
+| In the Reich's harness | Its handlers: a wrangler goads whatever's round them, beasts and soldiers, and they're the quicker for it, so the wrangler is who to go for first. What the Reich hunts with is taught on whatever runs |
+| Wild | What the animal does by itself: blood, hunger, a flock, its own ground |
+| Raised as bones | What flies goes between its ribs, and there's nothing to it but what holds it together, so what stops it stops it for longer. Arrows are the wrong thing to bring |
+| Rotting | Slow, and its bite poisons. The glass of bile on its back breaks as it falls, and what kept it going lies where it lay: a pack of them isn't fought in a heap |
+| A ghost | Blows go through it, about four in ten for someone with ordinary Accuracy and more for someone with none, and no Spell does. Its own go through what's worn against them. Cold to be touched by |
+
+And each has something that's only its own: one light moves a whole pit of bone skitters, so when one falls the rest have what moved it; a bone spitter has no venom left and throws its teeth; a rotting spitter spits the bile it runs on, which lies where it lands; a clubtail's ghost has a shell of light that comes back if it's let; a shagback's ghost breathes out the cold it died in. `Bestiary` says each in a line.
+
+**The Reich hunts as well as holds.** A war-band holds a road. A **hunt** is what's sent after whoever's been seen: striders and skitters, with a great raptor, a ram or a handler behind them. Its runners, its ratters and its great raptors are all worse for someone running, so a hunt is stood up to (`Warbands.Hunt`). Where the land is wet, and at the fishing villages it holds, the Reich has its waders (`ReichAtWater`), and the Institute guards its own laboratories with what it grew and didn't lose (`Institute`).
 
 **Every land's boss is a tyrant**, and it's the strongest thing in the game. Seven in ten are bred and wear their commander's regalia, and the rest are what the Ossuary made of one, a bone tyrant, a rotting one or a ghost, a tenth each (`Chronicle.BossKindOf`). The chronicle names it and the keep holds it, so the story and the fight are always the same animal.
 
@@ -193,6 +229,9 @@ Choices made without asking. Say if any are wrong.
 - **The tyrant wears regalia, not a harness**, as a commander's own beast: it says whose it is from across a field without hiding the animal. Everything the Reich puts on a beast is black iron, oxblood and brass, and the mark on it is the tyrant's skull.
 - **The weaver is the Institute's own**, the one beast that's after no real animal, so that it says what the blood-doctors are: it's still a dinosaur, with a raptor's head and hide, and only its body is a spider's.
 - **Commanders are never met.** The tyrant is the face of a land, as the dinosaurs are the point.
+- **A wild tyrant**, since 2026-11-17, as every other kind had got out and the room for one stood empty: one that broke its pen at the Institute before any commander was given it, not full grown (0.6 of a commander's), bare, and only now and then at the head of what got out (one led pack in nine of those). A commander's tyrant is still the only one a land's freedom depends on. Say if a tyrant loose in the woods takes anything from the one in the keep.
+- **Every kind every way, and the Reich's in harness named "War"** where the wild one has the plain name (War Skitter, War Strider, War Wader, War Weaver, War Domehead, as War Raptor and War Ripper were), and "Wild" where the Reich's has it (Wild Reaper, Wild Tyrant). The wild hornback, spikeback and clubtail are still only caged, in the Reich's prisons, and never fought.
+- **What each way of being met does** (bones and arrows, bile where the rotting fall, a ghost's bite through armour, a wrangler's goad) is a guess at what makes five fights of one animal. Nobody has fought any of them.
 - **Outlaws are turncoats**, about a quarter of what holds the roads.
 - **Broods that got out** are two in five of the beasts in the wild, with swarms of raptors and skitters another one in five. In the snow they're one in six, and the rest is still the wolves'.
 - **Dinosaurs roar like film monsters**, not with the closed-mouth booming the evidence suggests, because these are bred and wrong. See `SOUND.md`.

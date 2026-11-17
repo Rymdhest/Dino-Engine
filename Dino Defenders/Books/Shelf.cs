@@ -166,5 +166,81 @@ namespace Dino_Defenders.Books
         public static readonly BookPlan Heave = Write("heave", "Heaving Ash", new[] { Area("circle", Plain, Deal()) }, page => { page.Potency = 1.3f; page.Length = 3.4f; page.Mods = new[] { Chance(Tags.Stun, 50f) }; });
         public static readonly BookPlan Crash = Write("crash", "Falling Chandelier", new[] { Area("circle", Plain, Deal()).Cast() }, page => { page.Potency = 4.9f; page.Length = 3.6f; page.Mods = new[] { Chance(Tags.Stun, 100f) }; }, type: DamageType.Fire);
         public static readonly BookPlan Wreck = Write("wreck", "Burning Wreck", new[] { Area("circle", Plain, Deal()).Cast().Lasting("lingering") }, page => { page.Potency = 0.45f; page.Length = 3.4f; page.Duration = 9f; page.Mods = new[] { Chance(Tags.Burn, 40f) }; }, type: DamageType.Fire);
+
+        // What each kind of beast does that's its own, so that no two are the same fight (LORE.md, the Bestiary). A pounce, a charge and a ram carry whoever does them along: the brain takes it to
+        // where the mark is as the blow lands (EnemyBrainSystem.Leaps), and the ground counts for the ride, so it comes down there whether or not anyone's waited for it. Each rests, as it comes first.
+        private static Page Ride() => Bolt(Say("rides", "grounded"), Do("pass"));
+
+        public static readonly BookPlan Pounce = Write("pounce", "Pounce", new[] { Ride(), Area("cone", Plain, Deal()) }, page =>
+        {
+            if (page.Index == 0) { page.Range = 17f; page.Cooldown = 9f; page.UseTime = 0.7f; }
+            else { page.Potency = 1.5f; page.Length = 6.5f; page.Mods = new[] { Chance(Tags.Bleed, 60f) }; }
+        });
+        public static readonly BookPlan HornCharge = Write("horn-charge", "Horn Charge", new[] { Ride(), Area("cone", Plain, Deal()) }, page =>
+        {
+            if (page.Index == 0) { page.Range = 20f; page.Cooldown = 10f; page.UseTime = 1f; }
+            else { page.Potency = 2f; page.Length = 8f; page.Mods = new[] { Chance(Tags.Stun, 70f), Flat(Stat.ArmourIgnore, 30f) }; }
+        });
+        public static readonly BookPlan Ram = Write("ram", "Skull Ram", new[] { Ride(), Area("cone", Plain, Deal()) }, page =>
+        {
+            if (page.Index == 0) { page.Range = 15f; page.Cooldown = 7f; page.UseTime = 0.7f; }
+            else { page.Potency = 1.6f; page.Length = 5.5f; page.Mods = new[] { Chance(Tags.Stun, 100f) }; }
+        });
+
+        // A reaper's arms are as long as it is tall, with a scythe on each: what it sweeps is wide and far, and what it reaches bleeds. It takes long enough to look heavy, as that much ground wants seeing coming. A clubtail's club goes all the way round and stops whoever
+        // it reaches, through whatever they're wearing. A wader takes what's at the water's edge from further off than it looks, in a narrow line of its snout.
+        public static readonly BookPlan Reap = Write("reap", "Reaping Claws", new[] { Area("cone", Plain, Deal()) }, page => { page.Potency = 1.5f; page.Length = 9.5f; page.Width = 3.1f; page.UseTime = 1f; page.Cooldown = 4f; page.Mods = new[] { Chance(Tags.Bleed, 90f) }; });
+        public static readonly BookPlan ScytheClaw = Write("scythe-claw", "Scythe Claw", new[] { Area("cone", Plain, Deal()) }, page => { page.Potency = 1.1f; page.Length = 7.5f; page.Width = 1.5f; page.UseTime = 0.5f; page.Mods = new[] { Chance(Tags.Bleed, 50f) }; });
+        public static readonly BookPlan TailClub = Write("tail-club", "Tail Club", new[] { Area("circle", Plain, Deal()) }, page => { page.Potency = 1.9f; page.Length = 8.5f; page.UseTime = 1f; page.Cooldown = 6f; page.Mods = new[] { Chance(Tags.Stun, 100f), Flat(Stat.ArmourIgnore, 40f) }; });
+        public static readonly BookPlan Lunge = Write("lunge", "Fisher's Lunge", new[] { Area("cone", Plain, Deal()) }, page => { page.Potency = 1.4f; page.Length = 13.5f; page.Width = 0.8f; page.UseTime = 0.55f; page.Cooldown = 3.5f; page.Mods = new[] { Chance(Tags.Bleed, 60f) }; });
+
+        // What's spat by what the Ossuary made of a spitter. Bones have no venom left, and throw a mouthful of their own teeth, which the light grows back. What's rotting spits the bile that keeps
+        // it going, which stays where it lands. A ghost's is its own cold, and the ground keeps that too. The Institute's weavers that are still in harness lay their venom down to hold whoever's
+        // in it for the handlers. What's lobbed comes down where it was aimed, and the ground counts, so it lies there whether or not it fell on anyone.
+        private static Page Lob() => Bolt(Say("falls", "grounded"), Do("pass")).Cast();
+        private static Page Puddled() => Area("circle", Plain, Deal()).Cast().Lasting("lingering");
+
+        public static readonly BookPlan SpatTeeth = Write("spat-teeth", "Spat Teeth", new[] { Bolt(Say("three-at-once"), Deal()) }, page => { page.Potency = 0.6f; page.Speed = 40f; page.Mods = new[] { Chance(Tags.Bleed, 40f) }; });
+        public static readonly BookPlan BileSpit = Write("bile-spit", "Bile Spit", new[] { Lob(), Puddled() }, page =>
+        {
+            if (page.Index == 0) { page.Speed = 40f; page.Cooldown = 5f; }
+            else { page.Potency = 0.9f; page.Length = 4.5f; page.Duration = 5f; page.Mods = new[] { Chance(Tags.Venom, 100f) }; }
+        }, type: DamageType.Poison);
+        public static readonly BookPlan GraveCold = Write("grave-cold", "Grave Cold", new[] { Lob(), Puddled() }, page =>
+        {
+            if (page.Index == 0) { page.Speed = 40f; page.Cooldown = 6f; }
+            else { page.Potency = 0.8f; page.Length = 5f; page.Duration = 5f; page.Mods = new[] { Inc(Stat.AilmentEffect, 60f, Tags.Chill) }; }
+        }, type: DamageType.Cold);
+        public static readonly BookPlan Snare = Write("snare", "Snare", new[] { Lob(), Puddled() }, page =>
+        {
+            if (page.Index == 0) { page.Speed = 44f; page.Cooldown = 6f; }
+            else { page.Potency = 0.6f; page.Length = 5.5f; page.Duration = 6f; page.Mods = new[] { Chance(Tags.Venom, 100f) }; }
+        }, type: DamageType.Poison);
+
+        // A shagback's ghost breathes out the cold it died in, and whoever it reaches stands frozen for what comes next. It takes long enough to look heavy, as a roar does.
+        public static readonly BookPlan KillingFrost = Write("killing-frost", "Killing Frost", new[] { Area("circle", Say("rest"), Inflict("freeze")).Cast() }, page => { page.Length = 10f; page.UseTime = 1.2f; page.Cooldown = 10f; });
+
+        // A wrangler's goad, for the beasts and the soldiers round them and not for whoever they're after: they're quicker for a while, so the handler is who to go for first.
+        public static readonly BookPlan Goad = Write("goad", "Goad", new[] { Area("circle", Plain, new Outcome { Deed = "give", Gift = "quickening", Whom = "friends" }) }, page => { page.Length = 14f; page.UseTime = 0.8f; page.Cooldown = 12f; });
+
+        // What's left where one of the Ossuary's failures falls: the glass on its back breaks, and the bile that kept it going lies where it lay. It lingers, so it can be walked out of, and
+        // nothing it does comes all at once. They're Attacks, as whatever's set off by something else is.
+        private static BookPlan Spilled(string id, string name, float radius, float seconds, float potency, float rest = 0f) => Write(id, name, new[] { Area("circle", Plain, Deal()).Lasting("lingering") }, page =>
+        {
+            page.Potency = potency;
+            page.Length = radius;
+            page.Duration = seconds;
+            page.Cooldown = rest;
+            page.Mods = new[] { Chance(Tags.Venom, 100f) };
+        }, triggered: true, type: DamageType.Poison);
+
+        public static readonly BookPlan BileSplash = Spilled("bile-splash", "Bile Splash", 2.4f, 3f, 0.5f);
+        public static readonly BookPlan BilePool = Spilled("bile-pool", "Spilled Bile", 3.8f, 5f, 0.7f);
+        public static readonly BookPlan BileFlood = Spilled("bile-flood", "Burst Bile Glass", 5.5f, 6f, 0.9f);
+        public static readonly BookPlan BileSlop = Spilled("bile-slop", "Slopped Bile", 3.2f, 4f, 0.5f, rest: 5f);
+
+        // A weaver spits before it bites, and then it comes on: its spit rests, where a spitter's doesn't, so it closes with whatever it's slowed. A spitter's ghost has only its light to spit.
+        public static readonly BookPlan WeaverSpit = Write("weaver-spit", "Weaver's Spit", new[] { Bolt(Plain, Deal()).Cast() }, page => { page.Speed = 36f; page.Cooldown = 6f; page.Mods = new[] { Chance(Tags.Venom, 100f) }; }, type: DamageType.Poison);
+        public static readonly BookPlan Wisp = Write("wisp", "Wisp", new[] { Bolt(Plain, Deal()).Cast() }, page => { page.Speed = 38f; page.Mods = new[] { Inc(Stat.AilmentEffect, 30f, Tags.Chill) }; }, type: DamageType.Cold);
     }
 }

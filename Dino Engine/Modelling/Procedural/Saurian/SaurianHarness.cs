@@ -46,9 +46,24 @@ namespace Dino_Engine.Modelling.Procedural.Saurian
                 Spine(mesh, body, dress, girth, collar);
             }
 
+            Cap(mesh, body);
             if (!big) return;
             Mask(mesh, body);
             Standard(mesh, body, dress);
+        }
+
+        // What rams for the Reich has iron bolted over what it rams with: a cap over the top of a domehead's dome, with a brass boss in the middle of it, which from above is most of what says whose it is.
+        private static void Cap(SaurianMesh mesh, SaurianBody body)
+        {
+            SaurianHead head = body.Head;
+            if (head.Dome <= 0f) return;
+
+            // The dome as the flesh has it (SaurianSculpt), and the cap a little proud of the top half of it.
+            float z = head.Length * 0.22f;
+            float roof = head.Lip(z) + head.DepthAt(z) * 1.24f;
+            Vector3 middle = head.ToBody(new Vector3(0f, roof + head.Dome * 0.22f, z));
+            mesh.Ball(middle, new Vector3(head.WidthAt(z) * 0.58f, head.Dome * 0.66f, head.Length * 0.225f), 2, Iron, GearMaterials.Metal, BoneType.Head);
+            mesh.Ball(head.ToBody(new Vector3(0f, roof + head.Dome * 0.88f, z)), new Vector3(head.Dome * 0.16f, head.Dome * 0.08f, head.Dome * 0.16f), 1, Brass, GearMaterials.Metal, BoneType.Head);
         }
 
         // A strap down the middle of the back from the girth to the collar, with a buckle where it meets each.

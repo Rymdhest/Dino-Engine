@@ -79,14 +79,15 @@ namespace Dino_NetLab
             apart = (other.Sim.Position - host.Sim.Position).Length;
             report.Check("But not from anywhere else", apart > 20f, $"{apart:0.0} m apart");
 
-            // A kill anywhere in the land is worth all of it to everyone in it, as if each were alone.
+            // A kill anywhere in the land is worth all of it to everyone in it, as if each were alone. Never the land's tyrant, which the friend is often standing beside, as the furthest
+            // place is often the keep: a boss wears real uniques, and one that puts its death off (it was left alive with 1 Health) makes this no kill at all, which failed here now and then.
             Actor? prey = null;
             foreach (Archetype archetype in land.Ecs.QueryArchetypes(new BitMask(typeof(EnemyComponent), typeof(ActorComponent)), BitMask.Empty))
             {
                 foreach (EntityView entity in new ComponentAccessor(archetype))
                 {
                     Actor actor = entity.Get<ActorComponent>().Actor;
-                    if (actor.Team == Team.Enemies && !actor.Dead && !entity.Get<EnemyComponent>().Friendly && (prey == null || (actor.Position - other.Sim.Position).LengthSquared < (prey.Position - other.Sim.Position).LengthSquared)) prey = actor;
+                    if (actor.Team == Team.Enemies && !actor.Dead && !actor.Tyrant && !entity.Get<EnemyComponent>().Friendly && (prey == null || (actor.Position - other.Sim.Position).LengthSquared < (prey.Position - other.Sim.Position).LengthSquared)) prey = actor;
                 }
             }
             if (prey != null)
@@ -97,7 +98,7 @@ namespace Dino_NetLab
                 land.Session.Combat.Harm(other.Actor, prey, 1e12f, DamageType.Magic);
                 scene.Lab.Run(1.5);
                 float away = (prey.Position - host.Sim.Position).Length;
-                report.Check("A kill anywhere in the land is worth it to everyone in it, however far", away > Rulebook.FlaskReach && Standing(host) != hostBefore && Standing(other) != friendBefore, $"{away:0} m from the host, {hostBefore} to {Standing(host)}");
+                report.Check("A kill anywhere in the land is worth it to everyone in it, however far", away > Rulebook.FlaskReach && Standing(host) != hostBefore && Standing(other) != friendBefore, $"{away:0} m from the host, {hostBefore} to {Standing(host)}, the friend {friendBefore} to {Standing(other)}, having killed {(land.Ecs.TryGetEntityLocation(prey.Entity, out _, out _) ? land.Ecs.GetEntityView(prey.Entity).Get<EnemyComponent>().Name : "something gone")}, {(prey.Dead ? "dead" : $"alive with {prey.Vitals.Health:0} of {prey.Sheet.MaxHealth:0}")}, {(prey.Site == null ? "of no place" : "of a place")}{(prey.Owner != null ? ", somebody's" : "")}, {(prey.Position - other.Sim.Position).Length:0} m from the friend");
             }
             else report.Check("There's something to kill in the land", false);
 

@@ -100,13 +100,36 @@ namespace Dino_Defenders.Server
         private const float ChurchyardGhosts = 0.45f; // Of a churchyard's dead, where the bones it digs are oldest and most often too far gone to stand.
         private const float NestShare = 0.4f;       // Of the swarms, the Institute's weavers and what scavenges after them.
         private const float FlockShare = 0.3f;      // Of what got out into gentle country, runners in a flock.
+        private const float HuntShare = 0.3f;       // Of the Reich's own on the roads, a hunt rather than a war-band: its runners, loosed after whoever's seen.
 
         // Raptors out in front, soldiers behind them, something big leading, and venom or arrows from the back.
         private static readonly Recipe Reich = new(
-            new[] { Bestiary.Ravager, Bestiary.Hornback, Bestiary.Spikeback, Bestiary.WarRipper, Bestiary.Reaper, Bestiary.Clubtail, Bestiary.Wrangler, Bestiary.Wrangler },
+            new[] { Bestiary.Ravager, Bestiary.Hornback, Bestiary.Spikeback, Bestiary.WarRipper, Bestiary.Reaper, Bestiary.Clubtail, Bestiary.WarDomehead, Bestiary.Wrangler, Bestiary.Wrangler },
             new[] { Bestiary.WarRaptor, Bestiary.WarRaptor, Bestiary.WarRaptor, Bestiary.Legionary },
             new[] { Bestiary.Spitter, Bestiary.Spitter, Bestiary.Marksman },
             0.26f);
+
+        // A hunt: what the Reich sends after whoever's been seen, rather than what it holds a road with. Its coursers and its ratters, which nothing outruns, with a handler or a great raptor
+        // behind them to finish what they've run down, and its rams for whoever stands.
+        private static readonly Recipe Hunt = new(
+            new[] { Bestiary.WarRipper, Bestiary.WarRipper, Bestiary.WarDomehead, Bestiary.Wrangler },
+            new[] { Bestiary.WarStrider, Bestiary.WarStrider, Bestiary.WarSkitter, Bestiary.WarSkitter, Bestiary.WarRaptor },
+            new[] { Bestiary.Marksman },
+            0.15f);
+
+        // The Reich where the land is wet, and at the fishing villages it holds for their catch: the waders it kept hold of, chained at the fords, and a clubtail, which nothing bogs down.
+        private static readonly Recipe ReichAtWater = new(
+            new[] { Bestiary.WarWader, Bestiary.WarWader, Bestiary.Clubtail, Bestiary.Wrangler },
+            new[] { Bestiary.WarRaptor, Bestiary.WarRaptor, Bestiary.WarRaptor, Bestiary.Legionary },
+            new[] { Bestiary.Spitter, Bestiary.Spitter, Bestiary.Marksman },
+            0.26f);
+
+        // The Amber Institute's own guard, at its outstations: what it grew and didn't lose. Its weavers, kept at its doors, its reapers, and the ratters that clean its pens.
+        private static readonly Recipe Institute = new(
+            new[] { Bestiary.Reaper, Bestiary.Reaper, Bestiary.Ravager, Bestiary.Wrangler },
+            new[] { Bestiary.WarRaptor, Bestiary.WarRaptor, Bestiary.WarSkitter, Bestiary.Legionary },
+            new[] { Bestiary.WarWeaver, Bestiary.WarWeaver, Bestiary.Spitter },
+            0.3f);
 
         private static readonly Recipe Outlaws = new(
             new[] { Bestiary.Brute, Bestiary.Brute, Bestiary.Outlaw },
@@ -121,28 +144,53 @@ namespace Dino_Defenders.Server
             new[] { Bestiary.Marksman, Bestiary.Marksman, Bestiary.Spitter },
             0.3f);
 
-        private static readonly Recipe Dead = new(
-            new[] { Bestiary.GraveKnight, Bestiary.BoneRavager, Bestiary.BoneHornback, Bestiary.BoneSpikeback, Bestiary.Mourner },
-            new[] { Bestiary.Shambler, Bestiary.BoneRaptor, Bestiary.BoneRaptor, Bestiary.BoneWeaver, Bestiary.Restless },
-            new[] { Bestiary.BoneArcher, Bestiary.BoneArcher, Bestiary.Mourner },
-            0.26f);
+        // The land's own dead, stirred up, with what the Ossuary raised among them. The land's are slow and stand their ground: the bone-beasts are what runs, rams, pounces and spits teeth.
+        private static readonly EnemyKind[] DeadCore =
+        {
+            Bestiary.Shambler, Bestiary.Shambler, Bestiary.Restless, Bestiary.Restless, Bestiary.BoneRaptor, Bestiary.BoneRaptor, Bestiary.BoneWeaver,
+            Bestiary.BoneSkitter, Bestiary.BoneSkitter, Bestiary.BoneStrider, Bestiary.BoneDomehead,
+        };
 
-        private static readonly Recipe Rotting = new(new[] { Bestiary.RottingHornback, Bestiary.RottingWader, Bestiary.RottingRavager }, new[] { Bestiary.RottingRaptor }, Array.Empty<EnemyKind>(), 0f);
+        private static readonly EnemyKind[] DeadSupport = { Bestiary.BoneArcher, Bestiary.BoneArcher, Bestiary.BoneSpitter, Bestiary.Mourner };
+
+        private static readonly Recipe Dead = new(
+            new[] { Bestiary.GraveKnight, Bestiary.GraveKnight, Bestiary.Mourner, Bestiary.BoneRavager, Bestiary.BoneHornback, Bestiary.BoneSpikeback, Bestiary.BoneRipper, Bestiary.BoneReaper, Bestiary.BoneClubtail, Bestiary.BoneWader },
+            DeadCore, DeadSupport, 0.26f);
+
+        // Where it's cold, what the frost kept is what the Ossuary finds most of.
+        private static readonly Recipe DeadInCold = new(new[] { Bestiary.BoneShagback, Bestiary.BoneShagback, Bestiary.GraveKnight, Bestiary.BoneRavager }, DeadCore, DeadSupport, 0.26f);
+
+        // The Institute's failures, dumped where the land is wet enough to take them. What leads them is slow and leaves a great deal where it falls; the little ones come in barrow-loads,
+        // one of them keeps up with whoever walks away, and what's behind them takes the ground away a pool at a time.
+        private static readonly EnemyKind[] RotCore = { Bestiary.RottingRaptor, Bestiary.RottingRaptor, Bestiary.RottingSkitter, Bestiary.RottingSkitter, Bestiary.RottingStrider, Bestiary.RottingDomehead };
+        private static readonly EnemyKind[] RotSupport = { Bestiary.RottingSpitter, Bestiary.RottingSpitter, Bestiary.RottingWeaver };
+
+        private static readonly Recipe Rotting = new(
+            new[] { Bestiary.RottingHornback, Bestiary.RottingWader, Bestiary.RottingRavager, Bestiary.RottingRipper, Bestiary.RottingSpikeback, Bestiary.RottingReaper, Bestiary.RottingClubtail },
+            RotCore, RotSupport, 0.24f);
+
+        private static readonly Recipe RottingInCold = new(new[] { Bestiary.RottingShagback, Bestiary.RottingShagback, Bestiary.RottingRavager }, RotCore, RotSupport, 0.24f);
 
         // What the Ossuary called up in light where the bones it dug were too far gone to stand: ghosts of the old beasts, with the land's own dead stirred up among them.
-        private static readonly Recipe Ghosts = new(
-            new[] { Bestiary.GhostRavager, Bestiary.GhostRipper },
-            new[] { Bestiary.GhostRaptor, Bestiary.GhostRaptor, Bestiary.GhostWeaver, Bestiary.Restless },
-            new[] { Bestiary.Mourner, Bestiary.BoneArcher },
-            0.22f);
+        private static readonly EnemyKind[] GhostCore = { Bestiary.GhostRaptor, Bestiary.GhostRaptor, Bestiary.GhostWeaver, Bestiary.GhostSkitter, Bestiary.GhostSkitter, Bestiary.GhostStrider, Bestiary.GhostDomehead, Bestiary.Restless };
+        private static readonly EnemyKind[] GhostSupport = { Bestiary.GhostSpitter, Bestiary.GhostSpitter, Bestiary.Mourner, Bestiary.BoneArcher };
 
-        private static readonly Recipe Feral = new(new[] { Bestiary.WildRavager, Bestiary.Ripper, Bestiary.Domehead }, new[] { Bestiary.Raptor, Bestiary.Raptor, Bestiary.Strider }, new[] { Bestiary.FeralSpitter }, 0.2f);
+        private static readonly Recipe Ghosts = new(
+            new[] { Bestiary.GhostRavager, Bestiary.GhostRipper, Bestiary.GhostHornback, Bestiary.GhostSpikeback, Bestiary.GhostReaper, Bestiary.GhostClubtail, Bestiary.GhostWader },
+            GhostCore, GhostSupport, 0.24f);
+
+        private static readonly Recipe GhostsInCold = new(new[] { Bestiary.GhostShagback, Bestiary.GhostShagback, Bestiary.GhostRavager }, GhostCore, GhostSupport, 0.24f);
+
+        // What got out, with whatever leads it. Now and then that's a tyrant nobody ever claimed, and the woods go quiet round it.
+        private static readonly Recipe Feral = new(
+            new[] { Bestiary.WildRavager, Bestiary.WildRavager, Bestiary.WildRavager, Bestiary.Ripper, Bestiary.Ripper, Bestiary.Ripper, Bestiary.Domehead, Bestiary.Domehead, Bestiary.WildTyrant },
+            new[] { Bestiary.Raptor, Bestiary.Raptor, Bestiary.Strider }, new[] { Bestiary.FeralSpitter }, 0.2f);
 
         // What got out into the deep woods and found it could live there: the Institute's eight-legged hunters, with what scavenges after them.
         private static readonly Recipe Nest = new(new[] { Bestiary.Weaver }, new[] { Bestiary.Weaver, Bestiary.Skitter, Bestiary.Skitter }, Array.Empty<EnemyKind>(), 0f);
 
-        // Flocks of runners in the open country, with a domehead's herd for company.
-        private static readonly Recipe Flock = new(new[] { Bestiary.Domehead }, new[] { Bestiary.Strider }, Array.Empty<EnemyKind>(), 0f);
+        // Flocks of runners in the open country, with a domehead's herd for company, or a reaper that got out and went back to grazing at the edge of them.
+        private static readonly Recipe Flock = new(new[] { Bestiary.Domehead, Bestiary.Domehead, Bestiary.WildReaper }, new[] { Bestiary.Strider }, Array.Empty<EnemyKind>(), 0f);
 
         // What got out into the wet country: a wader leading, with raptors, which go anywhere, and spitters from the reeds.
         private static readonly Recipe Fen = new(new[] { Bestiary.Wader }, new[] { Bestiary.Raptor }, new[] { Bestiary.FeralSpitter }, 0.2f);
@@ -168,6 +216,22 @@ namespace Dino_Defenders.Server
         };
 
         /// <summary>Who an arena's handlers let in when the fight goes against their tyrant: its own brood, which for a tyrant the Ossuary raised or left rotting is the Ossuary's.</summary>
+        // The dead by the land they lie in: what the frost kept where it's cold.
+        private static Recipe DeadOf(bool cold) => cold ? DeadInCold : Dead;
+        private static Recipe RottingOf(bool cold) => cold ? RottingInCold : Rotting;
+        private static Recipe GhostsOf(bool cold) => cold ? GhostsInCold : Ghosts;
+
+        // The Reich by the land it's holding: shagbacks in the snow, waders where it's wet, and otherwise a war-band or, now and then, a hunt.
+        private static Recipe ReichOf(BiomeDefinition biome, WorldRandom random)
+        {
+            if (biome.Temperature <= ColdLand) return ReichInSnow;
+            if (biome.Moisture >= WetLand) return ReichAtWater;
+            return random.Chance(HuntShare) ? Hunt : Reich;
+        }
+
+        private const float ColdLand = 0.3f;        // As cold as this or colder, the Reich's cold-blooded beasts die, and what the frost kept is what's dug up.
+        private const float WetLand = 0.75f;        // As wet as this or wetter is the waders' country.
+
         public static Recipe ArenaRecipe(string bossKind) => bossKind switch
         {
             "bone-tyrant" => Dead,
@@ -181,10 +245,16 @@ namespace Dino_Defenders.Server
         {
             yield return Reich;
             yield return ReichInSnow;
+            yield return Hunt;
+            yield return ReichAtWater;
+            yield return Institute;
             yield return Outlaws;
             yield return Dead;
+            yield return DeadInCold;
             yield return Rotting;
+            yield return RottingInCold;
             yield return Ghosts;
+            yield return GhostsInCold;
             yield return Feral;
             yield return Nest;
             yield return Flock;
@@ -203,13 +273,14 @@ namespace Dino_Defenders.Server
         {
             BiomeDefinition biome = world.Plan.Biomes[Math.Clamp(site.Biome, 0, world.Plan.Biomes.Count - 1)];
             if (PlaceRecipe(world, site, folk, biome, random) is Recipe place) return place;
+            bool frozen = biome.Temperature <= ColdLand;
             switch (folk)
             {
                 case SpawnRole.Undead:
                     // A churchyard's dead are its own and the Ossuary's raising: bones and ghosts. What rots is dumped in the wet, not buried (CHURCHYARD.md).
-                    if (site.Kind == SiteKind.Graveyard) return random.Chance(ChurchyardGhosts) ? Ghosts : Dead;
-                    if (biome.Moisture >= 0.6f && random.Chance(RotShare)) return Rotting;
-                    return random.Chance(GhostShare) ? Ghosts : Dead;
+                    if (site.Kind == SiteKind.Graveyard) return random.Chance(ChurchyardGhosts) ? GhostsOf(frozen) : DeadOf(frozen);
+                    if (biome.Moisture >= 0.6f && random.Chance(RotShare)) return RottingOf(frozen);
+                    return random.Chance(GhostShare) ? GhostsOf(frozen) : DeadOf(frozen);
                 case SpawnRole.Beast:
                     // Cold-blooded things don't last the winter, so the snow is still the wolves'.
                     if (biome.Temperature <= 0.35f) return random.Chance(FeralShare * 0.4f) ? Feral : WinterWolves;
@@ -224,7 +295,7 @@ namespace Dino_Defenders.Server
                     return CultOf(biome, random);
                 default:
                     if (random.Chance(TurncoatShare)) return Outlaws;
-                    return biome.Temperature <= 0.3f ? ReichInSnow : Reich;
+                    return ReichOf(biome, random);
             }
         }
 
@@ -232,7 +303,7 @@ namespace Dino_Defenders.Server
         // took for it, a nest is whatever nests there, and what got out of a wreck's cages hunts its beach. Anything this doesn't settle goes by the land as anywhere else.
         private static Recipe? PlaceRecipe(WorldData world, WorldSite site, SpawnRole folk, BiomeDefinition biome, WorldRandom random)
         {
-            bool cold = biome.Temperature <= 0.3f;
+            bool cold = biome.Temperature <= ColdLand;
             switch (site.Kind)
             {
                 case SiteKind.Keep:
@@ -250,12 +321,15 @@ namespace Dino_Defenders.Server
                 case SiteKind.Quarry:
                 case SiteKind.LumberCamp:
                     return folk is SpawnRole.Raider or SpawnRole.Guard ? (cold ? ReichInSnow : Reich) : null;
+                case SiteKind.FishingHamlet:
+                    // Held for its catch, which goes to the broods: the waders the Reich kept hold of are chained here, at the water they were grown for.
+                    return folk is SpawnRole.Raider or SpawnRole.Guard ? (cold ? ReichInSnow : ReichAtWater) : null;
                 case SiteKind.Laboratory:
-                    // The Institute's failures, kept in its pens until the Ossuary takes them.
-                    if (folk == SpawnRole.Undead) return Rotting;
-                    return folk is SpawnRole.Raider or SpawnRole.Guard ? (cold ? ReichInSnow : Reich) : null;
+                    // The Institute's failures, kept in its pens until the Ossuary takes them, and its own guard at its doors: what it grew and didn't lose.
+                    if (folk == SpawnRole.Undead) return RottingOf(cold);
+                    return folk is SpawnRole.Raider or SpawnRole.Guard ? (cold ? ReichInSnow : Institute) : null;
                 case SiteKind.Excavation:
-                    if (folk == SpawnRole.Undead) return random.Chance(ChurchyardGhosts) ? Ghosts : Dead;
+                    if (folk == SpawnRole.Undead) return random.Chance(ChurchyardGhosts) ? GhostsOf(cold) : DeadOf(cold);
                     return folk is SpawnRole.Raider or SpawnRole.Guard ? (cold ? ReichInSnow : Reich) : null;
                 case SiteKind.Tradepost:
                     return folk == SpawnRole.Raider ? Outlaws : null;

@@ -1891,6 +1891,9 @@ namespace Dino_Defenders.Server
             if (actor.Sheet.Has(Rule.BurstsOnDeath) && Goes(actor, Omens.Volatile)) BeginBurst(actor);
             if (actor.Sheet.Has(Rule.RalliesOnDeath) && Goes(actor, Omens.Rallying)) Defer(new Consequence { Kind = Later.Rally, At = Now, Source = actor });
 
+            // What it leaves where it lay, for those that leave something: it goes off on the next pass, like anything a blow sets off.
+            SetOff(actor, TriggerEvent.Fell, actor.Position);
+
             if (actor.Player != null)
             {
                 _session.HeroThrown(actor, thrown);

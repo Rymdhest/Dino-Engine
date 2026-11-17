@@ -392,6 +392,7 @@ namespace Dino_Defenders.Server
                 AggroRadius = kind.AggroRadius * session.Terms.Notice,
                 LeashRadius = kind.LeashRadius,
                 KeepsAway = kind.KeepsAway,
+                Skirmishes = kind.Skirmishes,
                 Experience = Bestiary.ExperienceAt(level, power.Health * kind.Health),
                 Abilities = Bestiary.AbilitiesOf(kind, traits),
                 Cooldown = random.Range(0f, 1f),
@@ -468,7 +469,7 @@ namespace Dino_Defenders.Server
                 Loadout loadout = session.Bestiary.Shared(kind, 1, rarity, traits);
                 string model = Bestiary.ModelOf(kind, random);
                 var actor = new Actor(Team.Enemies, loadout, spot, kind.RadiusAt(scale)) { Body = model, Height = position.Y, Still = !fighting };
-                var brain = new EnemyBrainComponent { SiteIndex = -1, SpawnIndex = -1, Home = spot, AggroRadius = 60f, LeashRadius = 200f, KeepsAway = kind.KeepsAway, Abilities = Bestiary.AbilitiesOf(kind, traits) };
+                var brain = new EnemyBrainComponent { SiteIndex = -1, SpawnIndex = -1, Home = spot, AggroRadius = 60f, LeashRadius = 200f, KeepsAway = kind.KeepsAway, Skirmishes = kind.Skirmishes, Abilities = Bestiary.AbilitiesOf(kind, traits) };
                 IComponent[] body = Bodies.Walking(_server, model, position, scale, 2f, kind.RadiusAt(scale),
                     new EnemyComponent { Name = Bestiary.NameOf(kind, traits), Rarity = rarity, Level = 1 }, brain, new HealthComponent(actor.Sheet.MaxHealth), new ActionComponent(), new AfflictedComponent(), new ActorComponent(actor));
                 for (int part = 0; part < body.Length; part++)

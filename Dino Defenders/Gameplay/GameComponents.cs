@@ -82,6 +82,10 @@ namespace Dino_Defenders.Gameplay
         public float AggroRadius;
         public float LeashRadius;
         public bool KeepsAway;
+        public bool Skirmishes;     // Strikes and is gone again, to come back when it's ready to, rather than stand its ground between blows.
+        public bool Leaping;        // Winding up something that carries it along, a pounce or a charge: it's where the blow lands by the time it does.
+        public Vector2 LeapTo;      // Where that's taking it.
+        public int LeapTicks;       // How many of the wind-up's last ticks it spends getting there.
         public int Book;            // Which of its books it's winding up.
         public int Abilities;       // How many of its books, from the first, its traits gave it.
         public int WindUpTicks;     // Until it lets go. A mark has said when, so nothing that happens to it after that changes this.

@@ -951,6 +951,65 @@ namespace Dino_BuildLab
             report.Check("Settings from before this have the same start as anyone", !older.PoolsOverHero && !older.Marks(Rarity.Normal) && older.Marks(Rarity.Rare));
         }
 
+        // Every beast, every way it's met (LORE.md): there's one of each species in harness, wild, as bones, rotting and as a ghost, each is met somewhere, and no two are the same fight.
+        private static void Beasts(Report report, List<Recipe> recipes)
+        {
+            static Dino_Engine.Modelling.Procedural.Saurian.SaurianSpec? Drawn(EnemyKind kind) => Dino_Engine.Modelling.Procedural.Saurian.SaurianSpec.Parse(kind.Look);
+            var beasts = Bestiary.Everyone.Where(kind => Drawn(kind) != null).ToList();
+
+            var missing = new List<string>();
+            foreach (Dino_Engine.Modelling.Procedural.Saurian.SaurianSpecies species in Dino_Engine.Modelling.Procedural.Saurian.SaurianCatalog.All.Where(species => !species.Free))
+            {
+                foreach ((string way, Dino_Engine.Modelling.Procedural.Saurian.SaurianCondition condition, bool harnessed) in new[]
+                {
+                    ("in harness", Dino_Engine.Modelling.Procedural.Saurian.SaurianCondition.Living, true), ("wild", Dino_Engine.Modelling.Procedural.Saurian.SaurianCondition.Living, false),
+                    ("as bones", Dino_Engine.Modelling.Procedural.Saurian.SaurianCondition.Bones, false), ("rotting", Dino_Engine.Modelling.Procedural.Saurian.SaurianCondition.Rotting, false),
+                    ("as a ghost", Dino_Engine.Modelling.Procedural.Saurian.SaurianCondition.Ghost, false),
+                })
+                {
+                    bool Is(string look) => Dino_Engine.Modelling.Procedural.Saurian.SaurianSpec.Parse(look) is { } spec && spec.Species == species.Id && spec.Condition == condition && spec.Harnessed == harnessed;
+
+                    // What the Reich only cages and breaks is met that way, in its prisons: the grazers, wild.
+                    if (!beasts.Any(kind => Is(kind.Look)) && !Dino_Engine.World.Content.PlaceStory.Captives.Any(captive => Is(captive.Look))) missing.Add($"{species.Name} {way}");
+                }
+            }
+            report.Check("Every species is met every way: in harness, wild, as bones, rotting and as a ghost", missing.Count == 0, string.Join(", ", missing));
+
+            // Nothing is in the bestiary that no land ever fields. A land's tyrant is its keep's, the labs have a boss of their own, a sentry is who they stand on guard, and what heroes raise is theirs.
+            var fielded = new HashSet<EnemyKind>(recipes.SelectMany(recipe => recipe.Leaders.Concat(recipe.Core).Concat(recipe.Support)));
+            foreach (string tyrant in Chronicle.TyrantKinds) fielded.Add(Bestiary.Find(tyrant)!);
+            fielded.UnionWith(new[] { Bestiary.Warlord, Bestiary.Sentry, Bestiary.Bones, Bestiary.Hound, Bestiary.Legionary, Bestiary.Marksman });
+            var unmet = Bestiary.Everyone.Where(kind => !fielded.Contains(kind)).Select(kind => kind.Name).ToList();
+            report.Check("Every kind is met somewhere", unmet.Count == 0, string.Join(", ", unmet));
+
+            // What makes one beast a different fight from another is what it does and what it is, not how much of it there is: its books, and what each of its modifiers is about, whatever the number.
+            static string Shape(Mod mod) => $"{mod.Kind}:{mod.Stat}:{mod.Scope}:{mod.Foe}:{mod.Need}:{mod.Rule}:{mod.On}:{mod.Book}:{mod.From}>{mod.To}";
+            static string Fight(EnemyKind kind) => string.Join(",", kind.Books.Select(book => book.Id)) + "|" + string.Join(",", kind.Mods.Select(Shape).OrderBy(shape => shape, StringComparer.Ordinal))
+                + $"|{kind.KeepsAway}|{kind.Skirmishes}|{kind.Barrier > 0f}";
+            var same = beasts.GroupBy(Fight).Where(group => group.Count() > 1).Select(group => string.Join(" = ", group.Select(kind => kind.Name))).ToList();
+            report.Check("No two beasts are the same fight", same.Count == 0, string.Join("; ", same));
+
+            // What something leaves as it falls comes with no warning, so it's only ever ground that lingers, which can be walked out of, and never a blow.
+            var sudden = Bestiary.Everyone.SelectMany(kind => kind.Mods.Where(mod => mod.Kind == ModKind.Trigger && mod.On is TriggerEvent.Fell or TriggerEvent.Struck && mod.Book != 0).Select(mod => (kind, book: Shelf.Get(mod.Book))))
+                .Where(left => left.book.Pages.Any(page => page.Hostile && !page.Lingers)).Select(left => $"{left.kind.Name}: {left.book.Name}").ToList();
+            report.Check("What a creature leaves behind unasked is ground that lingers, never a blow", sudden.Count == 0, string.Join(", ", sudden));
+
+            // What comes first in a list is what it does whenever it can, so anything after something that never rests is never done at all.
+            var idle = beasts.Where(kind => Enumerable.Range(1, kind.Books.Length - 1).Any(later => kind.Books.Take(later).Any(book => Unresting(book) && ReachOf(book) >= ReachOf(kind.Books[later])))).Select(kind => kind.Name).ToList();
+            report.Check("Every beast gets to everything it knows: nothing is behind something that never rests and reaches as far", idle.Count == 0, string.Join(", ", idle));
+
+            // A pounce, a charge and a ram carry their user along, and the ground counts for the ride, so it comes down where it was marked whether or not anyone waited.
+            var rides = beasts.SelectMany(kind => kind.Books).Distinct().Where(book => book.First.Rides).ToList();
+            report.Check("Something pounces, something charges and something rams", rides.Count >= 3, $"{rides.Count}");
+            report.Check("What carries a beast along comes down where it's marked, whoever's still there", rides.All(book => book.First.Grounded && book.Pages.Length > 1 && book.Pages[1].Kind == PageKind.Area && book.Pages.Sum(page => page.Cooldown) > 0f),
+                string.Join(", ", rides.Where(book => !book.First.Grounded).Select(book => book.Id)));
+        }
+
+        private static bool Unresting(BookPlan book) => book.Pages.Sum(page => page.Cooldown) <= 0f && !book.First.Rides;
+
+        // How far off a creature reaches for a book, near enough: as EnemyBrainSystem.Reach has it.
+        private static float ReachOf(BookPlan book) => book.First.Kind != PageKind.Area ? book.First.Range : book.First.Shape == AreaShape.Cone ? book.First.Length : book.First.Length * 0.75f;
+
         private static void PackContent(Report report)
         {
             report.Section("Packs");
@@ -969,6 +1028,8 @@ namespace Dino_BuildLab
             var looks = new[] { "bandit", "cutthroat", "brute", "skeleton", "skeleton:bow", "revenant", "wolf", "direwolf", "boar", "bear", "warlord", "reich:legionary", "reich:marksman", "reich:wrangler" };
             bool Drawn(EnemyKind k) => looks.Contains(k.Look) || k.Look.StartsWith("robed:") || k.Look.StartsWith("acolyte:") || Dino_Engine.Modelling.Procedural.Saurian.SaurianSpec.Parse(k.Look) != null;
             report.Check("Everything is drawn as something", Bestiary.Everyone.All(Drawn), string.Join(" ", Bestiary.Everyone.Where(k => !Drawn(k)).Select(k => k.Look)));
+
+            Beasts(report, recipes);
 
             // A tyrant is only ever what holds a land, and each land's story names one the bestiary has.
             report.Check("Every land's tyrant is a kind there is", Enumerable.Range(0, 200).All(seed => Bestiary.Find(Chronicle.BossKindOf(seed)) != null));

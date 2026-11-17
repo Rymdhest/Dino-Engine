@@ -554,6 +554,7 @@ namespace Dino_Defenders.Tooltips
                 TriggerEvent.MinionDied => "When one of your Minions dies",
                 TriggerEvent.Used => "When you use a Book",
                 TriggerEvent.Time => $"Every {Say.Seconds(mod.PerStep)}",
+                TriggerEvent.Fell => "When you fall",
                 _ => $"Every {Say.Metres(mod.PerStep)} you move",
             };
             when += Own(mod.Need);

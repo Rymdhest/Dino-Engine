@@ -349,6 +349,7 @@ namespace Dino_Defenders.Server
                 AggroRadius = ArrivalAggro,
                 LeashRadius = MathF.Max(kind.LeashRadius, ArrivalAggro),
                 KeepsAway = kind.KeepsAway,
+                Skirmishes = kind.Skirmishes,
                 Experience = Bestiary.ExperienceAt(level, power.Health * kind.Health),
                 Abilities = Bestiary.AbilitiesOf(kind, traits),
                 Cooldown = random.Range(0f, 1f),

@@ -2,7 +2,7 @@
 
 A developer's room, and nothing else: a flat isle where one of everything the game has stands on its own plot with its name on a plaque, every creature and person, every plant and stone, every kind of place a land can have, laid out in labelled rows, so that anything can be found, looked at from the game's own camera and named when something about it needs work. It's reached only from the Developer window of the F3 overlay, from the Haven ("Go to the asset test level"), and it isn't part of the game: it's built to be taken out whole (see the end).
 
-Status: built on 2026-11-15. `Dino WorldLab lexicon` grows it with no window and holds it to everything below, and `Dino NetLab lexicon` plays it through a client on a line; it's been entered in the game by scripted runs and looked at in their pictures, from the landing, the index and every section, and a dozen of its places. **Nobody has walked it with real input yet**: say what's hard to read or find.
+Status: built on 2026-11-15. Since 2026-11-17 no plot in the Dinosaurs section stands empty: every species is met every way (`LORE.md`), which `Dino BuildLab check` now holds, so a new species shows its gaps there as well as here. `Dino WorldLab lexicon` grows it with no window and holds it to everything below, and `Dino NetLab lexicon` plays it through a client on a line; it's been entered in the game by scripted runs and looked at in their pictures, from the landing, the index and every section, and a dozen of its places. **Nobody has walked it with real input yet**: say what's hard to read or find.
 
 ## Getting there and back
 

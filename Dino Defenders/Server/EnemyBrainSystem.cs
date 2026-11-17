@@ -53,6 +53,14 @@ namespace Dino_Defenders.Server
         private const float StallTime = 0.35f;          // Seconds of going nowhere before it does something about it.
         private const float DetourTime = 2.5f;          // Seconds it keeps to a path once the straight way has failed it.
         private const float SideTime = 0.6f;
+        private const float LeapLeast = 7f;             // Metres. Nearer than this there's nothing to leap over, and it bites.
+        private const float LeapSpeed = 30f;            // Metres a second it goes at, with a pounce or a charge.
+        private const float LeapFastest = 48f;          // And the most, when something held it up on the way.
+        private const float LeapCrouch = 0.55f;         // Seconds it gathers itself before it goes, which is when it can be seen coming.
+        private const float LeapShort = 0.3f;           // Metres between its body and whoever it's going for's, where it comes down: the blow starts from where it stands.
+        private const float SkirmishTime = 1.1f;        // Seconds something that strikes and runs keeps running.
+        private const float SkirmishReach = 13f;        // Metres off at which it's far enough, and turns back.
+        private const float RallyReach = 18f;           // Metres off a foe at which it does what it does for itself or its own side, as a wrangler goads its beasts: before they've closed, and whenever it's ready after.
 
         private readonly ServerRoom _server;
         private readonly WorldRandom _random = new WorldRandom(Environment.TickCount);
@@ -88,6 +96,7 @@ namespace Dino_Defenders.Server
                     session.Combat.Withdraw(brain.Mark);
                     session.Combat.Stop(entity.Entity);
                     brain.Mark = default;
+                    brain.Leaping = false;
                     Change(ref enemy, ref brain, EnemyState.Recovering);
                 }
                 brain.Asked = 0f;
@@ -155,7 +164,7 @@ namespace Dino_Defenders.Server
                         break;
                     }
 
-                    int ready = brain.Cooldown <= 0f ? Ready(actor, toTarget) : -1;
+                    int ready = brain.Cooldown <= 0f ? Ready(session, actor, position, foe, toTarget, target!.Radius + actor.Radius + LeapShort) : -1;
                     float wants = Comfort(actor);
 
                     // Nothing goes through a fence or a pillar, so with one in the way it goes round rather than strike at it.
@@ -165,7 +174,7 @@ namespace Dino_Defenders.Server
                     {
                         brain.Book = ready;
                         BookProfile chosen = actor.Sheet.Profile(ready);
-                        Commit(session, entity.Entity, actor, ref brain, enemy.Rarity, chosen, position, foe, toTarget);
+                        Commit(session, entity.Entity, actor, ref brain, enemy.Rarity, chosen, position, foe, toTarget, target!.Radius + actor.Radius + LeapShort);
                         Change(ref enemy, ref brain, EnemyState.WindingUp);
                     }
                     else if (hidden || toTarget > wants * 0.75f)
@@ -183,10 +192,19 @@ namespace Dino_Defenders.Server
 
                 case EnemyState.WindingUp:
                     Face(entity, brain.AimWay, deltaTime, 16f);
+
+                    // A pounce or a charge takes it along: over the last of the wind-up it covers the ground to where it said it would land, and is there as the blow is. Whatever stops it on
+                    // the way stops it, and the blow lands where it was marked all the same.
+                    if (brain.Leaping && brain.WindUpTicks <= brain.LeapTicks)
+                    {
+                        velocity = (brain.LeapTo - position) / (MathF.Max(brain.WindUpTicks, 1) * NetTime.TickSeconds);
+                        if (velocity.LengthSquared > LeapFastest * LeapFastest) velocity = velocity.Normalized() * LeapFastest;
+                    }
                     if (--brain.WindUpTicks <= 0)
                     {
                         Let(session, actor, brain);
                         brain.Mark = default;
+                        brain.Leaping = false;
                         if (actor.Eager)
                         {
                             // What it was given, it uses as a hero would: again as soon as the book's own time is up.
@@ -203,6 +221,15 @@ namespace Dino_Defenders.Server
                     break;
 
                 case EnemyState.Recovering:
+                    if (brain.Skirmishes && !noFoe)
+                    {
+                        // What strikes and runs is gone as soon as it's struck, and comes back when it's far enough off to turn.
+                        Vector2 away = position - foe;
+                        velocity = (away.LengthSquared > 1e-4f ? away.Normalized() : -brain.AimWay) * speed;
+                        Face(entity, velocity, deltaTime);
+                        if (brain.StateTime >= SkirmishTime || toTarget >= SkirmishReach) Change(ref enemy, ref brain, EnemyState.Chasing);
+                        break;
+                    }
                     velocity = Spread(session, actor, ref brain, entity.Entity.Id, toTarget) * speed * 0.6f;
                     if (brain.StateTime >= RecoverTime) Change(ref enemy, ref brain, EnemyState.Chasing);
                     break;
@@ -262,13 +289,23 @@ namespace Dino_Defenders.Server
             return Sight.Clear(_blockers, shape.Origin, foe);
         }
 
-        private static void Commit(ServerSession session, Entity who, Actor actor, ref EnemyBrainComponent brain, Rarity rarity, BookProfile book, Vector2 position, Vector2 foe, float toTarget)
+        /// <param name="short">How far short of its foe's middle something that goes along with its blow comes down: the two bodies, and a little between them.</param>
+        private static void Commit(ServerSession session, Entity who, Actor actor, ref EnemyBrainComponent brain, Rarity rarity, BookProfile book, Vector2 position, Vector2 foe, float toTarget, float @short)
         {
             Vector2 toward = foe - position;
             brain.AimFrom = position;
             brain.AimWay = toward.LengthSquared > 1e-4f ? toward.Normalized() : Vector2.UnitY;
-            brain.AimReach = toTarget + MeleeSlack;
-            brain.WindUpTicks = (int)MathF.Round((actor.Eager ? MathF.Max(book.ImpactTime, NetTime.TickSeconds) : WindUpOf(book, rarity)) / MathF.Max(actor.Afflictions.ActionRate, 0.1f) * NetTime.TicksPerSecond);
+
+            // What carries it along is aimed at where it comes down, just short of whoever it's for, and takes as long as getting there does on top of gathering itself.
+            bool leap = book.Sign.Form == PageForm.Leap;
+            brain.AimReach = leap ? LeapOf(book, toTarget, @short) : toTarget + MeleeSlack;
+            float flight = leap ? brain.AimReach / LeapSpeed : 0f;
+            float waits = actor.Eager ? MathF.Max(book.ImpactTime, NetTime.TickSeconds) : WindUpOf(book, rarity);
+            if (leap) waits = MathF.Max(waits, flight + LeapCrouch);
+            brain.WindUpTicks = (int)MathF.Round(waits / MathF.Max(actor.Afflictions.ActionRate, 0.1f) * NetTime.TicksPerSecond);
+            brain.Leaping = leap;
+            brain.LeapTo = position + brain.AimWay * brain.AimReach;
+            brain.LeapTicks = leap ? Math.Clamp((int)MathF.Ceiling(flight * NetTime.TicksPerSecond), 1, Math.Max(brain.WindUpTicks, 1)) : 0;
 
             // It pays as it starts, as a hero does.
             if (actor.Pays) actor.Vitals.Mana -= book.Cost;
@@ -277,8 +314,8 @@ namespace Dino_Defenders.Server
             float follow = MathF.Min(MathF.Max(book.UseTime - book.ImpactTime, 0.35f), MostFollowThrough);
             session.Combat.Perform(who, book.Sign, windUp, windUp + follow, brain.AimWay);
 
-            // Those on the heroes' side have no need of telling anyone, and there can be a lot of them.
-            if (actor.Team != Team.Enemies) return;
+            // Those on the heroes' side have no need of telling anyone, and there can be a lot of them. Nor has what's only for its own side: a mark is ground to get off.
+            if (actor.Team != Team.Enemies || book.Sign.Form == PageForm.Buff) return;
             GroundShape shape = GroundShape.Of(book, position, brain.AimWay, brain.AimReach);
             brain.Mark = session.Combat.Warn(shape, TierOf(rarity, book), true, windUp + book.Delay, from: rarity);
         }
@@ -372,7 +409,9 @@ namespace Dino_Defenders.Server
             for (int i = 0; i < actor.Loadout.Books.Length; i++)
             {
                 BookProfile book = actor.Sheet.Profile(i);
-                if (!Chosen(book)) continue;
+
+                // What it goes along with is no reason to stand off either: that's for getting there. Nor is what it does for its own side.
+                if (!Chosen(book) || book.Sign.Form is PageForm.Leap or PageForm.Buff) continue;
                 if (actor.Cooldowns[i] > 0f) waiting = MathF.Max(waiting, Reach(book));
                 else best = MathF.Max(best, Reach(book));
             }
@@ -385,32 +424,47 @@ namespace Dino_Defenders.Server
         {
             PageForm.Strike => book.First.Length,
             PageForm.Nova => book.First.Length * 0.75f,
+            PageForm.Buff => RallyReach,
             _ => book.First.Range,
         };
 
         // The first thing it has that's ready and will reach. Books are listed best first, so that's also the one it wants.
-        private static int Ready(Actor actor, float distance)
+        private static int Ready(ServerSession session, Actor actor, Vector2 position, Vector2 foe, float distance, float @short)
         {
             for (int i = 0; i < actor.Loadout.Books.Length; i++)
             {
                 if (actor.Cooldowns[i] > 0f) continue;
                 BookProfile book = actor.Sheet.Profile(i);
                 if (actor.Pays && actor.Vitals.Mana < book.Cost) continue;
-                if (Chosen(book) && distance <= Reach(book)) return i;
+                if (!Chosen(book)) continue;
+                if (book.Sign.Form == PageForm.Leap ? Leaps(session, actor, book, position, foe, distance, @short) : distance <= Reach(book)) return i;
             }
             return -1;
         }
 
         // What it reaches for itself when a foe is in reach. The rest go off by themselves, or aren't aimed at anyone.
-        private static bool Chosen(BookProfile book) => (book.First.Tags & Tags.Triggered) == 0 && book.Sign.Form is not (PageForm.Buff or PageForm.Summon or PageForm.Leap);
+        private static bool Chosen(BookProfile book) => (book.First.Tags & Tags.Triggered) == 0 && book.Sign.Form != PageForm.Summon;
+
+        // How far a pounce or a charge takes it: to just short of whoever it's going for, so that they're in what it does as it lands.
+        private static float LeapOf(BookProfile book, float distance, float @short) => MathF.Max(MathF.Min(distance - @short, book.First.Range), 0f);
+
+        // Whether it would go for someone that way: far enough off to be worth it, near enough to get there, and with nothing between them that it can't go through, as it goes straight.
+        private static bool Leaps(ServerSession session, Actor actor, BookProfile book, Vector2 position, Vector2 foe, float distance, float @short)
+        {
+            if (actor.Rooted || distance - @short < LeapLeast || distance - @short > book.First.Range) return false;
+            Vector2 way = (foe - position) / distance;
+            return WorldPathfinder.HasClearLine(session.World, position, position + way * LeapOf(book, distance, @short), wider: WorldPathfinder.Wider(actor.Radius));
+        }
 
         private static void Let(ServerSession session, Actor actor, in EnemyBrainComponent brain)
         {
             BookProfile book = actor.Sheet.Profile(brain.Book);
             actor.Cooldowns[brain.Book] = brain.Book < brain.Abilities ? MathF.Max(book.Cooldown, Rulebook.AbilityCooldown) : book.Cooldown;
 
-            // It goes where it said it would. Whether anyone's still there is their business: that's the whole of how a blow gets dodged.
-            session.Combat.Release(actor, book, brain.AimFrom, brain.AimWay, brain.AimReach);
+            // It goes where it said it would. Whether anyone's still there is their business: that's the whole of how a blow gets dodged. What carried it along goes off where it
+            // was going, which is where its mark is, wherever it got to itself.
+            if (brain.Leaping) session.Combat.Release(actor, book, brain.LeapTo, brain.AimWay, 0f);
+            else session.Combat.Release(actor, book, brain.AimFrom, brain.AimWay, brain.AimReach);
         }
 
         public static void Face(EntityView entity, Vector2 direction, float deltaTime, float speed = 14f)

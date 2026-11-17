@@ -55,6 +55,14 @@ namespace Dino_NetLab
             PackKeepsApart(report, worlds, request);
             MinionsKeepApart(report, worlds, request);
 
+            report.Section("What each beast does that's its own");
+            Pounces(report, worlds, request);
+            StrikesAndRuns(report, worlds, request);
+            LeavesBile(report, worlds, request);
+            Goads(report, worlds, request);
+            PassesItsLightOn(report, worlds, request);
+            BonesAndArrows(report, worlds, request);
+
             return report.Finish();
         }
 
@@ -423,6 +431,264 @@ namespace Dino_NetLab
             }
             report.Check("A hero walking back through their minions doesn't walk through them", throughHero < BodySlack, $"{throughHero:P0} at worst");
             report.Check("And they turn to follow, facing where they go", backMoving > 0 && backFacing >= backMoving * 0.75f, $"{backFacing} of {backMoving} steps");
+        }
+
+        // One of a kind as the world would stand it: its own body's width, and its kind's habits in its brain.
+        private static (Actor actor, Entity entity) Beast(Arena arena, EnemyKind kind, Vector2 offset, float aggro = 60f)
+        {
+            GameServer server = arena.Lab.Server;
+            Loadout loadout = arena.Session.Bestiary.Shared(kind, 10, Rarity.Normal, Bestiary.NoTraits);
+            Vector2 at = arena.At + offset;
+            float height = arena.Session.World.Height.Sample(at);
+            float radius = kind.RadiusAt(kind.Scale);
+            var actor = new Actor(Team.Enemies, loadout, at, radius) { Body = "skeleton", Height = height };
+            actor.Entity = server.Ecs.CreateEntity(kind.Name, Bodies.Walking(server.Main, "skeleton", new Vector3(at.X, height, at.Y), 1f, 2f, radius,
+                new EnemyComponent { Name = kind.Name, Rarity = Rarity.Normal, Level = 10 },
+                new EnemyBrainComponent { SiteIndex = 0, SpawnIndex = -1, Home = at, AggroRadius = aggro, LeashRadius = 200f, KeepsAway = kind.KeepsAway, Skirmishes = kind.Skirmishes },
+                new HealthComponent(actor.Sheet.MaxHealth), new ActionComponent(), new AfflictedComponent(), new ActorComponent(actor)));
+            return (actor, actor.Entity);
+        }
+
+        private static (EnemyComponent enemy, EnemyBrainComponent brain) Mind(Arena arena, Entity entity)
+        {
+            EntityView view = arena.Lab.Server.Ecs.GetEntityView(entity);
+            return (view.Get<EnemyComponent>(), view.Get<EnemyBrainComponent>());
+        }
+
+        // A ripper from far enough off comes the rest of the way in one go. Where it's going is marked before it leaves, it's there as the blow is, and the blow is where the mark was.
+        private static void Pounces(Report report, WorldCache worlds, WorldRequest request)
+        {
+            using var arena = new Arena(worlds, request, Tough());
+            GameServer server = arena.Lab.Server;
+            (Actor ripper, Entity entity) = Beast(arena, Bestiary.Ripper, Standing(arena, 0f, 15f) - arena.At);
+
+            bool leapt = false;
+            EnemyBrainComponent brain = default;
+            Vector2 from = default;
+            for (double waited = 0.0; waited < 5.0 && !leapt; waited += NetTime.TickSeconds)
+            {
+                from = ripper.Position;
+                arena.Run(NetTime.TickSeconds);
+                (EnemyComponent enemy, brain) = Mind(arena, entity);
+                leapt = enemy.State == EnemyState.WindingUp && brain.Leaping;
+            }
+            report.Check("A ripper far enough off pounces", leapt);
+            if (!leapt) return;
+
+            Vector2 to = brain.LeapTo;
+            float gap = (arena.At - to).Length;
+            report.Check("At whoever it's after, from where it stood", (to - from).Length > 6f && gap < ripper.Radius + arena.Hero.Radius + 1f, $"{(to - from).Length:0.0} m, to {gap:0.0} m off them");
+
+            bool marked = brain.Mark.IsValid() && server.Ecs.TryGetEntityLocation(brain.Mark, out _, out _);
+            Vector2 markAt = marked ? server.Ecs.GetEntityView(brain.Mark).Get<PositionComponent>().value.Xz : default;
+            uint lands = marked ? server.Ecs.GetEntityView(brain.Mark).Get<TelegraphComponent>().Lands : 0u;
+            report.Check("What's marked is where it comes down, and not where it's standing", marked && (markAt - to).Length < 0.2f, $"{(markAt - to).Length:0.00} m off");
+            report.Check("With long enough to see it and step out", marked && (lands - arena.Session.Server.Tick) * NetTime.TickSeconds >= 0.6f, $"{(lands - arena.Session.Server.Tick) * NetTime.TickSeconds:0.00} s");
+
+            // It stays where it is while it gathers itself, then goes.
+            float health = arena.Hero.Vitals.Health;
+            float still = 0f;
+            bool gone = false;
+            uint let = 0;
+            for (int guard = 0; guard < 240; guard++)
+            {
+                Vector2 was = ripper.Position;
+                arena.Run(NetTime.TickSeconds);
+                (EnemyComponent enemy, brain) = Mind(arena, entity);
+                if (!gone && (ripper.Position - was).Length < 0.02f) still += NetTime.TickSeconds;
+                else gone = true;
+                if (enemy.State == EnemyState.WindingUp) continue;
+                let = arena.Session.Server.Tick;
+                break;
+            }
+            report.Check("It gathers itself first, which is when it's seen coming", still >= 0.3f, $"{still:0.00} s");
+            report.Check("And lets go on the tick its mark said", marked && Math.Abs((long)let - lands) <= 1, $"marked for {lands}, let go on {let}");
+            arena.Run(NetTime.TickSeconds * 3);
+            report.Check("It's there as the blow lands", (ripper.Position - to).Length < 1.5f, $"{(ripper.Position - to).Length:0.0} m off");
+            report.Check("Which reaches whoever stood for it", arena.Hero.Vitals.Health < health);
+            report.Check("And it's a while before it does that again", ripper.Cooldowns[0] > 4f, $"{ripper.Cooldowns[0]:0.0} s");
+
+            // Too near to be worth it, it bites.
+            using var close = new Arena(worlds, request, Tough());
+            (Actor near, Entity nearEntity) = Beast(close, Bestiary.Ripper, Standing(close, 0f, 6f) - close.At);
+            bool wound = false, leaping = false;
+            for (double waited = 0.0; waited < 4.0 && !wound; waited += NetTime.TickSeconds)
+            {
+                close.Run(NetTime.TickSeconds);
+                (EnemyComponent enemy, EnemyBrainComponent mind) = Mind(close, nearEntity);
+                wound = enemy.State == EnemyState.WindingUp;
+                leaping = mind.Leaping;
+            }
+            report.Check("Up close there's nothing to pounce over, and it does something else", wound && !leaping);
+        }
+
+        // A strider bites and is gone, and comes back for another.
+        private static void StrikesAndRuns(Report report, WorldCache worlds, WorldRequest request)
+        {
+            using var arena = new Arena(worlds, request, Tough());
+            (Actor strider, Entity entity) = Beast(arena, Bestiary.Strider, Standing(arena, 0f, 10f) - arena.At);
+
+            int blows = 0;
+            float atBlow = 0f, furthest = 0f;
+            EnemyState last = EnemyState.Idle;
+            for (double waited = 0.0; waited < 10.0 && blows < 2; waited += NetTime.TickSeconds)
+            {
+                arena.Run(NetTime.TickSeconds);
+                (EnemyComponent enemy, _) = Mind(arena, entity);
+                float off = (strider.Position - arena.At).Length;
+                if (last == EnemyState.WindingUp && enemy.State != EnemyState.WindingUp)
+                {
+                    if (++blows == 1) atBlow = off;
+                }
+                else if (blows == 1) furthest = MathF.Max(furthest, off);
+                last = enemy.State;
+            }
+            report.Check("A strider that's struck is gone again", blows >= 1 && furthest > atBlow + 5f, $"struck at {atBlow:0.0} m, got to {furthest:0.0} m");
+            report.Check("And comes back for another", blows >= 2);
+
+            (Actor raptor, Entity other) = Beast(arena, Bestiary.Raptor, Standing(arena, MathF.PI, 10f) - arena.At);
+            float nearest = float.MaxValue, after = 0f;
+            bool struck = false;
+            last = EnemyState.Idle;
+            for (double waited = 0.0; waited < 6.0; waited += NetTime.TickSeconds)
+            {
+                arena.Run(NetTime.TickSeconds);
+                (EnemyComponent enemy, _) = Mind(arena, other);
+                float off = (raptor.Position - arena.At).Length;
+                if (last == EnemyState.WindingUp && enemy.State != EnemyState.WindingUp) struck = true;
+                if (struck) after = MathF.Max(after, off);
+                nearest = MathF.Min(nearest, off);
+                last = enemy.State;
+            }
+            report.Check("What doesn't run stands its ground between blows", struck && after < nearest + 4f, $"within {nearest:0.0} m, and {after:0.0} m at its furthest after");
+        }
+
+        // What's rotting leaves its bile where it falls, which hurts whoever stays standing in it. Anything else leaves nothing.
+        private static void LeavesBile(Report report, WorldCache worlds, WorldRequest request)
+        {
+            using var arena = new Arena(worlds, request, Tough());
+            (Actor rotting, _) = Beast(arena, Bestiary.RottingRaptor, Standing(arena, 0f, 2.5f) - arena.At, aggro: 0f);
+            (Actor living, _) = Beast(arena, Bestiary.Raptor, Standing(arena, MathF.PI, 30f) - arena.At, aggro: 0f);
+            arena.Run(0.2);
+
+            arena.Combat.Harm(arena.Hero, rotting, 1e9f, DamageType.Physical);
+            arena.Combat.Harm(arena.Hero, living, 1e9f, DamageType.Physical);
+            float health = arena.Hero.Vitals.Health;
+            arena.Run(0.3);
+            report.Check("Something rotting falls", rotting.Dead && living.Dead);
+            report.Check("And leaves what kept it going where it lay", rotting.Zones.Count == 1 && rotting.Zones[0].Left > 2f, $"{rotting.Zones.Count}");
+            report.Check("Which is ground that lingers, and can be walked out of", rotting.Zones.Count == 1 && rotting.Zones[0].Page.Page.Lingers);
+            report.Check("Something living leaves nothing", living.Zones.Count == 0, $"{living.Zones.Count}");
+
+            arena.Run(2.5);
+            report.Check("Whoever stays standing in it is the worse for it", arena.Hero.Vitals.Health < health, $"{health - arena.Hero.Vitals.Health:0.0}");
+            arena.Run(5.0);
+            float left = arena.Hero.Vitals.Health;
+            arena.Run(8.0);
+            report.Check("And it's gone in the end", rotting.Zones.TrueForAll(zone => zone.Left <= 0f) && arena.Hero.Vitals.Health >= left - 0.01f);
+        }
+
+        // A wrangler goads what's round them before it fights, and nothing's marked for it, as it's nothing to get out of the way of.
+        private static void Goads(Report report, WorldCache worlds, WorldRequest request)
+        {
+            using var arena = new Arena(worlds, request, Tough());
+            (Actor wrangler, Entity entity) = Beast(arena, Bestiary.Wrangler, Standing(arena, 0f, 13f) - arena.At);
+            (Actor raptor, _) = Beast(arena, Bestiary.WarRaptor, Standing(arena, 0.3f, 15f) - arena.At, aggro: 0f);
+
+            bool goading = false, marked = false, goaded = false;
+            for (double waited = 0.0; waited < 5.0 && !goaded; waited += NetTime.TickSeconds)
+            {
+                arena.Run(NetTime.TickSeconds);
+                (EnemyComponent enemy, EnemyBrainComponent brain) = Mind(arena, entity);
+                if (enemy.State == EnemyState.WindingUp && brain.Book == 0)
+                {
+                    goading = true;
+                    marked |= brain.Mark.IsValid();
+                }
+                goaded = wrangler.Cooldowns[0] > 0f;
+            }
+            arena.Run(0.2);
+            bool Quick(Actor actor) => actor.Buffs.Exists(buff => buff.Buff == Dino_Defenders.Books.BuffCatalog.Quickening);
+            report.Check("A wrangler goads before it fights", goading && goaded);
+            report.Check("Which marks no ground", !marked);
+            report.Check("What's round them is the quicker for it", Quick(raptor) && raptor.Sheet.MoveSpeed > Bestiary.WarRaptor.MoveSpeed * 1.2f, $"{raptor.Sheet.MoveSpeed:0.0} m/s");
+            report.Check("And no hero is", !Quick(arena.Hero));
+
+            bool fights = false;
+            for (double waited = 0.0; waited < 8.0 && !fights; waited += NetTime.TickSeconds)
+            {
+                arena.Run(NetTime.TickSeconds);
+                (EnemyComponent enemy, EnemyBrainComponent brain) = Mind(arena, entity);
+                fights = enemy.State == EnemyState.WindingUp && brain.Book != 0;
+            }
+            report.Check("Then it comes in and fights, rather than standing off to goad again", fights, $"{(wrangler.Position - arena.At).Length:0.0} m off");
+        }
+
+        // One light moves a pit of bone skitters: when one falls, the rest have what moved it.
+        private static void PassesItsLightOn(Report report, WorldCache worlds, WorldRequest request)
+        {
+            using var arena = new Arena(worlds, request, Tough());
+            Vector2 at = Standing(arena, 0f, 25f) - arena.At;
+            (Actor first, _) = Beast(arena, Bestiary.BoneSkitter, at, aggro: 0f);
+            (Actor second, _) = Beast(arena, Bestiary.BoneSkitter, at + new Vector2(3f, 0f), aggro: 0f);
+            (Actor raptor, _) = Beast(arena, Bestiary.BoneRaptor, at + new Vector2(0f, 3f), aggro: 0f);
+            arena.Run(0.2);
+            float before = second.Sheet.Preview(Dino_Defenders.Books.Shelf.HungryBite).First.AverageHit;
+
+            arena.Combat.Harm(arena.Hero, first, 1e9f, DamageType.Physical);
+            arena.Run(0.3);
+            bool Rallied(Actor actor) => actor.Buffs.Exists(buff => buff.Buff == Dino_Defenders.Books.BuffCatalog.Rallied);
+            report.Check("A bone skitter falling drives on the ones beside it", first.Dead && Rallied(second) && Rallied(raptor));
+            report.Check("Which bite the harder for it", second.Sheet.Preview(Dino_Defenders.Books.Shelf.HungryBite).First.AverageHit > before * 1.05f);
+
+            arena.Combat.Harm(arena.Hero, raptor, 1e9f, DamageType.Physical);
+            arena.Run(0.3);
+            report.Check("A bone raptor falling drives nobody on", raptor.Dead && second.Buffs.Find(buff => buff.Buff == Dino_Defenders.Books.BuffCatalog.Rallied).Stacks == 1);
+
+            (Actor shell, _) = Beast(arena, Bestiary.GhostClubtail, at + new Vector2(-8f, 0f), aggro: 0f);
+            arena.Run(0.2);
+            report.Check("A clubtail's ghost has a shell of light", shell.Sheet.MaxBarrier > shell.Sheet.MaxHealth * 0.2f && shell.Vitals.Barrier >= shell.Sheet.MaxBarrier * 0.99f, $"{shell.Vitals.Barrier:0} of {shell.Sheet.MaxBarrier:0}");
+        }
+
+        // What flies goes between a bone-beast's ribs: an arrow takes less of it than of the living animal, and a blade takes the same.
+        private static void BonesAndArrows(Report report, WorldCache worlds, WorldRequest request)
+        {
+            using var arena = new Arena(worlds, request, Tough());
+
+            // Each with far more Health than it has, so that it stands for all of it, and nothing else about it changed. Not so much more that a blow is lost in the rounding of it.
+            Actor Standing(EnemyKind kind, Vector2 offset)
+            {
+                Loadout shared = arena.Session.Bestiary.Shared(kind, 10, Rarity.Normal, Bestiary.NoTraits);
+                return arena.Place(new Loadout(shared.Level, shared.Weapon, shared.Mods.Concat(shared.RuleMods).Concat(shared.Triggers).Append(Flat(Stat.Health, 300000f)), shared.Books), offset);
+            }
+            Actor bones = Standing(Bestiary.BoneRaptor, new Vector2(30f, 0f)), living = Standing(Bestiary.Raptor, new Vector2(30f, 6f)), ghost = Standing(Bestiary.GhostRaptor, new Vector2(30f, 12f));
+
+            float Taken(Actor target, Dino_Defenders.Books.BookPlan book)
+            {
+                float before = target.Vitals.Health;
+                for (int i = 0; i < 600; i++) arena.Combat.Hit(arena.Hero, arena.Page(book), target, 1f, arena.At);
+                return before - target.Vitals.Health;
+            }
+            float shotBones = Taken(bones, Dino_Defenders.Books.Shelf.Shot), struckBones = Taken(bones, Dino_Defenders.Books.Shelf.Strike);
+            float shotLiving = Taken(living, Dino_Defenders.Books.Shelf.Shot), struckLiving = Taken(living, Dino_Defenders.Books.Shelf.Strike);
+            float share = shotBones / MathF.Max(struckBones, 1f) / (shotLiving / MathF.Max(struckLiving, 1f));
+            report.Check("An arrow takes about a third less of a bone-beast than of the living animal, for what a blade takes of each", share > 0.55f && share < 0.75f, $"{share:P0}");
+
+            // A ghost is harder to lay a blade on than the animal it was.
+            int Landed(Actor target)
+            {
+                int landed = 0;
+                for (int i = 0; i < 1000; i++)
+                {
+                    float before = target.Vitals.Health;
+                    arena.Combat.Hit(arena.Hero, arena.Page(Dino_Defenders.Books.Shelf.Strike), target, 1f, arena.At);
+                    if (target.Vitals.Health < before) landed++;
+                }
+                return landed;
+            }
+            int onGhost = Landed(ghost), onLiving = Landed(living);
+            report.Check("Blows go through a ghost more often than through the animal it was", onLiving > 100 && onGhost < onLiving * 0.9f, $"{onGhost} of 1000 landed on the ghost, {onLiving} on the animal");
+            report.Check("A ghost's bite goes through what's worn against it", ghost.Sheet.Preview(Dino_Defenders.Books.Shelf.RakingBite).First.ArmourIgnore >= 40f && living.Sheet.Preview(Dino_Defenders.Books.Shelf.RakingBite).First.ArmourIgnore <= 0f);
         }
 
         private static (Actor actor, Entity entity) Spawn(Arena arena, EnemyKind kind, Rarity rarity, int traits, Vector2 offset)
