@@ -2176,7 +2176,7 @@ namespace Dino_Defenders.Server
             List<Item> items = Loot.Roll(tier, enemy.Level, StrongestHero, BestOfParty(s => s.ItemRarity) / 100f, _lootLuck, _luck.Fork(_luck.Int(1 << 30)), boon);
 
             // A tyrant always has its brood's orders on it, which is where the next land's come from.
-            if (actor.Tyrant) items.Add(Loot.OrdersFrom(enemy.Level, _luck.Fork(_luck.Int(1 << 30)), boon));
+            if (actor.Tyrant && !_session.IsTutorial) items.Add(Loot.OrdersFrom(enemy.Level, _luck.Fork(_luck.Int(1 << 30)), boon));
 
             // What it was wearing is yours now. That's the whole point of having seen it used.
             if (actor.Gear != null) items.AddRange(actor.Gear);

@@ -299,14 +299,14 @@ namespace Dino_Defenders.UI
 
             string help = Travelling
                 ? _friends.Count > 0 ? "Click a lit waygate, or a friend, to go there." : "Click a lit waygate to go there."
-                : session.IsHaven ? $"{Bindings.Label(GameAction.Map)} to close." : $"{Bindings.Label(GameAction.Map)} to close.  A waygate lights as you come near it.  {Bindings.Label(GameAction.Roads)} calls the lit ones, from anywhere.";
+                : session.IsHaven || session.IsTutorial ? $"{Bindings.Label(GameAction.Map)} to close." : $"{Bindings.Label(GameAction.Map)} to close.  A waygate lights as you come near it.  {Bindings.Label(GameAction.Roads)} calls the lit ones, from anywhere.";
             Ui.Text(Context, draw, help, 14f, new GuiRect(0f, map.Y - 28f, Bounds.Width, 20f), Ui.Faded, Alignment.Center);
         }
 
         /// <summary>The kinds of place whose name is written on the map in ink once the hero has been there.</summary>
         private static bool Named(SiteKind kind) => kind is SiteKind.Village or SiteKind.Hamlet or SiteKind.FishingHamlet or SiteKind.LumberCamp or SiteKind.Keep or SiteKind.Ruins
             or SiteKind.Graveyard or SiteKind.Watchtower or SiteKind.Haven or SiteKind.Shipwreck or SiteKind.Quarry or SiteKind.SnowCastle or SiteKind.Tradepost
-            or SiteKind.Excavation or SiteKind.Laboratory or SiteKind.Farm or SiteKind.Nest or SiteKind.Prison;
+            or SiteKind.Excavation or SiteKind.Laboratory or SiteKind.Farm or SiteKind.Nest or SiteKind.Prison or SiteKind.Lair;
 
         // In the cartographer's own hand, as part of the drawing and not a mark on it: each region's name spaced across where it has most room, and each place the hero has
         // been to under it, faint enough that what the land asks and the gates read over them.

@@ -135,7 +135,7 @@ namespace Dino_Defenders.UI
 
         // What the one thing to do next is: get up where nothing's lost, go home from a land that's over, or watch friends who are still at it, who can raise them. Going home is there too then.
         private static Choice Primary(GameSession session) =>
-            session.IsHaven || session.IsLexicon ? Choice.Rise : session.Client.Over ? Choice.Home : Choice.Watch;
+            session.IsHaven || session.IsLexicon || session.IsTutorial ? Choice.Rise : session.Client.Over ? Choice.Home : Choice.Watch;
 
         private static string Label(Choice choice) => choice switch
         {

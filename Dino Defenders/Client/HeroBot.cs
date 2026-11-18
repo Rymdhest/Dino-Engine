@@ -65,7 +65,7 @@ namespace Dino_Defenders.Client
             {
                 if (++_down < FramesDown) return intent;
                 _down = 0;
-                if (session.IsHaven || session.IsLexicon)
+                if (session.IsHaven || session.IsLexicon || session.IsTutorial)
                 {
                     session.Client.Rise();
                     session.Client.Forget();

@@ -114,7 +114,8 @@ namespace Dino_Engine.World
                 Archetype = archetype,
                 Name = PlaceNames.WorldName(archetype, request.Seed, random.Fork("name")),
                 Size = size,
-                Path = linear ? LandPath.Draw(size, root.Fork("path")) : null,
+                // The tutorial's way is laid out by hand, and always the same (TutorialLand).
+                Path = archetype.Tutorial ? TutorialLand.Way : linear ? LandPath.Draw(size, root.Fork("path")) : null,
                 BaseHeight = random.Range(archetype.BaseHeight),
                 HillHeight = random.Range(archetype.HillHeight),
                 MountainHeight = random.Range(archetype.MountainHeight),

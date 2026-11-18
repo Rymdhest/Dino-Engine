@@ -74,6 +74,8 @@ namespace Dino_NetLab
                     return PlaceTests.Run(options);
                 case "deaths":
                     return DeathTests.Run(options);
+                case "tutorial":
+                    return TutorialTests.Run(options);
                 case "lexicon":     // Lexicon (developer tool, LEXICON.md).
                     return LexiconTests.Run(options);
                 default:

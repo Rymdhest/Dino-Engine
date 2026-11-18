@@ -29,6 +29,7 @@ namespace Dino_Defenders
     ///   --omens a,b     Puts these omens on the first land, at the best tier its level reaches, and on any land opened with --travel.
     ///   --orders id     Gives the first land these unique orders, by id, as if they'd been given to the map table.
     ///   --haven true    Starts in the Haven, as a hero who isn't in a land does.
+    ///   --tutorial true Starts in the tutorial, as a new hero does (TUTORIAL.md).
     ///   --openway N     In the Haven, opens the way to the Nth land the map table shows, after 60 frames, without stepping through.
     ///   --landlevel N   Starts the hero's climb here: the level of the next land the map table shows.
     ///   --stash file    Keeps the stash here on a scripted run, which otherwise has one of its own that's never kept.
@@ -142,6 +143,7 @@ namespace Dino_Defenders
         public readonly List<string> Omens = new();
         public readonly List<string> Orders = new();
         public bool Haven;
+        public bool Tutorial;
         public int OpenWay = -1;
         public int LandLevel;
         public string? Stash;
@@ -270,6 +272,7 @@ namespace Dino_Defenders
                     case "omens": options.Omens.AddRange(value.Split(',')); break;
                     case "orders": options.Orders.AddRange(value.Split(',')); break;
                     case "haven": options.Haven = value == "true"; break;
+                    case "tutorial": options.Tutorial = value == "true"; break;
                     case "openway": options.OpenWay = int.Parse(value); break;
                     case "landlevel": options.LandLevel = int.Parse(value); break;
                     case "stash": options.Stash = value; break;

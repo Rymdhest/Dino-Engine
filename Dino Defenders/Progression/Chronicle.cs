@@ -205,6 +205,8 @@ namespace Dino_Defenders.Progression
                 return chronicle;
             }
 
+            if (world.Plan.Archetype.Tutorial) return WriteTutorial(world, chronicle);
+
             // A land's name starts a sentence as it is, and goes in the middle of one with a small "the".
             string name = world.Plan.Name;
             string within = name.StartsWith("The ") ? "the " + name.Substring(4) : name;
@@ -281,6 +283,39 @@ namespace Dino_Defenders.Progression
             return chronicle;
         }
 
+        // The tutorial asks for its places, every one of them, and then its beast, and pays as a first land does for each (TUTORIAL.md).
+        private static Chronicle WriteTutorial(WorldData world, Chronicle chronicle)
+        {
+            chronicle.Prologue = Tutorial.Prologue;
+            int level = world.Plan.Level;
+            WorldSite lair = world.Sites.First(site => site.Kind == SiteKind.Lair);
+            chronicle.Objectives.Add(new Objective
+            {
+                Kind = ObjectiveKind.SlayWarlord,
+                Site = SiteKind.Lair,
+                Text = Tutorial.SlayText(lair.Name),
+                Goal = 1,
+                IsMain = true,
+                RewardExperience = 400 * level,
+                RewardGold = 120 * level,
+            });
+            var freeing = new Objective
+            {
+                Kind = ObjectiveKind.FreePlaces,
+                Site = SiteKind.Haunt,
+                Text = Tutorial.FreeText,
+                RewardExperience = 200 * level,
+                RewardGold = 80 * level,
+            };
+            freeing.Places.AddRange(world.Sites.Where(Counts));
+            freeing.Goal = Math.Max(freeing.Places.Count, 1);
+            chronicle.Objectives.Add(freeing);
+            return chronicle;
+        }
+
+        /// <summary>Whether a kind of place is where a land's main objective waits, rather than one of its places to free: a keep, an arena, or the tutorial's lair.</summary>
+        public static bool IsSeat(SiteKind kind) => kind is SiteKind.Keep or SiteKind.Arena or SiteKind.Lair;
+
         /// <summary>Whether freeing a place is something the land asks.</summary>
         public bool Asks(WorldSite site) => Objectives.Any(objective => objective.Kind == ObjectiveKind.FreePlaces && objective.Places.Contains(site));
 
@@ -289,7 +324,7 @@ namespace Dino_Defenders.Progression
         private const int ArenaGold = 200;
 
         /// <summary>Whether a place is held, and isn't the keep, which is what the places a land asks to be freed are.</summary>
-        public static bool Counts(WorldSite site) => site.Kind != SiteKind.Keep && site.Spawns.Any(spawn => spawn.Role.IsHostile());
+        public static bool Counts(WorldSite site) => !IsSeat(site.Kind) && site.Spawns.Any(spawn => spawn.Role.IsHostile());
 
         /// <summary>Where a second tyrant stands, on a land whose orders gave it two: the pen farthest from where heroes come in, or the farthest place that's held if the land has no pen.</summary>
         public static WorldSite? TwinSite(WorldData world) => world.Sites.Where(site => site.Kind == SiteKind.BanditCamp).OrderByDescending(site => site.Remoteness).FirstOrDefault()

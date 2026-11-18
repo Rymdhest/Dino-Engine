@@ -249,8 +249,8 @@ namespace Dino_Defenders.Server
                 // Nothing is said, heard or given for it: a banner for every place walked into came all the time and was too much, and a sound or experience with no words to go with it only puzzled.
             }
 
-            // A waygate wakes when someone comes near it, and from then on can be travelled to. The one at the landing wakes as heroes step out of it.
-            if (IsHaven) return;
+            // A waygate wakes when someone comes near it, and from then on can be travelled to. The one at the landing wakes as heroes step out of it. The tutorial's only wakes as its beast falls.
+            if (IsHaven || IsTutorial) return;
             foreach (SiteState state in Sites)
             {
                 if (state.Lit || state.Wild || GameServer.WaygateSpawn(World, state.Site) is not Vector2 gate) continue;
@@ -400,7 +400,17 @@ namespace Dino_Defenders.Server
         /// </summary>
         public void HeroFell(ServerPlayer player)
         {
-            if (IsHaven || IsLexicon) return;     // Lexicon (developer tool, LEXICON.md): falling in the room is as falling in the Haven.
+            // Lexicon (developer tool, LEXICON.md): falling in the room is as falling in the Haven. So is falling in the tutorial, but that a hero rises at its landing (TUTORIAL.md).
+            if (IsHaven || IsLexicon || IsTutorial)
+            {
+                if (IsTutorial)
+                {
+                    Falls++;
+                    player.Hero.Records.Falls++;
+                    player.SummaryChanged = true;
+                }
+                return;
+            }
 
             player.Out = true;
             Fallen.Add(player.Name);
@@ -434,6 +444,12 @@ namespace Dino_Defenders.Server
         {
             if (player.Judged || IsHaven || IsLexicon) return;     // Lexicon (developer tool, LEXICON.md): nothing done in the room counts.
             player.Judged = true;
+            // The tutorial climbs nothing: whoever comes out of it has the whole climb before them (TUTORIAL.md).
+            if (IsTutorial)
+            {
+                Console.WriteLine($"{player.Name} {(freed ? "freed" : "left")} the tutorial, {World.Plan.Name}.");
+                return;
+            }
             if (!freed)
             {
                 Console.WriteLine($"{player.Name} lost {World.Plan.Name}, level {World.Plan.Level}, and can try it again.");
@@ -582,6 +598,7 @@ namespace Dino_Defenders.Server
 
             Server.Note(null, $"{state.Site.Name} is freed.");
             Server.PlaceFreed(state);
+            if (IsTutorial && state.Site.Kind == SiteKind.Lair) Server.Announce(null, Tutorial.GateLit, Tutorial.GateLitSubtitle, 7f);
             if (Chronicle.Asks(state.Site)) Advance(ObjectiveKind.FreePlaces, $"{state.Site.Name} is freed");
         }
 
@@ -611,8 +628,10 @@ namespace Dino_Defenders.Server
                     hero.Hero.Gold += objective.RewardGold;
                     hero.SummaryChanged = true;
                 }
-                string finished = objective.IsMain ? (objective.Goal > 1 ? "Both tyrants have fallen" : "The tyrant has fallen") : "Every place the land named is free";
-                string next = Chronicle.WorldCleared ? "" : objective.IsMain ? "  Now free the places marked on your map." : $"  Now the tyrant, at {World.Sites.First(site => site.Kind == SiteKind.Keep).Name}.";
+                string beast = IsTutorial ? $"the {Tutorial.Beast.Name}" : "the tyrant";
+                string finished = objective.IsMain ? (objective.Goal > 1 ? "Both tyrants have fallen" : $"{char.ToUpperInvariant(beast[0])}{beast.Substring(1)} has fallen") : "Every place the land named is free";
+                string seat = World.Sites.FirstOrDefault(site => Chronicle.IsSeat(site.Kind))?.Name ?? World.Plan.Name;
+                string next = Chronicle.WorldCleared ? "" : objective.IsMain ? "  Now free the places marked on your map." : $"  Now {beast}, at {seat}.";
                 Server.Announce(null, "Objective complete", objective.IsMain || objective.Goal <= 1 ? $"{finished}.{next}" : $"{done}, and {char.ToLowerInvariant(finished[0])}{finished.Substring(1)}.{next}", 5f);
             }
             if (Chronicle.WorldCleared && !Liberated) Free();
@@ -628,7 +647,8 @@ namespace Dino_Defenders.Server
                 if (!hero.Out) Judge(hero, freed: true);
                 Server.Broadcast(new SoundEvent { Cue = SoundCue.Liberated }, hero.Sim.Position);
             }
-            Server.Announce(null, "The land is free", "Go home through any waygate when you're ready. There's still what it holds, for whoever wants it.", 7f);
+            // The tutorial's waygate says so itself, as it lights (OnHostileKilled).
+            if (!IsTutorial) Server.Announce(null, "The land is free", "Go home through any waygate when you're ready. There's still what it holds, for whoever wants it.", 7f);
         }
 
         /// <summary>Writes where the world stands into a save. The hero goes in on the player's own machine. The Haven is always the same, so there's nothing to write, and a land that's over is over.</summary>

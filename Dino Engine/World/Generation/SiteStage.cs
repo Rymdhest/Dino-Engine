@@ -68,6 +68,14 @@ namespace Dino_Engine.World.Generation
 
             AddSite(world, SiteCatalog.Landing, landing, random.Fork("landing"));
 
+            // The tutorial has its landing, its places each in the clearing it's given, and the beast's lair at the end of the way, and nothing else (TutorialLand).
+            if (world.Plan.Archetype.Tutorial && world.Plan.Path is LandPath laid)
+            {
+                PlaceTutorial(world, candidates, laid, random.Fork("tutorial"));
+                LevelSites(world);
+                return;
+            }
+
             float landSquareKilometres = world.ReachableArea / 1_000_000f;
             foreach (SiteDefinition definition in SiteCatalog.All)
             {
@@ -123,6 +131,30 @@ namespace Dino_Engine.World.Generation
             LevelSites(world);
         }
 
+        // Each of the tutorial's places in the clearing it was given, and the lair in the last, as near the middle of each as there's ground for it. Where it is on the way was decided by
+        // hand, so nothing is asked of it but ground it can stand on, clear of what's already there: the nearest such to the clearing's middle, a little steeper if it must, and at worst
+        // the nearest ground there is, as the tutorial has to have every one of them.
+        private static void PlaceTutorial(WorldData world, List<Candidate> candidates, LandPath path, WorldRandom random)
+        {
+            void Put(SiteDefinition definition, LandPath.Room room, WorldRandom drawn)
+            {
+                float radius = MathF.Min(definition.Radius.Max, room.Radius * 0.8f);
+                bool Fits(Candidate candidate, float slope) => candidate.Slope <= slope && (candidate.Position - room.Centre).Length <= room.Radius
+                    && world.Sites.All(site => (site.Position - candidate.Position).Length >= site.Radius + radius + 8f);
+                Candidate pick = candidates.MinBy(candidate => (candidate.Position - room.Centre).LengthSquared);
+                foreach (float slope in new[] { definition.MaxSlope, definition.MaxSlope + 0.12f, float.MaxValue })
+                {
+                    var fitting = candidates.Where(candidate => Fits(candidate, slope)).ToList();
+                    if (fitting.Count == 0) continue;
+                    pick = fitting.MinBy(candidate => (candidate.Position - room.Centre).LengthSquared);
+                    break;
+                }
+                AddSite(world, definition, pick, drawn, radius);
+            }
+            foreach ((int room, SiteDefinition place) in TutorialLand.Places) Put(place, path.Rooms[room], random.Fork(place.Label));
+            Put(SiteCatalog.Lair, path.Last, random.Fork("lair"));
+        }
+
         /// <summary>The fewest places a land can ask to be freed, which is the most it ever asks for (the game's <c>LandTerms.MostPlaces</c>), and the fewest waygates to travel between.</summary>
         public const int LeastHeld = 5;
 
@@ -133,7 +165,7 @@ namespace Dino_Engine.World.Generation
         private static readonly SiteDefinition[] HeldToFill = { SiteCatalog.Shrine, SiteCatalog.Ruins, SiteCatalog.BanditCamp, SiteCatalog.Watchtower };
 
         /// <summary>Whether a kind of place is held by the Reich or its like until it's freed: everything but where people still live, the waygates, the landing and the keep.</summary>
-        public static bool IsHeld(SiteKind kind) => kind is not (SiteKind.Village or SiteKind.Waygate or SiteKind.Landing or SiteKind.Keep or SiteKind.Haven or SiteKind.Arena);
+        public static bool IsHeld(SiteKind kind) => kind is not (SiteKind.Village or SiteKind.Waygate or SiteKind.Landing or SiteKind.Keep or SiteKind.Haven or SiteKind.Arena or SiteKind.Lair);
 
         // However little ground a land has, it has to have enough places to free and enough waygates. What's short is looked for again, as loosely as anything is, and twice as loosely after
         // that. Its own fork, so that a land that has enough doesn't change.
@@ -646,6 +678,8 @@ namespace Dino_Engine.World.Generation
                     return "The Arena";
                 case SiteKind.Overlook:
                     return "The Overlook";
+                case SiteKind.Lair:
+                    return PlaceNames.Height(seed, random) + " Hollow";
                 default:
                     return "The Landing";
             }

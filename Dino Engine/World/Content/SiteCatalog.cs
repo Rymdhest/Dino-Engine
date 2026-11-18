@@ -33,6 +33,8 @@ namespace Dino_Engine.World.Content
         Farm,           // A rearing farm, where the Institute's young beasts are raised in paddocks until they're big enough for harness.
         Nest,           // Where what got out of the pens breeds in the deep woods.
         Prison,         // Where the Reich breaks beasts born free, chained in cages round a breaking yard.
+
+        Lair,           // The end of the tutorial's way: one beast, a chest beside it and a dark waygate behind it, which goes to the Haven once the beast is down (TUTORIAL.md).
     }
 
     public enum RoadClass
@@ -629,6 +631,23 @@ namespace Dino_Engine.World.Content
             Levelling = 0f,             // The meadow falls away from the hero's feet, which is the whole point of standing there.
         };
 
+        /// <summary>
+        /// The end of the tutorial's way (<see cref="TutorialLand"/>): where its one beast waits, with a chest beside it and a dark waygate behind it. Only ever placed there, by itself, so it isn't in <see cref="All"/>.
+        /// </summary>
+        public static readonly SiteDefinition Lair = new SiteDefinition
+        {
+            Kind = SiteKind.Lair,
+            Label = "Lair",
+            MapColour = new Vector3(0.75f, 0.1f, 0.12f),
+            Radius = new FloatRange(30f, 30f),
+            Limits = new IntRange(0, 0),
+            Margin = 30f,
+            MaxSlope = 0.38f,
+            MinInland = 24f,
+            Road = RoadClass.Track,
+            Levelling = 0.85f,
+        };
+
         /// <summary>What every <see cref="WorldData.Haunts"/> is. It isn't in <see cref="All"/>, as these don't claim land the way places do.</summary>
         public static readonly SiteDefinition Haunt = new SiteDefinition
         {
@@ -657,6 +676,7 @@ namespace Dino_Engine.World.Content
             if (kind == SiteKind.Arena) return Arena;
             if (kind == SiteKind.Overlook) return Overlook;
             if (kind == SiteKind.Haunt) return Haunt;
+            if (kind == SiteKind.Lair) return Lair;
             throw new ArgumentException($"No site definition for {kind}.");
         }
     }

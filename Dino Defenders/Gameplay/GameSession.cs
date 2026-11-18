@@ -147,7 +147,7 @@ namespace Dino_Defenders.Gameplay
         }
 
         /// <summary>Whether the old roads can be called from where the hero is now.</summary>
-        public bool CanCall => !IsHaven && !Client.Out && Sim.Health > 0f && Sim.BusyFor <= 0f && CallingSince == null;
+        public bool CanCall => !IsHaven && !IsTutorial && !Client.Out && Sim.Health > 0f && Sim.BusyFor <= 0f && CallingSince == null;
 
         /// <summary>Begins calling the old roads, which is standing still and unhurt for a while, and then the map opens to travel by.</summary>
         public void BeginCalling()
@@ -189,6 +189,7 @@ namespace Dino_Defenders.Gameplay
             if (enemy.Friendly || site < 0 || site >= Sites.Count || IsHaven || Liberated || Client.Out) return false;
             SiteState state = Sites[site];
             if (enemy.Rarity == Rarity.Unique && (state.Site.Kind == SiteKind.Keep || state.Site == _twin)) return true;
+            if (state.Site.Kind == SiteKind.Lair) return true;     // The tutorial's beast, which is only Rare.
             return PlacesAsked && !state.Cleared && Chronicle.Asks(state.Site);
         }
 
@@ -203,7 +204,7 @@ namespace Dino_Defenders.Gameplay
         {
             if (state.Wild || state.Cleared || IsHaven || IsLexicon || Liberated || Client.Out) return false;     // Lexicon (developer tool, LEXICON.md): the room asks nothing.
             if (PlacesAsked) return Chronicle.Asks(state.Site);
-            return state.Site.Kind is SiteKind.Keep or SiteKind.Arena || state.Site == _twin;
+            return Chronicle.IsSeat(state.Site.Kind) || state.Site == _twin;
         }
 
         /// <summary>
@@ -231,7 +232,7 @@ namespace Dino_Defenders.Gameplay
                 return;
             }
 
-            Guidance = Nearest(at, IsGoal) ?? Nearest(at, state => state.Site.Kind == SiteKind.Keep);
+            Guidance = Nearest(at, IsGoal) ?? Nearest(at, state => Chronicle.IsSeat(state.Site.Kind));
         }
 
         private Vector2? Nearest(Vector2 from, Func<SiteState, bool> wanted)

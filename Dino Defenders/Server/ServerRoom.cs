@@ -311,6 +311,8 @@ namespace Dino_Defenders.Server
             session.Ground.Introduce(player);
             foreach (ServerPlayer hero in _heroes) SendWorn(hero);
             if (player.Beside && session.IsHaven) TellWhereFriendsAre(player);
+            // Someone new, coming ashore for the first time, is told what the land asks (TUTORIAL.md).
+            if (session.IsTutorial && !(first && _saved is { InLand: true })) Announce(player, Tutorial.Welcome, Tutorial.WelcomeSubtitle, 8f);
         }
 
         // Someone who joins comes into the Haven, to step through when they're ready, and every Haven looks the same: with friends out in a land and nobody saying so, they'd
@@ -705,13 +707,14 @@ namespace Dino_Defenders.Server
             {
                 player.Sim.Down = true;
                 player.DownFor = 0f;
-                int lost = player.Actor.Sheet.Has(Rule.DeathTakesAll) ? player.Hero.Gold : player.Hero.Gold / 10;
+                // Nothing is lost by falling in the tutorial (TUTORIAL.md).
+                int lost = Session!.IsTutorial ? 0 : player.Actor.Sheet.Has(Rule.DeathTakesAll) ? player.Hero.Gold : player.Hero.Gold / 10;
                 player.Actor.RaresSlain = 0;
                 player.Hero.Gold -= lost;
                 player.SummaryChanged = true;
                 // What happened to them goes to them before anything else does, and the screen it's on says the rest (DEATHS.md).
                 // Lexicon (developer tool, LEXICON.md): the room, as the Haven, isn't lost by falling in it.
-                SendRecap(player, Session!.IsHaven || Session.IsLexicon);
+                SendRecap(player, Session!.IsHaven || Session.IsLexicon || Session.IsTutorial);
                 if (lost > 0) Note(player, $"{lost} gold lost.");
                 Session.HeroFell(player);
                 if (player.Out && !Session.Over) MarkFallen(player);
@@ -735,10 +738,11 @@ namespace Dino_Defenders.Server
             }
         }
 
-        // Back on their feet where nothing's lost by falling, when they say so: the Haven, and the asset lexicon (developer tool, LEXICON.md).
+        // Back on their feet where nothing's lost by falling, when they say so: the Haven, the asset lexicon (developer tool, LEXICON.md), and the tutorial, where they rise at its landing.
         private void StandUp(ServerPlayer player)
         {
-            if (!player.Sim.Down || !(Session!.IsHaven || Session.IsLexicon)) return;
+            if (!player.Sim.Down || !(Session!.IsHaven || Session.IsLexicon || Session.IsTutorial)) return;
+            if (Session.IsTutorial) Teleport(player, TryFindGround(Session.World, Session.World.Sites[0].Landing, out Vector2 landing) ? landing : Session.World.Sites[0].Landing);
             player.Sim.Down = false;
             player.Actor.Dead = false;
             player.Actor.Afflictions.Clear();
@@ -1283,7 +1287,8 @@ namespace Dino_Defenders.Server
                     break;
 
                 case HeroAction.CallRoads:
-                    if (Session!.IsHaven || player.Out || player.Sim.Health <= 0f || player.Sim.BusyFor > 0f || player.CallingSince != null) break;
+                    // Nobody calls the waygates in the tutorial: it has none to call (TUTORIAL.md).
+                    if (Session!.IsHaven || Session.IsTutorial || player.Out || player.Sim.Health <= 0f || player.Sim.BusyFor > 0f || player.CallingSince != null) break;
                     player.CallingSince = Session.Time;
                     player.CallingFrom = player.Sim.Position;
                     player.CallingHealth = player.Sim.Health;

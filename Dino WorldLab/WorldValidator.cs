@@ -338,11 +338,13 @@ namespace Dino_WorldLab
             }
 
             WorldSite landing = world.Sites[0];
-            if (!landing.Spawns.Any(s => s.Role == SpawnRole.Waygate)) Problem("the landing has no waygate");
+            bool tutorial = world.Plan.Archetype.Tutorial;
+            if (tutorial) CheckTutorial(world);
+            else if (!landing.Spawns.Any(s => s.Role == SpawnRole.Waygate)) Problem("the landing has no waygate");
             if (landing.Spawns.Any(s => s.Role == SpawnRole.Merchant)) Problem("the landing has a merchant, and nobody trades where a hero arrives");
 
             int keeps = world.Sites.Count(s => s.Kind == SiteKind.Keep);
-            if (keeps == 0) Problem("no keep");
+            if (keeps == 0 && !tutorial) Problem("no keep");
             if (keeps > 0 && !world.Sites.Any(s => s.Kind == SiteKind.Keep && s.Spawns.Any(p => p.Role == SpawnRole.Boss))) Problem("no warlord in the keep");
             foreach (WorldSite keep in world.Sites.Where(s => s.Kind == SiteKind.Keep)) CheckKeepYard(world, keep);
 
@@ -370,7 +372,7 @@ namespace Dino_WorldLab
                 }
 
                 // Every place a land asks to be freed is held, and has a chest of what they took.
-                if (site.Kind != SiteKind.Keep && site.Spawns.Any(s => s.Role.IsHostile()) && !site.Spawns.Any(s => s.Role == SpawnRole.Chest)) Problem($"{site.Name} is held, but has no chest");
+                if (site.Kind is not (SiteKind.Keep or SiteKind.Lair) && site.Spawns.Any(s => s.Role.IsHostile()) && !site.Spawns.Any(s => s.Role == SpawnRole.Chest)) Problem($"{site.Name} is held, but has no chest");
                 if (site.Kind == SiteKind.Waygate && !site.Spawns.Any(s => s.Role == SpawnRole.Waygate)) Problem($"{site.Name} is a waygate with no gate");
                 if (site.Kind == SiteKind.Graveyard) CheckChurchyard(world, site);
                 foreach (SiteSpawn spawn in site.Spawns)
@@ -418,10 +420,47 @@ namespace Dino_WorldLab
         private const float LeastWayWalked = 0.62f;     // Of the way's length, from the middle of its first clearing to its last, the walk from the landing to the keep has to take.
         private const float WalkStep = 2f;
 
+        // The tutorial (TUTORIAL.md): its landing with no gate, each of its places held in the clearing it was given, and at the end of its way the lair, with its beast, a chest and a waygate
+        // standing behind the beast, and nothing else: no keep, village, shrine or other waygate.
+        private void CheckTutorial(WorldData world)
+        {
+            if (world.Plan.Path is not LandPath path)
+            {
+                Problem("the tutorial isn't one way through");
+                return;
+            }
+            if (world.Sites[0].Spawns.Any(s => s.Role == SpawnRole.Waygate)) Problem("the tutorial's landing has a waygate");
+            foreach ((int room, SiteDefinition place) in TutorialLand.Places)
+            {
+                WorldSite? site = world.Sites.FirstOrDefault(s => s.Kind == place.Kind);
+                if (site == null) Problem($"the tutorial has no {place.Label}");
+                else if ((site.Position - path.Rooms[room].Centre).Length > path.Rooms[room].Radius) Problem($"the tutorial's {place.Label} stands outside its clearing");
+                else if (!site.Spawns.Any(s => s.Role.IsHostile())) Problem($"the tutorial's {place.Label} isn't held");
+            }
+            int held = world.Sites.Count(s => s.Kind != SiteKind.Lair && s.Spawns.Any(p => p.Role.IsHostile()));
+            if (held != TutorialLand.Places.Length) Problem($"the tutorial has {held} places to free, not {TutorialLand.Places.Length}");
+            if (world.Sites.Any(s => s.Kind is SiteKind.Keep or SiteKind.Village or SiteKind.Shrine or SiteKind.Waygate or SiteKind.StandingStones or SiteKind.Hamlet)) Problem("the tutorial has a keep, village, shrine or waygate of its own");
+
+            WorldSite? lair = world.Sites.FirstOrDefault(s => s.Kind == SiteKind.Lair);
+            if (lair == null)
+            {
+                Problem("the tutorial has no lair");
+                return;
+            }
+            if ((lair.Position - path.Last.Centre).Length > path.Last.Radius) Problem("the tutorial's lair isn't at the end of its way");
+            SiteSpawn[] beasts = lair.Spawns.Where(s => s.Role.IsHostile()).ToArray();
+            if (beasts.Length != 1 || beasts[0].Role != SpawnRole.Boss) Problem($"the tutorial's lair holds {beasts.Length} hostiles, not its one beast");
+            if (!lair.Spawns.Any(s => s.Role == SpawnRole.Chest)) Problem("the tutorial's lair has no chest");
+            SiteSpawn[] gates = lair.Spawns.Where(s => s.Role == SpawnRole.Waygate).ToArray();
+            if (gates.Length != 1) Problem("the tutorial's lair has no waygate");
+            else if (beasts.Length > 0 && gates[0].Position.Y <= beasts[0].Position.Y) Problem("the tutorial's waygate isn't behind its beast");
+            if (world.Sites.Count(s => s.Spawns.Any(p => p.Role == SpawnRole.Waygate)) != 1) Problem("the tutorial has more than the one waygate");
+        }
+
         private void CheckOneWay(WorldData world)
         {
             if (world.Plan.Path is not LandPath path) return;
-            WorldSite? keep = world.Sites.FirstOrDefault(s => s.Kind == SiteKind.Keep);
+            WorldSite? keep = world.Sites.FirstOrDefault(s => s.Kind is SiteKind.Keep or SiteKind.Lair);
             if (keep == null) return;
             if ((keep.Position - path.Last.Centre).Length > path.Last.Radius) Problem($"the keep stands {(keep.Position - path.Last.Centre).Length:0} m from the end of the way, outside its last clearing");
 
@@ -467,6 +506,7 @@ namespace Dino_WorldLab
 
         private void CheckLandPlaces(WorldData world)
         {
+            if (world.Plan.Archetype.Tutorial) return;     // CheckTutorial holds it to its own.
             int places = world.Sites.Count(site => site.Kind != SiteKind.Keep && site.Spawns.Any(s => s.Role.IsHostile()));
             if (places < LeastPlaces) Problem($"only {places} places to free");
             int gates = world.Sites.Count(site => site.Spawns.Any(s => s.Role == SpawnRole.Waygate));

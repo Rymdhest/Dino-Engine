@@ -212,6 +212,13 @@ namespace Dino_Engine.World
             return new LandPath(rooms, passes);
         }
 
+        /// <summary>A way laid out by hand, clearing by clearing, as the tutorial's is (<see cref="Content.TutorialLand"/>): one pass fewer than there are clearings.</summary>
+        public static LandPath Laid(IReadOnlyList<Room> rooms, IReadOnlyList<float> passes)
+        {
+            if (rooms.Count < 2 || passes.Count != rooms.Count - 1) throw new ArgumentException("A way needs two clearings at least, and a pass between each two.");
+            return new LandPath(rooms.ToList(), passes.ToArray());
+        }
+
         private static float DistanceToSegment(Vector2 point, Vector2 a, Vector2 b)
         {
             Vector2 ab = b - a;

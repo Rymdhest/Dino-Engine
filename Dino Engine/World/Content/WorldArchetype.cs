@@ -90,6 +90,15 @@ namespace Dino_Engine.World.Content
         /// <summary>A world of one place and nothing else, which is any of the three above.</summary>
         public bool Enclosed => Peaceful || Arena || Vista || Lexicon;   // Lexicon (developer tool, LEXICON.md): the room is one too, laid out to the metre.
 
+        /// <summary>
+        /// The tutorial (<see cref="TutorialLand"/>): a land like any other, but always the same one, one way through along clearings laid out by hand, with two places to free and a beast at the
+        /// end instead of a keep, and no village, shrine or waygate but the one behind the beast. Never drawn from a seed, as it isn't in <see cref="ArchetypeCatalog.All"/>. Read TUTORIAL.md.
+        /// </summary>
+        public bool Tutorial;
+
+        /// <summary>How much further apart packs stand than the land's level would have them, as a multiplier: the tutorial's are fewer.</summary>
+        public float PackSpacing = 1f;
+
         /// <summary>The light it's always seen in, by name, and where the sun stands, in place of what's drawn from the seed. Only for a place that has to look one way.</summary>
         public string? Light;
         public float SunAzimuth;
@@ -342,6 +351,7 @@ namespace Dino_Engine.World.Content
             }
             if (id == Haven.Id) return Haven;
             if (id == Vista.Id) return Vista;
+            if (id == TutorialLand.Id) return TutorialLand.Archetype;
             if (id == World.Lexicon.LexiconWorld.Id) return World.Lexicon.LexiconWorld.Archetype;   // Lexicon (developer tool, LEXICON.md).
             foreach (WorldArchetype arena in ArenaCatalog.All)
             {

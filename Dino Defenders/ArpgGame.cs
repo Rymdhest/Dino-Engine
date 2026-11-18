@@ -223,12 +223,15 @@ namespace Dino_Defenders
             if (!StashStore.Held) Console.WriteLine("The stash is open in another copy of the game.");
         }
 
-        // Where a hero's game starts: back in the land they were in, if they were in one, or the Haven. A scripted run goes straight to the land it's asked for, unless it asks for the Haven.
+        // Where a hero's game starts: back in the land they were in, if they were in one, the tutorial if they've never been anywhere, or the Haven. A scripted run goes straight to the land it's
+        // asked for, unless it asks for the Haven or the tutorial.
         private (WorldRequest Request, LandTerms Terms) FirstWorld(SaveGame? save)
         {
             if (save is { InLand: true }) return (save.Land(), save.Terms);
-            bool scriptedLand = !_options.Haven && (_options.Seed != null || _options.Archetype != null || _options.Tour != null || (_options.Scripted && save == null));
-            if (!scriptedLand) return (Lands.Haven, new LandTerms());
+            if (_options.Tutorial) return (Tutorial.Request, new LandTerms());
+            // A hero chosen from the menu goes where a player's would, however the run was started.
+            bool scriptedLand = !_options.Haven && (_options.Seed != null || _options.Archetype != null || _options.Tour != null || (_options.Scripted && save == null && !_options.StartsAtMenu));
+            if (!scriptedLand) return (!_options.Haven && Tutorial.Starts(_hero) ? Tutorial.Request : Lands.Haven, new LandTerms());
             int level = _options.Level;
             return (new WorldRequest(_options.Seed ?? Environment.TickCount, _options.Archetype, level), _options.Terms(level));
         }
@@ -1354,6 +1357,9 @@ namespace Dino_Defenders
 
             // Whatever they were walking to, they aren't now, and shouldn't set off for it again from a shrine on the other side of the world.
             if (session != null && session.Health <= 0f) session.Fetch.Cancel();
+
+            // A bot that's fallen still has to press for getting up, as a person does on the death screen, but nothing it asks for moves anyone.
+            if (session is { Health: <= 0f } && session.Autopilot != null && !session.Paused) session.Autopilot();
 
             // The free camera owns the keyboard and mouse, and open panels stop the hero.
             if (session == null || Engine.world.IsFreeCameraActive || session.Paused || session.Health <= 0f) return default;

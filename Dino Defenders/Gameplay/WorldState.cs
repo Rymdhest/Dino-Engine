@@ -53,6 +53,9 @@ namespace Dino_Defenders.Gameplay
         /// <summary>Lexicon (developer tool, LEXICON.md): whether this is the asset lexicon, which is neither the Haven nor a land: nothing in it is to be fought, done or saved.</summary>
         public readonly bool IsLexicon;
 
+        /// <summary>Whether this is the tutorial, the land every new hero starts in, which plays as a land with a few rules of its own (<see cref="Tutorial"/>, TUTORIAL.md).</summary>
+        public readonly bool IsTutorial;
+
         public bool Liberated;      // Everything the land asks has been done, and it's free.
         public bool Lost;           // Everyone here has fallen, or they left it unfree.
         public int Falls;           // Heroes who've fallen here.
@@ -64,6 +67,7 @@ namespace Dino_Defenders.Gameplay
             Terms = terms ?? new LandTerms();
             IsHaven = Lands.IsHaven(request);
             IsLexicon = Dino_Engine.World.Lexicon.LexiconWorld.Is(request);
+            IsTutorial = Tutorial.Is(request);
             // Lexicon (developer tool, LEXICON.md): the room asks nothing, as the Haven doesn't, and says what it is.
             Chronicle = Chronicle.Write(world, Terms, IsHaven || IsLexicon);
             if (IsLexicon) Chronicle.Prologue = Dino_Engine.World.Lexicon.LexiconWorld.Prologue;
@@ -87,7 +91,7 @@ namespace Dino_Defenders.Gameplay
         public bool IsSafe(SiteState state) => IsHaven || Liberated;
 
         /// <summary>Whether a place is one of those a land asks to be freed: anywhere that's held and isn't the keep.</summary>
-        public static bool Counts(SiteState state) => !state.Wild && state.HostilesTotal > 0 && state.Site.Kind != SiteKind.Keep;
+        public static bool Counts(SiteState state) => !state.Wild && state.HostilesTotal > 0 && !Chronicle.IsSeat(state.Site.Kind);
 
         /// <summary>Whether a place has a waygate in it, which a hero can travel to once it's lit.</summary>
         public static bool HasWaygate(SiteState state) => !state.Wild && state.Site.Spawns.Any(spawn => spawn.Role == SpawnRole.Waygate);

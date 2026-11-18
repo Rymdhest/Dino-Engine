@@ -87,6 +87,7 @@ namespace Dino_Engine.World.Generation
                     case SiteKind.Farm: Places.FarmBuilder.Build(builder); break;
                     case SiteKind.Tradepost: Places.TradepostBuilder.Build(builder); break;
                     case SiteKind.SnowCastle: Places.SnowCastleBuilder.Build(builder); break;
+                    case SiteKind.Lair: BuildLair(builder); break;
                 }
             }
 
@@ -98,7 +99,7 @@ namespace Dino_Engine.World.Generation
         internal static bool WalledStory(SiteKind kind) => kind is SiteKind.Prison or SiteKind.Laboratory or SiteKind.Farm or SiteKind.Tradepost;
 
         // The way out of a land, and the altars a hero kindles: a site is nothing without them, and WorldValidator fails one that lost its own.
-        private static bool BuiltFirst(SiteKind kind) => kind is SiteKind.Landing or SiteKind.Waygate or SiteKind.Shrine or SiteKind.StandingStones;
+        private static bool BuiltFirst(SiteKind kind) => kind is SiteKind.Landing or SiteKind.Waygate or SiteKind.Shrine or SiteKind.StandingStones or SiteKind.Lair;
 
         // Each language has its people, and they build the way they build, wherever the land doesn't decide for them (WorldData.StyleOf).
         private static BuildingStyle StyleOf(WorldData world)
@@ -133,6 +134,12 @@ namespace Dino_Engine.World.Generation
 
         private static void BuildLanding(SiteBuilder b)
         {
+            // The tutorial's heroes arrive by the sea road, not through a gate, as nobody has shown them the roads yet: its one waygate is behind its beast (TutorialLand).
+            if (b.World.Plan.Archetype.Tutorial)
+            {
+                BuildTutorialLanding(b);
+                return;
+            }
             Vector2 toRoad = b.Site.RoadDirection;
             b.Paint(GroundPaint.Plaza, Footprint.Circle(b.Centre, b.Site.Radius * 0.45f), 9f);
 
@@ -150,6 +157,46 @@ namespace Dino_Engine.World.Generation
             b.Scatter(StructureCatalog.Crates, camp, 7f);
             b.Scatter(StructureCatalog.Barrels, camp, 7f);
             // Nobody trades at the landing: a land's people are found in its villages, and the Haven has its own merchants.
+        }
+
+        // Where the tutorial's heroes come in: a camp of their own with its fire lit, and no gate.
+        private static void BuildTutorialLanding(SiteBuilder b)
+        {
+            Vector2 toRoad = b.Site.RoadDirection;
+            Vector2 side = new Vector2(-toRoad.Y, toRoad.X);
+            b.Paint(GroundPaint.Plaza, Footprint.Circle(b.Centre, b.Site.Radius * 0.4f), 8f);
+            Vector2 camp = b.Centre - toRoad * 9f + side * 6f;
+            b.Place(StructureCatalog.Tent, camp, YawFacing(b.Centre - camp), padding: 0.5f);
+            b.Place(StructureCatalog.Campfire, b.Centre - toRoad * 3f, 0f, padding: 0.5f);
+            b.Scatter(StructureCatalog.Crates, camp, 6f);
+            b.Scatter(StructureCatalog.Sacks, camp, 6f);
+            b.Place(StructureCatalog.Signpost, b.Centre + toRoad * 8f - side * 3f, YawFacing(toRoad), padding: 0.3f);
+        }
+
+        /// <summary>Metres north of the lair's middle its waygate stands: behind its beast, from where the camera looks.</summary>
+        private const float LairGateBack = 16f;
+
+        // The end of the tutorial's way: its beast in the middle, a chest beside it, and behind it, to the north, the dark waygate that goes to the Haven once the beast is down, its face to the
+        // camera, a lantern either side, and the remains of what the beast has eaten about the clearing.
+        private static void BuildLair(SiteBuilder b)
+        {
+            Vector2 south = -Vector2.UnitY;
+            Vector2 side = Vector2.UnitX;
+            b.Paint(GroundPaint.Plaza, Footprint.Circle(b.Centre + Vector2.UnitY * (LairGateBack - 3f), 7f), 5f);
+            b.PlaceNear(StructureCatalog.Waygate, b.Centre + Vector2.UnitY * LairGateBack, YawFacing(south), b.Site.Radius * EssentialReach, out Vector2 gate, padding: 0.5f);
+            b.Spawn(SpawnRole.Waygate, gate + south * 2.5f);
+            b.Place(StructureCatalog.StoneLantern, gate + side * 6.5f + south * 1.5f, 0f, padding: 0.3f);
+            b.Place(StructureCatalog.StoneLantern, gate - side * 6.5f + south * 1.5f, 0f, padding: 0.3f);
+
+            // The beast stands between whoever comes up the way and its gate, and its chest is beside it, to the camera's left.
+            b.Spawn(SpawnRole.Boss, b.Centre);
+            Vector2 chest = b.Centre + side * 8f + Vector2.UnitY * 5f;
+            if (!b.World.Placement.Overlaps(Footprint.Circle(chest, 1.5f), PlacementLayer.Built)) b.Spawn(SpawnRole.Chest, chest);
+            else b.SpawnAround(SpawnRole.Chest, b.Centre + Vector2.UnitY * 5f, 9f, 1);
+
+            b.Place(StructureCatalog.MeatRack, b.Centre - side * 11f + Vector2.UnitY * 6f, YawFacing(side), padding: 0.5f);
+            b.Scatter(StructureCatalog.Rubble, b.Centre - side * 9f, 8f, attempts: 4);
+            b.Scatter(StructureCatalog.Cairn, b.Centre + side * 12f - Vector2.UnitY * 6f, 6f, attempts: 3, padding: 0.6f);
         }
 
         private static void BuildVillage(SiteBuilder b, int houses, int fields)

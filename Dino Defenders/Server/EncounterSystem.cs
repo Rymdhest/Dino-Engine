@@ -126,6 +126,12 @@ namespace Dino_Defenders.Server
                     case SpawnRole.Waygate:
                         // The Haven's is only ever stepped through, once the way is open, and that's a portal of its own.
                         if (session.IsHaven) break;
+                        // The tutorial's is dark until its beast is down, and then goes straight home.
+                        if (session.IsTutorial)
+                        {
+                            if (state.Cleared) OpenTutorialGate(world, session, state, siteIndex, i, spawn);
+                            break;
+                        }
                         SpawnMarker(world, session, state, siteIndex, i, spawn, InteractKind.Waygate, "Travel the old roads", 6f);
                         if (state.Lit) LightGate(world, _server, session, state, spawn.Position);
                         break;
@@ -178,7 +184,17 @@ namespace Dino_Defenders.Server
                 SiteSpawn spawn = state.Site.Spawns[i];
                 if (spawn.Role == SpawnRole.Returning) SpawnVillager(world, session, state, siteIndex, spawn, random.Fork(i), stationary: false);
                 else if (spawn.Role == SpawnRole.Trader) SpawnMerchant(world, session, state, siteIndex, i, spawn, random.Fork(i));
+                else if (spawn.Role == SpawnRole.Waygate && session.IsTutorial) OpenTutorialGate(world, session, state, siteIndex, i, spawn);
             }
+        }
+
+        // The tutorial's waygate, once its beast is down: lit, showing the Haven, and used to go there (TUTORIAL.md).
+        private void OpenTutorialGate(ECSWorld world, ServerSession session, SiteState state, int siteIndex, int spawnIndex, SiteSpawn spawn)
+        {
+            state.Lit = true;
+            state.Changed = true;
+            LightGate(world, _server, session, state, spawn.Position);
+            SpawnMarker(world, session, state, siteIndex, spawnIndex, spawn, InteractKind.Waygate, Tutorial.GatePrompt, 6f);
         }
 
         // A beast in a cage or chained in the open (PlacePlan.Cages): it isn't anyone's to fight, so it has no body in the rules, only its look, and it stands where it's held until the
@@ -291,13 +307,17 @@ namespace Dino_Defenders.Server
             Rarity rarity;
             int traits;
             // What holds a land is the tyrant its story names, and what stands watch over what the Reich has taken is its soldiers.
-            if (twin) (kind, rarity, traits) = (Bestiary.Find(chronicle.SecondKind) ?? Bestiary.Tyrant, Rarity.Unique, Bestiary.NoTraits);
+            bool tutorial = world.Plan.Archetype.Tutorial;
+            if (tutorial && boss) (kind, rarity, traits) = (Tutorial.Beast, Rarity.Rare, Bestiary.NoTraits);     // The tutorial's beast is Rare and nothing more (TUTORIAL.md).
+            else if (twin) (kind, rarity, traits) = (Bestiary.Find(chronicle.SecondKind) ?? Bestiary.Tyrant, Rarity.Unique, Bestiary.NoTraits);
             else if (boss) (kind, rarity, traits) = (Bestiary.Find(chronicle.BossKind) ?? Bestiary.Tyrant, Rarity.Unique, Bestiary.NoTraits);
             else if (spawn.Role == SpawnRole.Guard) (kind, rarity, traits) = (kinds.Chance(GuardArcherChance) ? Bestiary.Marksman : Bestiary.Legionary, Rarity.Normal, Bestiary.NoTraits);
             else (kind, rarity, traits) = orders.Draw(spawnIndex, kinds);
 
             // The people of a place are what it's worth stopping for: one of them leads, and is more than the rest, and they have their hard cases.
-            if (!boss && !wild)
+            // Nothing in the tutorial but its beast is Magic or Rare, as a new player is still learning what a fight is.
+            if (tutorial && !boss) (rarity, traits) = (Rarity.Normal, Bestiary.NoTraits);
+            else if (!boss && !wild)
             {
                 float bred = 1f + terms.ValueOf(Omens.Bloodlines) / 100f;
                 if (spawnIndex == FirstHostile(site)) rarity = world.Plan.Level <= FirstSteps ? Rarity.Magic : Rarity.Rare;
@@ -378,9 +398,11 @@ namespace Dino_Defenders.Server
 
             Dino_Defenders.Progression.Item[]? gear = null;
             string? title = null;
-            Loadout loadout = boss ? Bestiary.Boss(kind, level, traits, random.Fork("boss"), out gear, out title, session.Bestiary.Worn.Concat(session.TyrantMods()).ToList()) : session.Bestiary.Shared(kind, level, rarity, traits);
+            // The tutorial's beast is the land's main objective as a tyrant is, but it's only a Rare beast, made as any is.
+            bool tyrant = boss && !session.IsTutorial;
+            Loadout loadout = tyrant ? Bestiary.Boss(kind, level, traits, random.Fork("boss"), out gear, out title, session.Bestiary.Worn.Concat(session.TyrantMods()).ToList()) : session.Bestiary.Shared(kind, level, rarity, traits);
 
-            string name = twin ? session.Chronicle.SecondBeast : boss ? session.Chronicle.Beast : Bestiary.NameOf(kind, traits);
+            string name = twin ? session.Chronicle.SecondBeast : tyrant ? session.Chronicle.Beast : Bestiary.NameOf(kind, traits);
             if (title != null) name = $"{name}, {title}";
 
             var enemy = new EnemyComponent { Name = name, Rarity = rarity, Level = level, Holds = siteIndex + 1 };
@@ -406,7 +428,7 @@ namespace Dino_Defenders.Server
                 Body = model,
                 Gear = gear,
                 Height = position.Y,
-                Nature = boss ? Condition.Boss : rarity == Rarity.Rare ? Condition.Rare : Condition.None,
+                Nature = tyrant ? Condition.Boss : rarity == Rarity.Rare ? Condition.Rare : Condition.None,
                 Tyrant = boss,
                 Still = _server.Calm,
             };
@@ -983,6 +1005,10 @@ namespace Dino_Defenders.Server
                     break;
                 case InteractKind.Portal:
                     _server.StepThrough(hero);
+                    break;
+                // The tutorial's one waygate goes straight home, once its beast is down (TUTORIAL.md).
+                case InteractKind.Waygate when session.IsTutorial:
+                    if (state.Lit) _server.GoHome(hero);
                     break;
                 default:
                     _server.OpenPanel(hero, interactable.Kind, interactable.SiteIndex);

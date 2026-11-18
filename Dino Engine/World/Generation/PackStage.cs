@@ -94,7 +94,7 @@ namespace Dino_Engine.World.Generation
                 _random = random;
                 _territory = new Territory(world);
                 _quiet = new WorldNoise(random.Fork("quiet"));
-                _spacing = Spacing(world.Plan.Level, world.Plan.Request.MorePacks);
+                _spacing = Spacing(world.Plan.Level, world.Plan.Request.MorePacks) * world.Plan.Archetype.PackSpacing;
                 _crowd = 1f + world.Plan.Request.MorePeople;
                 _taken = new SpotIndex(world.Size, _spacing);
             }
