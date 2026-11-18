@@ -1,18 +1,11 @@
 #ifndef DINO_WATER_SHORE_GROUND_GLSL
 #define DINO_WATER_SHORE_GROUND_GLSL
 
-// The beach, as the ground draws it (Terrain.frag): wet as Water/ShoreWet.glsl leaves it, the swash's foam, and the wrack (SHORE.md).
+// The beach, as the ground draws it (Terrain.frag): wet as Water/ShoreWet.glsl leaves it, and the swash's foam (SHORE.md).
 // The foam of the swash is the bore's, piled up at the front of the water as it climbs; it's left behind on the sheet as lace that thins as it bursts, carried up
 // the beach and back with the water; and what's still there when the water runs off stays on the sand, most of it in a line where the water stopped, until it
-// bursts too. Each wave's foam is a pattern of its own, so no two run up alike. Above the reach of the biggest waves lies the wrack of the highest seas: weed
-// dark in clumps along a broken line, the odd pale stick, and shells. Wet sand glitters, as the film on each grain is a mirror of its own. Needs
+// bursts too. Each wave's foam is a pattern of its own, so no two run up alike. Wet sand glitters, as the film on each grain is a mirror of its own. Needs
 // procedural/fastHash.glsl, Water/ShoreData.glsl, Water/ShoreFoam.glsl and Water/ShoreWet.glsl.
-
-const vec3 SHORE_WEED_DARK = vec3(0.045, 0.04, 0.022);
-const vec3 SHORE_WEED_LIGHT = vec3(0.11, 0.095, 0.05);
-const vec3 SHORE_WEED_DRY = vec3(0.2, 0.18, 0.13);
-const vec3 SHORE_STICK = vec3(0.4, 0.36, 0.3);
-const vec3 SHORE_SHELL = vec3(0.46, 0.43, 0.38);
 
 // Wet sand's glitter: a few tiny facets on fixed spots, each tipped its own way and smooth, which the light pass only lights while one is nearly a mirror
 // between the sun and the eye, as snow's crystals are (Terrain.frag's SnowGlitter). So they twinkle as the camera moves, wherever the sun is, and go out as
@@ -117,45 +110,6 @@ void shoreGround(vec3 position, vec3 geometryNormal, float porosity, float metal
 
     // Freshly wet sand glitters, never under the water itself, and less as it drains.
     shoreGlitter(position.xz, geometryNormal, max(w.film * 0.9, smoothstep(0.6, 1.0, w.wet) * 0.35) * (1.0 - s.cover), normal, roughness);
-
-    // The wrack: clumps of weed strewn along a broken, wandering line at the top of the beach where only the highest seas reach, thickest at the line and
-    // thinning out below it, with sticks and shells among them. It's laid out in metres up the beach (a metre's share of the waves' reach, which the swash's
-    // own edge is softened by), so it's as wide on a steep beach as on a flat one: laid out as a share of the reach alone, it was a dashed line a few
-    // centimetres wide wherever the beach was steep.
-    vec2 meanRunUp = shoreRunUp(s.coast.waveHeight * (1.0 - 0.5 * shoreShape.y));
-    float perMetre = max(1.0 / max(meanRunUp.x, 0.2), slope / max(meanRunUp.y, 0.02));
-    float aboveLine = (s.swash.need - SHORE_WRACK) / perMetre;
-    // Only on the beach itself: deep under the sea nothing about the swash is worked out, and its need stands at a marker that falls among the wrack.
-    if (s.height > 0.0 && s.under <= 0.0 && s.coast.waveHeight > 1e-4 && aboveLine > -3.0 && aboveLine < 1.5)
-    {
-        aboveLine += (textureLod(shoreNoise, position.xz * (1.0 / 13.0) + vec2(0.53, 0.17), 0.0).b - 0.5) * 1.8;
-        float band = smoothstep(-1.8, -0.25, aboveLine) * (1.0 - smoothstep(0.0, 0.4, aboveLine)) * smoothstep(1.2, 1.6, s.swash.need);
-        if (band > 0.01)
-        {
-            float broken = smoothstep(0.3, 0.6, textureLod(shoreNoise, position.xz * (1.0 / 7.3) + vec2(0.21, 0.83), 0.0).a);
-            // Clumps a hand to a stride across, where a smooth noise stands highest: more of them where the line is thickest, none in its gaps.
-            float lumps = textureLod(shoreNoise, position.xz * (1.0 / 2.2) + vec2(0.31, 0.77), 0.0).b;
-            float cut = 0.97 - 0.36 * band * broken;
-            float weed = smoothstep(cut - 0.04, cut + 0.03, lumps);
-            float heap = clamp((lumps - cut) * 8.0, 0.0, 1.0);
-            vec4 fronds = textureLod(shoreFoam, position.xz * shoreFoamFlow.z * 1.7 + vec2(0.31, 0.77), lod + log2(1.7));
-            // Sticks lie every which way, so two sets of them at an angle; streaks turned by anything that changes from place to place would shear.
-            vec4 along = textureLod(shoreFoam, shoreFoamFrame(position.xz, vec2(0.8, 0.6)) * shoreFoamFlow.z * 3.1 + vec2(0.67, 0.11), lod + log2(3.1));
-            vec4 across = textureLod(shoreFoam, shoreFoamFrame(position.xz, vec2(-0.28, 0.96)) * shoreFoamFlow.z * 2.9 + vec2(0.13, 0.59), lod + log2(2.9));
-            float stick = band * broken * smoothstep(0.89, 0.94, max(along.a, across.a)) * (1.0 - weed);
-            float shell = band * 0.7 * smoothstep(0.88, 0.95, fronds.r * 0.4 + along.g * 0.75) * (1.0 - weed);
-            // Darkest where it's heaped, its fronds paler at the edges, and the oldest of it, highest up, dried pale.
-            vec3 weedColour = mix(SHORE_WEED_LIGHT, SHORE_WEED_DARK, clamp(heap * 0.7 + fronds.r * 0.4, 0.0, 1.0));
-            weedColour = mix(weedColour, SHORE_WEED_DRY, smoothstep(-0.2, 0.35, aboveLine) * 0.6);
-            albedo = mix(albedo, weedColour, weed * 0.94);
-            albedo = mix(albedo, SHORE_STICK, stick * 0.85);
-            albedo = mix(albedo, SHORE_SHELL, shell * 0.8);
-            // Weed lies in heaps, damp still, and casts its hollows into shadow.
-            roughness = mix(roughness, 0.5, weed);
-            ambient *= 1.0 - 0.3 * weed * (1.0 - 0.5 * heap);
-            normal = normalize(normal + vec3(fronds.g - 0.5, 0.0, fronds.b - 0.5) * 0.6 * weed);
-        }
-    }
 
     // The swash's foam, over everything but a wave, which the sea pass draws with its own.
     Foam foam = shoreSwashFoam(s, position.xz, lod);

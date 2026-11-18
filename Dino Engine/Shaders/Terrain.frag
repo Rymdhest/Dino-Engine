@@ -522,6 +522,35 @@ float WinningMaterial(TerrainMaterialSample s) {
     return winningMat;
 }
 
+// The same, with snow left out: what shows where the snow has given out.
+float WinningMaterialUnderSnow(TerrainMaterialSample s) {
+    float winningMat = s.mats.x;
+    float maxScore = -1.0;
+    for (int i = 0; i < 3; i++) {
+        if (abs(s.mats[i] - snowMaterial) < 0.5 || s.weights[i] <= 0.0) continue;
+        float score = s.heights[i] * s.weights[i];
+        if (score > maxScore) { maxScore = score; winningMat = s.mats[i]; }
+    }
+    return winningMat;
+}
+
+// ---------------------------------------------------------------- Where the snow gives out
+// The snow's share is smooth, and a winner picked from it by height cuts the snowfield off in one clean line along wherever it falls to a half, which a person
+// called horrible beside a beach: snow never ends so. It thins out instead, lying on in drifts and patches where the ground's low and bare where it stands
+// proud, over a band as wide as its share takes to fall, with what's under it dusted where it's thin (SNOW.md).
+const float SNOW_EDGE_BROAD = 7.3;      // Metres across the larger tongues and bays of the snow's edge, which weatherPooling's sizes break up inside.
+
+// 0 to 1, how thickly snow lies at this point, given its share here and how high the ground under it stands (0..1): a half and over is the snowfield, and less a dusting.
+float SnowCover(vec2 xz, float share, float relief) {
+    if (share <= 0.0) return 0.0;
+    if (share >= 1.0) return 1.0;
+    vec2 broad = mat2(0.6, -0.8, 0.8, 0.6) * xz / SNOW_EDGE_BROAD + vec2(3.1, 11.7);
+    float n = weatherPoolNoise(broad, 3u) * 0.9 + (weatherPooling(xz) - 0.5) * 0.7 + (0.5 - relief) * 0.35;
+    // Only along the edge: a share near either end stays what it is.
+    float edge = clamp(share * (1.0 - share) * 4.0, 0.0, 1.0);
+    return clamp(share + n * edge, 0.0, 1.0);
+}
+
 // Parallax occlusion mapping, done in world space.
 // The surface near the fragment is treated as its tangent plane (normal N), with the ground hanging up to its relief below it along -N. The view ray
 // R(t) = fragWorldPos - V*t is t*dot(N, V) below that plane, and projecting it back onto the plane along N gives the point it lies under. Terrain UVs
@@ -660,10 +689,25 @@ void main() {
     // 2. Determine the single sharp winning material at the final resolved surface coordinate
     float winningMat = surface.mats.x;
     float materialDepth = 0.0;     // How far below the mesh the materials alone put the hit, which what's been trodden into snow is measured against.
+    float snowCover = 0.0;         // How much of the hit the snowfield covers (SnowCover).
     if (!bareRock) {
         TerrainMaterialSample atHit = SampleTerrainMaterials(surface, winningUV, lod);
         winningMat = WinningMaterial(atHit);
         materialDepth = dot(atHit.weights, (1.0 - atHit.heights) * atHit.reliefs);
+        // Where the snow gives out, it decides for itself whether it lies here (SnowCover).
+        float snowShare = 0.0;
+        float otherHeight = 0.0;
+        float otherWeight = 0.0;
+        for (int i = 0; i < 3; i++) {
+            if (abs(atHit.mats[i] - snowMaterial) < 0.5) snowShare += atHit.weights[i];
+            else { otherHeight += atHit.heights[i] * atHit.weights[i]; otherWeight += atHit.weights[i]; }
+        }
+        if (snowShare > 0.0 && snowShare < 1.0) {
+            snowCover = SnowCover(winningUV * textureTileSize, snowShare, otherHeight / max(otherWeight, 1e-4));
+            winningMat = snowCover >= 0.5 ? snowMaterial : WinningMaterialUnderSnow(atHit);
+        } else {
+            snowCover = snowShare;
+        }
     }
     bool rock = isRock(winningMat);
 
@@ -735,14 +779,24 @@ void main() {
         settleRelief = MaterialHeight(winningMat, settleScale, winningUV, settleLevel - log2(settleScale));
     }
     float snowed = weatherWetten(fragWorldPos, N, porosity, look.metalic, hollow, settleRelief, albedo, roughness, worldNormal);
+    // Past the snowfield's edge what's under it is dusted, thick in its hollows and nearest the snow, as weather settles it, so the edge has no line.
+    bool snowWins = abs(winningMat - snowMaterial) < 0.5;
+    if (!rock && !snowWins && snowCover > 0.0) {
+        // A fringe round every patch, lying in the hollows of what's under it first, so the snow thins into the ground rather than stopping at a line.
+        float dust = smoothstep(0.12, 0.5, snowCover + (0.5 - settleRelief) * 0.3) * 0.95;
+        albedo = mix(albedo, vec3(0.82, 0.85, 0.9), dust);
+        roughness = mix(roughness, 0.72, dust);
+        worldNormal = normalize(mix(worldNormal, N, dust * 0.7));
+        snowed = max(snowed, dust);
+    }
     // Settled snow scatters as snow, and covers what's under it.
     gAlbedo.a = encodeSubsurfaceUnderSnow(scatterKind, scatter, snowed);
     vec2 hitXZ = winningUV * textureTileSize;
-    // Where the sea reaches: the swash running up the sand and back, the film, the dark and the foam it leaves, and the wrack above it (SHORE.md).
+    // Where the sea reaches: the swash running up the sand and back, the film, and the dark and the foam it leaves (SHORE.md).
     shoreGround(vec3(hitXZ.x, fragWorldPos.y, hitXZ.y), N, porosity, look.metalic, settleRelief, dry, 1.0 / pixelsPerMetre, albedo, roughness, worldNormal, look.ambient);
     // Snow is walked through and glitters after the weather has had its say, as what settled is what's trodden.
     if (gTrailing && !rock) TreadSnow(hitXZ, N, materialDepth, albedo, roughness, worldNormal, look.ambient);
-    if (!rock) SnowGlitter(hitXZ, N, gSnow * (1.0 - gTrod), worldNormal, roughness);
+    if (!rock) SnowGlitter(hitXZ, N, (snowWins ? max(gSnow, snowCover) : snowed) * (1.0 - gTrod), worldNormal, roughness);
     gAlbedo.rgb = albedo;
     gNormal.a = look.ambient;
 

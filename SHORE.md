@@ -1,6 +1,6 @@
 # Shores
 
-Where the sea meets the land: the waves running in, breaking and running up the beach as a thin sheet that slides back, the sand it leaves glassy, then dark, then damp, then dry, the foam on all of it, and the wrack the highest seas leave along the top of the beach.
+Where the sea meets the land: the waves running in, breaking and running up the beach as a thin sheet that slides back, the sand it leaves glassy, then dark, then damp, then dry, and the foam on all of it.
 
 Status: rebuilt 2026-11-14, judged from stills and films of hidden runs, and measured walking (the shore field's stability). **Nobody has walked a beach in it yet.**
 
@@ -13,7 +13,7 @@ Status: rebuilt 2026-11-14, judged from stills and films of hidden runs, and mea
         |  WaterRenderCommand
   WaterRenderer.SimulationPass: build the field if the terrain changed, ease what's shown towards it,
         |                       write ShoreData (UBO 15) for everything this frame draws
-  geometry pass  ->  Terrain.frag: ShoreGround (swash, wet sand, foam, wrack, glints)
+  geometry pass  ->  Terrain.frag: ShoreGround (swash, wet sand, foam, glints)
                      Model.frag:   ShoreWet (what stands where the sea reaches gets wet)
   water pass     ->  Water_Ocean.frag: the sea's surface and its foam, where the ground isn't first
 ```
@@ -66,16 +66,16 @@ Models standing in the swash (rocks, posts, wrecks, the pebbles) get wet the sam
 
 ## Foam
 
-One texture, grown at start (`WaterTextureBaker.BakeFoam`, tile `WaterRenderer.ShoreFoamTile`): **r** a lace of strands round holes of every size, wandering at two scales, each strand its own width and some broken; **g** bubbles of two sizes; **b** broad patches; **a** streaks, long along u, which only the wrack's sticks use: foam is never drawn out along the way the water runs, as that turns along a curved shore and a pattern turned by it about the world's far-off origin was sheared into hatching. `shoreFoamAt` turns an amount into cover: a little shows the strongest strands and their bubbles, more fills in round them, a lot is a sheet with holes where its patches thin. Thin foam is read a little softer, or its last bubbles sparkle as single pixels. It has a body (`SHORE_FOAM_RELIEF`) the light falls across, and the sea lights it from the sky and from the shore round it (`foamSkyLight`, `foamGroundLight`), or in shade it went the sky's blue.
+One texture, grown at start (`WaterTextureBaker.BakeFoam`, tile `WaterRenderer.ShoreFoamTile`): **r** a lace of strands round holes of every size, wandering at two scales, each strand its own width and some broken; **g** bubbles of two sizes; **b** broad patches; **a** streaks, long along u, which nothing uses now: foam is never drawn out along the way the water runs, as that turns along a curved shore and a pattern turned by it about the world's far-off origin was sheared into hatching. `shoreFoamAt` turns an amount into cover: a little shows the strongest strands and their bubbles, more fills in round them, a lot is a sheet with holes where its patches thin. Thin foam is read a little softer, or its last bubbles sparkle as single pixels. It has a body (`SHORE_FOAM_RELIEF`) the light falls across, and the sea lights it from the sky and from the shore round it (`foamSkyLight`, `foamGroundLight`), or in shade it went the sky's blue.
 
 - On the sea (`seaFoam`), in layers: the roller, the white water a breaking crest spills down its own face, from the crest part way to the foot, its toe reaching further down in some places than others and heaped in lumps along its length, running in with its wave and thinning fast behind the crest, where what it leaves takes over: that stays where it fell, a pattern of its own every wave, bursting over most of a wave's cycle. What lingers in the surf and the whitecaps drift with the wind. Taken at the crest alone the white water was a line a few centimetres wide along every wave. Each wave breaks in sections of its own along its length (a noise 19 m across, in the wave's own frame), some white and some hardly at all, and small waves in sheltered water churn up less of it: on a steep shore, where the water deepens within a stride, the surf is a narrow strip along the shore, and breaking all along it at once ringed the shore in white. Towards the beach it thins out into lace as the swash's comes in, by the measure the water's edge goes by.
 - The roller's pattern is carried a wavelength over each wave's cycle from the foot of its face (`through`), where it starts as a pattern of its own with none of it showing, so it moves with the crest at half its speed, as foam does in a spilling breaker. Carried from the shoreline, as it was, it was sheared wherever the shore curves by as far as the crest was out.
 - On the beach (`shoreSwashFoam`): the bore's front, heaped in lumps and thinner as it runs back; lace on the sheet thinning as it bursts (`SHORE_SHEET_FOAM`), carried with the water; and what's still there as the water runs off, left on the sand (`SHORE_FOAM_LEFT`), most of it in a line where each wave stopped, as the water there was there least long. Each wave's foam is a pattern of its own.
 - The beach's foam thins out under the sea as the sea's own comes in on its surface, so neither ends in a line.
 
-## The wrack, and what's on a beach
+## What's on a beach
 
-- Above the reach of the biggest waves (`SHORE_WRACK` of the mean wave's run-up) lies the wrack (`ShoreGround.glsl`): clumps of weed a hand to a stride across strewn along a broken, wandering line, thickest at the line and thinning out a metre or two below it, darkest where heaped and the oldest, highest up, dried paler, the odd bleached stick and shell among it. It's laid out in metres up the beach, by how much of the reach a metre's climb takes there, so it's as wide on a steep beach as on a flat one: laid out as a share of the reach, it was a dashed line a few centimetres wide wherever the beach was steep. Only on the beach itself: under the sea, or where sheltered water has no waves, nothing about the swash is worked out.
+- There's no wrack along the top of a beach. A line of weed, sticks and shells drawn on the ground (`ShoreGround.glsl`) read from the game's camera as a dotted line of dark stains along every shore, on sand and on snow and ice alike, and a person called it a glitch three times, so it was taken out. Don't put it back as flat paint on the ground.
 - Nothing grows where the swash runs: `WorldShore.Swashed` (headless) is how much of a point the waves of an ordinary day run over, by the sea only, and `TerrainSurface` keeps grass off it and `WorldGroundCover` plants (the vista, behind the main menu, is left as composed). What grows under the water is the sea floor's (`SEA.md`). On a sand, gravel or shingle beach the ground cover scatters rolled pebbles there instead, in drifts.
 - The sand itself (`MaterialRecipes.Sand`): ripples running a little across the tile, bent, in patches with sand planed smooth between them; broad soft swells under everything; the dark grains in the troughs; and the odd shell or pebble. Its albedo is under half, or a beach in the sun goes white.
 

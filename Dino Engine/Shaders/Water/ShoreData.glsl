@@ -11,7 +11,7 @@
 // shore is steep. No two waves run up alike: each is its set's size and a size of its own, and wanders along the shore in lobes of its own, so the edge of
 // the wet sand is the ragged edge of the last few waves and never a line. Sand the water has just left holds a film for a few seconds, glassy, longest in its
 // hollows; then it's dark as it drains, and dries over a minute or so. The beach's own water comes out low down, where it stays glassy for good, what the
-// biggest waves reach is damp, and the wrack of the highest seas lies just above that.
+// biggest waves reach is damp.
 
 layout(std140, binding = 15) uniform ShoreData
 {
@@ -45,7 +45,6 @@ const float SHORE_FLOW = 0.3;               // Of how far the front has climbed,
 const float SHORE_SEEP = 0.3;               // Of the mean wave's run-up, how far up the beach its own water comes out.
 const float SHORE_DAMP_FROM = 1.0;          // ... where the damp starts thinning, past what the waves of the last minute reached,
 const float SHORE_DAMP_TO = 2.3;            // and where the sand's dry: what the seas of the last few hours left damp.
-const float SHORE_WRACK = 1.95;             // ... where the wrack of the highest of them lies.
 const float SHORE_TOP = 2.6;                // ... and how high anything about the shore goes.
 const float SHORE_FRINGE_TOP = 1.1;         // Metres above the sea fine sand draws the sea up to, through it (its capillary fringe):
 const float SHORE_FRINGE_REACH = 14.0;      // as far inland as the water under a beach stands at the sea's level.
