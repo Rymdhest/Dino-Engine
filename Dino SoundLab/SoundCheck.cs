@@ -738,6 +738,22 @@ namespace Dino_SoundLab
             (float after, _, _) = broken.Render(0.3f);
             expect(after > 0.02f, "the mixer went quiet for good after a live sound went bad");
 
+            // The game telling a sound it's somewhere that isn't a number, or saying so of the listener, is refused and named, and the
+            // mix goes on: once a NaN place reached the window, nothing was ever heard again until the game was restarted.
+            var lost = new Rig();
+            int wanderer = lost.Mixer.Reserve();
+            lost.Mixer.Post(new AudioCommand { Kind = CommandKind.Play, Voice = wanderer, Payload = lost.LoudPool, A = new Vector3(3f, 0f, 0f), X = 1f, Y = 1f, Flag = true });
+            lost.Render(0.05f);
+            lost.Mixer.Post(new AudioCommand { Kind = CommandKind.Move, Voice = wanderer, A = new Vector3(float.NaN, 0f, 0f) });
+            lost.Mixer.Post(new AudioCommand { Kind = CommandKind.Listener, A = new Vector3(0f, float.NaN, 0f), B = Vector3.UnitX, C = -Vector3.UnitZ, D = Vector3.UnitY });
+            lost.Play(lost.TestPool, new Vector3(float.PositiveInfinity, 0f, 0f));
+            (_, _, float[] wandered) = lost.Render(0.3f);
+            expect(wandered.All(float.IsFinite) && float.IsFinite(lost.Mixer.WindowDecibels), $"a sound sent to NaN poisoned the mix (window {lost.Mixer.WindowDecibels})");
+            expect(lost.Mixer.Faults == 3 && lost.Mixer.Fault == "test.tone", $"sounds sent to NaN weren't refused and named ({lost.Mixer.Faults} faults, {lost.Mixer.Fault})");
+            lost.Play(lost.TestPool, new Vector3(2f, 0f, -2f));
+            (float found, _, _) = lost.Render(0.3f);
+            expect(found > 0.02f, "the mixer went quiet after a sound was sent to NaN");
+
             rig.Play(rig.TestPool);
             (float left, float right, _) = rig.Render(0.3f);
             expect(left > 0.02f && MathF.Abs(left - right) < 1e-4f, $"a sound with no place isn't even in both ears ({left:0.000}, {right:0.000})");

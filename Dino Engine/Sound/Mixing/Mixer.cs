@@ -176,10 +176,9 @@ namespace Dino_Engine.Sound.Mixing
                     if (float.IsFinite(_mixLeft[i]) && float.IsFinite(_mixRight[i])) continue;
                     Array.Clear(_mixLeft, 0, count);
                     Array.Clear(_mixRight, 0, count);
-                    _reverb.Clear();
-                    _limiter.Clear();
+                    Recover();
                     Faults++;
-                    Fault = "the mix";
+                    Fault ??= "the mix";
                     break;
                 }
 
@@ -202,6 +201,58 @@ namespace Dino_Engine.Sound.Mixing
 
             double spent = (Stopwatch.GetTimestamp() - began) / (double)Stopwatch.Frequency;
             Load += ((float)(spent / (frames / (double)AudioFormat.SampleRate)) - Load) * 0.02f;
+        }
+
+        // Everything that carries a value from one block to the next, put back to where a NaN can't have reached it. Clearing the reverb and
+        // the limiter alone wasn't enough: one NaN in the window (the loudest thing heard) kept it NaN for good, as nothing is larger or smaller
+        // than NaN, and every voice under it came out NaN, so the sound went for the rest of the session.
+        private void Recover()
+        {
+            _reverb.Clear();
+            _limiter.Clear();
+            _window = 0f;
+            Array.Clear(_busLevels);
+            _combatLevel.State = 0f;
+            _muffleLeft.State = 0f;
+            _muffleRight.State = 0f;
+            if (!float.IsFinite(_muffle)) _muffle = 0f;
+            if (!float.IsFinite(_muffleTarget)) _muffleTarget = 0f;
+            if (!Finite(_listener) || !Finite(_right) || !Finite(_forward) || !Finite(_up) || !Finite(_listenerVelocity))
+            {
+                _listener = Vector3.Zero;
+                _right = Vector3.UnitX;
+                _forward = -Vector3.UnitZ;
+                _up = Vector3.UnitY;
+                _listenerVelocity = Vector3.Zero;
+            }
+
+            foreach (Voice voice in _voices)
+            {
+                if (!voice.Active) continue;
+                bool sound = float.IsFinite(voice.Gain) && float.IsFinite(voice.Rate) && float.IsFinite(voice.DopplerRate) && Finite(voice.Location) && Finite(voice.Velocity)
+                    && !double.IsNaN(voice.Position) && float.IsFinite(voice.GainLeft) && float.IsFinite(voice.GainRight) && float.IsFinite(voice.Send)
+                    && float.IsFinite(voice.AirLeft.State) && float.IsFinite(voice.AirRight.State);
+                if (sound)
+                {
+                    Array.Clear(voice.History);
+                    continue;
+                }
+                Fault = NameOf(voice);
+                Finish(voice);
+            }
+        }
+
+        private static bool Finite(Vector3 v) => float.IsFinite(v.X) && float.IsFinite(v.Y) && float.IsFinite(v.Z);
+
+        private static string NameOf(Voice voice) => voice.Pool?.Definition.Id ?? voice.Live?.Id ?? "a voice";
+
+        // What the game asks with a value that isn't a number is turned away here, where it can still be named, before it reaches anything that keeps it.
+        private bool Refuse(bool finite, string? what)
+        {
+            if (finite) return false;
+            Faults++;
+            Fault = what ?? "a command";
+            return true;
         }
 
         private void ReadQueue()
@@ -231,19 +282,20 @@ namespace Dino_Engine.Sound.Mixing
                     if (Find(command.Voice) is Voice stopping) Stop(stopping, command.X);
                     break;
                 case CommandKind.Move:
-                    if (Find(command.Voice) is Voice moving)
+                    if (Find(command.Voice) is Voice moving && !Refuse(Finite(command.A) && Finite(command.B), NameOf(moving)))
                     {
                         moving.Location = command.A;
                         moving.Velocity = command.B;
                     }
                     break;
                 case CommandKind.SetParameter:
-                    if (Find(command.Voice) is Voice live) live.LiveSource?.SetTarget((int)command.X, command.Y);
+                    if (Find(command.Voice) is Voice live && !Refuse(float.IsFinite(command.Y), NameOf(live))) live.LiveSource?.SetTarget((int)command.X, command.Y);
                     break;
                 case CommandKind.SetGain:
-                    if (Find(command.Voice) is Voice loud) loud.Gain = command.X;
+                    if (Find(command.Voice) is Voice loud && !Refuse(float.IsFinite(command.X), NameOf(loud))) loud.Gain = command.X;
                     break;
                 case CommandKind.Listener:
+                    if (Refuse(Finite(command.A) && Finite(command.B) && Finite(command.C) && Finite(command.D) && Finite(command.E), "the listener")) break;
                     _listener = command.A;
                     _right = command.B;
                     _forward = command.C;
@@ -251,12 +303,14 @@ namespace Dino_Engine.Sound.Mixing
                     _listenerVelocity = command.E;
                     break;
                 case CommandKind.BusVolume:
+                    if (Refuse(float.IsFinite(command.X), "a bus volume")) break;
                     _busVolumes[command.Voice] = command.X;
                     break;
                 case CommandKind.Environment:
                     _environmentTarget = command.Reverb;
                     break;
                 case CommandKind.Muffle:
+                    if (Refuse(float.IsFinite(command.X), "the muffle")) break;
                     _muffleTarget = command.X;
                     break;
                 case CommandKind.StopAll:
@@ -287,6 +341,7 @@ namespace Dino_Engine.Sound.Mixing
         {
             var pool = (SoundPool)command.Payload!;
             SoundDefinition definition = pool.Definition;
+            if (Refuse(Finite(command.A) && Finite(command.B) && float.IsFinite(command.X) && float.IsFinite(command.Y), definition.Id)) return;
 
             // Manners first: not too soon after the last, and not too many at once.
             if ((_time - pool.LastStart) / (float)AudioFormat.SampleRate < definition.Spacing) return;
@@ -348,6 +403,7 @@ namespace Dino_Engine.Sound.Mixing
         private void StartLive(ref AudioCommand command)
         {
             var definition = (LiveDefinition)command.Extra!;
+            if (Refuse(Finite(command.A) && float.IsFinite(command.X), definition.Id)) return;
             Voice? free = Claim(definition.Priority);
             if (free == null)
             {
