@@ -127,7 +127,8 @@ namespace Dino_Defenders.Server
             {
                 foreach (ServerPlayer hero in Heroes)
                 {
-                    if (hero.Sim.Down) continue;
+                    // Nobody notices someone in Grace, just come out of a loading screen and not yet doing anything.
+                    if (hero.Sim.Down || hero.Actor.Sheet.Has(Rule.Grace)) continue;
                     float away = (hero.Sim.Position - actor.Position).Length;
                     if (away >= distance) continue;
                     distance = away;

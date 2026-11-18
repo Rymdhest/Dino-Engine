@@ -340,6 +340,9 @@ namespace Dino_Defenders.Stats
         FlockBleeds,            // Each use costs a minion.
         Inoculated,             // No ailments at all.
 
+        // What only a hero just come out of a loading screen has.
+        Grace,                  // Unseen, untouchable and harmless, until they move or press anything.
+
         Count,
     }
 

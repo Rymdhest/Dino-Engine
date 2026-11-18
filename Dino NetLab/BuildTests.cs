@@ -26,9 +26,9 @@ namespace Dino_NetLab
         public readonly LabPlayer Player;
         public readonly ServerPlayer Truth;
 
-        public Arena(WorldCache worlds, WorldRequest request, HeroState hero, int heroes = 1, LandTerms? terms = null, NetworkConditions? line = null)
+        public Arena(WorldCache worlds, WorldRequest request, HeroState hero, int heroes = 1, LandTerms? terms = null, NetworkConditions? line = null, bool grace = false)
         {
-            Lab = new GameLab(worlds, request, "Landing", terms);
+            Lab = new GameLab(worlds, request, "Landing", terms, grace: grace);
             Player = Lab.AddPlayer("Hero", line ?? new NetworkConditions(), 1, hero: hero);
             Player.Fights = false;
             for (int i = 1; i < heroes; i++)

@@ -320,6 +320,7 @@ namespace Dino_Defenders.Talents
         {
             Rule.CannotBeChilled or Rule.CannotBeFrozen => TalentGlyph.Avoid,
             Rule.DodgeCrit => TalentGlyph.Dodge,
+            Rule.Grace => TalentGlyph.Stealth,
             _ => TalentGlyph.Potency,
         };
     }

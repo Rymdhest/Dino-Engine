@@ -238,6 +238,7 @@ namespace Dino_Defenders.Server
         }
 
         private const float ScriptedBuffSeconds = 3600f;
+        private readonly List<ShownAilment> _shownAilments = new();
 
         private void Arrive(ServerPlayer player)
         {
@@ -258,12 +259,16 @@ namespace Dino_Defenders.Server
             player.Ledger.World = Ecs;
             player.Ledger.Hero = actor;
             player.Ledger.Now = session.Time;
-            player.Kit = new HeroKit(player.Hero, actor.Sheet);
-            player.WatchBooks();
+
+            // Everyone arrives from a loading screen, and stays in Grace until they move or press anything, so that nothing's killed them by the time they can see.
+            if (!fallen && _settings.Grace) session.Combat.AddBuff(actor, BuffCatalog.Grace, float.PositiveInfinity);
             foreach (string id in _settings.Buffs)
             {
                 if (BuffCatalog.All.FirstOrDefault(buff => buff.Id == id) is BuffDefinition buff) session.Combat.AddBuff(actor, buff, ScriptedBuffSeconds);
             }
+            // What they arrive under counts from the first tick, not the first rebuild.
+            player.RefreshLoadout();
+            actor.LoadoutChanged = false;
             if (first && _saved is { InLand: true } && !session.IsHaven && _saved.Health > 0f) actor.Vitals.Health = Math.Min(_saved.Health, actor.Sheet.MaxHealth);
 
             player.Sim = HeroSimState.At(start, actor.Vitals.Mana);
@@ -277,6 +282,7 @@ namespace Dino_Defenders.Server
             player.View = new GhostView { Focus = start };
             player.GhostId = Ghosts.NextId();
             player.DownFor = 0f;
+            player.ForgetSpare();
 
             Vector3 position = new Vector3(start.X, session.World.Height.Sample(start), start.Y);
             player.Entity = Ecs.CreateEntity("Hero",
@@ -458,6 +464,13 @@ namespace Dino_Defenders.Server
 
                 Actor actor = player.Actor;
                 player.Ledger.Now = session.Time;
+
+                // Grace goes the moment they show they're there, and before what they did is done, so that the blow they started lands as any other.
+                if (!Paused && actor.Sheet.Has(Rule.Grace) && player.Acted(command))
+                {
+                    session.Combat.RemoveBuff(actor, BuffCatalog.Grace);
+                    session.Rebuild(actor);
+                }
                 if (!ReferenceEquals(player.Kit.Sheet, actor.Sheet)) player.Kit = new HeroKit(player.Hero, actor.Sheet);
                 Brief(player);
 
@@ -1539,6 +1552,8 @@ namespace Dino_Defenders.Server
             player.Sim.Write(writer);
             writer.WriteFloat(player.Actor.Vitals.Barrier);
             writer.WriteFloat(player.Actor.Vitals.Debt);
+            player.Actor.Afflictions.Show(player.Actor.State & Condition.Afflicted, _shownAilments);
+            Protocol.WriteAilments(writer, _shownAilments);
             writer.WriteUInt(player.LastClientTime);
             writer.WriteVarUInt((uint)Math.Clamp(Clock() - player.LastClientTimeArrived, 0, 100000));
             writer.WriteUInt(player.NewestCommand);

@@ -166,11 +166,20 @@ namespace Dino_Defenders.Server
 
         private bool Seen(uint tick) => _commands[tick % CommandRing].Tick == tick;
 
+        /// <summary>Arriving somewhere new, after a loading screen: how commands came in the last world says nothing of how they'll come now, and reporting it would set a new clock off wrong.</summary>
+        public void ForgetSpare()
+        {
+            _worstSpare = int.MaxValue;
+            _reportedSpare = 0;
+            _spareAge = 0;
+        }
+
         /// <summary>The command for this tick. If it hasn't come, the last one again: most of the time a player is doing what they just did.</summary>
         public HeroCommand Take(uint tick)
         {
             HeroCommand command;
-            if (Seen(tick))
+            Present = Seen(tick);
+            if (Present)
             {
                 command = _commands[tick % CommandRing];
                 _filledTicks = 0;
@@ -201,6 +210,17 @@ namespace Dino_Defenders.Server
             }
             return command;
         }
+
+        /// <summary>Whether the last command taken really came from them, rather than being the one before held on to.</summary>
+        public bool Present { get; private set; }
+
+        /// <summary>
+        /// Whether a command says someone's there: they're moving, holding a mouse button or pressed something. A held move or button only counts if it was really heard this tick, as
+        /// what's held on to may be from before the loading screen, walking into the waygate. A press always counts, as one held on to never carries a press.
+        /// </summary>
+        public bool Acted(in HeroCommand command) =>
+            (command.Buttons & HeroButtons.Presses) != 0
+            || Present && (command.MoveX != 0 || command.MoveZ != 0 || (command.Buttons & HeroButtons.Slots) != 0);
 
         /// <summary>How much slack commands have been arriving with, at worst, in ticks.</summary>
         public int Spare => Math.Min(_reportedSpare, _worstSpare);

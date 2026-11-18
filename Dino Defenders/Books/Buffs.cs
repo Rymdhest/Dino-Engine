@@ -207,6 +207,16 @@ namespace Dino_Defenders.Books
             Mods = new[] { Inc(Stat.CooldownRecovery, 25f), Flat(Stat.ManaRegen, 6f) },
         });
 
+        /// <summary>What a hero arrives under after a loading screen, so that nothing kills them before they're there to see it. It's given for ever and so has no time, and is taken off the
+        /// moment they move or press anything (<c>ServerRoom.StepHeroes</c>).</summary>
+        public static readonly BuffDefinition Grace = Add(new BuffDefinition
+        {
+            Id = "grace",
+            Name = "Grace",
+            Duration = float.PositiveInfinity,
+            Mods = new[] { Rules(Rule.Grace) },
+        });
+
         /// <summary>Every shrine's blessing, one of which each shrine gives.</summary>
         public static readonly BuffDefinition[] Blessings = { Swiftness, Iron, Fury, Plenty, Wind };
 

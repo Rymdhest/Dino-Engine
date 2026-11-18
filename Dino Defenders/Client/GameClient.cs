@@ -73,6 +73,8 @@ namespace Dino_Defenders.Client
         public uint SkyTick { get; private set; }
         private uint _ownGhost;
         private uint _lastSnapshotTick;
+        private (uint Tick, HeroSimState Truth)? _startFrom;   // The newest snapshot heard while the hero's clock waits to start.
+        private uint _startFirst;
         private HeroIntent _intent;
         private HeroButtons _presses;
         private string? _refusal;
@@ -137,6 +139,10 @@ namespace Dino_Defenders.Client
         public ActorSheet Sheet { get; private set; }
         public HeroKit Kit { get; private set; }
         public readonly List<ActiveBuff> Buffs = new();
+
+        /// <summary>Every ailment the hero's under, with its time and stacks as a buff has them. Sent with every snapshot and its time run down between, for show alone.</summary>
+        public readonly List<ShownAilment> Ailments = new();
+        private readonly List<ShownAilment> _ailmentsHeard = new();
         public GameSession? Session { get; private set; }
         public ClientState State { get; private set; } = ClientState.Connecting;
         public int PlayerId { get; private set; }
@@ -217,7 +223,9 @@ namespace Dino_Defenders.Client
             if (State == ClientState.Playing)
             {
                 RunDownBuffs((float)seconds);
-                if (Commands.Running) UpdateHero(seconds);
+                // This frame's time passed before the newest snapshot was heard, so the clock starting from it doesn't count it.
+                if (!Commands.Running && StartCommands()) UpdateHero(0.0);
+                else if (Commands.Running) UpdateHero(seconds);
                 else SendCommands();
             }
 
@@ -235,6 +243,25 @@ namespace Dino_Defenders.Client
                 buff.Left = MathF.Max(buff.Left - seconds, 0f);
                 Buffs[i] = buff;
             }
+            for (int i = 0; i < Ailments.Count; i++)
+            {
+                ShownAilment ailment = Ailments[i];
+                ailment.Left = MathF.Max(ailment.Left - seconds, 0f);
+                Ailments[i] = ailment;
+            }
+        }
+
+        // This snapshot left half a trip ago, and a command takes half a trip to get back: starting a whole round trip ahead of it, and a little over,
+        // means commands are on time from the first. Guessing here would cost every new arrival some seconds of being corrected while the clock found its way.
+        private bool StartCommands()
+        {
+            if (_startFrom is not (uint tick, HeroSimState truth)) return false;
+            _startFrom = null;
+            Predictor.Reset(truth, tick);
+            uint trip = (uint)MathF.Ceiling(RoundTrip / (1000f * NetTime.TickSeconds));
+            Commands.Start(tick + trip + FirstMargin);
+            Console.WriteLine($"Hero's clock started {tick - _startFirst} ticks on from the first snapshot heard.");
+            return true;
         }
 
         private void UpdateHero(double seconds)
@@ -434,6 +461,7 @@ namespace Dino_Defenders.Client
             _recent.Clear();
             OwnGhost = null;
             _lastSnapshotTick = 0;
+            _startFrom = null;
             _ownGhost = 0;
             Session = null;
             State = ClientState.Loading;
@@ -465,6 +493,7 @@ namespace Dino_Defenders.Client
             HeroSimState truth = HeroSimState.Read(reader);
             float barrier = reader.ReadFloat();
             float debt = reader.ReadFloat();
+            Protocol.ReadAilments(reader, _ailmentsHeard);
             uint sentAt = reader.ReadUInt();
             uint heldFor = reader.ReadVarUInt();
             uint confirmed = reader.ReadUInt();
@@ -487,6 +516,8 @@ namespace Dino_Defenders.Client
                 Session.Barrier = barrier;
                 Session.Debt = debt;
             }
+            Ailments.Clear();
+            Ailments.AddRange(_ailmentsHeard);
             if (sentAt != 0)
             {
                 long sample = (uint)Clock() - (long)sentAt - heldFor;
@@ -497,16 +528,12 @@ namespace Dino_Defenders.Client
 
             if (!Commands.Running)
             {
-                Predictor.Reset(truth, tick);
-
-                // This snapshot left half a trip ago, and a command takes half a trip to get back: starting a whole round trip
-                // ahead of it, and a little over, means commands are on time from the first. Guessing here would cost
-                // every new arrival some seconds of being corrected while the clock found its way.
-                if (RoundTrip > 0f || sentAt != 0)
-                {
-                    uint trip = (uint)MathF.Ceiling(RoundTrip / (1000f * NetTime.TickSeconds));
-                    Commands.Start(tick + trip + FirstMargin);
-                }
+                // Started once everything waiting has been heard (StartCommands), from the newest: the first frame in a new world can take seconds, and
+                // what came in meanwhile all waits for it, so the first of those is long out of date. Started from that, the clock ran behind the server
+                // and the hero was put back where the server had them, standing still, until the clock had found its way: seconds of rubber banding.
+                if (_startFrom == null) _startFirst = tick;
+                if (RoundTrip > 0f || sentAt != 0) _startFrom = (tick, truth);
+                else Predictor.Reset(truth, tick);
                 return;
             }
 

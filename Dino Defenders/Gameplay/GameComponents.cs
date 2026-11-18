@@ -373,8 +373,18 @@ namespace Dino_Defenders.Gameplay
     {
         public uint Flags;
 
-
         public readonly bool Has(Condition condition) => ((Condition)Flags & condition) != 0;
+    }
+
+    /// <summary>
+    /// An ailment on a hero as they're shown it, sent to them alone with each snapshot (<c>Protocol.WriteAilments</c>): as a buff is, how long it has left and how many stacks. Every ailment
+    /// they're under is one of these, granted ones too, with no time where it has none (<see cref="Left"/> 0), and the bar treats it exactly as it does a buff.
+    /// </summary>
+    public struct ShownAilment
+    {
+        public Condition Ailment;
+        public float Left;
+        public int Stacks;
     }
 
     /// <summary>What a hero has thrown, which is the very thing in their hands, and sent the way anything lying on the ground is: see <see cref="PickupComponent"/>.</summary>

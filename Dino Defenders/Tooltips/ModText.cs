@@ -314,6 +314,7 @@ namespace Dino_Defenders.Tooltips
             new(Rule.FlockPays, "Books Cost nothing, except those that raise Minions"),
             new(Rule.FlockBleeds, "Each Book you use takes your oldest Minion, and can't be used without one, except those that raise Minions", Tags.Minion, Hurts: true),
             new(Rule.Inoculated, "You can't be given Ailments"),
+            new(Rule.Grace, "Enemies don't notice you, and you neither take nor deal Damage, until you move or use anything"),
         };
 
         public static IReadOnlyList<RuleInfo> Rules => RuleTable;

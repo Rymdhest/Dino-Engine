@@ -35,6 +35,9 @@ namespace Dino_NetLab
             report.Section("Burning to death");
             Burning(report, worlds, request);
 
+            report.Section("What a hero is shown of their ailments");
+            ShownOwnAilments(report, worlds, request);
+
             report.Section("Defences");
             Resisted(report, worlds, request);
             Evaded(report, worlds, request);
@@ -184,6 +187,42 @@ namespace Dino_NetLab
             report.Check("And nothing's unaccounted", recap.Unaccounted < Slack, $"{recap.Unaccounted}");
             report.Check("And nothing came back, though Health is set to nothing from below it in the same moment", recap.Heals.Total < Slack, $"{recap.Heals.Total}");
             report.Check("And the sentence says Burn, by whom", RecapText.Cause(recap).Contains("Burn") && RecapText.Cause(recap).Contains("Dummy"), RecapText.Cause(recap));
+        }
+
+        // What a hero is shown of their own ailments under their Health bar, as of a buff: how long each has left and how many stacks.
+        private static void ShownOwnAilments(Report report, WorldCache worlds, WorldRequest request)
+        {
+            using var arena = new Arena(worlds, request, Hero());
+            Actor foe = arena.Dummy(East * 3f);
+            Afflictions on = arena.Hero.Afflictions;
+            on.BurnSource = foe;
+            on.BurnLeft = 20f;
+            on.BurnPerSecond = 0.01f;
+            on.Venom = new List<VenomStack> { new VenomStack { Source = foe, PerSecond = 0.01f, Left = 12f }, new VenomStack { Source = foe, PerSecond = 0.01f, Left = 18f }, new VenomStack { Source = foe, PerSecond = 0.01f, Left = 15f } };
+            on.HexLeft = 25f;
+            on.HexStacks = 4;
+            arena.Run(0.5);
+
+            List<ShownAilment> shown = arena.Player.Client.Ailments;
+            ShownAilment Of(Condition ailment) => shown.FirstOrDefault(each => each.Ailment == ailment);
+            report.Check("Their client is told how long the Burn has left", MathF.Abs(Of(Condition.Burning).Left - on.BurnLeft) < 0.3f, $"{Of(Condition.Burning).Left:0.0} s shown, {on.BurnLeft:0.0} s left");
+            report.Check("And Venom's longest stack", MathF.Abs(Of(Condition.Envenomed).Left - on.Venom.Max(stack => stack.Left)) < 0.3f, $"{Of(Condition.Envenomed).Left:0.0} s shown");
+            report.Check("How many stacks of Venom there are", Of(Condition.Envenomed).Stacks == on.Venom.Count, $"{Of(Condition.Envenomed).Stacks} of {on.Venom.Count}");
+            report.Check("And of Hex", Of(Condition.Hexed).Stacks == on.HexStacks && MathF.Abs(Of(Condition.Hexed).Left - on.HexLeft) < 0.3f, $"{Of(Condition.Hexed).Stacks} of {on.HexStacks}, {Of(Condition.Hexed).Left:0.0} s");
+            report.Check("And one Burn", Of(Condition.Burning).Stacks == 1);
+            report.Check("And nothing of what isn't on them", shown.Count == 3, string.Join(", ", shown.Select(each => each.Ailment)));
+
+            on.Venom.RemoveAt(0);
+            arena.Run(0.5);
+            report.Check("A stack that goes is gone from what they're shown", Of(Condition.Envenomed).Stacks == 2, $"{Of(Condition.Envenomed).Stacks}");
+
+            // When they're gone nothing's shown, and what's on them for ever is sent as having no time.
+            arena.Hero.Afflictions.Clear();
+            arena.Hero.Buffs.Clear();
+            arena.Combat.AddBuff(arena.Hero, Dino_Defenders.Books.BuffCatalog.Grace, float.PositiveInfinity);
+            arena.Run(0.5);
+            report.Check("Nor once they're gone", shown.Count == 0, string.Join(", ", shown.Select(each => each.Ailment)));
+            report.Check("A buff given for ever reaches its client with no time, as a granted ailment would", arena.Player.Client.Buffs.Any(buff => buff.Buff == Dino_Defenders.Books.BuffCatalog.Grace && buff.Left == 0f));
         }
 
         private static void Resisted(Report report, WorldCache worlds, WorldRequest request)

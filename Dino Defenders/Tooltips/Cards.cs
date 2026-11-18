@@ -464,12 +464,13 @@ namespace Dino_Defenders.Tooltips
             var card = new Card { Title = buff.Name, Tags = TagsOf(buff.Mods) | Tags.Buff };
             if (stacks > 0)
             {
+                // A time whenever there is one, as on the bar: one given for ever has none.
                 card.Cell("Stacks", $"{stacks} of {buff.MostStacks}");
-                card.Cell("Duration", Seconds(left));
+                if (left > 0f && float.IsFinite(left)) card.Cell("Duration", Seconds(left));
             }
             else
             {
-                card.Cell("Duration", Seconds(buff.Duration));
+                if (buff.Duration > 0f && float.IsFinite(buff.Duration)) card.Cell("Duration", Seconds(buff.Duration));
                 if (buff.MostStacks > 1) card.Cell("Stacks", $"Up to {buff.MostStacks}");
             }
             card.Gap();
@@ -755,6 +756,17 @@ namespace Dino_Defenders.Tooltips
         public static Card Defined(Term term)
         {
             var card = new Card { Title = term.Name };
+            card.Text(term.Says);
+            return card;
+        }
+
+        /// <summary>An ailment on the hero, with its stacks and time as a buff's card has them, and what it is.</summary>
+        public static Card AilmentOn(Term term, int stacks, float left)
+        {
+            var card = new Card { Title = term.Name };
+            card.Cell("Stacks", $"{stacks}");
+            if (left > 0f && float.IsFinite(left)) card.Cell("Duration", Seconds(left));
+            card.Gap();
             card.Text(term.Says);
             return card;
         }

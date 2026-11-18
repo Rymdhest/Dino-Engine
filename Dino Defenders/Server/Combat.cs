@@ -906,6 +906,9 @@ namespace Dino_Defenders.Server
         public void Hit(Actor source, PageProfile skill, Actor target, float strength, Vector2 from, Vector2 way = default)
         {
             if (target.Dead) return;
+
+            // Someone just come out of a loading screen is in nobody's fight until they've done something, either way round.
+            if (target.Sheet.Has(Rule.Grace) || source.Sheet.Has(Rule.Grace)) return;
             if (way.LengthSquared <= 0.01f) way = target.Position - from;
             way = way.LengthSquared > 0.01f ? way.Normalized() : Vector2.UnitY;
 
@@ -1294,6 +1297,7 @@ namespace Dino_Defenders.Server
         public void Harm(Actor source, Actor target, float amount, DamageType type, Tags tags = Tags.None, Vector2? from = null, HarmCause cause = HarmCause.Other)
         {
             if (target.Dead || amount <= 0f) return;
+            if (target.Sheet.Has(Rule.Grace) || source.Sheet.Has(Rule.Grace)) return;
 
             HitPacket hit = default;
             hit.Damage[(int)type] = amount;

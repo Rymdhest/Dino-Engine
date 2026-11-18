@@ -80,6 +80,43 @@ namespace Dino_Defenders.Server
             }
         }
 
+        /// <summary>
+        /// Every ailment in <paramref name="on"/> as its bearer is shown it, each with the time and stacks it has here: none of either for one that's only granted, which holds nothing here
+        /// and never runs out. Stacks are as many as it holds of itself, so Venom's are its stacks and Hex's its count, and anything held once is one.
+        /// </summary>
+        public void Show(Condition on, List<ShownAilment> into)
+        {
+            into.Clear();
+            for (ulong rest = (ulong)on; rest != 0; rest &= rest - 1)
+            {
+                var ailment = (Condition)(rest & (~rest + 1));
+                Holds(ailment, out float left, out int stacks);
+                into.Add(new ShownAilment { Ailment = ailment, Left = MathF.Max(left, 0f), Stacks = Math.Max(stacks, 1) });
+            }
+        }
+
+        // What there is of one ailment here: how long it has and how many of it.
+        private void Holds(Condition ailment, out float left, out int stacks)
+        {
+            stacks = 1;
+            switch (ailment)
+            {
+                case Condition.Burning: left = BurnLeft; break;
+                case Condition.Bleeding: left = BleedLeft; break;
+                case Condition.Chilled: left = ChillLeft; break;
+                case Condition.Frozen: left = FreezeLeft; break;
+                case Condition.Shocked: left = ShockLeft; break;
+                case Condition.Stunned: left = StunLeft; break;
+                case Condition.Hexed: left = HexLeft; stacks = HexStacks; break;
+                case Condition.Envenomed:
+                    left = 0f;
+                    stacks = Venom?.Count ?? 0;
+                    if (Venom != null) foreach (VenomStack stack in Venom) left = MathF.Max(left, stack.Left);
+                    break;
+                default: left = 0f; break;
+            }
+        }
+
         public void Clear()
         {
             BurnLeft = BleedLeft = ChillLeft = FreezeLeft = ShockLeft = HexLeft = StunLeft = 0f;

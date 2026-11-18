@@ -288,6 +288,34 @@ namespace Dino_Defenders.Net
             hero.HallsOpen = open;
         }
 
+        /// <summary>Every ailment a hero's under, for them alone to be shown, as their buffs are: which it is, its time in tenths of a second (0 for none) and its stacks.</summary>
+        public static void WriteAilments(BitWriter writer, IReadOnlyList<ShownAilment> ailments)
+        {
+            writer.WriteCount(ailments.Count);
+            foreach (ShownAilment shown in ailments)
+            {
+                writer.WriteByte((byte)System.Numerics.BitOperations.TrailingZeroCount((ulong)shown.Ailment));
+                writer.WriteVarUInt((uint)Math.Clamp(MathF.Ceiling(shown.Left * 10f), 0f, 1_000_000f));
+                writer.WriteVarUInt((uint)Math.Clamp(shown.Stacks, 1, MostStacks));
+            }
+        }
+
+        public static void ReadAilments(BitReader reader, List<ShownAilment> ailments)
+        {
+            ailments.Clear();
+            int count = reader.ReadCount(MostAilments);
+            for (int i = 0; i < count; i++)
+            {
+                int bit = reader.ReadByte();
+                float left = reader.ReadVarUInt() / 10f;
+                int stacks = (int)Math.Min(reader.ReadVarUInt(), MostStacks);
+                if (bit < 64) ailments.Add(new ShownAilment { Ailment = (Condition)(1UL << bit), Left = left, Stacks = Math.Max(stacks, 1) });
+            }
+        }
+
+        private const int MostAilments = 64;
+        private const int MostStacks = 999;
+
         /// <summary>What's on a hero that only lasts a while.</summary>
         public static void WriteBuffs(BitWriter writer, IReadOnlyList<ActiveBuff> buffs)
         {
@@ -296,7 +324,7 @@ namespace Dino_Defenders.Net
             {
                 writer.WriteVarInt(buff.Buff.Number);
                 writer.WriteVarInt(buff.Stacks);
-                writer.WriteFloat(buff.Left);
+                writer.WriteFloat(float.IsFinite(buff.Left) ? buff.Left : 0f);   // One given for ever has no time, which is 0, as an ailment's.
             }
         }
 

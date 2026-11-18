@@ -277,13 +277,14 @@ namespace Dino_NetLab
         private const float AsLargeAsItCanBe = 3f;
 
         /// <param name="calm">Nothing that's there to be fought stirs (ServerSettings.Calm), for what's about the line and not a fight: a land's packs are laid out by its mountains, and one can come to lie near enough to wake.</param>
-        public GameLab(WorldCache worlds, WorldRequest request, string? startSite = "BanditCamp", LandTerms? terms = null, SaveGame? save = null, bool calm = false)
+        /// <param name="grace">Heroes arrive in Grace, as in the game. Off by default, as most suites strike a hero who stands still, and Grace keeps whoever hasn't pressed anything out of every fight.</param>
+        public GameLab(WorldCache worlds, WorldRequest request, string? startSite = "BanditCamp", LandTerms? terms = null, SaveGame? save = null, bool calm = false, bool grace = false)
         {
             _worlds = worlds;
 
             // Generation takes real time, and this clock doesn't wait for it.
             worlds.Get(Shaped(request, terms)).Wait();
-            Server = new GameServer(new ServerSettings { Request = request, Terms = terms, Save = save, StartSite = startSite, AllowTeleport = true, Calm = calm }, worlds);
+            Server = new GameServer(new ServerSettings { Request = request, Terms = terms, Save = save, StartSite = startSite, AllowTeleport = true, Calm = calm, Grace = grace }, worlds);
             Server.Clock = () => (long)(_now * 1000.0);
         }
 

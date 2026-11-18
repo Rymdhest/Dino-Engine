@@ -23,6 +23,7 @@ namespace Dino_Defenders.Server
         public string? StartSite;
         public string? StartBiome;
         public LootRule Loot;           // Who what drops is for, as the host chose it.
+        public bool Grace = true;       // Heroes arrive in Grace (BuffCatalog.Grace). Off only for tests whose heroes stand and wait to be struck without pressing anything.
     }
 
     /// <summary>

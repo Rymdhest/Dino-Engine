@@ -49,7 +49,7 @@ namespace Dino_Defenders
 
         // A server with no window and no hero of its own, for anyone with a machine to leave running.
         private static void RunDedicated(GameOptions options)
-        {
+        {   
             ComponentTypeRegistry.AutoRegisterAllComponents();
             NetSchema.Build();
 

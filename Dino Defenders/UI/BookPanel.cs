@@ -603,7 +603,6 @@ namespace Dino_Defenders.UI
         private const float EffectsAbove = 6f;
         private const float EffectTime = 13f;      // Under each square, how long it has left.
 
-        private static readonly Condition[] Ailments = { Condition.Burning, Condition.Bleeding, Condition.Envenomed, Condition.Chilled, Condition.Frozen, Condition.Shocked, Condition.Hexed, Condition.Stunned };
         private const float HealthHeight = 16f;
         private const float ManaHeight = 12f;
         private const float PoolGap = 3f;
@@ -718,34 +717,46 @@ namespace Dino_Defenders.UI
             int perRow = Math.Max(1, (int)((Bounds.Width * 0.5f) / (Effect + EffectGap)));
             int helping = 0, hurting = 0;
 
+            // Buffs and ailments alike, and every one of them drawn by the same rules.
+            _effects.Clear();
             foreach (ActiveBuff buff in session.Client.Buffs)
             {
-                bool hurts = Harm.IsDebuff(buff.Buff);
-                GuiRect place = EffectPlace(hurts ? hurting++ : helping++, perRow, bottom, hurts);
-                TalentIcon icon = TalentIcons.Of(buff.Buff.Mods);
-                float gone = buff.Buff.Duration > 0f ? 1f - Math.Clamp(buff.Left / buff.Buff.Duration, 0f, 1f) : 0f;
-                DrawEffect(draw, place, icon, hurts, gone, buff.Stacks);
-                if (buff.Buff.Duration > 0f && buff.Left > 0f)
-                    Ui.Text(Context!, draw, TimeLeft(buff.Left), 11f, new GuiRect(place.X - EffectGap * 0.5f, place.Bottom + 1f, place.Width + EffectGap, EffectTime - 1f), hurts ? GuiColors.Rgba(240, 150, 130) : Ui.Parchment, Alignment.Center);
-                if (Resting(Context!, place))
-                {
-                    ActiveBuff shown = buff;
-                    GameUi.Current.Tips.Show(() => Cards.Buff(shown.Buff, session.Sheet, shown.Stacks, shown.Left), place, above: true);
-                }
+                ActiveBuff shown = buff;
+                _effects.Add(new Shown(TalentIcons.Of(buff.Buff.Mods), Harm.IsDebuff(buff.Buff), buff.Left, buff.Buff.Duration, buff.Stacks, () => Cards.Buff(shown.Buff, session.Sheet, shown.Stacks, shown.Left)));
+            }
+            foreach (ShownAilment ailment in session.Client.Ailments)
+            {
+                Term? term = Lexicon.Of(ailment.Ailment);
+                ShownAilment shown = ailment;
+                _effects.Add(new Shown(new TalentIcon(TalentIcons.AilmentGlyph(ailment.Ailment)), true, ailment.Left, 0f, ailment.Stacks, term != null ? () => Cards.AilmentOn(term, shown.Stacks, shown.Left) : null));
             }
 
-            if (session.Client.OwnGhost is not { } own || !session.Client.Ecs.TryGetEntityLocation(own.Entity, out _, out _)) return;
-            var view = session.Client.Ecs.GetEntityView(own.Entity);
-            if (!view.Has<AfflictedComponent>()) return;
-            AfflictedComponent afflicted = view.Get<AfflictedComponent>();
-            foreach (Condition ailment in Ailments)
+            foreach (Shown effect in _effects)
             {
-                if (!afflicted.Has(ailment)) continue;
-                GuiRect place = EffectPlace(hurting++, perRow, bottom, true);
-                DrawEffect(draw, place, new TalentIcon(TalentIcons.AilmentGlyph(ailment)), true, 0f, 0);
-                if (Resting(Context!, place) && Lexicon.Of(ailment) is Term term) GameUi.Current.Tips.Show(() => Cards.Defined(term), place, above: true);
+                GuiRect place = EffectPlace(effect.Hurts ? hurting++ : helping++, perRow, bottom, effect.Hurts);
+                DrawEffect(draw, place, effect.Icon, effect.Hurts, effect.Gone, effect.Stacks);
+                if (Timed(effect.Left)) DrawTimeLeft(draw, place, effect.Left, effect.Hurts);
+                if (effect.Card != null && Resting(Context!, place)) GameUi.Current.Tips.Show(effect.Card, place, above: true);
             }
         }
+
+        /// <summary>
+        /// Anything on the hero as the bar shows it, a buff or an ailment: its picture, whether it hurts, its time left and its stacks. A time is shown whenever there is one, and a count
+        /// whenever there's more than one stack, whatever it is. How far it's run is shaded only where how long it lasts in all is known.
+        /// </summary>
+        private readonly record struct Shown(TalentIcon Icon, bool Hurts, float Left, float Lasts, int Stacks, Func<Card>? Card)
+        {
+            public float Gone => Timed(Lasts) && Timed(Left) ? 1f - Math.Clamp(Left / Lasts, 0f, 1f) : 0f;
+        }
+
+        private readonly List<Shown> _effects = new();
+
+        // A time to show: something left, and not for ever.
+        private static bool Timed(float seconds) => seconds > 0f && float.IsFinite(seconds);
+
+        // How long something on the hero has left, under its picture.
+        private void DrawTimeLeft(GuiDrawList draw, GuiRect place, float left, bool hurts) =>
+            Ui.Text(Context!, draw, TimeLeft(left), 11f, new GuiRect(place.X - EffectGap * 0.5f, place.Bottom + 1f, place.Width + EffectGap, EffectTime - 1f), hurts ? GuiColors.Rgba(240, 150, 130) : Ui.Parchment, Alignment.Center);
 
         // Tenths in the last few seconds, where they matter, whole seconds up to a minute, then minutes and hours.
         private static string TimeLeft(float seconds)

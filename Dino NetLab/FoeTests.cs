@@ -47,6 +47,9 @@ namespace Dino_NetLab
             report.Section("What a client is told");
             Told(report, worlds, request);
 
+            report.Section("Grace after a loading screen");
+            Graced(report, worlds, request);
+
             report.Section("Whoever chases gets there");
             ComesIn(report, worlds, request);
             Chases(report, worlds, new[] { request }.Concat(Enumerable.Range(1, options.Int("chaseworlds", 3)).Select(i => new WorldRequest(options.Int("seed", 303) + i * 101, options.Text("chasearchetype")))));
@@ -64,6 +67,57 @@ namespace Dino_NetLab
             BonesAndArrows(report, worlds, request);
 
             return report.Finish();
+        }
+
+        // A hero arrives in Grace and keeps it, unseen, untouched and harmless, for as long as they press nothing, however near an enemy stands; the first step takes it off, and then they're seen.
+        private static void Graced(Report report, WorldCache worlds, WorldRequest request)
+        {
+            using var arena = new Arena(worlds, request, Tough(), grace: true);
+            GameServer server = arena.Lab.Server;
+            report.Check("A hero arrives in Grace", arena.Hero.Sheet.Has(Rule.Grace) && arena.Hero.Buffs.Any(buff => buff.Buff == Dino_Defenders.Books.BuffCatalog.Grace));
+            report.Check("And their client knows it", arena.Player.Client.Buffs.Any(buff => buff.Buff == Dino_Defenders.Books.BuffCatalog.Grace));
+
+            Loadout loadout = arena.Session.Bestiary.Shared(Bestiary.Outlaw, 10, Rarity.Normal, Bestiary.NoTraits);
+            Vector2 at = arena.At + new Vector2(10f, 0f);
+            for (float turn = 0f; turn < MathF.Tau && !arena.Session.World.Passable.IsSet(at); turn += 0.4f) at = arena.At + new Vector2(MathF.Cos(turn), MathF.Sin(turn)) * 10f;
+            float height = arena.Session.World.Height.Sample(at);
+            var foe = new Actor(Team.Enemies, loadout, at, WorldData.CharacterRadius) { Body = "skeleton", Height = height };
+            foe.Entity = server.Ecs.CreateEntity("Outlaw", Bodies.Walking(server.Main, "skeleton", new Vector3(at.X, height, at.Y), 1f, 2f,
+                new EnemyComponent { Name = "Outlaw", Level = 10 },
+                new EnemyBrainComponent { SiteIndex = 0, SpawnIndex = -1, Home = at, AggroRadius = 60f, LeashRadius = 200f },
+                new HealthComponent(foe.Sheet.MaxHealth), new ActionComponent(), new AfflictedComponent(), new ActorComponent(foe)));
+            EnemyState State() => server.Ecs.GetEntityView(foe.Entity).Get<EnemyComponent>().State;
+
+            arena.Run(4.0);
+            report.Check("An enemy 10 m off doesn't notice them while they press nothing", State() == EnemyState.Idle, $"{State()}");
+
+            float health = arena.Hero.Vitals.Health;
+            arena.Combat.Hit(foe, foe.Sheet.Profile(0).First, arena.Hero, 1f, foe.Position);
+            arena.Combat.Harm(foe, arena.Hero, 1000f, DamageType.Fire);
+            arena.Run(0.2);
+            report.Check("Nothing that reaches them takes anything", arena.Hero.Vitals.Health >= health, $"{health:0} to {arena.Hero.Vitals.Health:0}");
+
+            float foeHealth = foe.Vitals.Health;
+            arena.Combat.Hit(arena.Hero, arena.Hero.Sheet.Profile(0).First, foe, 1f, arena.At);
+            arena.Run(0.2);
+            report.Check("And nothing of theirs takes anything", foe.Vitals.Health >= foeHealth, $"{foeHealth:0} to {foe.Vitals.Health:0}");
+            report.Check("Nor wakes what it reached", State() == EnemyState.Idle, $"{State()}");
+            report.Check("Grace stays while they do nothing", arena.Hero.Sheet.Has(Rule.Grace));
+
+            arena.Player.Heading = arena.At + new Vector2(0f, -3f);
+            arena.Run(0.5);
+            arena.Player.Heading = null;
+            report.Check("A step takes Grace off", !arena.Hero.Sheet.Has(Rule.Grace) && arena.Hero.Buffs.All(buff => buff.Buff != Dino_Defenders.Books.BuffCatalog.Grace));
+            arena.Run(0.5);
+            report.Check("And their client is told", arena.Player.Client.Buffs.All(buff => buff.Buff != Dino_Defenders.Books.BuffCatalog.Grace));
+
+            bool seen = false;
+            for (double waited = 0.0; waited < 3.0 && !seen; waited += NetTime.TickSeconds)
+            {
+                arena.Run(NetTime.TickSeconds);
+                seen = State() != EnemyState.Idle;
+            }
+            report.Check("Then the enemy sees them", seen, $"{State()}");
         }
 
         // What goes off by itself is no reason to hang back. A tyrant whose gear set off a zone 30 m out once stood that far off a hero for good, waiting to strike with it.
