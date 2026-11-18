@@ -2,7 +2,9 @@
 
 // Starts each probe of a cascade off: its parents in the next cascade, and where it stands. Where a probe stands and which parents it
 // sees come from its place in the lattice and the voxels around it, and nothing else, so a probe that was there last frame among the
-// same voxels (giProbeStamp) keeps what it had, and keeping it changes nothing anyone sees. Any other is listed, for GI_Probe_Place.comp
+// same voxels (giProbeStamp) keeps what it had, and keeping it changes nothing anyone sees. Which parents it sees also comes from where they stand,
+// so it keeps that only while all its parents keep theirs: a parent set up again as a window slid over it, under a child that kept its old word,
+// left the child counting parents it couldn't see and missing ones it could, which drew dark dashes across a snowfield after walking. Any other is listed, for GI_Probe_Place.comp
 // to find it room and GI_Probe_See.comp to ask which parents it can see, and looks along every direction this frame, as what it saw
 // before was seen from somewhere else or through other voxels (GI_Probe_Trace.comp). Those take many lookups, each waiting on the one
 // before, so they are spread over many threads a probe there rather than holding this pass up: every cascade runs this at once.
@@ -17,6 +19,18 @@ layout(std430, binding = 23) buffer GiProbePrevious { int giProbePrevious[]; };
 layout(std430, binding = 27) writeonly buffer GiFresh { int giFresh[]; };       // The slots of the probes to place this frame.
 
 uniform int cascade;
+
+// Whether the parent in a slot of the next cascade stands where it stood last frame: it was there, among the same voxels, so it keeps its place too.
+// A probe's word on which parents it can see was asked of where they stood, so it only holds while every one of them is kept.
+bool giParentKept(int parent)
+{
+    if (parent < 0) return true;
+    int slot = GI_PROBE_BASE[cascade + 1] + parent;
+    int previous = giProbePrevious[slot];
+    if (previous < 0) return false;
+    uint stamp = giProbeStamp(cascade + 1, giUnpackKey(giProbeKey[slot]));
+    return (floatBitsToUint(giPreviousPlace[GI_PROBE_BASE[cascade + 1] + previous].w) & GI_PROBE_STAMP) == stamp;
+}
 
 void main()
 {
@@ -36,7 +50,12 @@ void main()
     if (previous >= 0)
     {
         vec4 kept = giPreviousPlace[GI_PROBE_BASE[cascade] + previous];
-        if ((floatBitsToUint(kept.w) & GI_PROBE_STAMP) == stamp)
+        bool parentsKept = true;
+        if (cascade + 1 < GI_CASCADES)
+        {
+            for (int j = 0; j < 8; j++) parentsKept = parentsKept && giParentKept(giProbeParent[slot * 8 + j]);
+        }
+        if ((floatBitsToUint(kept.w) & GI_PROBE_STAMP) == stamp && parentsKept)
         {
             giProbePlace[slot] = kept;
             return;
